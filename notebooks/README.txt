@@ -1,0 +1,1 @@
+Here, continuous time markov chains (CTMC) are used to model the emission behavior of fluorophores. The goal is to simulate trajectories of emissions of pairs of n fluorophores in varying proximity (e.g, 3 nm, 6 nm, 9 nm) to each other.

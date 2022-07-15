@@ -1,0 +1,158 @@
+import matplotlib.pyplot as plt
+import matplotlib.animation as manimation
+import matplotlib.patches as mpatches
+import numpy as np
+
+
+def jablonski_diagram(time_series, time_step_series, state_series, number, state_names, states, index_min=0,
+                      index_range=100, fps=10, saveas="writer_test.mp4"):
+    if states != ("S0", "S1", "T1", "R", "B"):
+        raise ValueError("states have to be equal to (""S0"", ""S1"", ""T1"", ""R"", ""B"")")
+    else:
+        ffmpegwriter = manimation.writers["ffmpeg"]
+        metadata = dict(title="Jablonski diagram", artist="Sagix",
+                        comment="Markov Chain visualized in the Jablonski diagram")
+        writer = ffmpegwriter(fps=fps, metadata=metadata)
+
+        fig = plt.figure(figsize=(14, 7))
+        plt.ylabel("energy", size=21)
+        plt.ylim(0, 2)
+        plt.xlim(0, 4)
+        x_diff = 0.9/number
+        lines = [0.1, 0.1, 1], [1.5, 0.1, 1], [1.3, 1.1, 2], [1, 2.1, 3], [0.1, 2.3, 3.2]
+        circle_positions = []
+        for line, state in zip(lines, states):
+            plt.hlines(y=line[0], xmin=line[1], xmax=line[2], color="k")
+            plt.text(x=line[1], y=line[0]+0.1, s=state, size=21)
+            circle_position_y = line[0]
+            circle_positions_x = np.arange(line[1]+x_diff, line[2]+x_diff, x_diff)
+            circle_positions.append([circle_position_y, circle_positions_x])
+
+        ax = plt.gca()
+        ax.get_xaxis().set_visible(False)
+        plt.yticks([], [])
+
+        circles = []
+        for i in range(number):
+            circle, = plt.plot([], [], "bo", markersize=10)
+            circles.append(circle)
+
+        exponents = np.floor(np.log10(time_step_series[1:]))
+        min_expo = np.min(exponents)
+
+        special_case = False
+
+        if len(state_series[index_min:]) - 1 <= index_range:
+            index_range = len(state_series[index_min:])
+            special_case = True
+
+        with writer.saving(fig, saveas, 100):
+            for i_1 in range(index_min, index_min + index_range):
+                state_index = int(state_series[i_1])
+                state = state_names[state_index]
+                state = state.split("_")
+                for i_2 in range(number):
+                    index = states.index(state[i_2])
+                    circle_pos = circle_positions[index]
+                    y = circle_pos[0]
+                    x = circle_pos[1][i_2]
+                    circles[i_2].set_data(x, y)
+
+                if special_case and i_1 == index_range - 1:
+                    next_transition_in = np.inf
+                    frames = 1
+                    next_frame_in = np.inf
+                else:
+                    next_transition_in = time_step_series[i_1 + 1]  # i_1 + 1 because each time interval of state i_1 is
+                    # the one until it was occupied, here the time it stays at state i (until next transition happens)
+                    # is desired
+                    exponent = exponents[i_1]  # i_1 since exponents is defined with array[1:]
+                    frames = int(1 + exponent - min_expo)
+                    next_frame_in = frames / fps
+
+                total_time = time_series[i_1]
+
+                row_labels = ["total", "next tr", "next fr"]
+                column_label = ["time [s]"]
+                cell_texts = [[f"{total_time:.2e}"], [f"{next_transition_in:.2e}"], [f"{next_frame_in}"]]
+                table = plt.table(cellText=cell_texts, rowLabels=row_labels, colLabels=column_label, cellLoc="center",
+                                  colWidths=[0.1], rowLoc="center", loc="upper right")
+                table.set_fontsize(13)
+                table.scale(1.5, 1.5)
+
+                for _ in range(frames):
+                    writer.grab_frame()
+
+        plt.close()
+
+
+def on_off_diagram(time_series, time_step_series, state_series, number, state_names, states, index_min=0,
+                   index_range=100, fps=10, saveas="writer_test.mp4"):
+    if states != ("ON", "OFF", "B"):
+        raise ValueError("states have to be equal to (""ON"", ""OFF"", ""B"")")
+    else:
+        ffmpegwriter = manimation.writers["ffmpeg"]
+        metadata = dict(title="On Off diagram", artist="Sagix",
+                        comment="Markov Chain visualized in the On Off diagram")
+        writer = ffmpegwriter(fps=fps, metadata=metadata)
+
+        fig = plt.figure(figsize=(14, 7))
+        plt.ylim(0, 2)
+        plt.xlim(0, 4)
+        x_diff = 4 / (number+1)
+        circle_positions_x = np.arange(x_diff, 4+x_diff, x_diff)
+
+        ax = plt.gca()
+        ax.get_xaxis().set_visible(False)
+        plt.yticks([], [])
+
+        colors = ["r", "grey", "w"]
+        handles = [mpatches.Patch(facecolor=color, edgecolor="k", label=state) for color, state in zip(colors, states)]
+        ax.legend(handles=handles, prop={"size": 20}, loc="upper left")
+
+        exponents = np.floor(np.log10(time_step_series[1:]))
+        min_expo = np.min(exponents)
+
+        special_case = False
+
+        if len(state_series[index_min:])-1 <= index_range:
+            index_range = len(state_series[index_min:])
+            special_case = True
+
+        with writer.saving(fig, saveas, 100):
+            for i_1 in range(index_min, index_min + index_range):
+                state_index = int(state_series[i_1])
+                state = state_names[state_index]
+                state = state.split("_")
+                for i_2 in range(number):
+                    index = states.index(state[i_2])
+                    plt.plot([circle_positions_x[i_2]], [1], marker="o", markerfacecolor=colors[index],
+                             markeredgecolor="k", markersize=80)
+
+                if special_case and i_1 == index_range-1:
+                    next_transition_in = np.inf
+                    frames = 1
+                    next_frame_in = np.inf
+                else:
+                    next_transition_in = time_step_series[i_1 + 1]  # i_1 + 1 because each time interval of state i_1 is
+                    # the one until it was occupied, here the time it stays at state i (until next transition happens)
+                    # is desired
+
+                    exponent = exponents[i_1]  # i_1 since exponents is defined with array[1:]
+                    frames = int(1 + exponent - min_expo)
+                    next_frame_in = frames / fps
+
+                total_time = time_series[i_1]
+
+                row_labels = ["total", "next tr", "next fr"]
+                column_label = ["time [s]"]
+                cell_texts = [[f"{total_time:.2e}"], [f"{next_transition_in:.2e}"], [f"{next_frame_in}"]]
+                table = plt.table(cellText=cell_texts, rowLabels=row_labels, colLabels=column_label, cellLoc="center",
+                                  colWidths=[0.1], rowLoc="center", loc="upper right")
+                table.set_fontsize(13)
+                table.scale(1.5, 1.5)
+
+                for _ in range(frames):
+                    writer.grab_frame()
+
+        plt.close()
