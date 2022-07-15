@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 import multipletau as mp
 
 
@@ -100,7 +99,7 @@ def autocorrelate(pandas_series, normalize=False, log=False, m=2, deltat=5e-3):
         return time, correl
 
     elif log:
-        correl = mp.autocorrelate(pandas_serires.values, m=m, deltat=deltat)
+        correl = mp.autocorrelate(pandas_series.values, m=m, deltat=deltat)
         time, correl = np.transpose(correl)
 
         return time, correl

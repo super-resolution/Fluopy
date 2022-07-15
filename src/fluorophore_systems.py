@@ -1,18 +1,15 @@
-import numpy as np
 import src.gillespie_algorithm as ga
 import src.processing as pr
 import src.initialize as init
 import src.animations as an
 import src.ssa_cython as ga_cy
 import src.emitting_transitions as et
-import time
 
 
 class FluorophoreSystem:
-    def __init__(self, number, distances, photon_collection, states, rates, predefined=None, induction_rate=None):
+    def __init__(self, number, distances, states, rates, predefined=None, induction_rate=None):
         self.number = number
         self.distances = distances
-        self.photon_collection = photon_collection
         self.states = states
         self.rates = rates
         if predefined:
@@ -73,13 +70,14 @@ class FluorophoreSystem:
 
 
 class JablonskiModel(FluorophoreSystem):
-    def __init__(self, number, distances, photon_collection, rates, predefined=None, induction_rate=None):
+    def __init__(self, number, distances, rates, predefined=None, induction_rate=None):
         states = ("S0", "S1", "T1", "R", "B")
-        super().__init__(number, distances, photon_collection, states, rates, predefined, induction_rate)
+        super().__init__(number, distances, states, rates, predefined, induction_rate)
 
         self.emitting_transitions = None
         self.emitting_transitions_indices = None
         self.emitting_mask = None
+        self.detected_emission_mask = None
         self.pandas_series = None
         self.on_periods = None
         self.off_periods = None
@@ -90,8 +88,8 @@ class JablonskiModel(FluorophoreSystem):
         an.jablonski_diagram(self.time_series, self.time_step_series, self.state_series, self.number,
                              self.state_names, self.states, index_min, index_range, fps, saveas)
 
-    def emitters(self, resample=None, unit=None, threshold=0, memory=0, use_unique=True,
-                 remove_heading_off_period=False):
+    def emitters(self, photon_collection=1, resample=None, unit=None, threshold=0, memory=0, use_unique=True,
+                 remove_heading_off_period=False, seed=100):
         if use_unique:
             if not self.unique_transitions:
                 super().process()
@@ -105,9 +103,14 @@ class JablonskiModel(FluorophoreSystem):
         self.emitting_transitions, self.emitting_transitions_indices = \
             et.identify_emitting_transitions(use_transitions)
 
-        self.emitting_mask = et.emitter_mask(use_state_series, self.emitting_transitions_indices)  # time-consuming
+        self.emitting_mask = et.emitter_mask(use_state_series, self.emitting_transitions_indices)
+        # time-consuming
 
-        self.pandas_series = et.pandas_event_time_series(self.time_series[self.emitting_mask], unit, resample)
+        self.detected_emission_mask = et.detected_emissions(self.emitting_mask, photon_collection, seed)
+        # important: the photon detection rate of the microscope must not impact the actual emission, only their
+        # detection!
+
+        self.pandas_series = et.pandas_event_time_series(self.time_series[self.detected_emission_mask], unit, resample)
 
         self.on_periods, self.off_periods, _, _, _ = et.blink_statistics(self.pandas_series, threshold, memory,
                                                                          remove_heading_off_period)
@@ -121,9 +124,9 @@ class JablonskiModel(FluorophoreSystem):
 
 
 class OnOffModel(FluorophoreSystem):
-    def __init__(self, number, distances, photon_collection, rates, predefined=None, induction_rate=None):
+    def __init__(self, number, distances, rates, predefined=None, induction_rate=None):
         states = ("ON", "OFF", "B")
-        super().__init__(number, distances, photon_collection, states, rates, predefined, induction_rate)
+        super().__init__(number, distances, states, rates, predefined, induction_rate)
 
         self.on_counts = None
         self.emissions = None

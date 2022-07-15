@@ -77,6 +77,17 @@ def emitter_mask(state_series, emitting_transitions_indices):
     return mask
 
 
+def detected_emissions(emitting_mask, photon_collection, seed):
+    rng = np.random.default_rng(seed)
+    emission_indices = np.nonzero(emitting_mask)[0]
+    not_collected_total = round((1 - photon_collection) * len(emission_indices))
+    not_collected_emission_indices = rng.choice(emission_indices, size=not_collected_total, replace=False)
+    collection_mask = emitting_mask.copy()
+    collection_mask[not_collected_emission_indices] = False
+
+    return collection_mask
+
+
 def pandas_event_time_series(events_at, unit, resample):
     events_at_zero = np.insert(events_at, 0, 0)  # add time zero to the events (there will be no event)
     timedeltas = pd.to_timedelta(events_at_zero, unit=unit)
@@ -162,8 +173,9 @@ def blink_statistics(pandas_series, threshold, memory=0, remove_heading_off_peri
 
         on_periods = np.ones(off_periods_indices.shape, dtype=int)
         # initialize array of on_periods (ones for every entry)
-        if duplices[0] == 0:
-            duplices = duplices[1:]
+        if duplices.size != 0:
+            if duplices[0] == 0:
+                duplices = duplices[1:]
         # if, in the beginning, more than one off period are consecutively interrupted by only
         # one frame, the cumsum will give several 0 (meaning that 0 will be one of duplices)
         # even though these on periods should stay 1
