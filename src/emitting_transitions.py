@@ -3,6 +3,22 @@ import pandas as pd
 
 
 def identify_emitting_transitions(transitions):
+    """
+    Identifies the transitions and their index-pairs that resemble spontaneous emissions. The photon is expected to
+    be of an energy level such that it reflects the molecule's fluorescence rather than phosphorescence.
+
+    Parameters
+    ----------
+    transitions : dict
+        Contains transitions as keys and index-pairs as values.
+
+    Returns
+    -------
+    emitting_transitions : list
+        Contains emitting transitions.
+    emitting_transitions_indices : list
+        Contains emitting transition indices.
+    """
     emitting_transitions = []
     emitting_transitions_indices = []
     for transition in transitions:
@@ -26,26 +42,29 @@ def identify_emitting_transitions(transitions):
 
 def search_sequence(arr, seq):
     """
-    Returns boolean array of length arr which contains True at indices i, where arr[i] starts (and continues) with seq.
+    Returns boolean array of length (arr - seq + 1)  which contains True at indices i, where arr[i] starts
+    (and continues) with seq.
 
     Parameters
     ----------
-    arr
-    seq
+    arr : np.ndarray
+        Input array.
+    seq : np.ndarray
+        Search sequence.
 
     Returns
     -------
-    mask
+    mask : np.ndarray
+        Boolean array of length (arr - seq + 1), True at i if arr[i] starts and continues with seq.
 
     """
     arr_size, seq_size = arr.size, seq.size
     r_seq = np.arange(seq_size)  # since all sequences are of size 2, r_seq is always [0, 1]
-    index_array_2d = np.arange(arr_size - seq_size + 1)[:, None]  # creates a 2D array of all indices of arr
-    # note that +1 due to arange stops one step ahead and -seq_size due to the later addition of r_seq
+    index_array_2d = np.arange(arr_size - seq_size + 1)[:, None]  # creates a 2D array of all potential indices of arr
+    # note that index at arr_size - seq_size + 1 is the last possible index at which seq can start (and continue)
     check_match_at = index_array_2d + r_seq  # the first index of arr [0] is converted to [0, 1] and so on
     check_match = arr[check_match_at] == seq  # checks if arr at index check_match_at equals (partially) the input seq
     mask = check_match.all(axis=1)  # returns True if all of check_match along axis 1 are True
-
     return mask
 
 
@@ -56,12 +75,15 @@ def emitter_mask(state_series, emitting_transitions_indices):
 
     Parameters
     ----------
-    state_series
-    emitting_transitions_indices
+    state_series : np.ndarray
+        Contains the sequence of state indices of the Markov chain.
+    emitting_transitions_indices : list
+        Contains emitting transition indices (output of identify_emitting_transitions)
 
     Returns
     -------
-
+    mask : np.ndarray
+        Boolean array of length state_series, True at i if state_series[i] is a state following an emitting transition.
     """
     mask_1 = np.zeros(shape=len(state_series), dtype=np.int64)
     for emitting_transition_index_pair in emitting_transitions_indices:
@@ -78,6 +100,24 @@ def emitter_mask(state_series, emitting_transitions_indices):
 
 
 def detected_emissions(emitting_mask, photon_collection, seed):
+    """
+    Returns a possibly altered emitting_mask, dictated by photon_collection. A random subset of photon_collection
+    times the total True count of emitting mask is kept as True, rest is converted to False.
+
+    Parameters
+    ----------
+    emitting_mask : np.ndarray
+        Output of emitter_mask.
+    photon_collection : float
+        Number between 0 and 1, dictates the fraction of kept True values of emitting_mask.
+    seed : int
+        Seed to initialize a BitGenerator.
+
+    Returns
+    -------
+    collection_mask : np.ndarray
+        Possibly altered emitting_mask.
+    """
     rng = np.random.default_rng(seed)
     emission_indices = np.nonzero(emitting_mask)[0]
     not_collected_total = round((1 - photon_collection) * len(emission_indices))
@@ -89,6 +129,24 @@ def detected_emissions(emitting_mask, photon_collection, seed):
 
 
 def pandas_event_time_series(events_at, unit, resample):
+    """
+    Resampling of events_at assuming each entry representing one event at this time point (measured in unit). Binning
+    or resampling is specified by resample.
+
+    Parameters
+    ----------
+    events_at : np.ndarray
+        Contains the time points at which an event occurs.
+    unit : str
+        Unit of events_at. One of "W", "D", "h", "m", "S", "ms", "us", "ns"
+    resample : str
+        See pandas time series user's guide offset aliases for possible input values.
+
+    Returns
+    -------
+    series : pd.Series
+        Contains the time step in seconds as index and the number of events as values.
+    """
     events_at_zero = np.insert(events_at, 0, 0)  # add time zero to the events (there will be no event)
     timedeltas = pd.to_timedelta(events_at_zero, unit=unit)
     events = np.ones(shape=(len(events_at_zero)))

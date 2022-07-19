@@ -19,16 +19,16 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/vie43sq/Miniconda3/envs/MarkovModels&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "last_opened_file_path": "C:/Users/vie43sq/Miniconda3/envs/MarkovModels",
+    "settings.editor.selected.configurable": "editor.preferences.completion"
   }
-}</component>
-  <component name="RunManager" selected="Python tests.Python tests in test_emitting_transitions.py">
-    <configuration name="Python tests for test_emitting_transitions.test_identify_emitting_transitions" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+}]]></component>
+  <component name="RunManager" selected="Python tests.Python tests for test_emitting_transitions.test_pandas_event_time_series">
+    <configuration name="Python tests for test_emitting_transitions.test_detected_emissions" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
       <module name="scr" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -38,7 +38,49 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;test_emitting_transitions.test_identify_emitting_transitions&quot;" />
+      <option name="_new_target" value="&quot;test_emitting_transitions.test_detected_emissions&quot;" />
+      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Python tests for test_emitting_transitions.test_emitter_mask" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+      <module name="scr" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/tests" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;test_emitting_transitions.test_emitter_mask&quot;" />
+      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Python tests for test_emitting_transitions.test_pandas_event_time_series" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+      <module name="scr" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/tests" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;test_emitting_transitions.test_pandas_event_time_series&quot;" />
+      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Python tests for test_emitting_transitions.test_search_sequence" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+      <module name="scr" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/tests" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;test_emitting_transitions.test_search_sequence&quot;" />
       <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
@@ -58,8 +100,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Python tests.Python tests for test_emitting_transitions.test_pandas_event_time_series" />
+        <item itemvalue="Python tests.Python tests for test_emitting_transitions.test_emitter_mask" />
         <item itemvalue="Python tests.Python tests in test_emitting_transitions.py" />
-        <item itemvalue="Python tests.Python tests for test_emitting_transitions.test_identify_emitting_transitions" />
+        <item itemvalue="Python tests.Python tests for test_emitting_transitions.test_detected_emissions" />
+        <item itemvalue="Python tests.Python tests for test_emitting_transitions.test_search_sequence" />
       </list>
     </recent_temporary>
   </component>
