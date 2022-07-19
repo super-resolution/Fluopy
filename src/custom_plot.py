@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib import rcParams
-from brokenaxes import brokenaxes
 
 
 def universal_figure(nrows=1, ncols=1, width=10, height=5, type_="plot", data=(0, 0), color="blue", ylabel="y",

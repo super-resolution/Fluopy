@@ -91,22 +91,34 @@ class FigureCollection:
 
         return fig, ax
 
-    def on_off(self, on=True, resample="5 ms", display_mean=True, **kwargs):
-        if on:
-            kwargs.setdefault('data', self.object.on_periods)
-            kwargs.setdefault('xlabel', "ON periods [frames à " + resample + "]")
-            mean = np.mean(self.object.on_periods)
-        else:
-            kwargs.setdefault('data', self.object.off_periods)
-            kwargs.setdefault('xlabel', "OFF periods [frames à " + resample + "]")
-            mean = np.mean(self.object.off_periods)
+    def on_off(self, on=True, time_series=False, resample="5 ms", display_mean=True, **kwargs):
 
-        kwargs.setdefault('type_', "hist")
-        kwargs.setdefault('ylabel', "PD")
-        kwargs.setdefault('density', True)
+        if time_series:
+            kwargs.setdefault('type_', "line")
+            kwargs.setdefault('xlabel', "number")
+            if on:
+                kwargs.setdefault('data', [np.arange(0, self.object.on_periods.size), self.object.on_periods])
+                kwargs.setdefault('ylabel', "ON periods [frames à " + resample + "]")
+                mean = np.mean(self.object.on_periods)
+            else:
+                kwargs.setdefault('data', [np.arange(0, self.object.off_periods.size), self.object.off_periods])
+                kwargs.setdefault('ylabel', "OFF periods [frames à " + resample + "]")
+                mean = np.mean(self.object.off_periods)
+        else:
+            kwargs.setdefault('type_', "hist")
+            kwargs.setdefault('ylabel', "PD")
+            kwargs.setdefault('density', True)
+            if on:
+                kwargs.setdefault('data', self.object.on_periods)
+                kwargs.setdefault('xlabel', "ON periods [frames à " + resample + "]")
+                mean = np.mean(self.object.on_periods)
+            else:
+                kwargs.setdefault('data', self.object.off_periods)
+                kwargs.setdefault('xlabel', "OFF periods [frames à " + resample + "]")
+                mean = np.mean(self.object.off_periods)
 
         fig, ax = cp.universal_figure(**kwargs)
         if display_mean:
-            ax.text(x=0.7, y=0.85, s=f"mean: {mean:.2f}", transform=ax.transAxes, fontsize=16)
+            ax[0].text(x=0.7, y=0.85, s=f"mean: {mean:.2f}", transform=ax[0].transAxes, fontsize=16)
 
         return fig, ax

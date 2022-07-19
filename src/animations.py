@@ -6,6 +6,25 @@ import numpy as np
 
 def jablonski_diagram(time_series, time_step_series, state_series, number, state_names, states, index_min=0,
                       index_range=100, fps=10, saveas="writer_test.mp4"):
+    """
+
+    Parameters
+    ----------
+    time_series
+    time_step_series
+    state_series
+    number
+    state_names
+    states
+    index_min
+    index_range
+    fps
+    saveas
+
+    Returns
+    -------
+
+    """
     if states != ("S0", "S1", "T1", "R", "B"):
         raise ValueError("states have to be equal to (""S0"", ""S1"", ""T1"", ""R"", ""B"")")
     else:
