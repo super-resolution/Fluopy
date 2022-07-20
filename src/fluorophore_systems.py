@@ -112,8 +112,8 @@ class JablonskiModel(FluorophoreSystem):
 
         self.pandas_series = et.pandas_event_time_series(self.time_series[self.detected_emission_mask], unit, resample)
 
-        self.on_periods, self.off_periods, _, _, _ = et.blink_statistics(self.pandas_series, threshold, memory,
-                                                                         remove_heading_off_period)
+        self.on_periods, self.off_periods, _, _ = et.blink_statistics(self.pandas_series, threshold, memory,
+                                                                      remove_heading_off_period)
 
         return self.emitting_mask, self.pandas_series, self.on_periods, self.off_periods
 

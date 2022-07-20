@@ -160,26 +160,53 @@ def pandas_event_time_series(events_at, unit, resample):
     return series
 
 
-def blinking(pandas_series, threshold):
-    df = pd.DataFrame({'frame': np.arange(0, len(pandas_series)), 'intensity': pandas_series.values})
-    df = df[df.intensity > threshold]
+# def blinking(pandas_series, threshold):
+#     df = pd.DataFrame({'frame': np.arange(0, len(pandas_series)), 'intensity': pandas_series.values})
+#     df = df[df.intensity > threshold]
+#
+#     frames = df.frame.values
+#     differences = np.diff(frames)
+#
+#     mask = np.where(differences > 1)
+#     off_periods = differences[mask] - 1
+#     if frames[0] != 0:
+#         off_periods = np.insert(off_periods, 0, frames[0] + 1)
+#
+#     on_periods = np.diff(mask[0])
+#     on_periods = np.insert(on_periods, 0, mask[0][0] + 1)
+#     on_periods = np.append(on_periods, frames.shape[0] - 1 - mask[0][-1])
+#
+#     return on_periods, off_periods
 
-    frames = df.frame.values
-    differences = np.diff(frames)
 
-    mask = np.where(differences > 1)
-    off_periods = differences[mask] - 1
-    if frames[0] != 0:
-        off_periods = np.insert(off_periods, 0, frames[0] + 1)
+def blink_statistics(pandas_series, threshold=0, memory=0, remove_heading_off_period=True):
+    """
+    Returns on and off times of a pandas.Series given that each entry represents the collected photons of one frame.
+    The threshold parameter is a minimum value of photons per frame to be considered an on-frame. The memory parameter
+    provides a number of off-frames to be skipped/neglected.
 
-    on_periods = np.diff(mask[0])
-    on_periods = np.insert(on_periods, 0, mask[0][0] + 1)
-    on_periods = np.append(on_periods, frames.shape[0] - 1 - mask[0][-1])
+    Parameters
+    ----------
+    pandas_series : pd.Series
+        Contains the time step (of a frame) in seconds as index and the number of events (photons) as values.
+    threshold : int
+        Minimum value of photons per frame to be considered an on-frame.
+    memory : int
+        Number of off-frames to be neglected. They are included in the on times.
+    remove_heading_off_period : bool
+        If True and the series starts with an off frame, the leading off frame is discarded.
 
-    return on_periods, off_periods
-
-
-def blink_statistics(pandas_series, threshold, memory=0, remove_heading_off_period=True):
+    Returns
+    -------
+    on_periods : np.ndarray
+        Contains the lengths of each on-period.
+    off_periods : np.ndarray
+        Contains the lengths of each off-period.
+    on_periods_frames : np.ndarray
+        Contains the first frame of each on-period.
+    off_periods_frames : np.ndarray
+        Contains the first frame of each off-period.
+    """
     df = pd.DataFrame({'frame': np.arange(0, len(pandas_series)), 'intensity': pandas_series.values})
     df = df[df.intensity > threshold]
 
@@ -189,7 +216,6 @@ def blink_statistics(pandas_series, threshold, memory=0, remove_heading_off_peri
     off_periods_indices = np.where(differences > 1 + memory)[0]
 
     off_periods_frames = frames[off_periods_indices] + 1
-    on_periods_indices = np.split(np.arange(0, frames.shape[0]), off_periods_indices + 1)
 
     if off_periods_indices.size == 0:
         off_periods = np.array([], dtype=int)
@@ -270,10 +296,25 @@ def blink_statistics(pandas_series, threshold, memory=0, remove_heading_off_peri
             on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
             on_periods_frames = np.insert(on_periods_frames, 0, 0)
 
-    return on_periods, off_periods, on_periods_frames, off_periods_frames, on_periods_indices
+    return on_periods, off_periods, on_periods_frames, off_periods_frames
 
 
 def frac_int_time(pandas_series, fraction):
+    """
+    Returns the time at which the specified fraction of the total collected photons is reached.
+
+    Parameters
+    ----------
+    pandas_series : pd.Series
+        Contains the time step (of a frame) in seconds as index and the number of events (photons) as values.
+    fraction : float
+        Number between 0 and 1.
+
+    Returns
+    -------
+    arrival_time_rel : float
+        The time at which the fraction of the total collected photons is reached.
+    """
     end_time = pandas_series.index[-1]
     cumsum = pandas_series.cumsum()
     cumsum_norm = cumsum.multiply(1 / pandas_series.max())

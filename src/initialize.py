@@ -3,15 +3,36 @@ import numpy as np
 
 
 def recursion(number, original_number, iterable, collector=None):
+    """
+    Combines all elements of iterable with elements of iterable original_number of times.
+
+    Parameters
+    ----------
+    number : int
+        When this function is first called, it should be equal to original_number.
+    original_number : int
+        The amount of combinations.
+    iterable : iterable object
+        Contains the elements that are to be combined with themselves.
+    collector : None, bool
+        When this function is first called, it should be equal to None.
+
+    Returns
+    -------
+    Generator object
+        To access the elements, iterate through the generator object.
+    """
     if collector is None:
         collector = []
     if number >= 1:
-        for i in iterable:
+        for i in iterable:  # the outer for loop (if number is max) still runs, even if it is interrupted by new
+            # function calls with smaller numbers and their for loops
             collector.append(i)
             yield from recursion(number - 1, original_number, iterable, collector)
-
     else:
-        if len(collector) > original_number:
+        if len(collector) > original_number:  # this is to shift the collector to the left
+            # this is needed because .pop() only removes the last item but if n outer loops continue, collector is
+            # appended n times too often (and at the wrong position, too)
             diff = len(collector) - original_number
             for pos in range(diff):
                 del collector[original_number - 1 - (pos+1)]
@@ -20,6 +41,22 @@ def recursion(number, original_number, iterable, collector=None):
 
 
 def state_pairs(number, states=("S0", "S1", "T1", "R", "B")):
+    """
+    Combines all given states with themselves number of times.
+
+    Parameters
+    ----------
+    number : int
+        The amount of combinations.
+    states : iterable object
+        Contains elements of type str.
+
+    Returns
+    -------
+    joined_states : enum.EnumMeta
+        The elements e are combined with an underscore between each element. Each combination (i.e., joined_state)
+        receives a unique value. The set of combinations can therefore be considered an enumeration.
+    """
 
     state_pair_generator = recursion(number, number, states)
 
@@ -40,6 +77,21 @@ def state_pairs(number, states=("S0", "S1", "T1", "R", "B")):
 
 
 def transition_pairs(joined_states):
+    """
+    Combines all of joined_states with themselves and assigns a unique value pair to it.
+
+    Parameters
+    ----------
+    joined_states : enum.EnumMeta, list
+        The return value of state_pairs.
+        Alternatively, a list of elements of enum.EnumMeta (see unique_joined_states).
+
+    Returns
+    -------
+    transitions : dict
+        Contains all combinations of joined_states (combined with double underscore) as keys and their unique value pair
+        as values.
+    """
 
     trans_pairs = [(joined_state_1.name, joined_state_2.name) for joined_state_1 in joined_states
                    for joined_state_2 in joined_states]
@@ -50,6 +102,19 @@ def transition_pairs(joined_states):
 
 
 def initial_row_vector(transitions):
+    """
+    Returns an array of zeros of shape (sqrt(len(transitions)),) with a 1 at position 0.
+
+    Parameters
+    ----------
+    transitions : dict
+        The return value of transition_pairs.
+
+    Returns
+    -------
+    vector : np.ndarray
+        Is of shape (sqrt(len(transitions)),) with a 1 at position 0.
+    """
     uni_dir_shape = int(np.sqrt(len(transitions)))
     vector = np.zeros(shape=uni_dir_shape)
     vector[0] = 1
@@ -57,6 +122,29 @@ def initial_row_vector(transitions):
 
 
 def rate_assignment(assigned_rate_dict, transitions, source, destination, rate):
+    """
+    Adds transitions (as keys) and their rates (as values) to assigned_rate_dict, if source is part of the first state
+    of the transition and destination is part of the second state of the transition. Additionally, all other
+    contributors to the first and second state should be equal.
+
+    Parameters
+    ----------
+    assigned_rate_dict : dict
+        Destination of addable transitions and their rates. May be empty.
+    transitions : dict
+        The return value of transition_pairs.
+    source : str
+        Search value of the first state.
+    destination : str
+        Search value of the second state.
+    rate : float
+        The rate of the target transition.
+
+    Returns
+    -------
+    assigned_rate_dict : dict
+        The possibly altered input parameter.
+    """
     for transition in transitions:
         current_state, future_state = transition.split("__")
         current_state_split = current_state.split("_")
@@ -75,6 +163,18 @@ def rate_assignment(assigned_rate_dict, transitions, source, destination, rate):
 
 
 def transition_rate_dict(rates, transitions):
+    """
+
+
+    Parameters
+    ----------
+    rates
+    transitions
+
+    Returns
+    -------
+
+    """
     assigned_rate_dict = dict()
 
     for name, rate in rates.items():

@@ -8,12 +8,13 @@ sys.path.insert(0, parentdir)
 
 import pytest
 import numpy as np
+import pandas as pd
 import emitting_transitions as et
 
 
-test_transitions = {"S1__S0": (1, 0), "R__S0": (3, 0), "S0__S1": (0, 1),
-    "S0_S1__S0_S0": (1, 0), "S1_S1__S0_S0": (2, 0), "R_R__R_S0": (10, 15),
-    "S0_S1_S0__S0_S0_S0": (110, 109), "S1_S1_S0__S0_S0_S0": (111, 109), "S0_S0_R__S0_S0_S0": (112, 109)}
+test_transitions = {"S1__S0": (1, 0), "R__S0": (3, 0), "S0__S1": (0, 1), "S0_S1__S0_S0": (1, 0), "S1_S1__S0_S0": (2, 0),
+                    "R_R__R_S0": (10, 15), "S0_S1_S0__S0_S0_S0": (110, 109), "S1_S1_S0__S0_S0_S0": (111, 109),
+                    "S0_S0_R__S0_S0_S0": (112, 109)}
 goal_emitting_transitions = ["S1__S0", "S0_S1__S0_S0", "S0_S1_S0__S0_S0_S0"]
 goal_emitting_transition_indices = [(1, 0), (1, 0), (110, 109)]
 
@@ -84,3 +85,32 @@ goal_series = np.array([3, 0, 2, 2, 1])
 def test_pandas_event_time_series():
     series = et.pandas_event_time_series(test_events_at, test_unit, test_resample)
     assert np.array_equal(goal_series, series.values)
+
+
+test_pandas_series = pd.Series(np.array([0, 5, 0, 4, 3, 1, 0, 0, 5, 6]), index=np.arange(0, 10e-3, 1e-3))
+test_threshold = 2
+test_memory = 1
+test_remove_heading_off_period = False
+goal_on_periods = np.array([5, 2])
+goal_off_periods = np.array([3])
+goal_on_periods_frames = np.array([0, 8])
+goal_off_periods_frames = np.array([5])
+
+
+def test_blink_statistics():
+    on_periods, off_periods, on_periods_frames, off_periods_frames = \
+        et.blink_statistics(test_pandas_series, test_threshold, test_memory, test_remove_heading_off_period)
+    assert np.array_equal(goal_on_periods, on_periods)
+    assert np.array_equal(goal_off_periods, off_periods)
+    assert np.array_equal(goal_off_periods_frames, off_periods_frames)
+    assert np.array_equal(goal_on_periods_frames, on_periods_frames)
+
+
+test_series = pd.Series(np.array([0, 5, 0, 4, 3, 1, 0, 0, 5, 6]), index=np.arange(0, 10e-3, 1e-3))
+test_fraction = 0.6
+goal_arrival_time_rel = 9e-3/10e-3
+
+
+def test_frac_int_time():
+    arrival_time_rel = et.frac_int_time(test_series, test_fraction)
+    assert goal_arrival_time_rel == arrival_time_rel
