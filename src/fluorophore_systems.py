@@ -26,7 +26,7 @@ class FluorophoreSystem:
                 self.assigned_rate_dict = init.induction(self.assigned_rate_dict, self.transitions, induction_rate,
                                                          self.states)
             self.initial_row_vector = init.initial_row_vector(self.transitions)
-            self.transition_matrix, _, self.row_sums = init.transition_matrices(self.assigned_rate_dict,
+            _, self.transition_matrix, self.row_sums = init.transition_matrices(self.assigned_rate_dict,
                                                                                 self.transitions)
 
         self.time_series = None

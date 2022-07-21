@@ -8,6 +8,34 @@ import numpy as np
 
 
 def direct_method_py(row_sums, initial_row_vector, transition_matrix, n_steps, seed):
+    """
+    The direct method of the gillespie algorithm (i.e., the stochastic simulation algorithm). Note that in this version,
+    the propensities are equal to the rate constants, because the state's population is assumed to be always 1 (the
+    initial row vector contains only zeros except a single one). Additionally, the state change vector is also trivial,
+    since each transition leads to a decrease in the current state by 1 and an increase in the following state by 1.
+
+    Parameters
+    ----------
+    row_sums : np.ndarray
+        The third return value of initialize.transition_matrices.
+    initial_row_vector : np.ndarray
+        The return value of initialize.initial_row_vector.
+    transition_matrix : np.ndarray
+        The second return value of initialize.transition_matrices.
+    n_steps : int
+        Maximum number of simulation steps. If the Markov chain reaches an absorbing state, the simulation stops early.
+    seed : None, int, BitGenerator, Generator
+        Seed to initialize a BitGenerator.
+
+    Returns
+    -------
+    time_series : np.ndarray
+        The time points at which the corresponding state occurs.
+    time_step_series : np.ndarray
+        The time step until the corresponding state occurs (starting from the previous state).
+    state_series : np.ndarray
+        The consecutive state's (if number > 1 joined_state's) unique values.
+    """
     rng = np.random.default_rng(seed)
 
     current_state = initial_row_vector
@@ -55,6 +83,35 @@ def direct_method_py(row_sums, initial_row_vector, transition_matrix, n_steps, s
 
 
 def simulation_tau_leaping(initial_row_vector, transition_rate_matrix, tau, n_steps=100, seed=100):
+    """
+    The tau-leaping method of the gillespie algorithm (i.e., the stochastic simulation algorithm). Note that the state
+    change vector is trivial, since each transition leads to a decrease in the current state by 1 and an increase in the
+    following state by 1.
+    This implementation does not avoid negative populations and does not employ the algorithm for efficient step size
+    selection.
+
+    Parameters
+    ----------
+    initial_row_vector : np.ndarray
+        The return value of initialize.initial_row_vector.
+    transition_rate_matrix : np.ndarray
+        The first return value of initialize.transition_matrices.
+    tau : float
+        Time step.
+    n_steps : int
+        Maximum number of simulation steps. If the Markov chain reaches an absorbing state, the simulation stops early.
+    seed : None, int, BitGenerator, Generator
+        Seed to initialize a BitGenerator.
+
+    Returns
+    -------
+    current_state : np.ndarray
+        The ending state composition.
+    state_series : list
+        Collection of all state compositions.
+    time_step_series : np.ndarray
+        The time step until the corresponding state occurs (starting from the previous state).
+    """
     rng = np.random.default_rng(seed)
 
     current_state = initial_row_vector
@@ -89,7 +146,7 @@ def simulation_tau_leaping(initial_row_vector, transition_rate_matrix, tau, n_st
         total_state_change = new_state_change.copy()
         total_state_change[current_state_index] += origin_state_change
         current_state = np.sum([current_state, total_state_change], axis=0)  # the tau-leaping approximation
-        time_step_series[i] = tau
+        time_step_series[i + 1] = tau
         state_series.append(current_state)
 
     return current_state, state_series, time_step_series

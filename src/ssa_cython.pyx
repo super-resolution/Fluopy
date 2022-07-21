@@ -6,6 +6,7 @@ import numpy as np
 @cython.wraparound(False)
 
 # faster implementation of the SSA / gillespie algorithm
+# to read the documentation, check out gillespie_algorithm.direct_method_py
 
 def direct_method_cy(row_sums: np.ndarray, initial_row_vector: np.ndarray, transition_matrix: np.ndarray,
                      n_steps: int, seed: int):

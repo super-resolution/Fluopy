@@ -4,11 +4,72 @@ import matplotlib.ticker as ticker
 from matplotlib import rcParams
 
 
-def universal_figure(nrows=1, ncols=1, width=10, height=5, type_="plot", data=(0, 0), color="blue", ylabel="y",
-                     xlabel="x", legend=None, xlim=None, ylim=None, xscale=None, yscale=None, xticks=None, yticks=None,
+def universal_figure(nrows=1, ncols=1, width=10, height=5, type_="line", data=(0, 0), color="blue", ylabel="y",
+                     xlabel="x", legend=False, xlim=None, ylim=None, xscale=None, yscale=None, xticks=None, yticks=None,
                      xticklabels=None, yticklabels=None, tick_spacing_x=None, tick_spacing_y=None, tick_style_x=None,
                      tick_style_y=None, second_axis_x=True, second_axis_y=True, **type_specific_kwargs):
+    """
+    Constructs a figure in versatile types and designs.
 
+    Parameters
+    ----------
+    nrows : int
+        Number of rows of plt.subplots.
+    ncols : int
+        Number of columns of plt.subplots.
+    width : float
+        Width of the figure.
+    height : float
+        Height of the figure.
+    type_ : str
+        Type of the plot. One of "line", "hist", "bar".
+    data : np.ndarray, Collection
+        Data to be plotted. Required formation depends on input parameter type_.
+    color : str
+        Color.
+    ylabel : str
+        The label text of the y-axis.
+    xlabel : str
+        The label text of the x-axis.
+    legend : bool
+        Whether to display a legend.
+    xlim : float, Collection
+        Left and right limit of the x-axis.
+    ylim : float, Collection
+        Lower and upper limit of the y-axis.
+    xscale : str
+        One of "linear", "log", "symlog", "logit".
+    yscale : str
+        One of "linear", "log", "symlog", "logit".
+    xticks :  array-like
+        xtick locations.
+    yticks : array-like
+        ytick locations.
+    xticklabels : dict
+        Keyword 'labels' with labels to place at the given tick locations. Keyword 'rotation' to rotate text.
+    yticklabels : dict
+        Keyword 'labels' with labels to place at the given tick locations. Keyword 'rotation' to rotate text.
+    tick_spacing_x : float
+        Set a tick on each integer multiple of tick_spacing_x.
+    tick_spacing_y : float
+        Set a tick on each integer multiple of tick_spacing_y.
+    tick_style_x : str
+        One of "sci", "plain".
+    tick_style_y : str
+        One of "sci", "plain".
+    second_axis_x : bool
+        Whether to plot a second x-axis.
+    second_axis_y : bool
+        Whether to plot a second y-axis.
+    type_specific_kwargs : type_ properties
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The top level container for all the plot elements.
+    axes : matplotlib.axes.Axes or array of Axes
+        Contains most of the figure elements.
+    """
     # initialize figure
     rcParams["axes.linewidth"] = 2
     fig, axes = plt.subplots(nrows, ncols, figsize=(width, height))

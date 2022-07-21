@@ -329,6 +329,19 @@ def frac_int_time(pandas_series, fraction):
 
 
 def on_states(state_names):
+    """
+    Counts the number of on states of each state (i.e., joined_state).
+
+    Parameters
+    ----------
+    state_names : Collection
+        Contains all state names.
+
+    Returns
+    -------
+    on_counts : np.ndarray
+        Contains the number of on states of each state.
+    """
     on_counts = np.zeros(len(state_names))
     for i, state_name in enumerate(state_names):
         states = state_name.split("_")
@@ -339,16 +352,46 @@ def on_states(state_names):
 
 
 def emission_count(s0s1_rate, s1s0_rate, on_counts, state_series, time_step_series, resample=5e-3, seed=100):
+    """
+    Samples the on counts over a delta time (resample) and converts them into photon counts. This involves stretching
+    the data since simulated time steps are expected to be larger than resample, meaning that the resulting time steps
+    and their corresponding photon counts are an approximation.
+
+    Parameters
+    ----------
+    s0s1_rate : float
+        Rate constant of the transition from S0 to S1.
+    s1s0_rate : float
+        Rate constant of the transition from S1 to S0.
+    on_counts : np.ndarray
+        The return value of on_states.
+    state_series : np.ndarray
+        Contains the sequence of state indices of the Markov chain.
+    time_step_series : np.ndarray
+        Contains the time step until the corresponding state occurs (starting from the previous state).
+    resample : float
+        The delta time over which the number of photon emissions shall be sampled.
+    seed : None, int, BitGenerator, Generator
+        Seed to initialize a BitGenerator.
+
+    Returns
+    -------
+    emissions : np.ndarray
+        Contains the photon counts per time step (i.e., resample).
+    emission_time_series : np.ndarray
+        Contains the time points at which the corresponding photon count occurs.
+    """
     rng = np.random.default_rng(seed)
 
-    on_counts_series = on_counts[state_series]
+    on_counts_series = on_counts[state_series]  # converts the state_series into a series of on counts
 
     repeats = time_step_series[1:] / resample
     repeats = np.round(repeats)
     repeats[np.where(repeats == 0)] = 1
-    repeats = repeats.astype(int)
+    repeats = repeats.astype(int)  # an entry in repeats is how often the resample value fits into the time step
 
-    stretched = np.repeat(on_counts_series[:-1], repeats)
+    stretched = np.repeat(on_counts_series[:-1], repeats)  # stretch each entry of the on_counts_series by the
+    # corresponding entry of repeats
 
     mean_emissions_per_s = s0s1_rate * s1s0_rate / (s0s1_rate + s1s0_rate)  # this holds true if the two state markov
     # chain can only be of values 0 and 1. Can be shown by simulation.
@@ -357,4 +400,5 @@ def emission_count(s0s1_rate, s1s0_rate, on_counts, state_series, time_step_seri
     emissions = stretched * emissions_per_resample
 
     emission_time_series = np.arange(0, len(stretched)*resample, resample)
+
     return emissions, emission_time_series

@@ -57,7 +57,6 @@ def state_pairs(number, states=("S0", "S1", "T1", "R", "B")):
         The elements e are combined with an underscore between each element. Each combination (i.e., joined_state)
         receives a unique value. The set of combinations can therefore be considered an enumeration.
     """
-
     state_pair_generator = recursion(number, number, states)
 
     strings = []
@@ -92,7 +91,6 @@ def transition_pairs(joined_states):
         Contains all combinations of joined_states (combined with double underscore) as keys and their unique value pair
         as values.
     """
-
     trans_pairs = [(joined_state_1.name, joined_state_2.name) for joined_state_1 in joined_states
                    for joined_state_2 in joined_states]
     transitions = {f"{joined_state_1}__{joined_state_2}": (i // len(joined_states), i % len(joined_states))
@@ -164,16 +162,20 @@ def rate_assignment(assigned_rate_dict, transitions, source, destination, rate):
 
 def transition_rate_dict(rates, transitions):
     """
-
+    Constructs a dictionary with transitions as keys and their rates as values.
 
     Parameters
     ----------
-    rates
-    transitions
+    rates : dict
+        The transition from state 1 to state 2 with rate constant k [1/s] should have the key k_state1_state2 and the
+        value k assigned to it.
+    transitions : dict
+        The return value of transition_pairs.
 
     Returns
     -------
-
+    assigned_rate_dict : dict
+        Contains all transitions and their rates if the rate is > 0.
     """
     assigned_rate_dict = dict()
 
@@ -185,6 +187,26 @@ def transition_rate_dict(rates, transitions):
 
 
 def induction(rate_dict, transitions, induction_rate, states):
+    """
+    Adds the concept of off state recovery of one fluorophore induced by the non-emitting transition from S1 to S0 of
+    a second fluorophore to the rate_dict.
+
+    Parameters
+    ----------
+    rate_dict : dict
+        The return value of transition_rate_dict.
+    transitions : dict
+        The return value of transition_pairs.
+    induction_rate : float
+        The rate constant of the transition.
+    states : iterable object
+        Contains elements of type str.
+
+    Returns
+    -------
+    rate_dict : dict
+        The possibly altered input parameter.
+    """
     if states == ("S0", "S1", "T1", "R", "B"):
         for transition in transitions:
             current_state, future_state = transition.split("__")
@@ -230,6 +252,28 @@ def induction(rate_dict, transitions, induction_rate, states):
 
 
 def transition_matrices(rates, transitions):
+    """
+    Constructs a matrix of shape (sqrt(len(transitions)), sqrt(len(transitions))) with zeros in all positions except if
+    the index [a, b] is equal to a unique value pair of transitions (see transition_pairs) if the transition is listed
+    in rates.
+
+    Parameters
+    ----------
+    rates : dict
+        The return value of transition_rate_dict.
+    transitions : dict
+        The return value of transition_pairs.
+
+    Returns
+    -------
+    transition_rate_matrix : np.ndarray
+        Contains the rate constants for each transition at the corresponding index pair.
+    transition_matrix : np.ndarray
+        Contains the normalized rate constants (i.e., the point probabilities) for each transition at the corresponding
+        index pair.
+    row_sums : np.ndarray
+        Contains the sum of each row of transition_rate_matrix, i.e., the sum of all transition rates of a state.
+    """
     uni_dir_shape = int(np.sqrt(len(transitions)))
     transition_rate_matrix = np.zeros(shape=(uni_dir_shape, uni_dir_shape))
 
@@ -242,10 +286,31 @@ def transition_matrices(rates, transitions):
         if row_sum > 0:
             transition_matrix[i] = transition_rate_matrix[i] / row_sum
 
-    return transition_matrix, transition_rate_matrix, row_sums
+    return transition_rate_matrix, transition_matrix, row_sums
 
 
 def predefining(number, states, rates, induction_rate=None):
+    """
+    Can be used to initialize a system once instead of running all initializing functions with the same parameters
+    multiple times. Return value can be used as input value of parameter 'predefined' of class FluorophoreSystem.
+
+    Parameters
+    ----------
+    number : int
+        Number of fluorophores of the system.
+    states : iterable object
+        Contains elements of type str.
+    rates : dict
+        The transition from state 1 to state 2 with rate constant k [1/s] should have the key k_state1_state2 and the
+        value k assigned to it.
+    induction_rate : None, float
+        The rate constant of the induction transition.
+
+    Returns
+    -------
+    predefined_args : list
+        Contains all crucial return values of initializing functions.
+    """
     joined_states = state_pairs(number, states)
     state_names = []
     for joined_state in joined_states:
@@ -254,8 +319,8 @@ def predefining(number, states, rates, induction_rate=None):
     assigned_rate_dict = transition_rate_dict(rates, transitions)
     if induction_rate:
         assigned_rate_dict = induction(assigned_rate_dict, transitions, induction_rate, states)
-    vector = initial_row_vector(number)
-    transition_matrix, _, row_sums = transition_matrices(assigned_rate_dict, transitions)
+    vector = initial_row_vector(transitions)
+    _, transition_matrix, row_sums = transition_matrices(assigned_rate_dict, transitions)
 
     predefined_args = [joined_states, state_names, transitions, assigned_rate_dict, induction, vector,
                        transition_matrix, row_sums]
