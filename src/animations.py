@@ -7,23 +7,34 @@ import numpy as np
 def jablonski_diagram(time_series, time_step_series, state_series, number, state_names, states, index_min=0,
                       index_range=100, fps=10, saveas="writer_test.mp4"):
     """
+    Animate (part of) the state_series displayed with a jablonski diagram.
 
     Parameters
     ----------
-    time_series
-    time_step_series
-    state_series
-    number
-    state_names
-    states
-    index_min
-    index_range
-    fps
-    saveas
+    time_series : np.ndarray
+        Contains the time points at which the corresponding state occurs.
+    time_step_series : np.ndarray
+        Contains the time step until the corresponding state occurs (starting from the previous state).
+    state_series : np.ndarray
+        Contains the consecutive state's unique values.
+    number : int
+        Number of fluorophores of the system.
+    state_names : Collection
+        Contains all state names.
+    states : iterable object
+        Contains elements of type str.
+    index_min : int
+        Starting index for state_series (and time_series, time_step_series).
+    index_range : int
+        Number of steps to animate.
+    fps : int
+        Animation frame rate.
+    saveas : str
+        Defines the location and name of outfile.
 
     Returns
     -------
-
+    None
     """
     if states != ("S0", "S1", "T1", "R", "B"):
         raise ValueError("states have to be equal to (""S0"", ""S1"", ""T1"", ""R"", ""B"")")
@@ -107,6 +118,36 @@ def jablonski_diagram(time_series, time_step_series, state_series, number, state
 
 def on_off_diagram(time_series, time_step_series, state_series, number, state_names, states, index_min=0,
                    index_range=100, fps=10, saveas="writer_test.mp4"):
+    """
+    Animate (part of) the state_series displayed as On/Off/Bleached states.
+
+    Parameters
+    ----------
+    time_series : np.ndarray
+        Contains the time points at which the corresponding state occurs.
+    time_step_series : np.ndarray
+        Contains the time step until the corresponding state occurs (starting from the previous state).
+    state_series : np.ndarray
+        Contains the consecutive state's unique values.
+    number : int
+        Number of fluorophores of the system.
+    state_names : Collection
+        Contains all state names.
+    states : iterable object
+        Contains elements of type str.
+    index_min : int
+        Starting index for state_series (and time_series, time_step_series).
+    index_range : int
+        Number of steps to animate.
+    fps : int
+        Animation frame rate.
+    saveas : str
+        Defines the location and name of outfile.
+
+    Returns
+    -------
+    None
+    """
     if states != ("ON", "OFF", "B"):
         raise ValueError("states have to be equal to (""ON"", ""OFF"", ""B"")")
     else:

@@ -7,7 +7,48 @@ import src.emitting_transitions as et
 
 
 class FluorophoreSystem:
+    """
+    Base class of fluorophore systems and their serial quantum state behavior based on continuous time Markov chain
+    modelling.
+
+    Attributes
+    ----------
+    number
+    distances
+    states
+    rates
+    Joined_States
+    state_names
+    transitions
+    assigned_rate_dict
+    initial_row_vector
+    transition_matrix
+    row_sums
+
+    time_series
+    time_step_series
+    state_series
+
+    duplices
+    unique_series
+    unique_states
+    unique_joined_states
+    unique_names
+    unique_series_converted
+    occupation_time_total
+    occupation_time_mean
+    """
     def __init__(self, number, distances, states, rates, predefined=None, induction_rate=None):
+        """
+        Parameters
+        ----------
+        number
+        distances
+        states
+        rates
+        predefined
+        induction_rate
+        """
         self.number = number
         self.distances = distances
         self.states = states
@@ -61,7 +102,7 @@ class FluorophoreSystem:
 
         self.unique_transitions = init.transition_pairs(self.unique_joined_states)
 
-        self.unique_series_converted = pr.convert_unique_states(self.unique_states, self.unique_series)
+        self.unique_series_converted = pr.convert_unique_states(self.unique_series, self.unique_states)
 
         self.occupation_time_total, self.occupation_time_mean = \
             pr.occupation_t(self.time_step_series, self.unique_series, self.unique_states)
@@ -95,7 +136,7 @@ class JablonskiModel(FluorophoreSystem):
                 super().process()
             use_transitions = self.unique_transitions
             use_state_series = self.unique_series_converted  # the conversion takes place during init.transition_pairs,
-            # too
+            # too, because  self.unique_joined_states is ordered
         else:
             use_transitions = self.transitions
             use_state_series = self.state_series
