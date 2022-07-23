@@ -111,7 +111,7 @@ def initial_row_vector(transitions):
     Returns
     -------
     vector : np.ndarray
-        Is of shape (sqrt(len(transitions)),) with a 1 at position 0.
+        Is of shape (sqrt(len(transitions)),) with a 1 at position 0 (else 0).
     """
     uni_dir_shape = int(np.sqrt(len(transitions)))
     vector = np.zeros(shape=uni_dir_shape)

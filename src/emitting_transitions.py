@@ -138,7 +138,7 @@ def pandas_event_time_series(events_at, unit, resample):
     events_at : np.ndarray
         Contains the time points at which an event occurs.
     unit : str
-        Unit of events_at. One of "W", "D", "h", "m", "S", "ms", "us", "ns"
+        Unit of events_at. One of "W", "D", "h", "m", "S", "ms", "us", "ns".
     resample : str
         See pandas time series user's guide offset aliases for possible input values.
 
@@ -194,7 +194,7 @@ def blink_statistics(pandas_series, threshold=0, memory=0, remove_heading_off_pe
     memory : int
         Number of off-frames to be neglected. They are included in the on times.
     remove_heading_off_period : bool
-        If True and the series starts with an off frame, the leading off frame is discarded.
+        If True and the series starts with an off-frame, the leading off-frame is discarded.
 
     Returns
     -------

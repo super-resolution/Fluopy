@@ -139,13 +139,14 @@ def autocorrelate(pandas_series, normalize=False, log=False, m=2, deltat=5e-3):
 
     Parameters
     ----------
-    pandas_series
+    pandas_series : pd.Series
+        Contains the time step in seconds as index and the number of events as values.
     normalize : bool
         Whether to normalize the correlation. Note that this involves more than just dividing by mean squared.
     log : bool
         Whether to compute the autocorrelation on a logarithmic scale. Uses multipletau package.
     m : int
-        Defines the number of points on one level, i.e., 1, 2, 4, 8, etc. E.g., m=4 leads to 1,2,3,4; 2,4,6,8; ...
+        Defines the number of points on one level (i.e., 1, 2, 4, 8, etc.), E.g., m=4 leads to 1,2,3,4; 2,4,6,8; ...
     deltat : float
         The time between each entry of pands_series.
 

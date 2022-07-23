@@ -7,7 +7,7 @@ import numpy as np
 def jablonski_diagram(time_series, time_step_series, state_series, number, state_names, states, index_min=0,
                       index_range=100, fps=10, saveas="writer_test.mp4"):
     """
-    Animate (part of) the state_series displayed with a jablonski diagram.
+    Animate (part of) the state_series displayed in a Jablonski diagram.
 
     Parameters
     ----------
@@ -30,7 +30,7 @@ def jablonski_diagram(time_series, time_step_series, state_series, number, state
     fps : int
         Animation frame rate.
     saveas : str
-        Defines the location and name of outfile.
+        Defines the save location of the outfile.
 
     Returns
     -------
@@ -142,7 +142,7 @@ def on_off_diagram(time_series, time_step_series, state_series, number, state_na
     fps : int
         Animation frame rate.
     saveas : str
-        Defines the location and name of outfile.
+        Defines the save location of the outfile.
 
     Returns
     -------
