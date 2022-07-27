@@ -41,11 +41,11 @@ def test_transition_pairs():
 
 
 def test_initial_row_vector():
+    transitions = {"T_E_S_T__T_E_S_T": (0, 0), "T_E_S_T__T_S_E_T": (0, 1), "T_E_S_T__E_S_S_T": (0, 2),
+                   "T_S_E_T__T_E_S_T": (1, 0), "T_S_E_T__T_S_E_T": (1, 1), "T_S_E_T__E_S_S_T": (1, 2),
+                   "E_S_S_T__T_E_S_T": (2, 0), "E_S_S_T__T_S_E_T": (2, 1), "E_S_S_T__E_S_S_T": (2, 2)}
     goal_vector = np.array([1, 0, 0])
-    goal_transitions = {"T_E_S_T__T_E_S_T": (0, 0), "T_E_S_T__T_S_E_T": (0, 1), "T_E_S_T__E_S_S_T": (0, 2),
-                        "T_S_E_T__T_E_S_T": (1, 0), "T_S_E_T__T_S_E_T": (1, 1), "T_S_E_T__E_S_S_T": (1, 2),
-                        "E_S_S_T__T_E_S_T": (2, 0), "E_S_S_T__T_S_E_T": (2, 1), "E_S_S_T__E_S_S_T": (2, 2)}
-    vector = ini.initial_row_vector(goal_transitions)
+    vector = ini.initial_row_vector(transitions)
     assert np.array_equal(vector, goal_vector)
 
 
@@ -60,32 +60,32 @@ def test_rate_assignment():
 
 def test_transition_rate_dict():
     rates = {"k_E_T": 6.5, "k_S_E": 4}
-    goal_assign_rate_dict = {"T_E__T_T": 6.5, "T_S__T_E": 4}
     transitions = {"T_T__T_T": (0, 0), "T_T__T_E": (0, 1), "T_T__T_S": (0, 2),
                    "T_E__T_T": (1, 0), "T_E__T_E": (1, 1), "T_E__T_S": (1, 2),
                    "T_S__T_T": (2, 0), "T_S__T_E": (2, 1), "T_S__T_S": (2, 2)}
+    goal_assigned_rate_dict = {"T_E__T_T": 6.5, "T_S__T_E": 4}
     assigned_rate_dict = ini.transition_rate_dict(rates, transitions)
-    assert assigned_rate_dict == goal_assign_rate_dict
+    assert assigned_rate_dict == goal_assigned_rate_dict
 
 
 def test_induction():
-    assign_rate_dict = {"S0_S0__S0_S1": 2, "S0_S0__S1_Sß": 2}
-    transitions_ = {"S0_S0__S0_S0": (0, 0), "S0_S0__S0_S1": (0, 1), "S0_S0__S1_S0": (0, 2),
-                    "R_S1__S0_S0": (4, 0), "R_S1__S0_S1": (4, 1)}
-    goal_as_rate_dict = {"S0_S0__S0_S1": 2, "S0_S0__S1_Sß": 2, "R_S1__S0_S0": 9.7}
-    assigned_rate_dict = ini.induction(assign_rate_dict, transitions_, 9.7, ("S0", "S1", "T1", "R", "B"))
-    assert assigned_rate_dict == goal_as_rate_dict
+    assigned_rate_dict = {"S0_S0__S0_S1": 2, "S0_S0__S1_Sß": 2}
+    transitions = {"S0_S0__S0_S0": (0, 0), "S0_S0__S0_S1": (0, 1), "S0_S0__S1_S0": (0, 2),
+                   "R_S1__S0_S0": (4, 0), "R_S1__S0_S1": (4, 1)}
+    goal_assigned_rate_dict = {"S0_S0__S0_S1": 2, "S0_S0__S1_Sß": 2, "R_S1__S0_S0": 9.7}
+    assigned_rate_dict = ini.induction(assigned_rate_dict, transitions, 9.7, ("S0", "S1", "T1", "R", "B"))
+    assert assigned_rate_dict == goal_assigned_rate_dict
 
 
 def test_transition_matrices():
-    assign_rate_dict = {"T_E__T_T": 6.5, "T_S__T_E": 4, "T_E__T_S": 1.1}
+    assigned_rate_dict = {"T_E__T_T": 6.5, "T_S__T_E": 4, "T_E__T_S": 1.1}
     transitions = {"T_T__T_T": (0, 0), "T_T__T_E": (0, 1), "T_T__T_S": (0, 2),
                    "T_E__T_T": (1, 0), "T_E__T_E": (1, 1), "T_E__T_S": (1, 2),
                    "T_S__T_T": (2, 0), "T_S__T_E": (2, 1), "T_S__T_S": (2, 2)}
     goal_transition_rate_matrix = np.array([[0, 0, 0], [6.5, 0, 1.1], [0, 4, 0]])
     goal_transition_matrix = np.array([[0, 0, 0], [6.5/7.6, 0, 1.1/7.6], [0, 1, 0]])
     goal_row_sums = np.array([0, 7.6, 4])
-    transition_rate_matrix, transition_matrix, row_sums = ini.transition_matrices(assign_rate_dict, transitions)
+    transition_rate_matrix, transition_matrix, row_sums = ini.transition_matrices(assigned_rate_dict, transitions)
     assert np.array_equal(transition_rate_matrix, goal_transition_rate_matrix)
     assert np.array_equal(transition_matrix, goal_transition_matrix)
     assert np.array_equal(row_sums, goal_row_sums)

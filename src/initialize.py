@@ -1,6 +1,6 @@
 from enum import Enum
 import numpy as np
-
+import warnings
 
 def recursion(number, original_number, iterable, collector=None):
     """
@@ -249,6 +249,10 @@ def induction(rate_dict, transitions, induction_rate, states):
                             else:
                                 rate_dict[transition] += induction_rate  # here the rate is added since the transition
                                 # occurs occasionally as well.
+        return rate_dict
+    else:
+        warnings.warn("The concept of induction could not be added due to mismatch of state names!")
+        return rate_dict
 
 
 def transition_matrices(rates, transitions):

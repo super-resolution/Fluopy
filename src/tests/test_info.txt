@@ -1,0 +1,1 @@
+Run script in pycharm. Make sure curser is not inside function, else only the specific function is tested. 

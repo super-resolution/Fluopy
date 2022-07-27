@@ -301,7 +301,7 @@ def blink_statistics(pandas_series, threshold=0, memory=0, remove_heading_off_pe
 
 def frac_int_time(pandas_series, fraction):
     """
-    Returns the time at which the specified fraction of the total collected photons is reached.
+    Returns the relative time at which the specified fraction of the total collected photons is reached.
 
     Parameters
     ----------
@@ -313,12 +313,12 @@ def frac_int_time(pandas_series, fraction):
     Returns
     -------
     arrival_time_rel : float
-        The time at which the fraction of the total collected photons is reached.
+        The relative time at which the fraction of the total collected photons is reached.
     """
     end_time = pandas_series.index[-1]
-    cumsum = pandas_series.cumsum()
-    cumsum_norm = cumsum.multiply(1 / pandas_series.max())
 
+    cumsum = pandas_series.cumsum()
+    cumsum_norm = cumsum.multiply(1 / cumsum.max())
     arrival_time = cumsum_norm.gt(fraction).idxmax()
     arrival_time_rel = arrival_time / end_time
 

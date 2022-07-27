@@ -146,9 +146,10 @@ def autocorrelate(pandas_series, normalize=False, log=False, m=2, deltat=5e-3):
     log : bool
         Whether to compute the autocorrelation on a logarithmic scale. Uses multipletau package.
     m : int
-        Defines the number of points on one level (i.e., 1, 2, 4, 8, etc.), E.g., m=4 leads to 1,2,3,4; 2,4,6,8; ...
+        Defines the number of points on one level (i.e., 1, 2, 4, 8, etc.), E.g., m=4 leads to 1,2,3,4; 2,4,6,8; ... .
+        Only needed if log is True.
     deltat : float
-        The time between each entry of pands_series.
+        The time between each entry of pands_series. Only needed if log is True.
 
     Returns
     -------

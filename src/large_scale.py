@@ -1,3 +1,11 @@
+import os
+import sys
+import inspect
+
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0, parentdir)
+
 import numpy as np
 import src.fluorophore_systems as fs
 
@@ -16,7 +24,7 @@ def multiple_simulations(n_simulations, class_name, class_args, simulate_args, e
         Arguments to pass to the subclass.
     simulate_args : dict
         Arguments to pass to the method simulate().
-    emitting_args : dict
+    emitting_args : None, dict
         Arguments to pass to the method emitters().
     seed : None, int, BitGenerator, Generator
         Seed to initialize a BitGenerator.
@@ -33,7 +41,8 @@ def multiple_simulations(n_simulations, class_name, class_args, simulate_args, e
     for i in range(n_simulations):
         system = class_lookup[class_name](**class_args)
         system.simulate(seed=rng, **simulate_args)
-        system.emitters(**emitting_args)
+        if emitting_args:
+            system.emitters(**emitting_args)
         object_collector.append(system)
 
     return object_collector

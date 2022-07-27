@@ -1,3 +1,11 @@
+import os
+import sys
+import inspect
+
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0, parentdir)
+
 import src.gillespie_algorithm as ga
 import src.processing as pr
 import src.initialize as init
@@ -79,9 +87,9 @@ class FluorophoreSystem:
             The transition rates (i.e., rate constants [1/s]).
         predefined : None, list
             Contains all crucial return values of initializing functions.
-        induction_rate : bool
-            Whether to add the concept of off state recovery of one fluorophore induced by the non-emitting transition
-            from S1 to S0 of a second fluorophore.
+        induction_rate : None, float
+            If not None, add the concept of off state recovery of one fluorophore induced by the non-emitting transition
+            from S1 to S0 of a second fluorophore with rate constant induction_rate.
         """
         self.number = number
         self.distances = distances
@@ -163,23 +171,23 @@ class JablonskiModel(FluorophoreSystem):
     Attributes
     ----------
     - Defined during method emitters() call -
-    emitting_transitions : list
+    emitting_transitions : None, list
         Contains emitting transitions.
-    emitting_transitions_indices : list
+    emitting_transitions_indices : None, list
         Contains emitting transition indices.
-    emitting_mask : np.ndarray
+    emitting_mask : None, np.ndarray
         Boolean array of length state_series, True at i if state_series[i] is a state following an emitting transition.
-    detected_emission_mask : np.ndarray
+    detected_emission_mask : None, np.ndarray
         Copy of emitting_mask but some True entries may have changed to False dictated by photon_collection.
-    pandas_series : pd.Series
+    pandas_series : None, pd.Series
         Contains the time step (resample) in seconds as index and the number of events as values.
-    on_periods : np.ndarray
+    on_periods : None, np.ndarray
         Contains the lengths of each on-period.
-    off_periods : np.ndarray
+    off_periods : None, np.ndarray
         Contains the lengths of each off-period.
 
     - Defined during method fcs() call -
-    autocorrelation : tuple
+    autocorrelation : None, tuple
         Contains two arrays, the first is the time points that correspond to the autocorrelation values, the second is
         the autocorrelation values.
     """
@@ -195,9 +203,9 @@ class JablonskiModel(FluorophoreSystem):
             The transition rates (i.e., rate constants [1/s]).
         predefined : None, list
             Contains all crucial return values of initializing functions.
-        induction_rate : bool
-            Whether to add the concept of off state recovery of one fluorophore induced by the non-emitting transition
-            from S1 to S0 of a second fluorophore.
+        induction_rate : None, float
+            If not None, add the concept of off state recovery of one fluorophore induced by the non-emitting transition
+            from S1 to S0 of a second fluorophore with rate constant induction_rate.
         """
         states = ("S0", "S1", "T1", "R", "B")
         super().__init__(number, distances, states, rates, predefined, induction_rate)
@@ -304,11 +312,11 @@ class OnOffModel(FluorophoreSystem):
     Attributes
     ----------
     - Defined during method emitters() call -
-    on_counts : np.ndarray
+    on_counts : None, np.ndarray
         Contains the number of on states of each state.
-    emissions : np.ndarray
+    emissions : None, np.ndarray
         Contains the photon counts per time step (i.e., resample).
-    emission_time_series : np.ndarray
+    emission_time_series : None, np.ndarray
         Contains the time points at which the corresponding photon count occurs.
     """
     def __init__(self, number, distances, rates, predefined=None, induction_rate=None):
@@ -323,9 +331,9 @@ class OnOffModel(FluorophoreSystem):
             The transition rates (i.e., rate constants [1/s]).
         predefined : None, list
             Contains all crucial return values of initializing functions.
-        induction_rate : bool
-            Whether to add the concept of off state recovery of one fluorophore induced by the non-emitting transition
-            from S1 to S0 of a second fluorophore.
+        induction_rate : None, float
+            If not None, add the concept of off state recovery of one fluorophore induced by the non-emitting transition
+            from S1 to S0 of a second fluorophore with rate constant induction_rate.
         """
         states = ("ON", "OFF", "B")
         super().__init__(number, distances, states, rates, predefined, induction_rate)
