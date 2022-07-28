@@ -126,7 +126,7 @@ class FluorophoreSystem:
         self.occupation_time_total = None
         self.occupation_time_mean = None
 
-    def simulate(self, n_steps, seed, base):
+    def simulate(self, n_steps=100, seed=100, base="cy"):
         """
         Simulates the CTMC using the direct method of the Gillespie algorithm.
 
@@ -277,11 +277,9 @@ class JablonskiModel(FluorophoreSystem):
 
         self.emitting_mask = et.emitter_mask(use_state_series, self.emitting_transitions_indices)
         # time-consuming
-
         self.detected_emission_mask = et.detected_emissions(self.emitting_mask, photon_collection, seed)
         # important: the photon detection rate of the microscope must not impact the actual emission, only their
         # detection!
-
         self.pandas_series = et.pandas_event_time_series(self.time_series[self.detected_emission_mask], unit, resample)
 
         self.on_periods, self.off_periods, _, _ = et.blink_statistics(self.pandas_series, threshold, memory,
@@ -302,7 +300,10 @@ class JablonskiModel(FluorophoreSystem):
         deltat : float
             The time between each entry of pandas_series.
         """
-        self.autocorrelation = pr.autocorrelate(self.pandas_series, normalize, log, m, deltat)
+        if self.pandas_series is None:
+            raise TypeError('pandas_series is None')
+        else:
+            self.autocorrelation = pr.autocorrelate(self.pandas_series, normalize, log, m, deltat)
 
 
 class OnOffModel(FluorophoreSystem):

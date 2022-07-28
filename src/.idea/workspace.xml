@@ -27,8 +27,8 @@
     &quot;settings.editor.selected.configurable&quot;: &quot;editor.preferences.completion&quot;
   }
 }</component>
-  <component name="RunManager" selected="Python tests.Python tests in test_fluorophore_systems.py">
-    <configuration name="Python tests for test_fluorophore_systems.test_init_fluorophoresystem" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+  <component name="RunManager" selected="Python tests.Python tests for test_processing.test_identify_duplices">
+    <configuration name="Python tests for test_processing.test_autocorrelate" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
       <module name="scr" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -38,11 +38,11 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;test_fluorophore_systems.test_init_fluorophoresystem&quot;" />
+      <option name="_new_target" value="&quot;test_processing.test_autocorrelate&quot;" />
       <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
-    <configuration name="Python tests for test_gillespie_algorithm.test_direct_method_py" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+    <configuration name="Python tests for test_processing.test_convert_unique_states" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
       <module name="scr" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -52,11 +52,11 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;test_gillespie_algorithm.test_direct_method_py&quot;" />
+      <option name="_new_target" value="&quot;test_processing.test_convert_unique_states&quot;" />
       <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
-    <configuration name="Python tests in test_fluorophore_systems.py" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+    <configuration name="Python tests for test_processing.test_identify_duplices" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
       <module name="scr" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -66,11 +66,11 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/test_fluorophore_systems.py&quot;" />
-      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <option name="_new_target" value="&quot;test_processing.test_identify_duplices&quot;" />
+      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
-    <configuration name="Python tests in test_gillespie_algorithm.py" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+    <configuration name="Python tests for test_processing.test_occupation_t" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
       <module name="scr" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -80,11 +80,11 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/test_gillespie_algorithm.py&quot;" />
-      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <option name="_new_target" value="&quot;test_processing.test_occupation_t&quot;" />
+      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
-    <configuration name="Python tests in test_large_scale.py" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+    <configuration name="Python tests for test_processing.test_uniques" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
       <module name="scr" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -94,17 +94,17 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/test_large_scale.py&quot;" />
-      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <option name="_new_target" value="&quot;test_processing.test_uniques&quot;" />
+      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python tests.Python tests in test_fluorophore_systems.py" />
-        <item itemvalue="Python tests.Python tests for test_fluorophore_systems.test_init_fluorophoresystem" />
-        <item itemvalue="Python tests.Python tests for test_gillespie_algorithm.test_direct_method_py" />
-        <item itemvalue="Python tests.Python tests in test_gillespie_algorithm.py" />
-        <item itemvalue="Python tests.Python tests in test_large_scale.py" />
+        <item itemvalue="Python tests.Python tests for test_processing.test_identify_duplices" />
+        <item itemvalue="Python tests.Python tests for test_processing.test_uniques" />
+        <item itemvalue="Python tests.Python tests for test_processing.test_occupation_t" />
+        <item itemvalue="Python tests.Python tests for test_processing.test_convert_unique_states" />
+        <item itemvalue="Python tests.Python tests for test_processing.test_autocorrelate" />
       </list>
     </recent_temporary>
   </component>

@@ -83,6 +83,17 @@ def test_blink_statistics():
     assert np.array_equal(goal_off_periods, off_periods)
     assert np.array_equal(goal_off_periods_frames, off_periods_frames)
     assert np.array_equal(goal_on_periods_frames, on_periods_frames)
+    pandas_series = pd.Series([0], index=[0])
+    goal_on_periods = np.array([])
+    goal_off_periods = np.array([])
+    goal_on_periods_frames = np.array([])
+    goal_off_periods_frames = np.array([])
+    on_periods, off_periods, on_periods_frames, off_periods_frames = \
+        et.blink_statistics(pandas_series, 2, 1, False)
+    assert np.array_equal(goal_on_periods, on_periods)
+    assert np.array_equal(goal_off_periods, off_periods)
+    assert np.array_equal(goal_off_periods_frames, off_periods_frames)
+    assert np.array_equal(goal_on_periods_frames, on_periods_frames)
 
 
 def test_frac_int_time():

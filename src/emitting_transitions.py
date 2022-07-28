@@ -160,25 +160,6 @@ def pandas_event_time_series(events_at, unit, resample):
     return series
 
 
-# def blinking(pandas_series, threshold):
-#     df = pd.DataFrame({'frame': np.arange(0, len(pandas_series)), 'intensity': pandas_series.values})
-#     df = df[df.intensity > threshold]
-#
-#     frames = df.frame.values
-#     differences = np.diff(frames)
-#
-#     mask = np.where(differences > 1)
-#     off_periods = differences[mask] - 1
-#     if frames[0] != 0:
-#         off_periods = np.insert(off_periods, 0, frames[0] + 1)
-#
-#     on_periods = np.diff(mask[0])
-#     on_periods = np.insert(on_periods, 0, mask[0][0] + 1)
-#     on_periods = np.append(on_periods, frames.shape[0] - 1 - mask[0][-1])
-#
-#     return on_periods, off_periods
-
-
 def blink_statistics(pandas_series, threshold=0, memory=0, remove_heading_off_period=True):
     """
     Returns on and off times of a pandas.Series given that each entry represents the collected photons of one frame.
@@ -208,93 +189,101 @@ def blink_statistics(pandas_series, threshold=0, memory=0, remove_heading_off_pe
         Contains the first frame of each off-period.
     """
     df = pd.DataFrame({'frame': np.arange(0, len(pandas_series)), 'intensity': pandas_series.values})
+
     df = df[df.intensity > threshold]
 
     frames = df.frame.values
 
-    differences = np.diff(frames)
-    off_periods_indices = np.where(differences > 1 + memory)[0]
+    if frames.size != 0:
 
-    off_periods_frames = frames[off_periods_indices] + 1
+        differences = np.diff(frames)
+        off_periods_indices = np.where(differences > 1 + memory)[0]
 
-    if off_periods_indices.size == 0:
-        off_periods = np.array([], dtype=int)
-        if frames[0] > memory and not remove_heading_off_period:
-            off_periods = np.insert(off_periods, 0, frames[0])
-            on_periods = np.array([frames[-1] - frames[0] + 1])
-            off_periods_frames = np.array([0])
-            on_periods_frames = np.array(frames[0])
-            if remove_heading_off_period:
-                off_periods = np.delete(off_periods, 0)
-        elif not remove_heading_off_period:
-            on_periods = np.array([frames[-1] + 1])
-            on_periods_frames = np.array([0])
+        off_periods_frames = frames[off_periods_indices] + 1
+
+        if off_periods_indices.size == 0:
+            off_periods = np.array([], dtype=int)
+            if frames[0] > memory and not remove_heading_off_period:
+                off_periods = np.insert(off_periods, 0, frames[0])
+                on_periods = np.array([frames[-1] - frames[0] + 1])
+                off_periods_frames = np.array([0])
+                on_periods_frames = np.array(frames[0])
+                if remove_heading_off_period:
+                    off_periods = np.delete(off_periods, 0)
+            elif not remove_heading_off_period:
+                on_periods = np.array([frames[-1] + 1])
+                on_periods_frames = np.array([0])
+            else:
+                on_periods = np.array([frames[-1] - frames[0] + 1])
+                on_periods_frames = np.array(frames[0])
+
         else:
-            on_periods = np.array([frames[-1] - frames[0] + 1])
-            on_periods_frames = np.array(frames[0])
+            off_periods_zero = np.where(differences > 1 + memory, 0, differences)
+            # if off period, convert to 0
+            interrupt_by_one_frame = np.where(off_periods_indices[1:] - off_periods_indices[:-1] == 1)[0] + 1
+            # store indices where off periods are interrupted by only 1 on frame
+            on_mask_init = np.ones(off_periods_indices.shape, bool)
+            # initialize a boolean mask
+            on_mask_init[interrupt_by_one_frame] = False
+            # the mask is False where only 1 frame is on
+            if off_periods_zero[0] == 0:
+                on_mask_init[0] = False
+            # interrupt_by_one_frame cannot store the information if the first frame is on and
+            # followed by off frames
 
-    else:
-        off_periods_zero = np.where(differences > 1 + memory, 0, differences)
-        # if off period, convert to 0
-        interrupt_by_one_frame = np.where(off_periods_indices[1:] - off_periods_indices[:-1] == 1)[0] + 1
-        # store indices where off periods are interrupted by only 1 on frame
-        on_mask_init = np.ones(off_periods_indices.shape, bool)
-        # initialize a boolean mask
-        on_mask_init[interrupt_by_one_frame] = False
-        # the mask is False where only 1 frame is on
-        if off_periods_zero[0] == 0:
-            on_mask_init[0] = False
-        # interrupt_by_one_frame cannot store the information if the first frame is on and
-        # followed by off frames
+            cumsum = np.cumsum(off_periods_zero)
+            # cumulative sum of off_periods_zero; if 0 (off period) the value stays the same
+            uniques, counts = np.unique(cumsum, return_counts=True)
+            duplices = uniques[np.where(counts > 1)]
+            duplices[1:] -= duplices[:-1]
+            # get the values of cumsum which appear several times indicating an off period
+            # the last step is to back calculate the cumulative sum
 
-        cumsum = np.cumsum(off_periods_zero)
-        # cumulative sum of off_periods_zero; if 0 (off period) the value stays the same
-        uniques, counts = np.unique(cumsum, return_counts=True)
-        duplices = uniques[np.where(counts > 1)]
-        duplices[1:] -= duplices[:-1]
-        # get the values of cumsum which appear several times indicating an off period
-        # the last step is to back calculate the cumulative sum
+            on_periods = np.ones(off_periods_indices.shape, dtype=int)
+            # initialize array of on_periods (ones for every entry)
+            if duplices.size != 0:
+                if duplices[0] == 0:
+                    duplices = duplices[1:]
+            # if, in the beginning, more than one off period are consecutively interrupted by only
+            # one frame, the cumsum will give several 0 (meaning that 0 will be one of duplices)
+            # even though these on periods should stay 1
+            on_periods[on_mask_init] = duplices + 1
+            # change the values which are not 1 to their true values
 
-        on_periods = np.ones(off_periods_indices.shape, dtype=int)
-        # initialize array of on_periods (ones for every entry)
-        if duplices.size != 0:
-            if duplices[0] == 0:
-                duplices = duplices[1:]
-        # if, in the beginning, more than one off period are consecutively interrupted by only
-        # one frame, the cumsum will give several 0 (meaning that 0 will be one of duplices)
-        # even though these on periods should stay 1
-        on_periods[on_mask_init] = duplices + 1
-        # change the values which are not 1 to their true values
+            max_index_off = np.max(off_periods_indices)
+            # the index of the last off period
+            last_on_period = np.sum(off_periods_zero[max_index_off + 1:]) + 1
+            # the last on period is the sum of differences starting after the last off period
+            on_periods = np.append(on_periods, last_on_period)
+            # add the last on period
+            off_periods = differences[off_periods_indices] - 1
+            # the off periods
 
-        max_index_off = np.max(off_periods_indices)
-        # the index of the last off period
-        last_on_period = np.sum(off_periods_zero[max_index_off + 1:]) + 1
-        # the last on period is the sum of differences starting after the last off period
-        on_periods = np.append(on_periods, last_on_period)
-        # add the last on period
-        off_periods = differences[off_periods_indices] - 1
-        # the off periods
-
-        if frames[0] > memory:
-            off_periods = np.insert(off_periods, 0, frames[0])
-            # add an initial off period if the series doesn't start with on period
-            off_periods_frames = np.insert(off_periods_frames, 0, 0)
-            on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
-            if remove_heading_off_period:
-                off_periods = np.delete(off_periods, 0)
-                off_periods_frames = np.delete(off_periods_frames, 0)
-        elif frames[0] != 0:
-            if not remove_heading_off_period:
-                on_periods[0] += frames[0]
-                # add the initial on frames if they are rescued by memory
+            if frames[0] > memory:
+                off_periods = np.insert(off_periods, 0, frames[0])
+                # add an initial off period if the series doesn't start with on period
+                off_periods_frames = np.insert(off_periods_frames, 0, 0)
                 on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
-                on_periods_frames = np.insert(on_periods_frames, 0, 0)
+                if remove_heading_off_period:
+                    off_periods = np.delete(off_periods, 0)
+                    off_periods_frames = np.delete(off_periods_frames, 0)
+            elif frames[0] != 0:
+                if not remove_heading_off_period:
+                    on_periods[0] += frames[0]
+                    # add the initial on frames if they are rescued by memory
+                    on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
+                    on_periods_frames = np.insert(on_periods_frames, 0, 0)
+                else:
+                    on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
+                    on_periods_frames = np.insert(on_periods_frames, 0, frames[0])
             else:
                 on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
-                on_periods_frames = np.insert(on_periods_frames, 0, frames[0])
-        else:
-            on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
-            on_periods_frames = np.insert(on_periods_frames, 0, 0)
+                on_periods_frames = np.insert(on_periods_frames, 0, 0)
+    else:
+        on_periods = np.array([])
+        off_periods = np.array([])
+        on_periods_frames = np.array([])
+        off_periods_frames = np.array([])
 
     return on_periods, off_periods, on_periods_frames, off_periods_frames
 
