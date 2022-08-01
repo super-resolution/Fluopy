@@ -38,6 +38,8 @@ class FluorophoreSystem:
         Contains all combinations of Joined_States as keys and their unique value pair as values.
     assigned_rate_dict : dict
         Contains all transitions and their rates if the rate is > 0.
+    rate_name_dict : dict
+        Contains all transition value pairs and their names if the rate is > 0.
     initial_row_vector : np.ndarray
         Is of shape (sqrt(len(transitions)),) with a 1 at position 0 (else 0).
     transition_matrix : np.ndarray
@@ -96,18 +98,19 @@ class FluorophoreSystem:
         self.states = states
         self.rates = rates
         if predefined:
-            self.Joined_States, self.state_names, self.transitions, self.assigned_rate_dict, self.initial_row_vector, \
-                self.transition_matrix, self.row_sums = predefined
+            self.Joined_States, self.state_names, self.transitions, self.assigned_rate_dict, self.rate_name_dict, \
+                self.initial_row_vector, self.transition_matrix, self.row_sums = predefined
         else:
             self.Joined_States = init.state_pairs(self.number, self.states)
             self.state_names = []
             for joined_state in self.Joined_States:
                 self.state_names.append(joined_state.name)
             self.transitions = init.transition_pairs(self.Joined_States)
-            self.assigned_rate_dict = init.transition_rate_dict(self.rates, self.transitions)
+            self.assigned_rate_dict, self.rate_name_dict = init.transition_rate_dict(self.rates, self.transitions)
             if induction_rate:
-                self.assigned_rate_dict = init.induction(self.assigned_rate_dict, self.transitions, induction_rate,
-                                                         self.states)
+                self.assigned_rate_dict, self.rate_name_dict = init.induction(self.assigned_rate_dict,
+                                                                              self.rate_name_dict, self.transitions,
+                                                                              induction_rate, self.states)
             self.initial_row_vector = init.initial_row_vector(self.transitions)
             _, self.transition_matrix, self.row_sums = init.transition_matrices(self.assigned_rate_dict,
                                                                                 self.transitions)
@@ -115,6 +118,7 @@ class FluorophoreSystem:
         self.time_series = None
         self.time_step_series = None
         self.state_series = None
+        self.transition_series = None
 
         self.duplices = None
         self.unique_series = None
@@ -126,7 +130,7 @@ class FluorophoreSystem:
         self.occupation_time_total = None
         self.occupation_time_mean = None
 
-    def simulate(self, n_steps=100, seed=100, base="cy"):
+    def simulate(self, n_steps=100, seed=100, base="py"):
         """
         Simulates the CTMC using the direct method of the Gillespie algorithm.
 
@@ -141,10 +145,11 @@ class FluorophoreSystem:
             One of "py", "cy" determining whether to use the cython of python implementation.
         """
         if base == "py":
-            self.time_series, self.time_step_series, self.state_series = \
-                ga.direct_method_py(self.row_sums, self.initial_row_vector, self.transition_matrix, n_steps, seed)
+            self.time_series, self.time_step_series, self.state_series, self.transition_series = \
+                ga.direct_method_py(self.row_sums, self.initial_row_vector, self.transition_matrix, self.rate_name_dict,
+                                    n_steps, seed)
         else:
-            self.time_series, self.time_step_series, self.state_series = \
+            self.time_series, self.time_step_series, self.state_series, self.transition_series = \
                 ga_cy.direct_method_cy(self.row_sums, self.initial_row_vector, self.transition_matrix, n_steps, seed)
 
     def process(self):

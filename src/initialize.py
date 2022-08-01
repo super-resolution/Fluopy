@@ -2,6 +2,7 @@ from enum import Enum
 import numpy as np
 import warnings
 
+
 def recursion(number, original_number, iterable, collector=None):
     """
     Combines all elements of iterable with elements of iterable original_number of times.
@@ -119,16 +120,19 @@ def initial_row_vector(transitions):
     return vector
 
 
-def rate_assignment(assigned_rate_dict, transitions, source, destination, rate):
+def rate_assignment(assigned_rate_dict, rate_name_dict, transitions, source, destination, rate, name):
     """
     Adds transitions (as keys) and their rates (as values) to assigned_rate_dict, if source is part of the first state
     of the transition and destination is part of the second state of the transition. Additionally, all other
     contributors to the first and second state should be equal.
+    Also returns value pairs of these transitions (as keys) and their names (as values) as a dict.
 
     Parameters
     ----------
     assigned_rate_dict : dict
         Destination of addable transitions and their rates. May be empty.
+    rate_name_dict : dict
+        Destination of addable transition value pairs and their names. May be empty.
     transitions : dict
         The return value of transition_pairs.
     source : str
@@ -137,13 +141,17 @@ def rate_assignment(assigned_rate_dict, transitions, source, destination, rate):
         Search value of the second state.
     rate : float
         The rate of the target transition.
+    name : str
+        The name of the target transition.
 
     Returns
     -------
     assigned_rate_dict : dict
         The possibly altered input parameter.
+    rate_name_dict : dict
+        The possibly altered input parameter.
     """
-    for transition in transitions:
+    for transition, value_pair in transitions.items():
         current_state, future_state = transition.split("__")
         current_state_split = current_state.split("_")
         future_state_split = future_state.split("_")
@@ -157,18 +165,20 @@ def rate_assignment(assigned_rate_dict, transitions, source, destination, rate):
                         break
                     else:
                         assigned_rate_dict[transition] = rate
-    return assigned_rate_dict
+                        rate_name_dict[value_pair] = name
+    return assigned_rate_dict, rate_name_dict
 
 
 def transition_rate_dict(rates, transitions):
     """
-    Constructs a dictionary with transitions as keys and their rates as values.
+    Constructs a dictionary with transitions as keys and their rates as values and a dictionary with transition value
+    pairs as keys and their names as values.
 
     Parameters
     ----------
     rates : dict
         The transition from state 1 to state 2 with rate constant k [1/s] should have the key k_state1_state2 and the
-        value k assigned to it.
+        value [k, name] assigned to it.
     transitions : dict
         The return value of transition_pairs.
 
@@ -176,25 +186,33 @@ def transition_rate_dict(rates, transitions):
     -------
     assigned_rate_dict : dict
         Contains all transitions and their rates if the rate is > 0.
+    rate_name_dict : dict
+        Contains all transition value pairs and their names if the rate is > 0.
     """
     assigned_rate_dict = dict()
+    rate_name_dict = dict()
 
-    for name, rate in rates.items():
-        split = name.split("_")
+    for key, value in rates.items():
+        split = key.split("_")
         source, destination = split[1], split[2]
-        assigned_rate_dict = rate_assignment(assigned_rate_dict, transitions, source, destination, rate)
-    return assigned_rate_dict
+        rate = value[0]
+        name = value[1]
+        assigned_rate_dict, rate_name_dict = rate_assignment(assigned_rate_dict, rate_name_dict, transitions, source,
+                                                             destination, rate, name)
+    return assigned_rate_dict, rate_name_dict
 
 
-def induction(rate_dict, transitions, induction_rate, states):
+def induction(assigned_rate_dict, rate_name_dict, transitions, induction_rate, states):
     """
     Adds the concept of off state recovery of one fluorophore induced by the non-emitting transition from S1 to S0 of
-    a second fluorophore to the rate_dict.
+    a second fluorophore to the assigned_rate_dict and rate_name_dict.
 
     Parameters
     ----------
-    rate_dict : dict
-        The return value of transition_rate_dict.
+    assigned_rate_dict : dict
+        The first return value of transition_rate_dict.
+    rate_name_dict : dict
+        The second return value of transition_rate_dict.
     transitions : dict
         The return value of transition_pairs.
     induction_rate : float
@@ -204,11 +222,13 @@ def induction(rate_dict, transitions, induction_rate, states):
 
     Returns
     -------
-    rate_dict : dict
+    assigned_rate_dict : dict
+        The possibly altered input parameter.
+    rate_name_dict : dict
         The possibly altered input parameter.
     """
     if states == ("S0", "S1", "T1", "R", "B"):
-        for transition in transitions:
+        for transition, value_pair in transitions.items():
             current_state, future_state = transition.split("__")
             current_state_split = current_state.split("_")
             future_state_split = future_state.split("_")
@@ -226,8 +246,9 @@ def induction(rate_dict, transitions, induction_rate, states):
                             if not future_state_part == current_state_part:
                                 break
                             else:
-                                rate_dict[transition] = induction_rate
-        return rate_dict
+                                assigned_rate_dict[transition] = induction_rate
+                                rate_name_dict[value_pair] = "induction"
+        return assigned_rate_dict, rate_name_dict
     elif states == ("ON", "OFF", "B"):
         for transition in transitions:
             current_state, future_state = transition.split("__")
@@ -247,12 +268,13 @@ def induction(rate_dict, transitions, induction_rate, states):
                             if not future_state_part == current_state_part:
                                 break
                             else:
-                                rate_dict[transition] += induction_rate  # here the rate is added since the transition
-                                # occurs occasionally as well.
-        return rate_dict
+                                assigned_rate_dict[transition] += induction_rate  # here the rate is added since the
+                                # transition occurs occasionally as well.
+                                # The name of the off-on transition is not overwritten with induction
+        return assigned_rate_dict, rate_name_dict
     else:
         warnings.warn("The concept of induction could not be added due to mismatch of state names!")
-        return rate_dict
+        return assigned_rate_dict, rate_name_dict
 
 
 def transition_matrices(rates, transitions):
@@ -264,7 +286,7 @@ def transition_matrices(rates, transitions):
     Parameters
     ----------
     rates : dict
-        The return value of transition_rate_dict.
+        The first return value of transition_rate_dict.
     transitions : dict
         The return value of transition_pairs.
 
@@ -320,13 +342,13 @@ def predefining(number, states, rates, induction_rate=None):
     for joined_state in joined_states:
         state_names.append(joined_state.name)
     transitions = transition_pairs(joined_states)
-    assigned_rate_dict = transition_rate_dict(rates, transitions)
+    assigned_rate_dict, rate_name_dict = transition_rate_dict(rates, transitions)
     if induction_rate:
         assigned_rate_dict = induction(assigned_rate_dict, transitions, induction_rate, states)
     vector = initial_row_vector(transitions)
     _, transition_matrix, row_sums = transition_matrices(assigned_rate_dict, transitions)
 
-    predefined_args = [joined_states, state_names, transitions, assigned_rate_dict, induction, vector,
+    predefined_args = [joined_states, state_names, transitions, assigned_rate_dict, rate_name_dict, induction, vector,
                        transition_matrix, row_sums]
 
     return predefined_args

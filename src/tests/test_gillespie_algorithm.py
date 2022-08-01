@@ -17,15 +17,21 @@ def test_direct_method_py():
     row_sums = np.array([2, 7.6, 4])
     initial_row_vector = np.array([1, 0, 0])
     transition_matrix = np.array([[0.4, 0, 0.6], [6.5/7.6, 0, 1.1/7.6], [0, 1, 0]])
+    rate_name_dict = None
     n_steps = 1000
     seed = 100
-    time_series, time_step_series, state_series = ga.direct_method_py(row_sums, initial_row_vector, transition_matrix,
-                                                                      n_steps, seed)
-    time_series_2, time_step_series_2, state_series_2 = ga_cy.direct_method_cy(row_sums, initial_row_vector,
-                                                                               transition_matrix, n_steps, seed)
+    time_series, time_step_series, state_series, transition_series = ga.direct_method_py(row_sums, initial_row_vector,
+                                                                                         transition_matrix,
+                                                                                         rate_name_dict, n_steps, seed)
+    time_series_2, time_step_series_2, state_series_2, transition_series_2 = ga_cy.direct_method_cy(row_sums,
+                                                                                                    initial_row_vector,
+                                                                                                    transition_matrix,
+                                                                                                    n_steps, seed)
     assert np.array_equal(time_series, time_series_2)
     assert np.array_equal(time_step_series, time_step_series_2)
     assert np.array_equal(state_series, state_series_2)
+    assert not transition_series
+    assert not transition_series_2
 
     # second part ensures that the implementations produce the expected result at seed of 99
     # The goal result was captured by a run of the function in a configuration which was likely to perform
@@ -33,10 +39,13 @@ def test_direct_method_py():
     row_sums = np.array([1e6, 7.6, 4])
     initial_row_vector = np.array([1, 0, 0])
     transition_matrix = np.array([[0, 0.4, 0.6], [6.5/7.6, 0, 1.1/7.6], [0, 1, 0]])
+    rate_name_dict = {(0, 1): "1", (0, 2): "2", (1, 0): "3", (1, 2): "4", (2, 1): "5"}
     n_steps = 20
     seed = 99
-    time_series, time_step_series, state_series = ga.direct_method_py(row_sums, initial_row_vector, transition_matrix,
-                                                                      n_steps, seed)
+    time_series, time_step_series, state_series, transition_series = ga.direct_method_py(row_sums, initial_row_vector,
+                                                                                         transition_matrix,
+                                                                                         rate_name_dict, n_steps, seed)
+
     goal_time_step_series = np.array([0.00000000e+00, 6.81157990e-07, 1.67398702e-01, 6.39855943e-02,
                                       1.24901647e-06, 1.90076402e-01, 9.48618448e-03, 1.17299644e-06,
                                       1.72148343e-01, 6.58944361e-08, 3.35980245e-02, 3.02116056e-01,
@@ -56,7 +65,10 @@ def test_direct_method_py():
                                   0., 2., 1., 0.,
                                   1., 2., 1., 0.,
                                   2.])
+    goal_transition_series = ["2", "5", "3", "2", "5", "3", '1', '3', '1', '4', '5', '3', '2', '5', '3', '1', '4', '5',
+                              '3', '2']
 
     assert np.array_equal(time_series, np.cumsum(time_step_series))  # time_series is the cumsum of time_step_series
     assert np.allclose(time_step_series, goal_time_step_series)
     assert np.array_equal(state_series, goal_state_series)
+    assert transition_series == goal_transition_series

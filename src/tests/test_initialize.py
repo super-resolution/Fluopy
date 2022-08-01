@@ -54,27 +54,36 @@ def test_rate_assignment():
                    "T_E__T_T": (1, 0), "T_E__T_E": (1, 1), "T_E__T_S": (1, 2),
                    "T_S__T_T": (2, 0), "T_S__T_E": (2, 1), "T_S__T_S": (2, 2)}
     goal_assigned_rate_dict = {"T_E__T_T": 6.5}
-    assigned_rate_dict = ini.rate_assignment(dict(), transitions, "E", "T", 6.5)
+    goal_rate_name_dict = {(1, 0): "letter switching"}
+    assigned_rate_dict, rate_name_dict = ini.rate_assignment(dict(), dict(), transitions, "E", "T", 6.5,
+                                                             "letter switching")
     assert assigned_rate_dict == goal_assigned_rate_dict
+    assert rate_name_dict == goal_rate_name_dict
 
 
 def test_transition_rate_dict():
-    rates = {"k_E_T": 6.5, "k_S_E": 4}
+    rates = {"k_E_T": [6.5, "E exchange"], "k_S_E": [4, "S exchange"]}
     transitions = {"T_T__T_T": (0, 0), "T_T__T_E": (0, 1), "T_T__T_S": (0, 2),
                    "T_E__T_T": (1, 0), "T_E__T_E": (1, 1), "T_E__T_S": (1, 2),
                    "T_S__T_T": (2, 0), "T_S__T_E": (2, 1), "T_S__T_S": (2, 2)}
     goal_assigned_rate_dict = {"T_E__T_T": 6.5, "T_S__T_E": 4}
-    assigned_rate_dict = ini.transition_rate_dict(rates, transitions)
+    goal_rate_name_dict = {(1, 0): "E exchange", (2, 1): "S exchange"}
+    assigned_rate_dict, rate_name_dict = ini.transition_rate_dict(rates, transitions)
     assert assigned_rate_dict == goal_assigned_rate_dict
+    assert rate_name_dict == goal_rate_name_dict
 
 
 def test_induction():
-    assigned_rate_dict = {"S0_S0__S0_S1": 2, "S0_S0__S1_Sß": 2}
+    assigned_rate_dict = {"S0_S0__S0_S1": 2, "S0_S0__S1_S0": 2}
     transitions = {"S0_S0__S0_S0": (0, 0), "S0_S0__S0_S1": (0, 1), "S0_S0__S1_S0": (0, 2),
                    "R_S1__S0_S0": (4, 0), "R_S1__S0_S1": (4, 1)}
-    goal_assigned_rate_dict = {"S0_S0__S0_S1": 2, "S0_S0__S1_Sß": 2, "R_S1__S0_S0": 9.7}
-    assigned_rate_dict = ini.induction(assigned_rate_dict, transitions, 9.7, ("S0", "S1", "T1", "R", "B"))
+    rate_name_dict = {(0, 1): "hi", (0, 2): "hello"}
+    goal_assigned_rate_dict = {"S0_S0__S0_S1": 2, "S0_S0__S1_S0": 2, "R_S1__S0_S0": 9.7}
+    goal_rate_name_dict = {(0, 1): "hi", (0, 2): "hello", (4, 0): "induction"}
+    assigned_rate_dict, rate_name_dict = ini.induction(assigned_rate_dict, rate_name_dict, transitions, 9.7,
+                                                       ("S0", "S1", "T1", "R", "B"))
     assert assigned_rate_dict == goal_assigned_rate_dict
+    assert rate_name_dict == goal_rate_name_dict
 
 
 def test_transition_matrices():

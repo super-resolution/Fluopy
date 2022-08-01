@@ -12,7 +12,7 @@ import large_scale as ls
 
 
 def test_multiple_simulations():
-    class_args = {"number": 2, "distances": 1, "rates": {"k_S0_S1": 2, "k_S1_S0": 0.5}}
+    class_args = {"number": 2, "distances": 1, "rates": {"k_S0_S1": [2, "excitation"], "k_S1_S0": [0.5, "emission"]}}
     simulate_args = {"n_steps": 1000, "base": "cy"}
     emitting_args = None
     object_collector = ls.multiple_simulations(2, "Jablonski", class_args, simulate_args, emitting_args, 100)
