@@ -178,7 +178,7 @@ def transition_rate_dict(rates, transitions):
     ----------
     rates : dict
         The transition from state 1 to state 2 with rate constant k [1/s] should have the key k_state1_state2 and the
-        value [k, name] assigned to it.
+        value [k, name_of_transition] assigned to it.
     transitions : dict
         The return value of transition_pairs.
 

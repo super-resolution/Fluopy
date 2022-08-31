@@ -103,6 +103,8 @@ def detected_emissions(emitting_mask, photon_collection, seed):
     """
     Returns a possibly altered emitting_mask, dictated by photon_collection. A random subset of photon_collection
     times the total True count of emitting mask is kept as True, rest is converted to False.
+    This serves to correct for the limited photon detection rate of a microscope (since a photon is emitted in a random
+    direction and hence is not always collected by the objective lens).
 
     Parameters
     ----------

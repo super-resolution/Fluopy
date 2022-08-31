@@ -4,8 +4,8 @@ import matplotlib.patches as mpatches
 import numpy as np
 
 
-def jablonski_diagram(time_series, time_step_series, state_series, number, state_names, states, index_min=0,
-                      index_range=100, fps=10, saveas="writer_test.mp4"):
+def jablonski_diagram(time_series, time_step_series, state_series, transition_series, number, state_names, states,
+                      index_min=0, index_range=100, fps=10, saveas="writer_test.mp4"):
     """
     Animate (part of) the state_series displayed in a Jablonski diagram.
 
@@ -17,6 +17,8 @@ def jablonski_diagram(time_series, time_step_series, state_series, number, state
         Contains the time step until the corresponding state occurs (starting from the previous state).
     state_series : np.ndarray
         Contains the consecutive state's unique values.
+    transition_series : Collection
+        Contains the next transition for each corresponding state (except the last).
     number : int
         Number of fluorophores of the system.
     state_names : Collection
@@ -71,6 +73,10 @@ def jablonski_diagram(time_series, time_step_series, state_series, number, state
         min_expo = np.min(exponents)
 
         special_case = False
+        next_transition = None
+
+        text_1 = plt.text(0.2, 0.4, transform=ax.transAxes, s="", fontsize=13)
+        text_2 = plt.text(0.2, 0.3, transform=ax.transAxes, s="", fontsize=13)
 
         if len(state_series[index_min:]) - 1 <= index_range:
             index_range = len(state_series[index_min:])
@@ -92,6 +98,7 @@ def jablonski_diagram(time_series, time_step_series, state_series, number, state
                     next_transition_in = np.inf
                     frames = 1
                     next_frame_in = np.inf
+
                 else:
                     next_transition_in = time_step_series[i_1 + 1]  # i_1 + 1 because each time interval of state i_1 is
                     # the one until it was occupied, here the time it stays at state i (until next transition happens)
@@ -101,8 +108,14 @@ def jablonski_diagram(time_series, time_step_series, state_series, number, state
                     next_frame_in = frames / fps
 
                 total_time = time_series[i_1]
+                latest_transition = next_transition
+                next_transition = transition_series[i_1]
 
-                row_labels = ["total", "next tr", "next fr"]
+                if latest_transition:
+                    text_1.set_text("Latest transition: " + latest_transition)
+                text_2.set_text("Next transition: " + next_transition)
+
+                row_labels = ["total", "next transition in", "next frame in"]
                 column_label = ["time [s]"]
                 cell_texts = [[f"{total_time:.2e}"], [f"{next_transition_in:.2e}"], [f"{next_frame_in}"]]
                 table = plt.table(cellText=cell_texts, rowLabels=row_labels, colLabels=column_label, cellLoc="center",

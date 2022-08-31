@@ -176,6 +176,17 @@ def test_init_jablonskimodel():
     assert not system.off_periods
     assert not system.autocorrelation
 
+    system = fc.JablonskiModel(2, 1, {"k_tS0_tS1": [0.4, "excitation"], "k_tS1_tT1": [5.8, "intersystem crossing"],
+                                      "k_tT1_tS0": [1e-2, "relaxation"], "k_tT1_tR": [13, "reduction"],
+                                      "k_tR_tS0": [0.3, "oxidation"]},
+                               induction_rate=4, cis=True)
+    assert system.number == 2
+    assert system.distances == 1
+    assert system.states == ("tS0", "tS1", "tT1", "tR", "tB", "cS0", "cS1", "cT1", "cR", "cB")
+    assert system.rates == {"k_tS0_tS1": [0.4, "excitation"], "k_tS1_tT1": [5.8, "intersystem crossing"],
+                            "k_tT1_tS0": [1e-2, "relaxation"], "k_tT1_tR": [13, "reduction"],
+                            "k_tR_tS0": [0.3, "oxidation"]}
+
 
 def test_emitters_jablonskimodel():
     system_1 = fc.JablonskiModel(2, 1, {"k_S0_S1": [0.4, "excitation"], "k_S1_T1": [5.8, "intersystem crossing"],

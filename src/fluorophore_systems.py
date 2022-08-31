@@ -29,7 +29,8 @@ class FluorophoreSystem:
     states : iterable object
         Contains elements of type str describing each state a single fluorophore can occupy.
     rates : dict
-        The transition rates (i.e., rate constants [1/s]).
+        The transition from state 1 to state 2 with rate constant k [1/s] have the key k_state1_state2 and the
+        value [k, name_of_transition] assigned to it.
     Joined_States : enum.EnumMeta
         All possible state combinations (given the number of fluorophores).
     state_names : Collection
@@ -86,7 +87,8 @@ class FluorophoreSystem:
         states : iterable object
             Contains elements of type str describing each state a single fluorophore can occupy.
         rates : dict
-            The transition rates (i.e., rate constants [1/s]).
+            The transition from state 1 to state 2 with rate constant k [1/s] should have the key k_state1_state2 and the
+            value [k, name_of_transition] assigned to it.
         predefined : None, list
             Contains all crucial return values of initializing functions.
         induction_rate : None, float
@@ -196,7 +198,7 @@ class JablonskiModel(FluorophoreSystem):
         Contains two arrays, the first is the time points that correspond to the autocorrelation values, the second is
         the autocorrelation values.
     """
-    def __init__(self, number, distances, rates, predefined=None, induction_rate=None):
+    def __init__(self, number, distances, rates, predefined=None, induction_rate=None, cis=False):
         """
         Parameters
         ----------
@@ -205,14 +207,20 @@ class JablonskiModel(FluorophoreSystem):
         distances : float, Collection
             Distances of the fluorophores to each other.
         rates : dict
-            The transition rates (i.e., rate constants [1/s]).
+            The transition from state 1 to state 2 with rate constant k [1/s] should have the key k_state1_state2 and the
+            value [k, name_of_transition] assigned to it.
         predefined : None, list
             Contains all crucial return values of initializing functions.
         induction_rate : None, float
             If not None, add the concept of off state recovery of one fluorophore induced by the non-emitting transition
             from S1 to S0 of a second fluorophore with rate constant induction_rate.
+        cis : bool
+            Whether to include the concept of cis/trans molecule conformation into the system.
         """
-        states = ("S0", "S1", "T1", "R", "B")
+        if cis:
+            states = ("tS0", "tS1", "tT1", "tR", "tB", "cS0", "cS1", "cT1", "cR", "cB")
+        else:
+            states = ("S0", "S1", "T1", "R", "B")
         super().__init__(number, distances, states, rates, predefined, induction_rate)
 
         self.emitting_transitions = None
@@ -240,8 +248,8 @@ class JablonskiModel(FluorophoreSystem):
         saveas : str
             Defines the save location of the outfile.
         """
-        an.jablonski_diagram(self.time_series, self.time_step_series, self.state_series, self.number,
-                             self.state_names, self.states, index_min, index_range, fps, saveas)
+        an.jablonski_diagram(self.time_series, self.time_step_series, self.state_series, self.transition_series,
+                             self.number, self.state_names, self.states, index_min, index_range, fps, saveas)
 
     def emitters(self, photon_collection=1, resample=None, unit=None, threshold=0, memory=0, use_unique=True,
                  remove_heading_off_period=False, seed=100):
@@ -334,7 +342,8 @@ class OnOffModel(FluorophoreSystem):
         distances : float, Collection
             Distances of the fluorophores to each other.
         rates : dict
-            The transition rates (i.e., rate constants [1/s]).
+            The transition from state 1 to state 2 with rate constant k [1/s] should have the key k_state1_state2 and the
+            value [k, name_of_transition] assigned to it.
         predefined : None, list
             Contains all crucial return values of initializing functions.
         induction_rate : None, float
