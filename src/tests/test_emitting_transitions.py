@@ -13,12 +13,23 @@ import emitting_transitions as et
 
 
 def test_identify_emitting_transitions():
+    states = ("S0", "S1", "T1", "R", "B")
     transitions = {"S1__S0": (1, 0), "R__S0": (3, 0), "S0__S1": (0, 1), "S0_S1__S0_S0": (1, 0), "S1_S1__S0_S0": (2, 0),
                    "R_R__R_S0": (10, 15), "S0_S1_S0__S0_S0_S0": (110, 109), "S1_S1_S0__S0_S0_S0": (111, 109),
                    "S0_S0_R__S0_S0_S0": (112, 109)}
     goal_emitting_transitions = ["S1__S0", "S0_S1__S0_S0", "S0_S1_S0__S0_S0_S0"]
     goal_emitting_transition_indices = [(1, 0), (1, 0), (110, 109)]
-    emitting_transitions, emitting_transition_indices = et.identify_emitting_transitions(transitions)
+    emitting_transitions, emitting_transition_indices = et.identify_emitting_transitions(transitions, states)
+    assert emitting_transitions == goal_emitting_transitions
+    assert emitting_transition_indices == goal_emitting_transition_indices
+    states = ("tS0", "tS1", "tT1", "R", "B", "cS0", "cS1", "cT1")
+    transitions = {"tS1__tS0": (1, 0), "R__tS0": (3, 0), "tS0__tS1": (0, 1), "tS0_tS1__tS0_tS0": (1, 0),
+                   "tS1_tS1__tS0_tS0": (2, 0), "R_R__R_tS0": (10, 15), "tS0_tS1_tS0__tS0_tS0_tS0": (110, 109),
+                   "tS1_tS1_tS0__tS0_tS0_tS0": (111, 109), "tS0_tS0_R__tS0_tS0_tS0": (112, 109),
+                   "cS1__cS0": (99, 98)}
+    goal_emitting_transitions = ["tS1__tS0", "tS0_tS1__tS0_tS0", "tS0_tS1_tS0__tS0_tS0_tS0"]
+    goal_emitting_transition_indices = [(1, 0), (1, 0), (110, 109)]
+    emitting_transitions, emitting_transition_indices = et.identify_emitting_transitions(transitions, states)
     assert emitting_transitions == goal_emitting_transitions
     assert emitting_transition_indices == goal_emitting_transition_indices
 

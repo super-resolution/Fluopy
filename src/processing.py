@@ -71,7 +71,7 @@ def uniques(duplices, state_series, joined_states):
     return unique_series, unique_states, unique_joined_states, unique_names
 
 
-def occupation_t(time_step_series, unique_series, unique_states):
+def occupation_t(time_step_series, unique_series, unique_states, absorbing_states):
     """
     Returns the total and mean occupation time of each (unique) state during a Markov chain.
 
@@ -83,6 +83,8 @@ def occupation_t(time_step_series, unique_series, unique_states):
         The first return value of uniques.
     unique_states : np.ndarray
         The second return value of uniques.
+    absorbing_states : Collection
+        Contains all states that can be considered absorbing states.
 
     Returns
     -------
@@ -95,11 +97,13 @@ def occupation_t(time_step_series, unique_series, unique_states):
     mean_times = np.zeros(shape=unique_states.size)
 
     for i, value in enumerate(unique_states):
-        mask = np.where(unique_series == value)[0] + 1
-        if mask[-1] == len(time_step_series):
+        if value in absorbing_states:  # check if state is absorbing state
             total = np.inf
             mean = np.inf
         else:
+            mask = np.where(unique_series == value)[0] + 1
+            if mask[-1] == len(time_step_series):  # discard last entry because time_step_series does not contain...
+                mask = mask[:-1]                   # ...lifetime of last state; should be statistically irrelevant
             total = np.sum(time_step_series[mask])
             mean = np.mean(time_step_series[mask])
         total_times[i] = total

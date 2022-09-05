@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
+import warnings
 
 
-def identify_emitting_transitions(transitions):
+def identify_emitting_transitions(transitions, states):
     """
     Identifies the transitions and their index-pairs that resemble spontaneous emissions. The photon is expected to
     be of an energy level such that it reflects the molecule's fluorescence rather than phosphorescence.
@@ -11,6 +12,8 @@ def identify_emitting_transitions(transitions):
     ----------
     transitions : dict
         Contains transitions as keys and index-pairs as values.
+    states : iterable object
+        Contains elements of type str.
 
     Returns
     -------
@@ -21,14 +24,25 @@ def identify_emitting_transitions(transitions):
     """
     emitting_transitions = []
     emitting_transitions_indices = []
+
+    if states == ("S0", "S1", "T1", "R", "B"):
+        ground_state = "S0"
+        excited = "S1"
+    elif states == ("tS0", "tS1", "tT1", "R", "B", "cS0", "cS1", "cT1"):
+        ground_state = "tS0"
+        excited = "tS1"
+    else:
+        warnings.warn("Emitting transitions could be identified due to mismatch of state names!")
+        return emitting_transitions, emitting_transitions_indices
+
     for transition in transitions:
         current_state, future_state = transition.split("__")
         current_state_split = current_state.split("_")
         future_state_split = future_state.split("_")
-        if "S1" in current_state_split:
-            indices_current = [i for i, e in enumerate(current_state_split) if e == "S1"]
+        if excited in current_state_split:
+            indices_current = [i for i, e in enumerate(current_state_split) if e == excited]
             for i in indices_current:
-                if "S0" in future_state_split[i]:
+                if ground_state in future_state_split[i]:
                     future_state_part = future_state_split[:i] + future_state_split[i+1:]
                     current_state_part = current_state_split[:i] + current_state_split[i+1:]
                     if not future_state_part == current_state_part:

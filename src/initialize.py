@@ -30,6 +30,7 @@ def recursion(number, original_number, iterable, collector=None):
             # function calls with smaller numbers and their for loops
             collector.append(i)
             yield from recursion(number - 1, original_number, iterable, collector)
+            collector.pop()
     else:
         if len(collector) > original_number:  # this is to shift the collector to the left
             # this is needed because .pop() only removes the last item but if n outer loops continue, collector is
@@ -38,7 +39,6 @@ def recursion(number, original_number, iterable, collector=None):
             for pos in range(diff):
                 del collector[original_number - 1 - (pos+1)]
         yield collector
-        collector.pop()
 
 
 def state_pairs(number, states=("S0", "S1", "T1", "R", "B")):
@@ -277,6 +277,16 @@ def induction(assigned_rate_dict, rate_name_dict, transitions, induction_rate, s
         return assigned_rate_dict, rate_name_dict
 
 
+def absorbing_states(rate_name_dict, state_ids):
+    absorb_states = state_ids[:]
+    for key in rate_name_dict:
+        present_state = key[0]
+        if present_state in absorb_states:
+            absorb_states.remove(present_state)
+
+    return absorb_states
+
+
 def transition_matrices(rates, transitions):
     """
     Constructs a matrix of shape (sqrt(len(transitions)), sqrt(len(transitions))) with zeros in all positions except if
@@ -339,12 +349,14 @@ def predefining(number, states, rates, induction_rate=None):
     """
     joined_states = state_pairs(number, states)
     state_names = []
+    state_ids = []
     for joined_state in joined_states:
         state_names.append(joined_state.name)
+        state_ids.append(joined_state.value)
     transitions = transition_pairs(joined_states)
     assigned_rate_dict, rate_name_dict = transition_rate_dict(rates, transitions)
     if induction_rate:
-        assigned_rate_dict = induction(assigned_rate_dict, transitions, induction_rate, states)
+        assigned_rate_dict = induction(assigned_rate_dict, rate_name_dict, transitions, induction_rate, states)
     vector = initial_row_vector(transitions)
     _, transition_matrix, row_sums = transition_matrices(assigned_rate_dict, transitions)
 

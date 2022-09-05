@@ -34,7 +34,8 @@ def direct_method_py(row_sums, initial_row_vector, transition_matrix, rate_name_
     time_series : np.ndarray
         The time points at which the corresponding state occurs.
     time_step_series : np.ndarray
-        The time step until the corresponding state occurs (starting from the previous state).
+        The time step until the corresponding state occurs (starting from the previous state). Therefore, the lifetime
+        of a state of index n is the time step of time_step_series[n+1].
     state_series : np.ndarray
         The consecutive state's (if number > 1 joined_state's) unique values.
     transition_series : None, list

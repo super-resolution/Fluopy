@@ -176,17 +176,6 @@ def test_init_jablonskimodel():
     assert not system.off_periods
     assert not system.autocorrelation
 
-    system = fc.JablonskiModel(2, 1, {"k_tS0_tS1": [0.4, "excitation"], "k_tS1_tT1": [5.8, "intersystem crossing"],
-                                      "k_tT1_tS0": [1e-2, "relaxation"], "k_tT1_tR": [13, "reduction"],
-                                      "k_tR_tS0": [0.3, "oxidation"]},
-                               induction_rate=4, cis=True)
-    assert system.number == 2
-    assert system.distances == 1
-    assert system.states == ("tS0", "tS1", "tT1", "tR", "tB", "cS0", "cS1", "cT1", "cR", "cB")
-    assert system.rates == {"k_tS0_tS1": [0.4, "excitation"], "k_tS1_tT1": [5.8, "intersystem crossing"],
-                            "k_tT1_tS0": [1e-2, "relaxation"], "k_tT1_tR": [13, "reduction"],
-                            "k_tR_tS0": [0.3, "oxidation"]}
-
 
 def test_emitters_jablonskimodel():
     system_1 = fc.JablonskiModel(2, 1, {"k_S0_S1": [0.4, "excitation"], "k_S1_T1": [5.8, "intersystem crossing"],
@@ -206,7 +195,7 @@ def test_emitters_jablonskimodel():
     # the outcome
 
     goal_emitting_transitions, goal_emitting_transitions_indices = \
-        et.identify_emitting_transitions(system_1.unique_transitions)
+        et.identify_emitting_transitions(system_1.unique_transitions, system_1.states)
 
     assert system_1.emitting_transitions == goal_emitting_transitions
     assert system_1.emitting_transitions_indices == goal_emitting_transitions_indices
@@ -233,6 +222,14 @@ def test_fcs_jablonskimodel():
     goal_autocorrelation = pr.autocorrelate(system.pandas_series, normalize=True, log=True, m=2, deltat=5e-3)
     assert np.array_equal(system.autocorrelation[0], goal_autocorrelation[0])
     assert np.array_equal(system.autocorrelation[1], goal_autocorrelation[1])
+
+
+def test_init_cy5():
+    system = fc.Cy5(2, 1, {"k_tS0_tS1": [0.3, "excitation"], "k_tS1_tS0": [5.8, "emission"]}, induction_rate=0.4)
+    assert system.number == 2
+    assert system.distances == 1
+    assert system.states == ("tS0", "tS1", "tT1", "R", "B", "cS0", "cS1", "cT1")
+    assert system.rates == {"k_tS0_tS1": [0.3, "excitation"], "k_tS1_tS0": [5.8, "emission"]}
 
 
 def test_init_onoffmodel():
