@@ -86,6 +86,14 @@ def test_induction():
     assert rate_name_dict == goal_rate_name_dict
 
 
+def test_absorbing_states():
+    rate_name_dict = {(0, 1): "h", (3, 0): "b", (5, 2): "g", (6, 1): "i"}
+    state_ids = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+    absorb_states = ini.absorbing_states(rate_name_dict, state_ids)
+    goal_absorb_states = [1, 2, 4, 7, 8]
+    assert absorb_states == goal_absorb_states
+
+
 def test_transition_matrices():
     assigned_rate_dict = {"T_E__T_T": 6.5, "T_S__T_E": 4, "T_E__T_S": 1.1}
     transitions = {"T_T__T_T": (0, 0), "T_T__T_E": (0, 1), "T_T__T_S": (0, 2),

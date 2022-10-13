@@ -278,6 +278,22 @@ def induction(assigned_rate_dict, rate_name_dict, transitions, induction_rate, s
 
 
 def absorbing_states(rate_name_dict, state_ids):
+    """
+    Collects all absorbing states, i.e., the states that have no outgoing transitions and are therefore terminations
+    of the Markov chain.
+
+    Parameters
+    ----------
+    rate_name_dict : dict
+        The second return value of transition_rate_dict.
+    state_ids : Collection
+        Contains all state's identification numbers.
+
+    Returns
+    -------
+    absorb_states : Collection
+        Contains all absorbing states.
+    """
     absorb_states = state_ids[:]
     for key in rate_name_dict:
         present_state = key[0]

@@ -41,9 +41,10 @@ def test_occupation_t():
     time_step_series = np.array([0, 2, 0.5, 0.1, 7, 10, 0.4, 0.002, 7, 7.1, 0.8])
     unique_series = np.array([0, 3, 5, 2, 7, 0, 2, 3, 0, 7, 10])
     unique_states = np.array([0, 2, 3, 5, 7, 10])
+    absorbing_states = [10]
     goal_total_times = np.array([9.5, 7.002, 7.5, 0.1, 10.8, np.inf])
     goal_mean_times = np.array([9.5/3, 7.002/2, 7.5/2, 0.1/1, 10.8/2, np.inf])
-    total_times, mean_times = pc.occupation_t(time_step_series, unique_series, unique_states)
+    total_times, mean_times = pc.occupation_t(time_step_series, unique_series, unique_states, absorbing_states)
     assert np.array_equal(goal_total_times, total_times)
     assert np.array_equal(goal_mean_times, mean_times)
 

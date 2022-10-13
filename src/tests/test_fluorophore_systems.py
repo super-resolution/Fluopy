@@ -89,7 +89,7 @@ def test_process_fluorophoresystem():
     goal_unique_transitions = ini.transition_pairs(goal_unique_joined_states)
     goal_unique_series_converted = pr.convert_unique_states(goal_unique_series, goal_unique_states)
     goal_occupation_time_total, goal_occupation_time_mean = \
-        pr.occupation_t(system.time_step_series, goal_unique_series, goal_unique_states)
+        pr.occupation_t(system.time_step_series, goal_unique_series, goal_unique_states, system.absorbing_states)
 
     assert system.duplices == goal_duplices
     assert np.array_equal(system.unique_series, goal_unique_series)
