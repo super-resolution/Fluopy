@@ -134,11 +134,11 @@
     </configuration>
     <list>
       <item itemvalue="Python.initialize" />
-      <item itemvalue="Python tests.pytest in tests" />
       <item itemvalue="Python tests.Python tests in test_initialize.py" />
       <item itemvalue="Python tests.Python tests in test_large_scale.py" />
       <item itemvalue="Python tests.pytest for test_fluorophore_systems.test_init_jablonskimodel" />
       <item itemvalue="Python tests.pytest in test_processing.py" />
+      <item itemvalue="Python tests.pytest in tests" />
     </list>
     <recent_temporary>
       <list>
