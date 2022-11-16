@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from scipy.stats import gamma
 import warnings
 
 
@@ -25,14 +26,14 @@ def identify_emitting_transitions(transitions, states):
     emitting_transitions = []
     emitting_transitions_indices = []
 
-    if states == ("S0", "S1", "T1", "R", "B"):
+    if "S0" in states:
         ground_state = "S0"
         excited = "S1"
-    elif states == ("tS0", "tS1", "tT1", "R", "B", "cS0", "cS1", "cT1"):
+    elif "tS0" in states:
         ground_state = "tS0"
         excited = "tS1"
     else:
-        warnings.warn("Emitting transitions could be identified due to mismatch of state names!")
+        warnings.warn("Emitting transitions could not be identified due to mismatch of state names!")
         return emitting_transitions, emitting_transitions_indices
 
     for transition in transitions:
@@ -144,7 +145,7 @@ def detected_emissions(emitting_mask, photon_collection, seed):
     return collection_mask
 
 
-def pandas_event_time_series(events_at, unit, resample):
+def pandas_event_time_series(events_at, unit, resample, emccd_gain=None):
     """
     Resampling of events_at assuming each entry representing one event at this time point (measured in unit). Binning
     or resampling is specified by resample.
@@ -157,6 +158,8 @@ def pandas_event_time_series(events_at, unit, resample):
         Unit of events_at. One of "W", "D", "h", "m", "S", "ms", "us", "ns".
     resample : str
         See pandas time series user's guide offset aliases for possible input values.
+    emccd_gain : int
+        The gain of an emccd.
 
     Returns
     -------
@@ -165,7 +168,10 @@ def pandas_event_time_series(events_at, unit, resample):
     """
     events_at_zero = np.insert(events_at, 0, 0)  # add time zero to the events (there will be no event)
     timedeltas = pd.to_timedelta(events_at_zero, unit=unit)
-    events = np.ones(shape=(len(events_at_zero)))
+    if not emccd_gain:
+        events = np.ones(shape=(len(events_at_zero)))
+    else:
+        events = gamma.rvs(a=1, scale=emccd_gain, size=len(events_at_zero))
     events[0] = 0
     series = pd.Series(events, index=timedeltas)
     series = series.resample(resample).sum()
@@ -179,7 +185,7 @@ def pandas_event_time_series(events_at, unit, resample):
 def blink_statistics(pandas_series, threshold=0, memory=0, remove_heading_off_period=True):
     """
     Returns on and off times of a pandas.Series given that each entry represents the collected photons of one frame.
-    The threshold parameter is a minimum value of photons per frame to be considered an on-frame. The memory parameter
+    The threshold parameter is a maximum value of photons per frame to be considered an off-frame. The memory parameter
     provides a number of off-frames to be skipped/neglected.
 
     Parameters
@@ -187,7 +193,7 @@ def blink_statistics(pandas_series, threshold=0, memory=0, remove_heading_off_pe
     pandas_series : pd.Series
         Contains the time step (of a frame) in seconds as index and the number of events (photons) as values.
     threshold : int
-        Minimum value of photons per frame to be considered an on-frame.
+        Maximum value of photons per frame to be considered an off-frame.
     memory : int
         Number of off-frames to be neglected. They are included in the on times.
     remove_heading_off_period : bool

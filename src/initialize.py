@@ -1,6 +1,5 @@
 from enum import Enum
 import numpy as np
-import warnings
 
 
 def recursion(number, original_number, iterable, collector=None):
@@ -202,81 +201,6 @@ def transition_rate_dict(rates, transitions):
     return assigned_rate_dict, rate_name_dict
 
 
-def induction(assigned_rate_dict, rate_name_dict, transitions, induction_rate, states):
-    """
-    Adds the concept of off state recovery of one fluorophore induced by the non-emitting transition from S1 to S0 of
-    a second fluorophore to the assigned_rate_dict and rate_name_dict.
-
-    Parameters
-    ----------
-    assigned_rate_dict : dict
-        The first return value of transition_rate_dict.
-    rate_name_dict : dict
-        The second return value of transition_rate_dict.
-    transitions : dict
-        The return value of transition_pairs.
-    induction_rate : float
-        The rate constant of the transition.
-    states : iterable object
-        Contains elements of type str.
-
-    Returns
-    -------
-    assigned_rate_dict : dict
-        The possibly altered input parameter.
-    rate_name_dict : dict
-        The possibly altered input parameter.
-    """
-    if states == ("S0", "S1", "T1", "R", "B"):
-        for transition, value_pair in transitions.items():
-            current_state, future_state = transition.split("__")
-            current_state_split = current_state.split("_")
-            future_state_split = future_state.split("_")
-            if {"S1", "R"}.issubset(set(current_state_split)):
-                indices_one = [i for i, e in enumerate(current_state_split) if e == "S1"]
-                indices_two = [i for i, e in enumerate(current_state_split) if e == "R"]
-                for i_1 in indices_one:
-                    for i_2 in indices_two:
-                        if "S0" in future_state_split[i_1] and "S0" in future_state_split[i_2]:
-                            future_state_part = future_state_split[:]
-                            current_state_part = current_state_split[:]
-                            for h in sorted([i_1, i_2], reverse=True):
-                                del(future_state_part[h])
-                                del(current_state_part[h])
-                            if not future_state_part == current_state_part:
-                                break
-                            else:
-                                assigned_rate_dict[transition] = induction_rate
-                                rate_name_dict[value_pair] = "induction"
-        return assigned_rate_dict, rate_name_dict
-    elif states == ("ON", "OFF", "B"):
-        for transition in transitions:
-            current_state, future_state = transition.split("__")
-            current_state_split = current_state.split("_")
-            future_state_split = future_state.split("_")
-            if {"ON", "OFF"}.issubset(set(current_state_split)):
-                indices_one = [i for i, e in enumerate(current_state_split) if e == "ON"]
-                indices_two = [i for i, e in enumerate(current_state_split) if e == "OFF"]
-                for i_1 in indices_one:
-                    for i_2 in indices_two:
-                        if "ON" in future_state_split[i_1] and "ON" in future_state_split[i_2]:
-                            future_state_part = future_state_split[:]
-                            current_state_part = current_state_split[:]
-                            for h in sorted([i_1, i_2], reverse=True):
-                                del(future_state_part[h])
-                                del(current_state_part[h])
-                            if not future_state_part == current_state_part:
-                                break
-                            else:
-                                assigned_rate_dict[transition] += induction_rate  # here the rate is added since the
-                                # transition occurs occasionally as well.
-                                # The name of the off-on transition is not overwritten with induction
-        return assigned_rate_dict, rate_name_dict
-    else:
-        warnings.warn("The concept of induction could not be added due to mismatch of state names!")
-        return assigned_rate_dict, rate_name_dict
-
-
 def absorbing_states(rate_name_dict, state_ids):
     """
     Collects all absorbing states, i.e., the states that have no outgoing transitions and are therefore terminations
@@ -341,7 +265,7 @@ def transition_matrices(rates, transitions):
     return transition_rate_matrix, transition_matrix, row_sums
 
 
-def predefining(number, states, rates, induction_rate=None):
+def predefining(number, states, rates):
     """
     Can be used to initialize a system once instead of running all initializing functions with the same parameters
     multiple times. Return value can be used as input value of parameter 'predefined' of class FluorophoreSystem.
@@ -355,8 +279,6 @@ def predefining(number, states, rates, induction_rate=None):
     rates : dict
         The transition from state 1 to state 2 with rate constant k [1/s] should have the key k_state1_state2 and the
         value k assigned to it.
-    induction_rate : None, float
-        The rate constant of the induction transition.
 
     Returns
     -------
@@ -371,12 +293,10 @@ def predefining(number, states, rates, induction_rate=None):
         state_ids.append(joined_state.value)
     transitions = transition_pairs(joined_states)
     assigned_rate_dict, rate_name_dict = transition_rate_dict(rates, transitions)
-    if induction_rate:
-        assigned_rate_dict = induction(assigned_rate_dict, rate_name_dict, transitions, induction_rate, states)
     vector = initial_row_vector(transitions)
     _, transition_matrix, row_sums = transition_matrices(assigned_rate_dict, transitions)
 
-    predefined_args = [joined_states, state_names, transitions, assigned_rate_dict, rate_name_dict, induction, vector,
+    predefined_args = [joined_states, state_names, transitions, assigned_rate_dict, rate_name_dict, vector,
                        transition_matrix, row_sums]
 
     return predefined_args

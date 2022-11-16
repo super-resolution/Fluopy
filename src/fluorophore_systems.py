@@ -37,6 +37,8 @@ class FluorophoreSystem:
         Contains all state names.
     state_ids : Collection
         Contains all state's identification numbers.
+    state_identifier : dict
+        Contains all state names as keys and state identification numbers as values.
     transitions : dict
         Contains all combinations of Joined_States as keys and their unique value pair as values.
     assigned_rate_dict : dict
@@ -82,7 +84,7 @@ class FluorophoreSystem:
     occupation_time_mean : None, np.ndarray
         The mean occupation time of each of unique_states.
     """
-    def __init__(self, number, distances, states, rates, predefined=None, induction_rate=None):
+    def __init__(self, number, distances, states, rates, predefined=None):
         """
         Parameters
         ----------
@@ -97,30 +99,25 @@ class FluorophoreSystem:
             value [k, name_of_transition] assigned to it.
         predefined : None, list
             Contains all crucial return values of initializing functions.
-        induction_rate : None, float
-            If not None, add the concept of off state recovery of one fluorophore induced by the non-emitting transition
-            from S1 to S0 of a second fluorophore with rate constant induction_rate.
         """
         self.number = number
         self.distances = distances
         self.states = states
         self.rates = rates
         if predefined:
-            self.Joined_States, self.state_names, self.state_ids, self.transitions, self.assigned_rate_dict, self.rate_name_dict, \
-                self.initial_row_vector, self.transition_matrix, self.row_sums = predefined
+            self.Joined_States, self.state_names, self.state_ids, self.transitions, self.assigned_rate_dict, \
+                self.rate_name_dict, self.initial_row_vector, self.transition_matrix, self.row_sums = predefined
         else:
             self.Joined_States = init.state_pairs(self.number, self.states)
             self.state_names = []
             self.state_ids = []
+            self.state_identifier = {}
             for joined_state in self.Joined_States:
                 self.state_names.append(joined_state.name)
                 self.state_ids.append(joined_state.value)
+                self.state_identifier[joined_state.name] = joined_state.value
             self.transitions = init.transition_pairs(self.Joined_States)
             self.assigned_rate_dict, self.rate_name_dict = init.transition_rate_dict(self.rates, self.transitions)
-            if induction_rate:
-                self.assigned_rate_dict, self.rate_name_dict = init.induction(self.assigned_rate_dict,
-                                                                              self.rate_name_dict, self.transitions,
-                                                                              induction_rate, self.states)
             self.initial_row_vector = init.initial_row_vector(self.transitions)
             _, self.transition_matrix, self.row_sums = init.transition_matrices(self.assigned_rate_dict,
                                                                                 self.transitions)
@@ -182,7 +179,7 @@ class FluorophoreSystem:
             pr.occupation_t(self.time_step_series, self.unique_series, self.unique_states, self.absorbing_states)
 
 
-class JablonskiModel(FluorophoreSystem):
+class GeneralModel(FluorophoreSystem):
     """
     Derived class from FluorophoreSystem. States follow the classic Jablonski model.
 
@@ -197,6 +194,8 @@ class JablonskiModel(FluorophoreSystem):
         Boolean array of length state_series, True at i if state_series[i] is a state following an emitting transition.
     detected_emission_mask : None, np.ndarray
         Copy of emitting_mask but some True entries may have changed to False dictated by photon_collection.
+    events_at : np.ndarray
+        Contains the time points at which an event occurs.
     pandas_series : None, pd.Series
         Contains the time step (resample) in seconds as index and the number of events as values.
     on_periods : None, np.ndarray
@@ -209,7 +208,7 @@ class JablonskiModel(FluorophoreSystem):
         Contains two arrays, the first is the time points that correspond to the autocorrelation values, the second is
         the autocorrelation values.
     """
-    def __init__(self, number, distances, rates, predefined=None, induction_rate=None):
+    def __init__(self, number, distances, rates, predefined=None):
         """
         Parameters
         ----------
@@ -222,17 +221,15 @@ class JablonskiModel(FluorophoreSystem):
             value [k, name_of_transition] assigned to it.
         predefined : None, list
             Contains all crucial return values of initializing functions.
-        induction_rate : None, float
-            If not None, add the concept of off state recovery of one fluorophore induced by the non-emitting transition
-            from S1 to S0 of a second fluorophore with rate constant induction_rate.
         """
-        states = ("S0", "S1", "T1", "R", "B")
-        super().__init__(number, distances, states, rates, predefined, induction_rate)
+        states = ("S0", "S1", "T1", "B")
+        super().__init__(number, distances, states, rates, predefined)
 
         self.emitting_transitions = None
         self.emitting_transitions_indices = None
         self.emitting_mask = None
         self.detected_emission_mask = None
+        self.events_at = None
         self.pandas_series = None
         self.on_periods = None
         self.off_periods = None
@@ -257,8 +254,8 @@ class JablonskiModel(FluorophoreSystem):
         an.jablonski_diagram(self.time_series, self.time_step_series, self.state_series, self.transition_series,
                              self.number, self.state_names, self.states, index_min, index_range, fps, saveas)
 
-    def emitters(self, photon_collection=1, resample="5ms", unit="s", threshold=0, memory=0, use_unique=True,
-                 remove_heading_off_period=False, seed=100):
+    def emitters(self, photon_collection=1, resample="5ms", unit="s", emccd_gain=None, threshold=0, memory=0,
+                 use_unique=True, remove_heading_off_period=False, seed=100):
         """
         Collection of functions identifying emitting transitions and other related properties.
 
@@ -270,8 +267,10 @@ class JablonskiModel(FluorophoreSystem):
             Resamples events. See pandas time series user's guide offset aliases for possible input values.
         unit : str
             Unit of time_series. One of "W", "D", "h", "m", "S", "ms", "us", "ns".
+        emccd_gain : int
+            The gain of an emccd.
         threshold : int
-            Minimum value of photons per frame (i.e., resample) to be considered an on-frame.
+            Maximum value of photons per frame (i.e., resample) to be considered an off-frame.
         memory : int
             Number of off-frames to be neglected. They are included in the on times.
         use_unique : bool
@@ -299,8 +298,8 @@ class JablonskiModel(FluorophoreSystem):
         self.detected_emission_mask = et.detected_emissions(self.emitting_mask, photon_collection, seed)
         # important: the photon detection rate of the microscope must not impact the actual emission, only their
         # detection!
-        self.pandas_series = et.pandas_event_time_series(self.time_series[self.detected_emission_mask], unit, resample)
-
+        self.events_at = self.time_series[self.detected_emission_mask]
+        self.pandas_series = et.pandas_event_time_series(self.events_at, unit, resample, emccd_gain)
         self.on_periods, self.off_periods, _, _ = et.blink_statistics(self.pandas_series, threshold, memory,
                                                                       remove_heading_off_period)
 
@@ -325,129 +324,42 @@ class JablonskiModel(FluorophoreSystem):
             self.autocorrelation = pr.autocorrelate(self.pandas_series, normalize, log, m, deltat)
 
 
-class Cy5(FluorophoreSystem):
+class Cy5Model(GeneralModel):
     """
-    Derived class from FluorophoreSystem. States include the Jablonski Model as well as the cis/trans configuration.
-
-    Attributes
-    ----------
-    - Defined during method emitters() call -
-    emitting_transitions : None, list
-        Contains emitting transitions.
-    emitting_transitions_indices : None, list
-        Contains emitting transition indices.
-    emitting_mask : None, np.ndarray
-        Boolean array of length state_series, True at i if state_series[i] is a state following an emitting transition.
-    detected_emission_mask : None, np.ndarray
-        Copy of emitting_mask but some True entries may have changed to False dictated by photon_collection.
-    pandas_series : None, pd.Series
-        Contains the time step (resample) in seconds as index and the number of events as values.
-    on_periods : None, np.ndarray
-        Contains the lengths of each on-period.
-    off_periods : None, np.ndarray
-        Contains the lengths of each off-period.
-
-    - Defined during method fcs() call -
-    autocorrelation : None, tuple
-        Contains two arrays, the first is the time points that correspond to the autocorrelation values, the second is
-        the autocorrelation values.
+    Derived class from GeneralModel. States include the cis/trans isomers of the fluorophore Cy5.
     """
-    def __init__(self, number, distances, rates, predefined=None, induction_rate=None):
-        """
-        Parameters
-        ----------
-        number : int
-            Number of fluorophores of the system.
-        distances : float, Collection
-            Distances of the fluorophores to each other.
-        rates : dict
-            The transition from state 1 to state 2 with rate constant k [1/s] should have the key k_state1_state2 and the
-            value [k, name_of_transition] assigned to it.
-        predefined : None, list
-            Contains all crucial return values of initializing functions.
-        induction_rate : None, float
-            If not None, add the concept of off state recovery of one fluorophore induced by the non-emitting transition
-            from S1 to S0 of a second fluorophore with rate constant induction_rate.
-        """
-        states = ("tS0", "tS1", "tT1", "R", "B", "cS0", "cS1", "cT1")
-        super().__init__(number, distances, states, rates, predefined, induction_rate)
+    def __init__(self, number, distances, rates, predefined=None):
+        states = ("tS0", "tS1", "tT1", "cS0", "cS1", "B")
+        super(GeneralModel, self).__init__(number, distances, states, rates, predefined)
+        # sets the method resolution order __mro__ such that it starts from GeneralModel
 
-        self.emitting_transitions = None
-        self.emitting_transitions_indices = None
-        self.emitting_mask = None
-        self.detected_emission_mask = None
-        self.pandas_series = None
-        self.on_periods = None
-        self.off_periods = None
 
-        self.autocorrelation = None
+class Cy5dSTORMModel(Cy5Model):
+    """
+    Derived class from Cy5Model. States include the dSTORM OFF state.
+    """
+    def __init__(self, number, distances, rates, predefined=None):
+        states = ("tS0", "tS1", "tT1", "cS0", "cS1", "OFF", "B")
+        super(GeneralModel, self).__init__(number, distances, states, rates, predefined)
 
-    def emitters(self, photon_collection=1, resample="5ms", unit="s", threshold=0, memory=0, use_unique=True,
-                 remove_heading_off_period=False, seed=100):
-        """
-        Collection of functions identifying emitting transitions and other related properties.
 
-        Parameters
-        ----------
-        photon_collection : float
-            Number between 0 and 1, dictates the fraction of kept True values of emitting_mask.
-        resample : str
-            Resamples events. See pandas time series user's guide offset aliases for possible input values.
-        unit : str
-            Unit of time_series. One of "W", "D", "h", "m", "S", "ms", "us", "ns".
-        threshold : int
-            Minimum value of photons per frame (i.e., resample) to be considered an on-frame.
-        memory : int
-            Number of off-frames to be neglected. They are included in the on times.
-        use_unique : bool
-            Whether to use the unique states for the estimations (instead of the original states).
-        remove_heading_off_period : bool
-            If True and the series starts wit an off-frame, the leading off-frame is discarded.
-        seed : None, int, BitGenerator, Generator
-            Seed to initialize a BitGenerator.
-        """
-        if use_unique:
-            if not self.unique_transitions:
-                super().process()
-            use_transitions = self.unique_transitions
-            use_state_series = self.unique_series_converted  # the conversion takes place during init.transition_pairs,
-            # too, because self.unique_joined_states is ordered
-        else:
-            use_transitions = self.transitions
-            use_state_series = self.state_series
+class Cy5CisModel(GeneralModel):
+    """
+    Derived class from GeneralModel. States include the simplified cis isomer of the fluorophore Cy5.
+    """
+    def __init__(self, number, distances, rates, predefined=None):
+        states = ("tS0", "tS1", "tT1", "Cis", "B")
+        super(GeneralModel, self).__init__(number, distances, states, rates, predefined)
+        # sets the method resolution order __mro__ such that it starts from GeneralModel
 
-        self.emitting_transitions, self.emitting_transitions_indices = \
-            et.identify_emitting_transitions(use_transitions, self.states)
 
-        self.emitting_mask = et.emitter_mask(use_state_series, self.emitting_transitions_indices)
-        # time-consuming
-        self.detected_emission_mask = et.detected_emissions(self.emitting_mask, photon_collection, seed)
-        # important: the photon detection rate of the microscope must not impact the actual emission, only their
-        # detection!
-        self.pandas_series = et.pandas_event_time_series(self.time_series[self.detected_emission_mask], unit, resample)
-
-        self.on_periods, self.off_periods, _, _ = et.blink_statistics(self.pandas_series, threshold, memory,
-                                                                      remove_heading_off_period)
-
-    def fcs(self, normalize=True, log=True, m=2, deltat=5e-3):
-        """
-        Autocorrelation as exploited in typical fluorescence correlation spectroscopy (FCS) setups.
-
-        Parameters
-        ----------
-        normalize : bool
-            Whether to normalize the correlation.
-        log : bool
-            Whether to compute the autocorrelation on a logarithmic scale.
-        m : int
-            Defines the number of points on one level (i.e., 1, 2, 4, 8, etc.), E.g., m=4 leads to
-        deltat : float
-            The time between each entry of pandas_series.
-        """
-        if self.pandas_series is None:
-            raise TypeError('pandas_series is None')
-        else:
-            self.autocorrelation = pr.autocorrelate(self.pandas_series, normalize, log, m, deltat)
+class Cy5CisdSTORMModel(Cy5CisModel):
+    """
+    Derived class from Cy5CisModel. States include the dSTORM OFF state.
+    """
+    def __init__(self, number, distances, rates, predefined=None):
+        states = ("tS0", "tS1", "tT1", "Cis", "OFF", "B")
+        super(GeneralModel, self).__init__(number, distances, states, rates, predefined)
 
 
 class OnOffModel(FluorophoreSystem):
@@ -464,7 +376,7 @@ class OnOffModel(FluorophoreSystem):
     emission_time_series : None, np.ndarray
         Contains the time points at which the corresponding photon count occurs.
     """
-    def __init__(self, number, distances, rates, predefined=None, induction_rate=None):
+    def __init__(self, number, distances, rates, predefined=None):
         """
         Parameters
         ----------
@@ -477,12 +389,9 @@ class OnOffModel(FluorophoreSystem):
             value [k, name_of_transition] assigned to it.
         predefined : None, list
             Contains all crucial return values of initializing functions.
-        induction_rate : None, float
-            If not None, add the concept of off state recovery of one fluorophore induced by the non-emitting transition
-            from S1 to S0 of a second fluorophore with rate constant induction_rate.
         """
         states = ("ON", "OFF", "B")
-        super().__init__(number, distances, states, rates, predefined, induction_rate)
+        super().__init__(number, distances, states, rates, predefined)
 
         self.on_counts = None
         self.emissions = None

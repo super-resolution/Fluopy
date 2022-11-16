@@ -19,7 +19,7 @@ def multiple_simulations(n_simulations, class_name, class_args, simulate_args, e
     n_simulations : int
         Number of simulations.
     class_name : str
-        One of "Jablonski", "OnOff".
+        One of "General", "OnOff".
     class_args : dict
         Arguments to pass to the subclass.
     simulate_args : dict
@@ -37,7 +37,7 @@ def multiple_simulations(n_simulations, class_name, class_args, simulate_args, e
     rng = np.random.default_rng(seed)
     object_collector = []
 
-    class_lookup = {"Jablonski": fs.JablonskiModel, "OnOff": fs.OnOffModel}
+    class_lookup = {"General": fs.GeneralModel, "OnOff": fs.OnOffModel}
     for i in range(n_simulations):
         system = class_lookup[class_name](**class_args)
         system.simulate(seed=rng, **simulate_args)

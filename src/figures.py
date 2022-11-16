@@ -37,7 +37,8 @@ class FigureCollection:
             Contains most of the figure elements.
         """
         if use_unique:
-            kwargs.setdefault('data', self.object.unique_series_converted)
+            kwargs.setdefault('data', self.object.unique_series_converted)  # kwargs.setdefault does not overwrite a
+            # potentially already set keyword argument but sets a default in case the keyword was not set
             kwargs.setdefault('xlim', [0, len(self.object.unique_states)])
             kwargs.setdefault('xticks', range(len(self.object.unique_states)))
             kwargs.setdefault('xticklabels', dict(labels=self.object.unique_names, rotation=70))
@@ -140,7 +141,7 @@ class FigureCollection:
         if time_series:
             kwargs.setdefault('type_', "line")
             kwargs.setdefault('data', [self.object.pandas_series.index, self.object.pandas_series.values])
-            kwargs.setdefault('ylabel', "Emission count")
+            kwargs.setdefault('ylabel', "Photon count")
             kwargs.setdefault('xlabel', "time [s]")
         else:
             kwargs.setdefault('type_', "hist")
