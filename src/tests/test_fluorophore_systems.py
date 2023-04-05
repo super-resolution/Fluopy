@@ -23,13 +23,13 @@ def test_init_fluorophoresystem():
                                                                        "k_R_S0": [0.3, "oxidation"]})
     assert system.number == 2
     assert system.distances == 1
-    assert system.states == ("S0", "S1", "T1", "R", "B")
+    assert system.single_states == ("S0", "S1", "T1", "R", "B")
     assert system.rates == {"k_S0_S1": [0.4, "excitation"], "k_S1_T1": [5.8, "intersystem crossing"],
                             "k_T1_S0": [1e-2, "relaxation"], "k_T1_R": [13, "reduction"], "k_R_S0": [0.3, "oxidation"]}
     assert system.state_names == ["S0_S0", "S0_S1", "S0_T1", "S0_R", "S0_B", "S1_S0", "S1_S1", "S1_T1", "S1_R", "S1_B",
                                   "T1_S0", "T1_S1", "T1_T1", "T1_R", "T1_B", "R_S0", "R_S1", "R_T1", "R_R", "R_B",
                                   "B_S0", "B_S1", "B_T1", "B_R", "B_B"]
-    for joined_state, expected in zip(system.Joined_States, ini.state_pairs(system.number, system.states)):
+    for joined_state, expected in zip(system.Joined_States, ini.state_pairs(system.number, system.single_states)):
         assert joined_state.name == expected.name
         assert joined_state.value == expected.value
     assert system.transitions == ini.transition_pairs(system.Joined_States)
@@ -102,7 +102,7 @@ def test_init_generalmodel():
                                     "k_T1_S0": [1e-2, "relaxation"]})
     assert system.number == 2
     assert system.distances == 1
-    assert system.states == ("S0", "S1", "T1", "B")
+    assert system.single_states == ("S0", "S1", "T1", "B")
     assert system.rates == {"k_S0_S1": [0.4, "excitation"], "k_S1_T1": [5.8, "intersystem crossing"],
                             "k_T1_S0": [1e-2, "relaxation"]}
     assert system.state_names == ["S0_S0", "S0_S1", "S0_T1", "S0_B", "S1_S0", "S1_S1", "S1_T1", "S1_B",
@@ -163,7 +163,7 @@ def test_emitters_generalmodel():
     # the outcome
 
     goal_emitting_transitions, goal_emitting_transitions_indices = \
-        et.identify_emitting_transitions(system_1.unique_transitions, system_1.states)
+        et.identify_emitting_transitions(system_1.unique_transitions, system_1.single_states)
 
     assert system_1.emitting_transitions == goal_emitting_transitions
     assert system_1.emitting_transitions_indices == goal_emitting_transitions_indices
@@ -195,7 +195,7 @@ def test_init_cy5model():
     system = fc.Cy5Model(2, 1, {"k_tS0_tS1": [0.3, "excitation"], "k_tS1_tS0": [5.8, "emission"]})
     assert system.number == 2
     assert system.distances == 1
-    assert system.states == ("tS0", "tS1", "tT1", "cS0", "cS1", "B")
+    assert system.single_states == ("tS0", "tS1", "tT1", "cS0", "cS1", "B")
     assert system.rates == {"k_tS0_tS1": [0.3, "excitation"], "k_tS1_tS0": [5.8, "emission"]}
 
 
@@ -204,7 +204,7 @@ def test_init_onoffmodel():
                                   "k_ON_B": [0.01, "bleaching"]})
     assert system.number == 2
     assert system.distances == 1
-    assert system.states == ("ON", "OFF", "B")
+    assert system.single_states == ("ON", "OFF", "B")
     assert system.rates == {"k_ON_OFF": [5, "turn off"], "k_OFF_ON": [2, "turn on"], "k_ON_B": [0.01, "bleaching"]}
     assert system.state_names == ["ON_ON", "ON_OFF", "ON_B", "OFF_ON", "OFF_OFF", "OFF_B", "B_ON", "B_OFF", "B_B"]
     assert system.assigned_rate_dict == {'ON_ON__ON_OFF': 5, 'ON_ON__OFF_ON': 5, 'ON_OFF__OFF_OFF': 5,

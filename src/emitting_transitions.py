@@ -1,10 +1,10 @@
+import warnings
 import numpy as np
 import pandas as pd
 from scipy.stats import gamma
-import warnings
 
 
-def identify_emitting_transitions(transitions, states):
+def identify_emitting_transitions(transitions, single_states):
     """
     Identifies the transitions and their index-pairs that resemble spontaneous emissions. The photon is expected to
     be of an energy level such that it reflects the molecule's fluorescence rather than phosphorescence.
@@ -13,7 +13,7 @@ def identify_emitting_transitions(transitions, states):
     ----------
     transitions : dict
         Contains transitions as keys and index-pairs as values.
-    states : iterable object
+    single_states : iterable object
         Contains elements of type str.
 
     Returns
@@ -26,10 +26,10 @@ def identify_emitting_transitions(transitions, states):
     emitting_transitions = []
     emitting_transitions_indices = []
 
-    if "S0" in states:
+    if "S0" in single_states:
         ground_state = "S0"
         excited = "S1"
-    elif "tS0" in states:
+    elif "tS0" in single_states:
         ground_state = "tS0"
         excited = "tS1"
     else:
@@ -93,7 +93,7 @@ def emitter_mask(state_series, emitting_transitions_indices):
     state_series : np.ndarray
         Contains the sequence of state indices of the Markov chain.
     emitting_transitions_indices : list
-        Contains emitting transition indices (output of identify_emitting_transitions)
+        Contains emitting transition indices (output of identify_emitting_transitions).
 
     Returns
     -------
@@ -145,21 +145,24 @@ def detected_emissions(emitting_mask, photon_collection, seed):
     return collection_mask
 
 
-def pandas_event_time_series(events_at, unit, resample, emccd_gain=None):
+def pandas_event_time_series(events_at, resample, unit="S", emccd_gain=None, seed=100):
     """
     Resampling of events_at assuming each entry representing one event at this time point (measured in unit). Binning
-    or resampling is specified by resample.
+    or resampling is specified by resample. The time steps (index) of the returned series is in seconds. The accuracy
+    is nanoseconds (dtype=timedelta64[ns]).
 
     Parameters
     ----------
     events_at : np.ndarray
         Contains the time points at which an event occurs.
-    unit : str
-        Unit of events_at. One of "W", "D", "h", "m", "S", "ms", "us", "ns".
     resample : str
         See pandas time series user's guide offset aliases for possible input values.
+    unit : str
+        Unit of events_at. One of "W", "D", "h", "m", "S", "ms", "us", "ns".
     emccd_gain : int
         The gain of an emccd.
+    seed : None, int, BitGenerator, Generator
+            Seed to initialize a BitGenerator.
 
     Returns
     -------
@@ -171,7 +174,8 @@ def pandas_event_time_series(events_at, unit, resample, emccd_gain=None):
     if not emccd_gain:
         events = np.ones(shape=(len(events_at_zero)))
     else:
-        events = gamma.rvs(a=1, scale=emccd_gain, size=len(events_at_zero))
+        events = gamma.rvs(a=1, scale=emccd_gain, size=len(events_at_zero),  # emccd gain is not constant
+                           random_state=seed)
     events[0] = 0
     series = pd.Series(events, index=timedeltas)
     series = series.resample(resample).sum()
@@ -308,108 +312,3 @@ def blink_statistics(pandas_series, threshold=0, memory=0, remove_heading_off_pe
         off_periods_frames = np.array([])
 
     return on_periods, off_periods, on_periods_frames, off_periods_frames
-
-
-def frac_int_time(pandas_series, fraction):
-    """
-    Returns the relative time at which the specified fraction of the total collected photons is reached.
-
-    Parameters
-    ----------
-    pandas_series : pd.Series
-        Contains the time step (of a frame) in seconds as index and the number of events (photons) as values.
-    fraction : float
-        Number between 0 and 1.
-
-    Returns
-    -------
-    arrival_time_rel : float
-        The relative time at which the fraction of the total collected photons is reached.
-    """
-    end_time = pandas_series.index[-1]
-
-    cumsum = pandas_series.cumsum()
-    cumsum_norm = cumsum.multiply(1 / cumsum.max())
-    arrival_time = cumsum_norm.gt(fraction).idxmax()
-    arrival_time_rel = arrival_time / end_time
-
-    return arrival_time_rel
-
-
-########################################################################################################################
-
-
-def on_states(state_names):
-    """
-    Counts the number of on states of each state (i.e., joined_state).
-
-    Parameters
-    ----------
-    state_names : Collection
-        Contains all state names.
-
-    Returns
-    -------
-    on_counts : np.ndarray
-        Contains the number of on states of each state.
-    """
-    on_counts = np.zeros(len(state_names))
-    for i, state_name in enumerate(state_names):
-        states = state_name.split("_")
-        counter = states.count("ON")
-        on_counts[i] = counter
-
-    return on_counts
-
-
-def emission_count(s0s1_rate, s1s0_rate, on_counts, state_series, time_step_series, resample=5e-3, seed=100):
-    """
-    Samples the on counts over a delta time (resample) and converts them into photon counts. This involves stretching
-    the data since simulated time steps are expected to be larger than resample, meaning that the resulting time steps
-    and their corresponding photon counts are an approximation.
-
-    Parameters
-    ----------
-    s0s1_rate : float
-        Rate constant of the transition from S0 to S1.
-    s1s0_rate : float
-        Rate constant of the transition from S1 to S0.
-    on_counts : np.ndarray
-        The return value of on_states.
-    state_series : np.ndarray
-        Contains the sequence of state indices of the Markov chain.
-    time_step_series : np.ndarray
-        Contains the time step until the corresponding state occurs (starting from the previous state).
-    resample : float
-        The delta time over which the number of photon emissions shall be sampled.
-    seed : None, int, BitGenerator, Generator
-        Seed to initialize a BitGenerator.
-
-    Returns
-    -------
-    emissions : np.ndarray
-        Contains the photon counts per time step (i.e., resample).
-    emission_time_series : np.ndarray
-        Contains the time points at which the corresponding photon count occurs.
-    """
-    rng = np.random.default_rng(seed)
-
-    on_counts_series = on_counts[state_series]  # converts the state_series into a series of on counts
-
-    repeats = time_step_series[1:] / resample
-    repeats = np.round(repeats)
-    repeats[np.where(repeats == 0)] = 1
-    repeats = repeats.astype(int)  # an entry in repeats is how often the resample value fits into the time step
-
-    stretched = np.repeat(on_counts_series[:-1], repeats)  # stretch each entry of the on_counts_series by the
-    # corresponding entry of repeats
-
-    mean_emissions_per_s = s0s1_rate * s1s0_rate / (s0s1_rate + s1s0_rate)  # this holds true if the two state markov
-    # chain can only be of values 0 and 1. Can be shown by simulation.
-    emissions_per_resample = rng.poisson(lam=mean_emissions_per_s*resample, size=stretched.shape)
-
-    emissions = stretched * emissions_per_resample
-
-    emission_time_series = np.arange(0, len(stretched)*resample, resample)
-
-    return emissions, emission_time_series

@@ -4,10 +4,11 @@ import matplotlib.ticker as ticker
 from matplotlib import rcParams
 
 
-def universal_figure(nrows=1, ncols=1, width=10, height=5, type_="line", data=(0, 0), color="blue", ylabel="y",
-                     xlabel="x", legend=False, xlim=None, ylim=None, xscale=None, yscale=None, xticks=None, yticks=None,
-                     xticklabels=None, yticklabels=None, tick_spacing_x=None, tick_spacing_y=None, tick_style_x=None,
-                     tick_style_y=None, second_axis_x=True, second_axis_y=True, **type_specific_kwargs):
+def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, type_="line", data=(0, 0), color="blue", ylabel="y",
+                     xlabel="x", legend=False, title=None, xlim=None, ylim=None, xscale=None, yscale=None, xticks=None,
+                     yticks=None, xticklabels=None, yticklabels=None, tick_spacing_x=None, tick_spacing_y=None,
+                     tick_style_x=None, tick_style_y=None, second_axis_x=True, second_axis_y=True, axes=None,
+                     **type_specific_kwargs):
     """
     Constructs a figure in versatile types and designs.
 
@@ -17,12 +18,12 @@ def universal_figure(nrows=1, ncols=1, width=10, height=5, type_="line", data=(0
         Number of rows of plt.subplots.
     ncols : int
         Number of columns of plt.subplots.
-    width : float
+    fig_width : float
         Width of the figure.
-    height : float
+    fig_height : float
         Height of the figure.
     type_ : str
-        Type of the plot. One of "line", "hist", "bar".
+        Type of the plot. One of "hist", "bar", "line", "multiple_line".
     data : np.ndarray, Collection
         Data to be plotted. Required formation depends on input parameter type_.
     color : str
@@ -33,6 +34,8 @@ def universal_figure(nrows=1, ncols=1, width=10, height=5, type_="line", data=(0
         The label text of the x-axis.
     legend : bool
         Whether to display a legend.
+    title : str
+        The title of the plot.
     xlim : float, Collection
         Left and right limit of the x-axis.
     ylim : float, Collection
@@ -61,6 +64,8 @@ def universal_figure(nrows=1, ncols=1, width=10, height=5, type_="line", data=(0
         Whether to plot a second x-axis.
     second_axis_y : bool
         Whether to plot a second y-axis.
+    axes : list
+        Contains matplotlib.axes.Axes objects.
     type_specific_kwargs : type_ properties
 
     Returns
@@ -72,12 +77,13 @@ def universal_figure(nrows=1, ncols=1, width=10, height=5, type_="line", data=(0
     """
     # initialize figure
     rcParams["axes.linewidth"] = 2
-    fig, axes = plt.subplots(nrows, ncols, figsize=(width, height))
-    if type(axes) == np.ndarray:
-        axes = axes.ravel()
-    else:
-        axes = [axes]
-        data = [data]
+    if axes is None:
+        fig, axes = plt.subplots(nrows, ncols, figsize=(fig_width, fig_height))
+        if type(axes) == np.ndarray:
+            axes = axes.ravel()
+        else:
+            axes = [axes]
+    data = [data]
     for i, ax in enumerate(axes):
         dat = data[i]
         # texts
@@ -85,6 +91,8 @@ def universal_figure(nrows=1, ncols=1, width=10, height=5, type_="line", data=(0
         ax.set_xlabel(xlabel, fontsize=21)
         if legend:
             ax.legend()
+        if title:
+            ax.set_title(title, fontsize=21)
 
         # x-axis
         if xlim:
@@ -127,10 +135,25 @@ def universal_figure(nrows=1, ncols=1, width=10, height=5, type_="line", data=(0
         # data incorporation
         if type_ == "hist":
             ax.hist(x=dat, color=color, **type_specific_kwargs)
+        elif type_ == "multiple_hist":
+            for j, dat_ in enumerate(dat):
+                ax.hist(x=dat_, color=color[j], **type_specific_kwargs)
         elif type_ == "bar":
-            ax.bar(x=dat[0], height=dat[1], color=color, **type_specific_kwargs)
+            if dat[1].ndim > 1:
+                for j, dat_ in enumerate(dat[1]):
+                    if 'width' in type_specific_kwargs:
+                        width = type_specific_kwargs['width']
+                        dat_x = dat[0] + j*width
+                    else:
+                        dat_x = dat[0]
+                    ax.bar(x=dat_x, height=dat_, color=color[j], **type_specific_kwargs)
+            else:
+                ax.bar(x=dat[0], height=dat[1], color=color, **type_specific_kwargs)
         elif type_ == "line":
             ax.plot(dat[0], dat[1], color=color, **type_specific_kwargs)
+        elif type_ == "multiple_line":
+            for j, dat_ in enumerate(dat):
+                ax.plot(dat_[0], dat_[1], color=color[j], **type_specific_kwargs)
 
         # second x-axis
         if second_axis_x:

@@ -102,25 +102,6 @@ def fret_rate(distance, emission_rate, spectral_overlap_integral, dipole_orienta
 
 def fret(distance, emission_rate, spectral_overlap_integral, dipole_orientation_factor, constant,
          assigned_rate_dict, rate_name_dict, transitions, states, k_in=None):
-    """
-
-    Parameters
-    ----------
-    distance
-    emission_rate
-    spectral_overlap_integral
-    dipole_orientation_factor
-    constant
-    assigned_rate_dict
-    rate_name_dict
-    transitions
-    states
-    k_in
-
-    Returns
-    -------
-
-    """
     if not k_in:
         k = fret_rate(distance, emission_rate, spectral_overlap_integral, dipole_orientation_factor, constant)
     else:

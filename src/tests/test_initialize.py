@@ -25,7 +25,7 @@ def test_state_pairs():
     goal_names = ["B_B_B", "B_B_A", "B_B_Z", "B_A_B", "B_A_A", "B_A_Z", "B_Z_B", "B_Z_A", "B_Z_Z",
                   "A_B_B", "A_B_A", "A_B_Z", "A_A_B", "A_A_A", "A_A_Z", "A_Z_B", "A_Z_A", "A_Z_Z",
                   "Z_B_B", "Z_B_A", "Z_B_Z", "Z_A_B", "Z_A_A", "Z_A_Z", "Z_Z_B", "Z_Z_A", "Z_Z_Z"]
-    joined_states = ini.state_pairs(3, ("B", "A", "Z"))
+    joined_states, single_state_counter, single_state_id = ini.state_pairs(3, ("B", "A", "Z"))
     for enum_item, goal_value, goal_name in zip(joined_states, goal_values, goal_names):
         assert enum_item.value == goal_value
         assert enum_item.name == goal_name
