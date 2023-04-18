@@ -7,7 +7,7 @@ import numpy as np
 # constants give an insight in the mean occupation time only if it is the only rate constant.
 
 
-def direct_method_py(row_sums, initial_row_vector, transition_matrix, rate_id_dict, n_steps, seed):
+def direct_method_py(row_sums, initial_row_vector, transition_matrix, joined_transitions, n_steps, seed):
     """
     The direct method of the gillespie algorithm (i.e., the stochastic simulation algorithm). Note that in this version,
     the propensities are equal to the rate constants, because the occupied state's population is assumed to be always 1
@@ -83,12 +83,13 @@ def direct_method_py(row_sums, initial_row_vector, transition_matrix, rate_id_di
         future_state = transition_matrix_sorted_indices[current_state_index, sorted_index]  # use the previous index to
         # get the original index of the sorted value
 
-        identification = rate_id_dict[(current_state_index, future_state)]
-        transition_series[i] = identification
-
         state_series[i + 1] = future_state
         time_step_series[i + 1] = transition_time
 
     time_series = np.cumsum(time_step_series)
+
+
+    state_transition_pairs = np.array([state_series[:-1], state_series[1:]]).T
+    transition_series = 'hi'
 
     return time_series, time_step_series, state_series, transition_series

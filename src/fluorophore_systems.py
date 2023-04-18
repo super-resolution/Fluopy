@@ -25,41 +25,22 @@ class FluorophoreSystem:
     Attributes
     ----------
     - Defined during instantiation of class object -
-    number : int
+    number_fluorophores : int
         Number of fluorophores of the system.
     distances : float, Collection
         Distances of the fluorophores to each other.
-    rates : dict
-        The transition from state 1 to state 2 with rate constant k [1/s] should have the key k_state1_state2 and the
-        value [k (float), name_of_transition (str)] assigned to it.
-    single_states : iterable object
-        Contains elements of type str describing each state a single fluorophore can occupy. A combination of
-        single_states will be denoted as state.
-    single_state_counter : dict
-        Contains the joined_states as keys and np.ndarray as values. The values resemble the number of single_states
-        (at the corresponding index) contained in joined_states.
-    single_state_id : dict
-        Contains the joined_states as keys and np.ndarray as values. The values contain the single_state indices
-        in the correct order. E.g., the key 'S0_S1_S0' will have the value [0, 1, 0].
-    Joined_States : enum.EnumMeta
-        All possible singe_state combinations (given the number of fluorophores). A joined state will be denoted as
+    single_states : dict
+        Contains (key, value) pairs of type (int, str), where the key denotes the id and the value the name of the
         state.
-    state_names : Collection
-        Contains all state names.
-    state_ids : Collection
-        Contains all state's identification numbers.
-    state_identifier : dict
-        Contains all state names as keys and state identification numbers as values.
-    transitions : dict
-        Contains all combinations of Joined_States as keys and their unique value pair as values.
-    assigned_rate_dict : dict
-        Contains all transitions (combinations of Joined_States) as keys and their rates as values.
-    rate_id_dict : dict
-        Contains all transition value pairs as keys and their transition id as values.
-    rate_name_dict : dict
-        Contains all transition value pairs as keys and their names as values.
-    transition_dict : dict
-        Contains transition ids as keys and transition names as values.
+    single_transitions : pd.DataFrame
+        Contains name (str), rate (float), trivial_name (str) and fluorescence (bool) of each transition, where their
+        id is the index.
+    joined_states : pd.DataFrame
+        Contains name (str), single_states (array), single_state_counter (array) and absorbing (bool) of each joined
+        state, where their id is the index.
+    joined_transitions : pd.DataFrame
+        Contains name (str), joined_states_id (tuple), single_transition_id (int), rate (float), trivial_name (str) and
+        fluorescence (bool) of each joined state transition, where their id is the index.
     initial_row_vector : np.ndarray
         Each state has an entry (hence, shape (len(state_ids),)) of 0 except a 1 at position 0.
     transition_matrix : np.ndarray
@@ -67,8 +48,6 @@ class FluorophoreSystem:
         index pair.
     row_sums : np.ndarray
         Contains the sum of all transition rates (rate constants) of each state.
-    absorbing_states : Collection
-        Contains all absorbing states, i.e., states without outgoing transitions.
     graph : nx.DiGraph
         Contains nodes and edges of the Markov chain.
 
@@ -83,22 +62,6 @@ class FluorophoreSystem:
         Contains the next transition id for each corresponding state (except the last).
 
     - Defined during method process() call -
-    duplices : None, list
-        Contains lists of two elements, where the first element is the unique value of a state and the second element
-        is the unique value of another state that is ordered equal to the first state.
-    unique_series : None, np.ndarray
-        Copy of state_series but with every second element of a list of duplices replaced by its first element.
-    unique_states : None, np.ndarray
-        Every state that occurs in unique_series.
-    unique_joined_states : None, list
-        Contains elements of Joined_States if their unique value occurs in unique_states. It is ordered by unique value.
-    unique_names : None, list
-        Contains all unique state names (if their unique value occurs in unique_states).
-    unique_transitions : None, dict
-        Contains all combinations of Joined_States as keys and their unique value pair as values, if they occur in
-        unique_states.
-    unique_series_converted : None, np.ndarray
-        Copy of unique_series but each value is replaced by its corresponding ranking number in ascending order.
     single_state_series : None, np.ndarray
         State series for each individual fluorophore (hence, single_states).
     single_state_lifetimes : None, dict
@@ -108,55 +71,55 @@ class FluorophoreSystem:
         Keys are transition_occurrences, transition_occurrences_all, transition_times, transition_times_all,
         mean_transition_times, mean_transition_times_all.
     """
-    def __init__(self, number, distances, single_states, rates):
+    def __init__(self, number_fluorophores, distances, single_states, rates):
         """
         Parameters
         ----------
-        number : int
+        number_fluorophores : int
             Number of fluorophores of the system.
         distances : float, Collection
             Distances of the fluorophores to each other.
         single_states : iterable object
             Contains elements of type str describing each state a single fluorophore can occupy.
-        rates : dict
+        rates : list
             The transition from state 1 to state 2 with rate constant k [1/s] should have the key k_state1_state2 and
             the value [k, name_of_transition] assigned to it.
         """
-        self.number = number
+        self.number_fluorophores = number_fluorophores
         self.distances = distances
-        self.rates = rates
-        self.single_states = single_states
 
-        self.Joined_States, self.single_state_counter, self.single_state_id = init.state_pairs(self.number,
-                                                                                               self.single_states)
-        self.state_names = []
-        self.state_ids = []
-        self.state_identifier = {}
-        for joined_state in self.Joined_States:
-            self.state_names.append(joined_state.name)
-            self.state_ids.append(joined_state.value)
-            self.state_identifier[joined_state.name] = joined_state.value
-        self.transitions = init.transition_pairs(self.Joined_States)
-        self.assigned_rate_dict, self.rate_id_dict, self.rate_name_dict, self.transition_dict = \
-            init.transition_rate_dict(self.rates, self.transitions)
-        self.initial_row_vector = init.initial_row_vector(self.state_ids)
-        _, self.transition_matrix, self.row_sums = init.transition_matrices(self.assigned_rate_dict,
-                                                                            self.transitions)
-        self.absorbing_states = init.absorbing_states(self.rate_name_dict, self.state_ids)
-        self.graph = init.network(self.rates)
+        self.single_states = {i: state for i, state in enumerate(single_states)}
+
+        self.single_transitions = pd.DataFrame(rates,  columns=['name', 'rate', 'trivial_name', 'fluorescence'])
+        self.single_transitions.index.name = 'id'
+
+        joined_states = init.state_pairs(self.number_fluorophores, single_states)
+        self.joined_states = pd.DataFrame.from_dict(joined_states, orient='index', columns=['', '']).reset_index()
+        self.joined_states.columns = ['name', 'single_states', 'single_state_counter']
+        self.joined_states.index.name = 'id'
+
+        # self.joined_transitions = pd.DataFrame(columns=['name', 'rate', 'joined_state_id'])
+        # self.joined_transitions.index.name = 'id'
+
+        joined_transitions = init.transition_pairs(self.joined_states)
+        assigned_rates = init.transition_rate_dict(self.single_transitions, joined_transitions)
+        self.joined_transitions = pd.DataFrame(assigned_rates, columns=['name', 'joined_states_id',
+                                                                                  'single_transition_id', 'rate',
+                                                                                  'trivial_name', 'fluorescence'])
+        self.joined_transitions.index.name = 'id'
+
+        self.initial_row_vector = init.initial_row_vector(self.joined_states.index.size)
+
+        self.transition_matrix, self.row_sums = init.transition_matrices(self.joined_transitions, joined_transitions)
+        self.joined_states = init.absorbing_states(self.joined_states, self.joined_transitions)
+
+        self.graph = init.network(self.single_transitions)
 
         self.time_series = None
         self.time_step_series = None
         self.state_series = None
         self.transition_series = None
 
-        self.duplices = None
-        self.unique_series = None
-        self.unique_states = None
-        self.unique_joined_states = None
-        self.unique_names = None
-        self.unique_transitions = None
-        self.unique_series_converted = None
         self.single_state_series = None
         self.single_state_lifetimes = None
         self.transition_lifetimes = None
@@ -174,27 +137,19 @@ class FluorophoreSystem:
             Seed to initialize a BitGenerator.
         """
         self.time_series, self.time_step_series, self.state_series, self.transition_series = \
-            ga.direct_method_py(self.row_sums, self.initial_row_vector, self.transition_matrix, self.rate_id_dict,
+            ga.direct_method_py(self.row_sums, self.initial_row_vector, self.transition_matrix, self.joined_transitions,
                                 n_steps, seed)
 
     def process(self):
         """
         Collection of processing functions identifying unique states and occupation times.
         """
-        self.duplices = pr.identify_duplices(self.state_names)
 
-        self.unique_series, self.unique_states, self.unique_joined_states, self.unique_names = \
-            pr.uniques(self.duplices, self.state_series, self.Joined_States)
-
-        self.unique_transitions = init.transition_pairs(self.unique_joined_states)
-
-        self.unique_series_converted = pr.convert_unique_states(self.unique_series, self.unique_states)
-
-        self.single_state_series = pr.convert_single_state_series(self.number, self.state_series,
-                                                                  self.state_ids, self.single_state_id)
-        self.single_state_lifetimes, self.transition_lifetimes = \
-            pr.occupation_time_single_states(self.number, self.rates, self.time_series, self.transition_series,
-                                             self.single_state_series, self.single_states)
+        self.single_state_series = pr.convert_single_state_series(self.number_fluorophores, self.state_series,
+                                                                  self.joined_states)
+        # self.single_state_lifetimes, self.transition_lifetimes = \
+        #     pr.occupation_time_single_states(self.number_fluorophores, self.rates, self.time_series, self.transition_series,
+        #                                      self.single_state_series, self.single_states)
 
 
 class GeneralModel(FluorophoreSystem):
@@ -230,11 +185,11 @@ class GeneralModel(FluorophoreSystem):
         Contains two arrays, the first is the time differences that correspond to the autocorrelation values,
         the second is the autocorrelation values.
     """
-    def __init__(self, number, distances, rates):
+    def __init__(self, number_fluorophores, distances, rates):
         """
         Parameters
         ----------
-        number : int
+        number_fluorophores : int
             Number of fluorophores of the system.
         distances : float, Collection
             Distances of the fluorophores to each other.
@@ -243,7 +198,7 @@ class GeneralModel(FluorophoreSystem):
             the value [k, name_of_transition] assigned to it.
         """
         single_states = ("S0", "S1", "T1", "B")
-        super().__init__(number, distances, single_states, rates)
+        super().__init__(number_fluorophores, distances, single_states, rates)
 
         self.emitting_transitions = None
         self.emitting_transitions_indices = None
@@ -275,7 +230,7 @@ class GeneralModel(FluorophoreSystem):
         """
         an.jablonski_diagram(self.time_series, self.time_step_series, self.state_series, self.transition_series,
                              self.transition_dict,
-                             self.number, self.state_names, self.single_states, index_min, index_range, fps, saveas)
+                             self.number_fluorophores, self.state_names, self.single_states, index_min, index_range, fps, saveas)
 
     def emitters(self, photon_collection=1, resample="5ms", emccd_gain=None, threshold=0, memory=0,
                  use_unique=True, remove_heading_off_period=False, seed=100):
@@ -375,9 +330,9 @@ class Cy5CisModel(GeneralModel):
     """
     Derived class from GeneralModel. States include the simplified cis isomer of the fluorophore Cy5.
     """
-    def __init__(self, number, distances, rates):
+    def __init__(self, number_fluorophores, distances, rates):
         single_states = ("tS0", "tS1", "tT1", "Cis", "B")
-        super(GeneralModel, self).__init__(number, distances, single_states, rates)
+        super(GeneralModel, self).__init__(number_fluorophores, distances, single_states, rates)
         # sets the method resolution order __mro__ such that it starts from GeneralModel
 
 
@@ -385,15 +340,15 @@ class Cy5CisdSTORMModel(GeneralModel):
     """
     Derived class from GeneralModel. States include the dSTORM OFF state.
     """
-    def __init__(self, number, distances, rates):
+    def __init__(self, number_fluorophores, distances, rates):
         single_states = ("tS0", "tS1", "tT1", "Cis", "OFF", "B")
-        super(GeneralModel, self).__init__(number, distances, single_states, rates)
+        super(GeneralModel, self).__init__(number_fluorophores, distances, single_states, rates)
 
 
 class dSTORMModel(GeneralModel):
     """
     Derived class from GeneralModel. States include the dSTORM OFF state.
     """
-    def __init__(self, number, distances, rates):
+    def __init__(self, number_fluorophores, distances, rates):
         single_states = ("S0", "S1", "T1", "OFF", "B")
-        super(GeneralModel, self).__init__(number, distances, single_states, rates)
+        super(GeneralModel, self).__init__(number_fluorophores, distances, single_states, rates)

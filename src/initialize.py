@@ -1,7 +1,6 @@
 import numpy as np
-from enum import Enum
-from scipy.stats import expon
 import networkx as nx
+from scipy.stats import expon
 
 
 def recursion(number, original_number, iterable, collector=None):
@@ -67,14 +66,12 @@ def state_pairs(number, single_states):
     """
     state_pair_generator = recursion(number, number, single_states)
 
+    joined_states = dict()
     single_states = np.array(single_states)
-    single_state_counter = dict()
-    single_state_id = dict()
-    strings = []
     for state_pair in state_pair_generator:
         string = ""
-        blank = np.zeros(shape=len(single_states))
-        blank2 = np.zeros(shape=number, dtype=np.int)
+        blank = np.zeros(shape=len(single_states), dtype=int)
+        blank2 = np.zeros(shape=number, dtype=int)
         for i, state in enumerate(state_pair):
             index = np.where(single_states == state)
             blank[index] += 1
@@ -83,13 +80,9 @@ def state_pairs(number, single_states):
                 string += f"_{state}"
             else:
                 string += f"{state}"
-        single_state_counter[string] = blank
-        single_state_id[string] = blank2
-        strings.append(string)
+        joined_states[string] = [blank2, blank]
 
-    joined_states = Enum("Joined_States", strings, start=0)
-
-    return joined_states, single_state_counter, single_state_id
+    return joined_states
 
 
 def transition_pairs(joined_states):
@@ -98,7 +91,7 @@ def transition_pairs(joined_states):
 
     Parameters
     ----------
-    joined_states : enum.EnumMeta, list
+    joined_states : pd.DataFrame
         The return value of state_pairs.
         Alternatively, a list of elements of enum.EnumMeta (see unique_joined_states).
 
@@ -108,36 +101,34 @@ def transition_pairs(joined_states):
         Contains all combinations of joined_states (combined with double underscore) as keys and their unique value pair
         as values.
     """
-    trans_pairs = [(joined_state_1.name, joined_state_2.name) for joined_state_1 in joined_states
-                   for joined_state_2 in joined_states]
-    transitions = {f"{joined_state_1}__{joined_state_2}": (i // len(joined_states), i % len(joined_states))
-                   for i, (joined_state_1, joined_state_2) in enumerate(trans_pairs)}
+    transitions = {f"{joined_state_1}__{joined_state_2}": (i, j)
+                   for i, joined_state_1 in zip(joined_states.index, joined_states['name'])
+                   for j, joined_state_2 in zip(joined_states.index, joined_states['name'])}
 
     return transitions
 
 
-def initial_row_vector(state_ids):
+def initial_row_vector(length):
     """
-    Returns an array of zeros of shape (len(state_ids),) with a 1 at position 0.
+    Returns an array of zeros of shape length with a 1 at position 0.
 
     Parameters
     ----------
-    state_ids : Collection
-        Contains all state's identification numbers.
+    length : int
+        Determines the length of the vector.
 
     Returns
     -------
     vector : np.ndarray
-        Of shape (len(transitions),) with a 1 at position 0 (else 0).
+        Of shape length with a 1 at position 0 (else 0).
     """
-    uni_dir_shape = len(state_ids)
-    vector = np.zeros(shape=uni_dir_shape)
+    vector = np.zeros(shape=length)
     vector[0] = 1
     return vector
 
 
-def rate_assignment(assigned_rate_dict, rate_id_dict, rate_name_dict, transitions, source, destination, rate,
-                    identification, name):
+def rate_assignment(assigned_rate_dict, transitions, source, destination, rate,
+                    identification, name, fluorescence):
     """
     Adds transitions (as keys) and (inter alia) their rates (as values) to assigned_rate_dict, if source is part of the
     first state of the transition and destination is part of the second state of the transition. Additionally, all other
@@ -145,12 +136,8 @@ def rate_assignment(assigned_rate_dict, rate_id_dict, rate_name_dict, transition
 
     Parameters
     ----------
-    assigned_rate_dict : dict
+    assigned_rate_dict : list
         Destination of addable transitions and their rates. May be empty.
-    rate_id_dict : dict
-        Destination of addable transition value pairs and their ids. May be empty.
-    rate_name_dict : dict
-        Destination of addable transition value pairs and their names. May be empty.
     transitions : dict
         The return value of transition_pairs.
     source : str
@@ -168,10 +155,6 @@ def rate_assignment(assigned_rate_dict, rate_id_dict, rate_name_dict, transition
     -------
     assigned_rate_dict : dict
         The possibly altered input parameter.
-    rate_id_dict : dict
-        The possibly altered input parameter.
-    rate_name_dict : dict
-        The possibly altered input parameter.
     """
     for transition, value_pair in transitions.items():
         current_state, future_state = transition.split("__")
@@ -186,10 +169,9 @@ def rate_assignment(assigned_rate_dict, rate_id_dict, rate_name_dict, transition
                     if not future_state_part == current_state_part:
                         break
                     else:
-                        assigned_rate_dict[transition] = rate
-                        rate_id_dict[value_pair] = identification
-                        rate_name_dict[value_pair] = name
-    return assigned_rate_dict, rate_id_dict, rate_name_dict
+                        assigned_rate_dict.append([transition, value_pair, identification, rate, name, fluorescence])
+
+    return assigned_rate_dict
 
 
 def transition_rate_dict(rates, transitions):
@@ -198,7 +180,7 @@ def transition_rate_dict(rates, transitions):
 
     Parameters
     ----------
-    rates : dict
+    rates : pd.DataFrame
         The transition from state 1 to state 2 with rate constant k [1/s] should have the key k_state1_state2 and the
         value [k, name_of_transition] assigned to it.
     transitions : dict
@@ -215,47 +197,42 @@ def transition_rate_dict(rates, transitions):
     transition_dict : dict
         Contains transition ids as keys and transition names as values.
     """
-    assigned_rate_dict = dict()
-    rate_id_dict = dict()
-    rate_name_dict = dict()
-    transition_dict = dict()
+    assigned_rates = list()
 
-    for identification, (key, value) in enumerate(rates.items()):
-        split = key.split("_")
+    for identification, row in rates.iterrows():
+        name = row['name']
+        split = name.split("_")
         source, destination = split[1], split[2]
-        rate = value[0]
-        name = value[1]
-        transition_dict[identification] = name
-        assigned_rate_dict, rate_id_dict, rate_name_dict = rate_assignment(assigned_rate_dict, rate_id_dict,
-                                                                           rate_name_dict, transitions, source,
-                                                                           destination, rate, identification, name)
-    return assigned_rate_dict, rate_id_dict, rate_name_dict, transition_dict
+
+        rate = row['rate']
+        trivial_name = row['trivial_name']
+        fluorescence = row['fluorescence']
+        assigned_rates = rate_assignment(assigned_rates, transitions, source,
+                                         destination, rate, identification,
+                                         trivial_name, fluorescence)
+    return assigned_rates
 
 
-def absorbing_states(rate_name_dict, state_ids):
+def absorbing_states(joined_states, joined_transitions):
     """
     Collects all absorbing states, i.e., the states that have no outgoing transitions and are therefore terminations
     of the Markov chain.
 
     Parameters
     ----------
-    rate_name_dict : dict
-        The third return value of transition_rate_dict.
-    state_ids : Collection
-        Contains all state's identification numbers.
 
     Returns
     -------
     absorb_states : Collection
         Contains all absorbing states.
     """
-    absorb_states = state_ids[:]
-    for key in rate_name_dict:
-        present_state = key[0]
-        if present_state in absorb_states:
-            absorb_states.remove(present_state)
 
-    return absorb_states
+    joined_states.loc[:, 'absorbing'] = True
+    for joined_state_id in joined_transitions['joined_states_id']:
+        present_state = joined_state_id[0]
+        joined_states.loc[present_state, 'absorbing'] = False
+
+    return joined_states
 
 
 def transition_matrices(rates, transitions):
@@ -265,26 +242,26 @@ def transition_matrices(rates, transitions):
 
     Parameters
     ----------
-    rates : dict
+    rates : pd.DataFrame
         The first return value of transition_rate_dict.
     transitions : dict
         The return value of transition_pairs.
 
     Returns
     -------
-    transition_rate_matrix : np.ndarray
-        Contains the rate constants for each transition at the corresponding index pair.
     transition_matrix : np.ndarray
         Contains the normalized rate constants (i.e., the point probabilities) for each transition at the corresponding
         index pair.
     row_sums : np.ndarray
-        Contains the sum of each row of transition_rate_matrix, i.e., the sum of all transition rates of a state.
+        Contains the sum of each row of non-normalized transition rates, i.e., the sum of all transition rates of a
+        state.
     """
     uni_dir_shape = int(np.sqrt(len(transitions)))
     transition_rate_matrix = np.zeros(shape=(uni_dir_shape, uni_dir_shape))
 
-    for transition, rate in rates.items():
-        transition_rate_matrix[transitions[transition]] = rate
+    for transition, rate in zip(rates['name'], rates['rate']):
+        transition_rate_matrix[transitions[transition]] += rate  # all transitions effecting the very same source/
+        # destination states are added up
 
     transition_matrix = np.zeros(shape=(uni_dir_shape, uni_dir_shape))
     row_sums = transition_rate_matrix.sum(axis=1)
@@ -292,7 +269,7 @@ def transition_matrices(rates, transitions):
         if row_sum > 0:
             transition_matrix[i] = transition_rate_matrix[i] / row_sum
 
-    return transition_rate_matrix, transition_matrix, row_sums
+    return transition_matrix, row_sums
 
 
 def network(rates):
@@ -301,7 +278,7 @@ def network(rates):
 
     Parameters
     ----------
-    rates : dict
+    rates : pd.DataFrame
         The transition from state 1 to state 2 with rate constant k [1/s] should have the key k_state1_state2 and the
         value [k, name_of_transition] assigned to it.
 
@@ -312,10 +289,12 @@ def network(rates):
     """
     graph = nx.MultiDiGraph()  # each edge has entry ('node1', 'node2', id of this node combination)
     edges = []
-    for key, value in rates.items():
-        split = key.split('_')
+
+    for identification, row in rates.iterrows():
+        name = row['name']
+        split = name.split('_')
         source, destination = split[1], split[2]
-        edge = (source, destination, {'w': value[1]})
+        edge = (source, destination, {'w': row['trivial_name']})
         edges.append(edge)
     graph.add_edges_from(edges)
 

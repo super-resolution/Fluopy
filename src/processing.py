@@ -1,101 +1,7 @@
 import numpy as np
 
 
-def identify_duplices(state_names):
-    """
-    Identifies states that are equal but in different order (e.g., S0_S1 and S1_S0) and stores their unique values as
-    pairs.
-
-    Parameters
-    ----------
-    state_names : Collection
-        Contains all state names.
-
-    Returns
-    -------
-    duplices : list
-        Contains lists of two elements, where the first element is the unique value of a state and the second element
-        is the unique value of another state that is ordered equal to the first state.
-    """
-    duplices = []
-    for i, joined_state_1 in enumerate(state_names):
-        fluos_1 = joined_state_1.split("_")
-        for e, joined_state_2 in enumerate(state_names[i + 1:]):
-            fluos_2 = joined_state_2.split("_")
-            if sorted(fluos_2) == sorted(fluos_1):
-                indices = [i, e + i + 1]
-                duplices.append(indices)
-
-    return duplices
-
-
-def uniques(duplices, state_series, joined_states):
-    """
-    Removes duplices from state_series and returns other related collections.
-
-    Parameters
-    ----------
-    duplices : list
-        The return value of identify_duplices.
-    state_series : np.ndarray
-        Contains the consecutive state's unique values.
-    joined_states : enum.EnumMeta
-        The return value of initialize.state_pairs.
-
-    Returns
-    -------
-    unique_series : np.ndarray
-        Copy of state_series but with every second element of a list of duplices replaced by its first element.
-    unique_states : np.ndarray
-        Every state that occurs in unique_series.
-    unique_joined_states : list
-        Contains elements of joined_states if their unique value occurs in unique_states. It is ordered by unique value.
-    unique_names : list
-        Contains all unique state names (if their unique value occurs in unique_states).
-    """
-    unique_series = state_series.copy()
-    for duplex in duplices:
-        indices = np.where(unique_series == duplex[1])  # with duplex[1] the higher index will be replaced
-        unique_series[indices] = duplex[0]
-
-    unique_states = np.unique(unique_series)
-
-    unique_joined_states = []
-    unique_names = []
-    for joined_state in joined_states:
-        if joined_state.value in unique_states:
-            unique_joined_states.append(joined_state)
-            unique_names.append(joined_state.name)
-
-    return unique_series, unique_states, unique_joined_states, unique_names
-
-
-def convert_unique_states(unique_series, unique_states):
-    """
-    Downscales each original unique value (listed in unique_states) within unique_series such that the ith largest value
-    becomes i.
-
-    Parameters
-    ----------
-    unique_series : np.ndarray
-        The first return value of uniques.
-    unique_states : np.ndarray
-        The second return value of uniques.
-
-    Returns
-    -------
-    unique_series_converted : np.ndarray
-        Copy of unique_series but each value is replaced by its corresponding ranking number in ascending order.
-    """
-    unique_series_converted = unique_series.copy()
-    for i, identity in enumerate(unique_states):
-        indices = np.where(unique_series_converted == identity)
-        unique_series_converted[indices] = i
-
-    return unique_series_converted
-
-
-def convert_single_state_series(number, state_series, state_ids, single_state_ids):
+def convert_single_state_series(number, state_series, joined_states):
     """
     Converts the state series containing the joined states to a single state series for each fluorophore.
 
@@ -116,12 +22,13 @@ def convert_single_state_series(number, state_series, state_ids, single_state_id
     single_state_series : np.ndarray
         State series for each individual fluorophore (hence, single_states).
     """
-    single_state_ids = list(single_state_ids.values())
     single_state_series = np.zeros(shape=(number, len(state_series)))
-    for i, value in enumerate(state_ids):
-        if value in state_series:
-            mask = np.where(state_series == value)[0]
-            single_state_id = np.expand_dims(single_state_ids[value], axis=1)  # converts example from documentation
+
+    for index, row in joined_states.iterrows():
+        single_state_ids = row['single_states']
+        if index in state_series:
+            mask = np.where(state_series == index)[0]
+            single_state_id = np.expand_dims(single_state_ids, axis=1)  # converts example from documentation
             # to [[0], [1], [0]]
             single_state_series[:, mask] = single_state_id
 
