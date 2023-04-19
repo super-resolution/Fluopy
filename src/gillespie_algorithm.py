@@ -7,7 +7,7 @@ import numpy as np
 # constants give an insight in the mean occupation time only if it is the only rate constant.
 
 
-def direct_method_py(row_sums, initial_row_vector, transition_matrix, joined_transitions, n_steps, seed):
+def direct_method(transition_matrix, row_sums, n_steps, seed):
     """
     The direct method of the gillespie algorithm (i.e., the stochastic simulation algorithm). Note that in this version,
     the propensities are equal to the rate constants, because the occupied state's population is assumed to be always 1
@@ -17,14 +17,14 @@ def direct_method_py(row_sums, initial_row_vector, transition_matrix, joined_tra
 
     Parameters
     ----------
-    row_sums : np.ndarray
-        The third return value of initialize.transition_matrices.
-    initial_row_vector : np.ndarray
-        The return value of initialize.initial_row_vector.
     transition_matrix : np.ndarray
+        The first return value of initialize.transition_matrices.
+        Contains the normalized rate constants (i.e., the point probabilities) for each transition at the corresponding
+        index pair.
+    row_sums : np.ndarray
         The second return value of initialize.transition_matrices.
-    rate_id_dict : None, dict
-        The second return value of initialize.rate_assignment.
+        Contains the sum of each row of non-normalized transition rates, i.e., the sum of all transition rates of a
+        state.
     n_steps : int
         Maximum number of simulation steps. If the Markov chain reaches an absorbing state, the simulation stops early.
     seed : None, int, BitGenerator, Generator
@@ -39,18 +39,15 @@ def direct_method_py(row_sums, initial_row_vector, transition_matrix, joined_tra
         of a (joined!) state of index n is the time step of time_step_series[n+1].
     state_series : np.ndarray
         The consecutive state's (if number > 1 joined_state's) unique values.
-    transition_series : np.ndarray
-        Contains the next transition id for each corresponding state (except the last).
     """
     rng = np.random.default_rng(seed)
 
-    current_state = initial_row_vector
+    current_state = np.zeros(shape=row_sums.shape[0])
+    current_state[0] = 1
 
     time_step_series = np.empty(n_steps + 1)
     time_step_series[0] = 0
     state_series = np.empty(n_steps + 1, dtype=np.int64)
-
-    transition_series = np.empty(n_steps, dtype=np.int64)
 
     current_state_index = state_series[0] = np.where(current_state == 1)[0][0]
 
@@ -88,8 +85,4 @@ def direct_method_py(row_sums, initial_row_vector, transition_matrix, joined_tra
 
     time_series = np.cumsum(time_step_series)
 
-
-    state_transition_pairs = np.array([state_series[:-1], state_series[1:]]).T
-    transition_series = 'hi'
-
-    return time_series, time_step_series, state_series, transition_series
+    return time_series, time_step_series, state_series

@@ -41,8 +41,6 @@ class FluorophoreSystem:
     joined_transitions : pd.DataFrame
         Contains name (str), joined_states_id (tuple), single_transition_id (int), rate (float), trivial_name (str) and
         fluorescence (bool) of each joined state transition, where their id is the index.
-    initial_row_vector : np.ndarray
-        Each state has an entry (hence, shape (len(state_ids),)) of 0 except a 1 at position 0.
     transition_matrix : np.ndarray
         Contains the normalized rate constants (i.e., the point probabilities) for each transition at the corresponding
         index pair.
@@ -58,12 +56,12 @@ class FluorophoreSystem:
         The time step until the corresponding state occurs (starting from the previous state).
     state_series : None, np.ndarray
         The consecutive state's unique values.
-    transition_series : None, list
-        Contains the next transition id for each corresponding state (except the last).
 
     - Defined during method process() call -
     single_state_series : None, np.ndarray
         State series for each individual fluorophore (hence, single_states).
+    transition_series : None, list
+        Contains the next transition id for each corresponding state (except the last).
     single_state_lifetimes : None, dict
         Keys are single_state_occurrences, single_state_occurrences_all, lifetimes_fluorophore, lifetimes_single_states,
         lifetimes_single_states_all, mean_lifetimes, mean_lifetimes_all, total_lifetimes, total_lifetimes_all.
@@ -98,31 +96,25 @@ class FluorophoreSystem:
         self.joined_states.columns = ['name', 'single_states', 'single_state_counter']
         self.joined_states.index.name = 'id'
 
-        # self.joined_transitions = pd.DataFrame(columns=['name', 'rate', 'joined_state_id'])
-        # self.joined_transitions.index.name = 'id'
-
         joined_transitions = init.transition_pairs(self.joined_states)
-        assigned_rates = init.transition_rate_dict(self.single_transitions, joined_transitions)
+        assigned_rates = init.transition_rate_list(self.single_transitions, joined_transitions)
         self.joined_transitions = pd.DataFrame(assigned_rates, columns=['name', 'joined_states_id',
-                                                                                  'single_transition_id', 'rate',
-                                                                                  'trivial_name', 'fluorescence'])
+                                                                        'single_transition_id', 'rate',
+                                                                        'trivial_name', 'fluorescence'])
         self.joined_transitions.index.name = 'id'
 
-        self.initial_row_vector = init.initial_row_vector(self.joined_states.index.size)
-
-        self.transition_matrix, self.row_sums = init.transition_matrices(self.joined_transitions, joined_transitions)
+        self.transition_matrix, self.row_sums = init.transition_matrices(self.joined_transitions, self.joined_states)
         self.joined_states = init.absorbing_states(self.joined_states, self.joined_transitions)
-
         self.graph = init.network(self.single_transitions)
 
         self.time_series = None
         self.time_step_series = None
         self.state_series = None
-        self.transition_series = None
 
         self.single_state_series = None
         self.single_state_lifetimes = None
         self.transition_lifetimes = None
+        self.transition_series = None
 
     def simulate(self, n_steps=100, seed=100):
         """
@@ -136,9 +128,8 @@ class FluorophoreSystem:
         seed : None, int, BitGenerator, Generator
             Seed to initialize a BitGenerator.
         """
-        self.time_series, self.time_step_series, self.state_series, self.transition_series = \
-            ga.direct_method_py(self.row_sums, self.initial_row_vector, self.transition_matrix, self.joined_transitions,
-                                n_steps, seed)
+        self.time_series, self.time_step_series, self.state_series = ga.direct_method(self.transition_matrix,
+                                                                                      self.row_sums, n_steps, seed)
 
     def process(self):
         """
@@ -147,9 +138,14 @@ class FluorophoreSystem:
 
         self.single_state_series = pr.convert_single_state_series(self.number_fluorophores, self.state_series,
                                                                   self.joined_states)
-        # self.single_state_lifetimes, self.transition_lifetimes = \
-        #     pr.occupation_time_single_states(self.number_fluorophores, self.rates, self.time_series, self.transition_series,
-        #                                      self.single_state_series, self.single_states)
+        transition_cum_sum, transition_sorted_indices = pr.multiple_transitions(self.joined_transitions,
+                                                                                self.joined_states,
+                                                                                self.single_transitions)
+        self.transition_series = pr.generate_transition_series(self.state_series, transition_cum_sum,
+                                                               transition_sorted_indices)
+        self.single_state_lifetimes, self.transition_lifetimes = \
+            pr.occupation_time_single_states(self.number_fluorophores, self.single_transitions, self.time_series,
+                                             self.transition_series, self.single_state_series, self.single_states)
 
 
 class GeneralModel(FluorophoreSystem):
@@ -213,25 +209,6 @@ class GeneralModel(FluorophoreSystem):
 
         self.autocorrelation = None
 
-    def animate(self, index_min=0, index_range=100, fps=10, saveas="writer_test.mp4"):
-        """
-        Animate (part of) the state_series displayed in a Jablonski diagram.
-
-        Parameters
-        ----------
-        index_min : int
-            Starting index for state_series (and time_series, time_step_series).
-        index_range : int
-            Number of steps to animate.
-        fps : int
-            Animation frame rate.
-        saveas : str
-            Defines the save location of the outfile.
-        """
-        an.jablonski_diagram(self.time_series, self.time_step_series, self.state_series, self.transition_series,
-                             self.transition_dict,
-                             self.number_fluorophores, self.state_names, self.single_states, index_min, index_range, fps, saveas)
-
     def emitters(self, photon_collection=1, resample="5ms", emccd_gain=None, threshold=0, memory=0,
                  use_unique=True, remove_heading_off_period=False, seed=100):
         """
@@ -256,17 +233,10 @@ class GeneralModel(FluorophoreSystem):
         seed : None, int, BitGenerator, Generator
             Seed to initialize a BitGenerator.
         """
-        if use_unique:
-            if not self.unique_transitions:
-                super().process()
-            elif len(self.time_series) != len(self.unique_series_converted):
-                super().process()
-            use_transitions = self.unique_transitions
-            use_state_series = self.unique_series_converted  # the conversion takes place during init.transition_pairs
-            # (origin of self.unique_transitions), too, because self.unique_joined_states is ordered
-        else:
-            use_transitions = self.transitions
-            use_state_series = self.state_series
+
+
+        use_transitions = self.transitions
+        use_state_series = self.state_series
 
         self.emitting_transitions, self.emitting_transitions_indices = \
             et.identify_emitting_transitions(use_transitions, self.single_states)
@@ -277,6 +247,7 @@ class GeneralModel(FluorophoreSystem):
         # important: the photon detection rate of the microscope must not impact the actual emission, only their
         # detection!
         self.events_at = self.time_series[self.detected_emission_mask]
+        self.events_at = self.time_series
         self.last_parameters = dict(resample=resample, emccd_gain=emccd_gain, seed=seed)
         self.pandas_series = et.pandas_event_time_series(self.events_at, resample=resample, emccd_gain=emccd_gain,
                                                          seed=seed)

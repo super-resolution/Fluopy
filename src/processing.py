@@ -1,6 +1,104 @@
 import numpy as np
 
 
+def multiple_transitions(joined_transitions, joined_states, single_transitions):
+    """
+
+
+    Parameters
+    ----------
+    joined_transitions : pd.DataFrame
+        Contains name (str), joined_states_id (tuple), single_transition_id (int), rate (float), trivial_name (str) and
+        fluorescence (bool) of each joined state transition, where their id is the index.
+    joined_states : pd.DataFrame
+        Contains name (str), single_states (array), single_state_counter (array) and absorbing (bool) of each joined
+        state, where their id is the index.
+    single_transitions : pd.DataFrame
+        Contains name (str), rate (float), trivial_name (str) and fluorescence (bool) of each transition, where their
+        id is the index.
+
+    Returns
+    -------
+    transition_cum_sum : np.ndarray
+    transition_sorted_indices : np.ndarray
+    """
+    uni_dir = joined_states.index.size
+    transition_count = single_transitions.index.size
+    x = np.empty(shape=(uni_dir, uni_dir, transition_count))
+    x[:] = 0
+    for index_pair, transition_id, rate in zip(joined_transitions['joined_states_id'],
+                                               joined_transitions['single_transition_id'],
+                                               joined_transitions['rate']):
+        x[index_pair][transition_id] =   # the index pair may occur multiple times, the transition id in combination
+        # with the index pair is unique.
+
+    # normalization to yield probabilities
+
+    row_sums = x.sum(axis=2)
+    non_zero = np.where(row_sums != 0)
+    row_sums = row_sums[:, :, np.newaxis]
+    x[non_zero] = x[non_zero] / row_sums[non_zero]
+
+    # sort indices and cumsum, similar to Gillespie algorithm
+
+    transition_sorted_indices = np.argsort(x, axis=2)
+    sorted_x = np.take_along_axis(x, transition_sorted_indices, axis=2)
+    transition_cum_sum = np.cumsum(sorted_x, axis=2)
+
+    return transition_cum_sum, transition_sorted_indices
+
+
+def searchsorted2d(a, b):
+    """
+    from https://stackoverflow.com/questions/56471109/how-to-vectorize-with-numpy-searchsorted-in-a-2d-array
+
+    Parameters
+    ----------
+    a
+    b
+
+    Returns
+    -------
+
+    """
+    # Inputs : a is (m,n) 2D array and b is (m,) 1D array.
+    # Finds np.searchsorted(a[i], b[i])) in a vectorized way by
+    # scaling/offsetting both inputs and then using searchsorted
+
+    # Get scaling offset and then scale inputs
+    s = np.r_[0, (np.maximum(a.max(1)-a.min(1)+1, b)+1).cumsum()[:-1]]
+    a_scaled = (a+s[:, None]).ravel()
+    b_scaled = b+s
+
+    # Use searchsorted on scaled ones and then subtract offsets
+    return np.searchsorted(a_scaled, b_scaled)-np.arange(len(s))*a.shape[1]
+
+
+def generate_transition_series(state_series, cum_sum_x, x_sorted_indices):
+    """
+
+    Parameters
+    ----------
+    state_series
+    cum_sum_x
+    x_sorted_indices
+
+    Returns
+    -------
+    transition_series : np.ndarray
+    Contains the next transition id for each corresponding state (except the last).
+    """
+    current_states = state_series[:-1]
+    future_states = state_series[1:]
+    values_to_insert = np.random.uniform(low=0, high=1, size=len(current_states))
+
+    specific_cum_sums = cum_sum_x[current_states, future_states, :]
+    insert_at = searchsorted2d(specific_cum_sums, values_to_insert)
+    transition_series = x_sorted_indices[current_states, future_states, insert_at]
+    # vllt noch np.int als dtype
+    return transition_series
+
+
 def convert_single_state_series(number, state_series, joined_states):
     """
     Converts the state series containing the joined states to a single state series for each fluorophore.
@@ -35,8 +133,20 @@ def convert_single_state_series(number, state_series, joined_states):
     return single_state_series
 
 
-def occupation_time_single_states(number, rates, time_series, transition_series, single_state_series, single_states):
+def occupation_time_single_states(number, single_transitions, time_series, transition_series, single_state_series,
+                                  single_states):
     """
+    Returns two dictionaries (see list of keys below). The content is the following:
+        single_state_occurences -
+        lifetimes_fluorophore -
+        mean_lifetimes -
+        total_lifetimes -
+        -----------------
+        transition_occurences -
+        transition_times -
+        mean_transition_times -
+
+
     Returns (inter alia) the time intervals between state changes of each individual fluorophore - in consecutive order,
     in consecutive order AND assigned to each initial state (i.e., lifetimes_single_states) or the mean lifetimes of
     each state.
@@ -47,9 +157,9 @@ def occupation_time_single_states(number, rates, time_series, transition_series,
     ----------
     number : int
         Number of fluorophores of the system.
-    rates : dict
-        The transition from state 1 to state 2 with rate constant k [1/s] should have the key k_state1_state2 and
-        the value [k, name_of_transition] assigned to it.
+    single_transitions : pd.DataFrame
+        Contains name (str), rate (float), trivial_name (str) and fluorescence (bool) of each transition, where their
+        id is the index.
     time_series : np.ndarray
         The time points at which the corresponding state occurs.
     transition_series : np.ndarray
@@ -91,8 +201,8 @@ def occupation_time_single_states(number, rates, time_series, transition_series,
     total_lifetimes = np.zeros(shape=(number, len(single_states)))
 
     transition_times = []
-    transition_times_all = [np.array([]) for _ in range(len(rates))]
-    mean_transition_times = np.zeros(shape=(number, len(rates)))
+    transition_times_all = [np.array([]) for _ in range(single_transitions.index.size)]
+    mean_transition_times = np.zeros(shape=(number, single_transitions.index.size))
     transition_occurrences = []
 
     for i in range(number):
@@ -127,7 +237,7 @@ def occupation_time_single_states(number, rates, time_series, transition_series,
         lifetimes_single_states.append(time_intervals_states)
 
         time_intervals_transitions = []
-        for transition in range(len(rates)):
+        for transition in range(single_transitions.index.size):
             time_intervals_transition = time_intervals[np.where(transitions == transition)]
             if time_intervals_transition.size == 0:
                 mean = np.nan
