@@ -91,27 +91,27 @@ def transition_pairs(joined_states):
 
     Returns
     -------
-    transitions : dict
+    joined_transitions : dict
         Contains all combinations of joined_states (combined with double underscore) as keys and their id pairs as
         values.
     """
-    transitions = {f"{joined_state_1}__{joined_state_2}": (i, j)
-                   for i, joined_state_1 in zip(joined_states.index, joined_states['name'])
-                   for j, joined_state_2 in zip(joined_states.index, joined_states['name'])}
+    joined_transitions = {f"{joined_state_1}__{joined_state_2}": (i, j)
+                          for i, joined_state_1 in zip(joined_states.index, joined_states['name'])
+                          for j, joined_state_2 in zip(joined_states.index, joined_states['name'])}
 
-    return transitions
+    return joined_transitions
 
 
-def rate_assignment(assigned_rate_list, joined_transitions, source, destination, rate,
+def rate_assignment(transition_rate_list, joined_transitions, source, destination, rate,
                     identification, name, fluorescence):
     """
-    Adds a transition in list form (see transition_rate_list) to the assigned_rate_list, if source is part of the first
+    Adds a transition in list form (see construct_transition_rate_list) to the assigned_rate_list, if source is part of the first
     joined state of the transition and destination is part of the second joined state of the transition. All other
     contributors to the first and second joined state should be constant.
 
     Parameters
     ----------
-    assigned_rate_list : iterable
+    transition_rate_list : iterable
         Destination of addable transitions and their rates. May be empty.
     joined_transitions : dict
         The return value of transition_pairs.
@@ -132,7 +132,7 @@ def rate_assignment(assigned_rate_list, joined_transitions, source, destination,
 
     Returns
     -------
-    assigned_rate_dict : list
+    transition_rate_list : list
         The possibly altered input parameter.
     """
     for transition, value_pair in joined_transitions.items():
@@ -148,12 +148,12 @@ def rate_assignment(assigned_rate_list, joined_transitions, source, destination,
                     if not future_state_part == current_state_part:
                         break
                     else:
-                        assigned_rate_list.append([transition, value_pair, identification, rate, name, fluorescence])
+                        transition_rate_list.append([transition, value_pair, identification, rate, name, fluorescence])
 
-    return assigned_rate_list
+    return transition_rate_list
 
 
-def transition_rate_list(single_transitions, joined_transitions):
+def construct_transition_rate_list(single_transitions, joined_transitions):
     """
     Constructs a list that contains lists of each possible transition from one joined state to another.
 
@@ -169,7 +169,7 @@ def transition_rate_list(single_transitions, joined_transitions):
 
     Returns
     -------
-    assigned_rates : list
+    transition_rate_list : list
         Contains lists of each possible transition. These lists contain the following:
             - name of joined transition, e.g. S0_S1__S0_S0
             - joined state id pair, e.g. (1, 0)
@@ -178,7 +178,7 @@ def transition_rate_list(single_transitions, joined_transitions):
             - trivial name of transition, e.g. fluorescent emission
             - fluorescence boolean, e.g. True
     """
-    assigned_rates = list()
+    transition_rate_list = list()
 
     for identification, row in single_transitions.iterrows():
         name = row['name']
@@ -188,13 +188,12 @@ def transition_rate_list(single_transitions, joined_transitions):
         rate = row['rate']
         trivial_name = row['trivial_name']
         fluorescence = row['fluorescence']
-        assigned_rates = rate_assignment(assigned_rates, joined_transitions, source,
-                                         destination, rate, identification,
-                                         trivial_name, fluorescence)
-    return assigned_rates
+        transition_rate_list = rate_assignment(transition_rate_list, joined_transitions, source, destination, rate,
+                                               identification, trivial_name, fluorescence)
+    return transition_rate_list
 
 
-def absorbing_states(joined_states, joined_transitions):
+def add_absorbing_states(joined_states, joined_transitions):
     """
     Adds a column to joined_states with information whether the state is an absorbing state, i.e., the state has no
     outgoing transitions and therefore terminates the Markov chain.
@@ -223,11 +222,12 @@ def absorbing_states(joined_states, joined_transitions):
     return joined_states
 
 
-def transition_matrices(joined_transitions, joined_states):
+def contruct_transition_matrices(joined_transitions, joined_states):
     """
     Constructs a matrix of shape (joined_states.index.size, joined_states.index.size) with zeros in all positions except
-    the position equals a joined_states id pair listed in joined_transitions. If it does, it is set equal to the
+    if the position equals a joined_states id pair listed in joined_transitions. If it does, it is set equal to the
     corresponding rate. If the id pair is listed multiple times within joined_transitions, the total rate is assigned.
+    From there, the return values (see below) are created.
 
     Parameters
     ----------
@@ -263,7 +263,7 @@ def transition_matrices(joined_transitions, joined_states):
     return transition_matrix, row_sums
 
 
-def network(single_transitions):
+def construct_network(single_transitions):
     """
     Constructs network based on the states (nodes) and their transitions (edges) given.
 
@@ -275,10 +275,10 @@ def network(single_transitions):
 
     Returns
     -------
-    graph : nx.DiGraph
+    network : nx.DiGraph
         Contains nodes and edges of the Markov chain.
     """
-    graph = nx.MultiDiGraph()  # each edge has entry ('node1', 'node2', id of this node combination)
+    network = nx.MultiDiGraph()  # each edge has entry ('node1', 'node2', id of this node combination)
     edges = []
 
     for identification, row in single_transitions.iterrows():
@@ -287,6 +287,6 @@ def network(single_transitions):
         source, destination = split[1], split[2]
         edge = (source, destination, {'w': row['trivial_name']})
         edges.append(edge)
-    graph.add_edges_from(edges)
+    network.add_edges_from(edges)
 
-    return graph
+    return network

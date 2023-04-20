@@ -18,11 +18,11 @@ def direct_method(transition_matrix, row_sums, n_steps, seed):
     Parameters
     ----------
     transition_matrix : np.ndarray
-        The first return value of initialize.transition_matrices.
+        The first return value of initialize.contruct_transition_matrices.
         Contains the normalized rate constants (i.e., the point probabilities) for each transition at the corresponding
         index pair.
     row_sums : np.ndarray
-        The second return value of initialize.transition_matrices.
+        The second return value of initialize.contruct_transition_matrices.
         Contains the sum of each row of non-normalized transition rates, i.e., the sum of all transition rates of a
         state.
     n_steps : int
@@ -33,12 +33,12 @@ def direct_method(transition_matrix, row_sums, n_steps, seed):
     Returns
     -------
     time_series : np.ndarray
-        The time points at which the corresponding state occurs.
+        The simulated time points at which the corresponding state occurs.
     time_step_series : np.ndarray
-        The time step until the corresponding state occurs (starting from the previous state). Therefore, the lifetime
-        of a (joined!) state of index n is the time step of time_step_series[n+1].
+        The simulated time steps until the corresponding states occur (starting from the previous state). Therefore,
+        the lifetime of a joined state of index i is the time step of time_step_series[i+1].
     state_series : np.ndarray
-        The consecutive state's (if number > 1 joined_state's) unique values.
+        The simulated consecutive joined states ids.
     """
     rng = np.random.default_rng(seed)
 
