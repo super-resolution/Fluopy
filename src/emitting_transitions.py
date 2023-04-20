@@ -14,49 +14,48 @@ def get_emissions(single_transitions, transition_series):
         Contains name (str), rate (float), trivial_name (str) and fluorescence (bool) of each transition, where their
         id is the index.
     transition_series : np.ndarray
+        The return value of processing.generate_transition_series.
         Contains the NEXT transition id for each corresponding simulated joined state (except the last).
-        Return value of processing.generate_transition_series.
 
     Returns
     -------
     emissions : np.ndarray
         Contains indices that correspond to time points at which emissions have happened. Using it to index
-        state_series or transition_series will result in the outcome AFTER the emission event (hence, the state or
-        transition the follows the emission event).
+        state_series or transition_series will result in the outcome AFTER the emission event (hence, the joined state
+        or transition the follows the emission event).
     """
     emitting_transition_ids = single_transitions.loc[single_transitions['fluorescence'] == True].index.to_numpy()
     emissions = np.where(transition_series == emitting_transition_ids)[0] + 1
     # + 1 since the emission of a photon happens during the transition and hence the signal will coincide with the
-    # appearance of the follow-up state. The transition series contains the NEXT transition, so its original index
-    # corresponds to the initial state, not the follow-up state.
+    # appearance of the follow-up joined state. The transition series contains the NEXT transition, so its original
+    # index corresponds to the initial joined state, not the follow-up joined state.
     return emissions
 
 
-def get_detected_emissions(emissions, photon_collection_rate, seed=100):
+def get_events(emissions, photon_collection_rate, seed=100):
     """
-    Alters the emitting_transition_indices, keeping only a relative number of photon_collection_rate indices that are
-    randomly selected.
+    Alters the emissions, keeping only a relative number of photon_collection_rate indices that are randomly selected.
 
     Parameters
     ----------
     emissions : np.ndarray
+        The return value of get_emissions.
         Contains indices that correspond to time points at which emissions have happened.
-        Return value of get_emissions.
     photon_collection_rate : float
-        Number between 0 and 1, dictates the fraction of kept indices of emitting_transition_indices.
+        Number between 0 and 1, dictates the fraction of kept indices of emissions.
     seed : None, int, BitGenerator, Generator
         Seed to initialize a BitGenerator.
 
     Returns
     -------
-    detected_emissions : np.ndarray
+    events : np.ndarray
         Contains indices that correspond to time points at which emissions have happened and were detected.
     """
     rng = np.random.default_rng(seed)
     amount_detected = round(photon_collection_rate * emissions.shape[0])
-    detected_emissions = rng.choice(emissions, amount_detected, replace=False)
+    events = rng.choice(emissions, amount_detected, replace=False)
 
-    return detected_emissions
+    return events
 
 
 def construct_event_time_series(time_points_events, resample, emccd_gain=None, seed=100):
@@ -71,6 +70,7 @@ def construct_event_time_series(time_points_events, resample, emccd_gain=None, s
         Contains the time points at which an event occurs.
     resample : str
         For possible input values, see pandas time series user's guid offset aliases.
+        Resembles frame integration time.
     emccd_gain : int, None
         The gain of an EMCCD camera.
     seed : None, int, BitGenerator, Generator
@@ -79,7 +79,7 @@ def construct_event_time_series(time_points_events, resample, emccd_gain=None, s
     Returns
     -------
     event_time_series : pd.Series
-        Contains the time points in seconds as index and the number of events as values.
+        Contains the time points in seconds as index and the number of events (i.e., detected emissions) as values.
     """
     time_points_events = np.insert(time_points_events, 0, 0)  # add time zero to the time points
     # the 'false' event will be dealt with below (events[0] = 0)
@@ -113,9 +113,9 @@ def blink_statistics(event_time_series, threshold=0, memory=0, remove_heading_of
     Parameters
     ----------
     event_time_series : pd.Series
+        The return value of construct_event_time_series.
         Contains the time points in seconds as index (time steps in between resemble frames) and the number of events
         (i.e., detected photons) as values.
-        Return value of construct_event_time_series.
     threshold : int
         Maximum value of photons per frame to be considered an OFF frame.
     memory : int
@@ -126,9 +126,9 @@ def blink_statistics(event_time_series, threshold=0, memory=0, remove_heading_of
     Returns
     -------
     on_periods : np.ndarray
-        Contains the lengths of each ON period.
+        Contains the durations of each ON period.
     off_periods : np.ndarray
-        Contains the lengths of each OFF period.
+        Contains the durations of each OFF period.
     on_periods_frames : np.ndarray
         Contains the first frame of each ON period.
     off_periods_frames : np.ndarray

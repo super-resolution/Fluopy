@@ -42,7 +42,7 @@ def recursion(number, original_number, iterable, collector=None):
 
 def state_pairs(number, single_states):
     """
-    Combines all given states with themselves, separated by an underscore, number of times.
+    Combines all given single states with themselves, separated by an underscore, number of times.
 
     Parameters
     ----------
@@ -50,7 +50,7 @@ def state_pairs(number, single_states):
         The amount of combinations.
     single_states : dict
         Contains (key, value) pairs of type (int, str), where the key denotes the id and the value the name of the
-        state.
+        single state.
 
     Returns
     -------
@@ -105,9 +105,9 @@ def transition_pairs(joined_states):
 def rate_assignment(transition_rate_list, joined_transitions, source, destination, rate,
                     identification, name, fluorescence):
     """
-    Adds a transition in list form (see construct_transition_rate_list) to the assigned_rate_list, if source is part of the first
-    joined state of the transition and destination is part of the second joined state of the transition. All other
-    contributors to the first and second joined state should be constant.
+    Adds a transition in list form (see construct_transition_rate_list) to the transition_rate_list, if source is part
+    of the first joined state of the transition and destination is part of the second joined state of the transition.
+    All other contributors to the first and second joined state should be constant.
 
     Parameters
     ----------
@@ -118,9 +118,9 @@ def rate_assignment(transition_rate_list, joined_transitions, source, destinatio
         Contains all combinations of joined_states (combined with double underscore) as keys and their id pairs as
         values.
     source : str
-        Search value of the first state.
+        Search value of the first joined state.
     destination : str
-        Search value of the second state.
+        Search value of the second joined state.
     rate : float
         The rate of the target transition.
     identification : int
@@ -171,12 +171,12 @@ def construct_transition_rate_list(single_transitions, joined_transitions):
     -------
     transition_rate_list : list
         Contains lists of each possible transition. These lists contain the following:
-            - name of joined transition, e.g. S0_S1__S0_S0
-            - joined state id pair, e.g. (1, 0)
-            - single transition id, e.g. 1
-            - rate of transition
-            - trivial name of transition, e.g. fluorescent emission
-            - fluorescence boolean, e.g. True
+            - name of joined transition (str), e.g. 'S0_S1__S0_S0'
+            - joined state id pair (tuple), e.g. (1, 0)
+            - single transition id (int), e.g. 1
+            - rate of transition (float), e.g. 7e9
+            - trivial name of transition (str), e.g. 'fluorescent emission'
+            - fluorescence (bool), e.g. True
     """
     transition_rate_list = list()
 
@@ -190,12 +190,13 @@ def construct_transition_rate_list(single_transitions, joined_transitions):
         fluorescence = row['fluorescence']
         transition_rate_list = rate_assignment(transition_rate_list, joined_transitions, source, destination, rate,
                                                identification, trivial_name, fluorescence)
+
     return transition_rate_list
 
 
 def add_absorbing_states(joined_states, joined_transitions):
     """
-    Adds a column to joined_states with information whether the state is an absorbing state, i.e., the state has no
+    Adds a column to joined_states with information whether the joined state is absorbing, i.e., the joined state has no
     outgoing transitions and therefore terminates the Markov chain.
 
     Parameters
@@ -222,7 +223,7 @@ def add_absorbing_states(joined_states, joined_transitions):
     return joined_states
 
 
-def contruct_transition_matrices(joined_transitions, joined_states):
+def construct_transition_matrices(joined_transitions, joined_states):
     """
     Constructs a matrix of shape (joined_states.index.size, joined_states.index.size) with zeros in all positions except
     if the position equals a joined_states id pair listed in joined_transitions. If it does, it is set equal to the
@@ -245,14 +246,14 @@ def contruct_transition_matrices(joined_transitions, joined_states):
         index pair.
     row_sums : np.ndarray
         Contains the sum of each row of non-normalized transition rates, i.e., the sum of all transition rates of a
-        state.
+        joined state.
     """
     uni_dir_shape = joined_states.index.size
     transition_rate_matrix = np.zeros(shape=(uni_dir_shape, uni_dir_shape))
 
     for rate, index in zip(joined_transitions['rate'], joined_transitions['joined_states_id']):
         transition_rate_matrix[index] += rate  # all transitions effecting the very same
-        # source/destination states are added up
+        # source/destination joined states are added up
 
     transition_matrix = np.zeros(shape=(uni_dir_shape, uni_dir_shape))
     row_sums = transition_rate_matrix.sum(axis=1)
@@ -265,7 +266,7 @@ def contruct_transition_matrices(joined_transitions, joined_states):
 
 def construct_network(single_transitions):
     """
-    Constructs network based on the states (nodes) and their transitions (edges) given.
+    Constructs network based on the single states (nodes) and their transitions (edges) given.
 
     Parameters
     ----------

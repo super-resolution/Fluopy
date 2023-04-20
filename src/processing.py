@@ -3,10 +3,10 @@ import numpy as np
 
 def multiple_transitions(joined_transitions, joined_states, single_transitions):
     """
-    In case there are multiple transitions between the same two states, the selection of which transition has happened
-    will be based on the cumulative sum of probabilities and inserting a random number between 0 and 1 (similar to the
-    strategy of Gillespie algorithm). This function generates the cumulative sum and a correspondingly sorted index
-    array.
+    In case there are multiple transitions between the same two joined states, the selection of which transition has
+    happened will be based on the cumulative sum of probabilities and inserting a random number between 0 and 1 (similar
+    to the strategy of Gillespie algorithm). This function generates the cumulative sum and a correspondingly sorted
+    index array.
 
     Parameters
     ----------
@@ -75,7 +75,7 @@ def searchsorted2d(arr_2d, arr_1d):
         inserted into arr_2d equal to [np.searchsorted(a[i], b[i]) for i in range(arr_1d.shape[0])].
     """
     # Since the cumulative sum of probabilities always adds up to 1 and the numbers in arr_1d are virtually always
-    # below 1, the (np.maximum(arr_2d.max(1) - arr_2d.min(1) + 1, arr_1d) + 1) can be simpliefied to the number 2.
+    # below 1, the (np.maximum(arr_2d.max(1) - arr_2d.min(1) + 1, arr_1d) + 1) can be simplified to the number 2.
     scale = np.arange(0, 2 * arr_1d.shape[0], 2)
 
     a_scaled = (arr_2d + scale[:, None]).ravel()  # adds the offset and converts the result into a 1d array
@@ -89,22 +89,22 @@ def searchsorted2d(arr_2d, arr_1d):
 
 def generate_transition_series(state_series, transition_cum_sum, transition_sorted_indices, seed=100):
     """
-    Generates a transition series based on the current and future state series and, in case of multiple possible
+    Generates a transition series based on the current and future joined state series and, in case of multiple possible
     transitions, on probability.
 
     Parameters
     ----------
     state_series : np.ndarray
+        The third return value of gillespie_algorithm.direct_method.
         The simulated consecutive joined states ids.
-        Third return value of gillespie_algorithm.direct_method.
     transition_cum_sum : np.ndarray
+        The first return value of multiple_transitions.
         Of shape (joined_states.index.size, joined_states.index.size, single_transitions.index.size).
         Contains the cumulative sum of all available transitions of each joined_state combination.
-        First return value of multiple_transitions.
     transition_sorted_indices : np.ndarray
+        The second return value of multiple_transitions.
         Of shape (joined_states.index.size, joined_states.index.size, single_transitions.index.size).
         Contains the ids of the single_transitions ordered in a way such that it corresponds to the order of cum_sum.
-        Second return value of multiple_transitions.
     seed : None, int, BitGenerator, Generator
         Seed to initialize a BitGenerator.
 
@@ -136,8 +136,8 @@ def convert_single_state_series(number_fluorophores, state_series, joined_states
     number_fluorophores: int
         Number of fluorophores of the system.
     state_series : np.ndarray
+        The third return value of gillespie_algorithm.direct_method.
         The simulated consecutive joined states ids.
-        Third return value of gillespie_algorithm.direct_method.
     joined_states : pd.DataFrame
         Contains name (str), single_states (array), single_state_counter (array) and absorbing (bool) of each joined
         state, where their id is the index.
@@ -162,8 +162,8 @@ def convert_single_state_series(number_fluorophores, state_series, joined_states
 def time_occurrence_statistics(number_fluorophores, single_states, single_transitions, time_series,
                                transition_series, single_state_series):
     """
-    Returns two dictionaries containing statistics of state occupations and transition occurrences (distribution, mean
-    and total of lifetime as well as probability densities of occurrences (see list of keys below for more information).
+    Returns two dictionaries containing statistics of single state occupations and transition occurrences (distribution,
+    mean and total of lifetime as well as probability densities of occurrences (see keys below for more information)).
 
     Parameters
     ----------
@@ -171,42 +171,42 @@ def time_occurrence_statistics(number_fluorophores, single_states, single_transi
         Number of fluorophores of the system.
     single_states : dict
         Contains (key, value) pairs of type (int, str), where the key denotes the id and the value the name of the
-        state.
+        single state.
     single_transitions : pd.DataFrame
         Contains name (str), rate (float), trivial_name (str) and fluorescence (bool) of each transition, where their
         id is the index.
     time_series : np.ndarray
-        The simulated time points at which the corresponding state occurs.
-        First return value of gillespie_algorithm.direct_method.
+        The first return value of gillespie_algorithm.direct_method.
+        The simulated time points at which the corresponding joined states occur.
     transition_series : np.ndarray
+        The return value of generate_transition_series.
         Contains the NEXT transition id for each corresponding simulated joined state (except the last).
-        Return value of generate_transition_series.
     single_state_series : np.ndarray
+        The return value of convert_single_state_series.
         State series for each individual fluorophore (hence, simulated consecutive single states ids).
-        Return value of convert_single_state_series.
 
     Returns
     -------
     single_state_lifetimes : dict
         Keys are
-        single_state_occurrences (np.ndarray for each fluorophore containing their single state ids),
-        single_state_occurrences_all (the above summarized for all fluorophores),
-        lifetimes_fluorophore (np.ndarray for each fluorophore containing their lifetimes corresponding to the states
-            listed in single_state_occurrences),
-        lifetimes_single_states (list for each fluorophore containing np.ndarray for each single state with lifetimes),
-        lifetimes_single_states_all (the above summarized for all fluorophores),
-        mean_lifetimes (np.ndarray with axis 0 for the fluorophores and axis 1 for the single states),
-        mean_lifetimes_all (the above summarized for all fluorophores),
-        total_lifetimes (np.ndarray with axis 0 for the fluorophores and axis 1 for the single states),
-        total_lifetimes_all (the above summarized for all fluorophores).
+        'single_state_occurrences' (np.ndarray for each fluorophore containing their single state ids),
+        'single_state_occurrences_all' (the above summarized for all fluorophores),
+        'lifetimes_fluorophore' (np.ndarray for each fluorophore containing their lifetimes corresponding to the single
+            states listed in single_state_occurrences),
+        'lifetimes_single_states' (list of each fluorophore containing np.ndarray for each single state with lifetimes),
+        'lifetimes_single_states_all' (the above summarized for all fluorophores),
+        'mean_lifetimes' (np.ndarray with axis 0 for the fluorophores and axis 1 for the single states),
+        'mean_lifetimes_all' (the above summarized for all fluorophores),
+        'total_lifetimes' (np.ndarray with axis 0 for the fluorophores and axis 1 for the single states),
+        'total_lifetimes_all' (the above summarized for all fluorophores).
     transition_lifetimes : dict
         Keys are
-        transition_occurrences (np.ndarray for each fluorophore containing their transition ids),
-        transition_occurrences_all (the above summarized for all fluorophores),
-        transition_times (list for each fluorophores containing np.ndarray for each transition with lifetimes),
-        transition_times_all (the above summarized for all fluorophores),
-        mean_transition_times (np.ndarray with axis 0 for the fluorophores and axis 1 for the transition),
-        mean_transition_times_all (the above summarized for all fluorophores).
+        'transition_occurrences' (np.ndarray for each fluorophore containing their transition ids),
+        'transition_occurrences_all' (the above summarized for all fluorophores),
+        'transition_times' (list for each fluorophores containing np.ndarray for each transition with lifetimes),
+        'transition_times_all' (the above summarized for all fluorophores),
+        'mean_transition_times' (np.ndarray with axis 0 for the fluorophores and axis 1 for the transition),
+        'mean_transition_times_all' (the above summarized for all fluorophores).
     """
     single_states = np.fromiter(single_states.keys(), dtype=int)
     single_state_occurrences = []
@@ -226,9 +226,9 @@ def time_occurrence_statistics(number_fluorophores, single_states, single_transi
         current_fluorophore_series = single_state_series[i]
         diffs = np.diff(current_fluorophore_series)
         changes_at = np.where(diffs != 0)[0]
-        initial_states = current_fluorophore_series[changes_at]
+        initial_single_states = current_fluorophore_series[changes_at]
         transitions = transition_series[changes_at]
-        single_state_occurrence = np.append(initial_states, current_fluorophore_series[np.max(changes_at) + 1])
+        single_state_occurrence = np.append(initial_single_states, current_fluorophore_series[np.max(changes_at) + 1])
         changed = changes_at + 1  # state 0 to state 1 gives entry of 1 in
         # diff at index 0, but the corresponding time is at index 1, hence +1
         total_times = time_series[changed]
@@ -240,7 +240,7 @@ def time_occurrence_statistics(number_fluorophores, single_states, single_transi
 
         time_intervals_states = []
         for j, state in enumerate(single_states):
-            time_intervals_state = time_intervals[np.where(initial_states == state)]
+            time_intervals_state = time_intervals[np.where(initial_single_states == state)]
             if time_intervals_state.size == 0:
                 mean = np.nan
                 total = np.nan

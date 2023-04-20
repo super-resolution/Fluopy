@@ -1,12 +1,3 @@
-# import os
-# import sys
-# import inspect
-#
-# currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-# parentdir = os.path.dirname(currentdir)
-# sys.path.insert(0, parentdir)
-
-
 import numpy as np
 import pandas as pd
 import src.fcs as fcs
@@ -24,13 +15,11 @@ class FluorophoreSystem:
     Attributes
     ----------
     - Defined during instantiation of class object -
-    number_fluorophores : int
-        Number of fluorophores of the system.
-    distances : float, Collection
-        Distances of the fluorophores to each other.
+    parameter_collection : dict
+        Collection of parameters given to any method of FluorophoreSystem and its derived classes.
     single_states : dict
         Contains (key, value) pairs of type (int, str), where the key denotes the id and the value the name of the
-        state.
+        single state.
     single_transitions : pd.DataFrame
         Contains name (str), rate (float), trivial_name (str) and fluorescence (bool) of each transition, where their
         id is the index.
@@ -44,29 +33,32 @@ class FluorophoreSystem:
         Contains the normalized rate constants (i.e., the point probabilities) for each transition at the corresponding
         index pair.
     row_sums : np.ndarray
-        Contains the sum of all transition rates (rate constants) of each state.
+        Contains the sum of each row of non-normalized transition rates, i.e., the sum of all transition rates of a
+        joined state.
     graph : nx.DiGraph
         Contains nodes and edges of the Markov chain.
 
     - Defined during method simulate() call -
-    time_series : None, np.ndarray
-        The time points at which the corresponding state occurs.
-    time_step_series : None, np.ndarray
-        The time step until the corresponding state occurs (starting from the previous state).
-    state_series : None, np.ndarray
-        The consecutive state's unique values.
+    time_series : np.ndarray
+        The simulated time points at which the corresponding joined states occur.
+    time_step_series : np.ndarray
+        The simulated time steps until the corresponding joined states occur (starting from the previous joined state).
+        Therefore, the lifetime of a joined state of index i is the time step of time_step_series[i+1].
+    state_series : np.ndarray
+        The simulated consecutive joined states ids.
 
     - Defined during method process() call -
-    single_state_series : None, np.ndarray
-        State series for each individual fluorophore (hence, single_states).
-    transition_series : None, list
-        Contains the next transition id for each corresponding state (except the last).
-    single_state_lifetimes : None, dict
-        Keys are single_state_occurrences, single_state_occurrences_all, lifetimes_fluorophore, lifetimes_single_states,
-        lifetimes_single_states_all, mean_lifetimes, mean_lifetimes_all, total_lifetimes, total_lifetimes_all.
-    transition_lifetimes : None, dict
-        Keys are transition_occurrences, transition_occurrences_all, transition_times, transition_times_all,
-        mean_transition_times, mean_transition_times_all.
+    single_state_series : np.ndarray
+        State series for each individual fluorophore (hence, simulated consecutive single states ids).
+    transition_series : np.ndarray
+        Contains the NEXT transition id for each corresponding simulated joined state (except the last).
+    single_state_lifetimes : dict
+        Keys are 'single_state_occurrences', 'single_state_occurrences_all', 'lifetimes_fluorophore',
+        'lifetimes_single_states', 'lifetimes_single_states_all', 'mean_lifetimes', 'mean_lifetimes_all',
+        'total_lifetimes', 'total_lifetimes_all'.
+    transition_lifetimes : dict
+        Keys are 'transition_occurrences', 'transition_occurrences_all', 'transition_times', 'transition_times_all',
+        'mean_transition_times', 'mean_transition_times_all'.
     """
     def __init__(self, number_fluorophores, distances, single_states, rates):
         """
@@ -77,20 +69,20 @@ class FluorophoreSystem:
         distances : float, Collection
             Distances of the fluorophores to each other.
         single_states : iterable object
-            Contains elements of type str describing each state a single fluorophore can occupy.
+            Contains elements of type str describing each single state a single fluorophore can occupy.
         rates : list
-            The transition from state 1 to state 2 with rate constant k [1/s] should have the key k_state1_state2 and
-            the value [k, name_of_transition] assigned to it.
+            Contains a list for each transition like [k_singlestate1_singlestate2 (str), rate (float), trivial name
+            (str), fluorescence (bool)].
         """
-        self.number_fluorophores = number_fluorophores
-        self.distances = distances
+        self.parameter_collection = {'number_fluorophores': number_fluorophores, 'distances': distances,
+                                     'single_states': single_states, 'rates': rates}
 
         self.single_states = {i: state for i, state in enumerate(single_states)}
         ###############################################################################################################
         self.single_transitions = pd.DataFrame(rates,  columns=['name', 'rate', 'trivial_name', 'fluorescence'])
         self.single_transitions.index.name = 'id'
         ###############################################################################################################
-        joined_states = init.state_pairs(self.number_fluorophores, single_states)
+        joined_states = init.state_pairs(self.parameter_collection['number_fluorophores'], single_states)
         self.joined_states = pd.DataFrame.from_dict(joined_states, orient='index', columns=['', '']).reset_index()
         self.joined_states.columns = ['name', 'single_states', 'single_state_counter']
         self.joined_states.index.name = 'id'
@@ -112,9 +104,9 @@ class FluorophoreSystem:
         self.state_series = None
 
         self.single_state_series = None
+        self.transition_series = None
         self.single_state_lifetimes = None
         self.transition_lifetimes = None
-        self.transition_series = None
 
     def simulate(self, n_steps=100, seed=100):
         """
@@ -123,68 +115,67 @@ class FluorophoreSystem:
         Parameters
         ----------
         n_steps : int
-            Maximum number of simulation steps. If the Markov chain reaches an absorbing state, the simulation stops
-            early.
+            Maximum number of simulation steps. If the Markov chain reaches an absorbing joined state, the simulation
+            stops early.
         seed : None, int, BitGenerator, Generator
             Seed to initialize a BitGenerator.
         """
+        self.parameter_collection.update({'simulate()_n_steps': n_steps, 'simulate()_seed': seed})
         self.time_series, self.time_step_series, self.state_series = ga.direct_method(self.transition_matrix,
                                                                                       self.row_sums, n_steps, seed)
 
-    def process(self, seed):
+    def process(self, seed=100):
         """
-        Collection of processing functions identifying unique states and occupation times.
+        Collection of processing functions to generate single state series, transition series and statistics based on
+        the simulation results.
 
         Parameters
         ----------
         seed : None, int, BitGenerator, Generator
             Seed to initialize a BitGenerator.
         """
-
-        self.single_state_series = pr.convert_single_state_series(self.number_fluorophores, self.state_series,
-                                                                  self.joined_states)
+        self.parameter_collection.update({'process()_seed': seed})
+        self.single_state_series = pr.convert_single_state_series(self.parameter_collection['number_fluorophores'],
+                                                                  self.state_series, self.joined_states)
         transition_cum_sum, transition_sorted_indices = pr.multiple_transitions(self.joined_transitions,
                                                                                 self.joined_states,
                                                                                 self.single_transitions)
         self.transition_series = pr.generate_transition_series(self.state_series, transition_cum_sum,
                                                                transition_sorted_indices, seed)
         self.single_state_lifetimes, self.transition_lifetimes = \
-            pr.time_occurrence_statistics(self.number_fluorophores, self.single_states, self.single_transitions,
-                                          self.time_series, self.transition_series, self.single_state_series)
+            pr.time_occurrence_statistics(self.parameter_collection['number_fluorophores'], self.single_states,
+                                          self.single_transitions, self.time_series, self.transition_series,
+                                          self.single_state_series)
 
 
 class GeneralModel(FluorophoreSystem):
     """
-    Derived class from FluorophoreSystem. States follow the classic Jablonski model.
+    Derived class from FluorophoreSystem. Photophysical states follow the classic Jablonski model.
 
     Attributes
     ----------
     - Defined during method emitters() call -
-    emitting_transitions : None, list
-        Contains emitting transitions.
-    emitting_transitions_indices : None, list
-        Contains emitting transition indices.
-    emitting_mask : None, np.ndarray
-        Boolean array of length state_series, True at i if state_series[i] is a state following an emitting transition.
-    detected_emission_mask : None, np.ndarray
-        Copy of emitting_mask but some True entries may have changed to False dictated by parameter photon_collection.
-    events_at : np.ndarray
+    emissions : np.ndarray
+        Contains indices that correspond to time points at which emissions have happened. Using it to index
+        state_series or transition_series will result in the outcome AFTER the emission event (hence, the joined state
+        or transition the follows the emission event).
+    events : np.ndarray
+        Contains indices that correspond to time points at which emissions have happened and were detected.
+    time_points_events : np.ndarray
         Contains the time points at which an event occurs.
-    last_parameters : dict
-        Contains the last parameters used to construct pandas_series.
-    pandas_series : None, pd.Series
-        Contains the time step (resample) in seconds as index and the number of events as values.
-    on_periods : None, np.ndarray
-        Contains the lengths of each on-period.
-    off_periods : None, np.ndarray
-        Contains the lengths of each off-period.
-    statistics : None, dict
-        Contains several statistical parameters associated with emission events.
+    event_time_series : pd.Series
+        Contains the time points in seconds as index and the number of events as values.
+    on_periods : np.ndarray
+        Contains the durations of each ON period.
+    off_periods : np.ndarray
+        Contains the durations of each OFF period.
+    emission_statistics : dict
+        Keys are 'total_emissions', 'total_events', 'mean_time_between_events'.
 
     - Defined during method fcs() call -
-    autocorrelation : None, tuple
-        Contains two arrays, the first is the time differences that correspond to the autocorrelation values,
-        the second is the autocorrelation values.
+    autocorrelation : tuple
+        Contains two arrays, the first is the time differences (i.e., tau or lag time) that correspond to the
+        autocorrelation values, the second is the autocorrelation values.
     """
     def __init__(self, number_fluorophores, distances, rates):
         """
@@ -194,17 +185,16 @@ class GeneralModel(FluorophoreSystem):
             Number of fluorophores of the system.
         distances : float, Collection
             Distances of the fluorophores to each other.
-        rates : dict
-            The transition from state 1 to state 2 with rate constant k [1/s] should have the key k_state1_state2 and
-            the value [k, name_of_transition] assigned to it.
+        rates : list
+            Contains a list for each transition like [k_singlestate1_singlestate2 (str), rate (float), trivial name
+            (str), fluorescence (bool)].
         """
         single_states = ("S0", "S1", "T1", "B")
         super().__init__(number_fluorophores, distances, single_states, rates)
 
         self.emissions = None
-        self.detected_emissions = None
+        self.events = None
         self.time_points_events = None
-        self.last_parameters = None
         self.event_time_series = None
         self.on_periods = None
         self.off_periods = None
@@ -220,32 +210,37 @@ class GeneralModel(FluorophoreSystem):
         Parameters
         ----------
         photon_collection_rate : float
-            Number between 0 and 1, dictates the fraction of kept True values of emitting_mask.
+            Number between 0 and 1, dictates the fraction of kept indices of emissions.
         resample : str
-            Resamples events. See pandas time series user's guide offset aliases for possible input values.
+            See pandas time series user's guide offset aliases for possible input values.
+            Resembles frame integration time.
         emccd_gain : int
-            The gain of an emccd.
+            The gain of an EMCCD camera.
         threshold : int
-            Maximum value of photons per frame (i.e., resample) to be considered an off-frame.
+            Maximum value of photons per frame to be considered an OFF frame.
         memory : int
-            Number of off-frames to be neglected. They are included in the on times.
+            Number of OFF frames to be neglected. They are included in the ON times.
         remove_heading_off_period : bool
-            If True and the series starts wit an off-frame, the leading off-frame is discarded.
+            If True and the series starts wit an OFF frame, the leading OFF frame is discarded.
         seed : None, int, BitGenerator, Generator
             Seed to initialize a BitGenerator.
         """
+        self.parameter_collection.update({'emitters()_photon_collection_rate': photon_collection_rate,
+                                          'emitters()_resample': resample, 'emitters()_emccd_gain': emccd_gain,
+                                          'emitters()_threshold': threshold, 'emitters()_memory': memory,
+                                          'emitters()_remove_heading_off_period': remove_heading_off_period,
+                                          'emitters()_seed': seed})
         self.emissions = et.get_emissions(self.single_transitions, self.transition_series)
-        self.detected_emissions = et.get_detected_emissions(self.emissions, photon_collection_rate, seed)
-        self.time_points_events = self.time_series[self.detected_emissions]
+        self.events = et.get_events(self.emissions, photon_collection_rate, seed)
+        self.time_points_events = self.time_series[self.events]
         self.event_time_series = et.construct_event_time_series(self.time_points_events, resample, emccd_gain, seed)
-        self.last_parameters = dict(resample=resample, emccd_gain=emccd_gain, seed=seed)
         self.on_periods, self.off_periods, _, _ = et.blink_statistics(self.event_time_series, threshold, memory,
                                                                       remove_heading_off_period)
-        self.emission_statistics = {'total_events': self.emissions.size,
-                                    'total_detected_events': self.event_time_series.sum(),
+        self.emission_statistics = {'total_emissions': self.emissions.size,
+                                    'total_events': self.events.size,
                                     'mean_time_between_events': np.mean(np.diff(self.time_points_events))}
 
-    def fcs(self, normalize=True, log=True, m=2, deltat=5e-3):
+    def fcs(self, normalize=True, log=True, m=2, deltat=None):
         """
         Autocorrelation as exploited in typical fluorescence correlation spectroscopy (FCS) setups.
 
@@ -256,38 +251,40 @@ class GeneralModel(FluorophoreSystem):
         log : bool
             Whether to compute the autocorrelation on a logarithmic scale.
         m : int
-            Defines the number of points on one level (i.e., 1, 2, 4, 8, etc.),
-            E.g., m=4 leads to 1,2,3,4; 2,4,6,8; 4,8,12,16; ... .
-        deltat : float
-            The time difference between each entry of pandas_series in seconds. If the required parameter does not
-            match the current one, a new pandas_series is constructed (but it is not stored as an attribute).
-
-        Returns
-        -------
-        autocorrelation : tuple
-            Contains a np.ndarray of time differences and a np.ndarray of autocorrelation values.
+            Defines the number of points on one level (i.e., 1, 2, 4, 8, etc.), E.g., m=4 leads to 1,2,3,4; 2,4,6,8;
+            4,8,12,16; ... .
+            Only needed if log is True.
+        deltat : str
+            The minimum tau value. Defines the minimum lag time (time difference) > 0. If None, it is set equal to the
+            resample value of method emitters(). See pandas time series user's guide offset aliases for other possible
+            input values.
+            Resembles frame integration time.
         """
-        if self.event_time_series is None:
-            raise TypeError('pandas_series is None')
-        else:
-            current_deltat = self.last_parameters["resample"]
-            current_deltat = pd.to_timedelta(current_deltat)
-            required_deltat = pd.to_timedelta(deltat, unit="s")
-            if required_deltat != current_deltat:
-                new_pandas_series = et.pandas_event_time_series(self.time_points_events, resample=required_deltat,
-                                                                emccd_gain=self.last_parameters["emccd_gain"],
-                                                                seed=self.last_parameters["seed"])
-                use_pandas_series = new_pandas_series
-            else:
-                use_pandas_series = self.event_time_series
-            self.autocorrelation = fcs.autocorrelate(use_pandas_series, normalize, log, m, deltat)
+        if deltat is None:
+            deltat = self.parameter_collection['emitters()_resample']
+        self.parameter_collection.update({'fcs()_normalize': normalize, 'fcs()_log': log, 'fcs()_m': m,
+                                          'fcs()_deltat': deltat})
+        deltat_float = pd.to_timedelta(deltat) / np.timedelta64(1, 's')
+        if deltat == self.parameter_collection['emitters()_resample']:
+            try:
+                self.autocorrelation = fcs.autocorrelate(self.event_time_series, normalize, log, m, deltat_float)
+            except ValueError:
+                print('Logarithmic autocorrelation not possible. Event_time_series too short.')
 
-            return self.autocorrelation
+
+        else:
+            new_event_time_series = et.construct_event_time_series(self.time_points_events, deltat,
+                                                                   self.parameter_collection['emitters()_emccd_gain'],
+                                                                   self.parameter_collection['emitters()_seed'])
+            try:
+                self.autocorrelation = fcs.autocorrelate(new_event_time_series, normalize, log, m, deltat_float)
+            except ValueError:
+                print('Logarithmic autocorrelation not possible. Event_time_series too short.')
 
 
 class Cy5CisModel(GeneralModel):
     """
-    Derived class from GeneralModel. States include the simplified cis isomer of the fluorophore Cy5.
+    Derived class from GeneralModel. Photophysical states include the simplified cis isomer of the fluorophore Cy5.
     """
     def __init__(self, number_fluorophores, distances, rates):
         single_states = ("tS0", "tS1", "tT1", "Cis", "B")
@@ -297,7 +294,7 @@ class Cy5CisModel(GeneralModel):
 
 class Cy5CisdSTORMModel(GeneralModel):
     """
-    Derived class from GeneralModel. States include the dSTORM OFF state.
+    Derived class from GeneralModel. Photophysical states include the dSTORM OFF state.
     """
     def __init__(self, number_fluorophores, distances, rates):
         single_states = ("tS0", "tS1", "tT1", "Cis", "OFF", "B")
@@ -306,7 +303,7 @@ class Cy5CisdSTORMModel(GeneralModel):
 
 class dSTORMModel(GeneralModel):
     """
-    Derived class from GeneralModel. States include the dSTORM OFF state.
+    Derived class from GeneralModel. Photophysical states include the dSTORM OFF state.
     """
     def __init__(self, number_fluorophores, distances, rates):
         single_states = ("S0", "S1", "T1", "OFF", "B")

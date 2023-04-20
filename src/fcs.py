@@ -9,6 +9,7 @@ def autocorrelate(event_time_series, normalize=False, log=False, m=2, deltat=5e-
     Parameters
     ----------
     event_time_series : pd.Series
+        The return value of emitting_transitions.construct_event_time_series.
         Contains the time points in seconds as index and the number of events as values.
     normalize : bool
         Whether to normalize the correlation. Note that this involves more than just dividing by mean squared.
@@ -19,12 +20,13 @@ def autocorrelate(event_time_series, normalize=False, log=False, m=2, deltat=5e-
         4,8,12,16; ... .
         Only needed if log is True.
     deltat : float
-        The time between each entry of event_time_series. Only needed if log is True.
+        The time between each entry of event_time_series.
+        Only needed if log is True.
 
     Returns
     -------
     tau : np.ndarray
-        Time differences (i.e., lag times) that correspond to the autocorrelation values.
+        Time differences (i.e., tau or lag times) that correspond to the autocorrelation values.
     autocorrelation : np.ndarray
         Autocorrelation values.
     """
@@ -45,17 +47,17 @@ def autocorrelate(event_time_series, normalize=False, log=False, m=2, deltat=5e-
         deviation = event_time_series.values - mean  # delta I(t) (wiki) - fluctuation around the mean value
         autocorrelation = np.correlate(deviation, deviation, mode="full")
         autocorrelation = autocorrelation[autocorrelation.size // 2:]
-        autocorrelation = np.divide(autocorrelation, np.arange(autocorrelation.size, 0, -1))  # averaging - in multipletau, this is included
-        # in normalize=True (denoted as M-k in documentation)
+        autocorrelation = np.divide(autocorrelation, np.arange(autocorrelation.size, 0, -1))
+        # averaging - in multipletau, this is included in normalize=True (denoted as M-k in documentation)
         autocorrelation = autocorrelation / mean ** 2  # normalization with mean squared
         tau = event_time_series.index.values
 
         return tau, autocorrelation
 
     else:
-        autocorrelation = np.correlate(event_time_series.values, event_time_series.values, mode="full")  # note that this version is the
-        # autocorrelation in the sense of signal processing and differs from the statistical definition of
-        # autocorrelation.
+        autocorrelation = np.correlate(event_time_series.values, event_time_series.values, mode="full")
+        # note that this version is the autocorrelation in the sense of signal processing and differs from the
+        # statistical definition of autocorrelation.
         autocorrelation = autocorrelation[autocorrelation.size // 2:]
         tau = event_time_series.index.values
 

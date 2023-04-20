@@ -10,7 +10,7 @@ import numpy as np
 def direct_method(transition_matrix, row_sums, n_steps, seed):
     """
     The direct method of the gillespie algorithm (i.e., the stochastic simulation algorithm). Note that in this version,
-    the propensities are equal to the rate constants, because the occupied state's population is assumed to be always 1
+    the propensities are equal to the rate constants, because the occupied state's population is assumed to be  always 1
     (the initial row vector contains only zeros except a single one). Additionally, the state change vector is also
     trivial, since each transition leads to a decrease in the current state by 1 and an increase in the following state
     by 1.
@@ -18,25 +18,26 @@ def direct_method(transition_matrix, row_sums, n_steps, seed):
     Parameters
     ----------
     transition_matrix : np.ndarray
-        The first return value of initialize.contruct_transition_matrices.
+        The first return value of initialize.construct_transition_matrices.
         Contains the normalized rate constants (i.e., the point probabilities) for each transition at the corresponding
         index pair.
     row_sums : np.ndarray
-        The second return value of initialize.contruct_transition_matrices.
+        The second return value of initialize.construct_transition_matrices.
         Contains the sum of each row of non-normalized transition rates, i.e., the sum of all transition rates of a
-        state.
+        joined state.
     n_steps : int
-        Maximum number of simulation steps. If the Markov chain reaches an absorbing state, the simulation stops early.
+        Maximum number of simulation steps. If the Markov chain reaches an absorbing joined state, the simulation stops
+        early.
     seed : None, int, BitGenerator, Generator
         Seed to initialize a BitGenerator.
 
     Returns
     -------
     time_series : np.ndarray
-        The simulated time points at which the corresponding state occurs.
+        The simulated time points at which the corresponding joined states occur.
     time_step_series : np.ndarray
-        The simulated time steps until the corresponding states occur (starting from the previous state). Therefore,
-        the lifetime of a joined state of index i is the time step of time_step_series[i+1].
+        The simulated time steps until the corresponding joined states occur (starting from the previous joined state).
+        Therefore, the lifetime of a joined state of index i is the time step of time_step_series[i+1].
     state_series : np.ndarray
         The simulated consecutive joined states ids.
     """
