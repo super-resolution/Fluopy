@@ -17,8 +17,8 @@ def multiple_transitions(joined_transitions, joined_states, single_transitions):
         Contains name (str), single_states (array), single_state_counter (array) and absorbing (bool) of each joined
         state, where their id is the index.
     single_transitions : pd.DataFrame
-        Contains name (str), rate (float), trivial_name (str) and fluorescence (bool) of each transition, where their
-        id is the index.
+        Contains name (str), rate (float), trivial_name (str), abbreviation (str) and fluorescence (bool) of each
+        transition, where their id is the index.
 
     Returns
     -------
@@ -173,8 +173,8 @@ def time_occurrence_statistics(number_fluorophores, single_states, single_transi
         Contains (key, value) pairs of type (int, str), where the key denotes the id and the value the name of the
         single state.
     single_transitions : pd.DataFrame
-        Contains name (str), rate (float), trivial_name (str) and fluorescence (bool) of each transition, where their
-        id is the index.
+        Contains name (str), rate (float), trivial_name (str), abbreviation (str) and fluorescence (bool) of each
+        transition, where their id is the index.
     time_series : np.ndarray
         The first return value of gillespie_algorithm.direct_method.
         The simulated time points at which the corresponding joined states occur.

@@ -11,8 +11,8 @@ def get_emissions(single_transitions, transition_series):
     Parameters
     ----------
     single_transitions : pd.DataFrame
-        Contains name (str), rate (float), trivial_name (str) and fluorescence (bool) of each transition, where their
-        id is the index.
+        Contains name (str), rate (float), trivial_name (str), abbreviation (str) and fluorescence (bool) of each
+        transition, where their id is the index.
     transition_series : np.ndarray
         The return value of processing.generate_transition_series.
         Contains the NEXT transition id for each corresponding simulated joined state (except the last).
@@ -52,8 +52,10 @@ def get_events(emissions, photon_collection_rate, seed=100):
         Contains indices that correspond to time points at which emissions have happened and were detected.
     """
     rng = np.random.default_rng(seed)
-    amount_detected = round(photon_collection_rate * emissions.shape[0])
-    events = rng.choice(emissions, amount_detected, replace=False)
+    # select not-detected photons instead of detected photons to keep sorted indices
+    amount_not_detected = round((1 - photon_collection_rate) * emissions.shape[0])
+    no_events_indices = rng.integers(0, emissions.shape[0], amount_not_detected)
+    events = np.delete(emissions, no_events_indices)
 
     return events
 

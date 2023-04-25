@@ -160,8 +160,8 @@ def construct_transition_rate_list(single_transitions, joined_transitions):
     Parameters
     ----------
     single_transitions : pd.DataFrame
-        Contains name (str), rate (float), trivial_name (str) and fluorescence (bool) of each transition, where their
-        id is the index.
+        Contains name (str), rate (float), trivial_name (str), abbreviation (str) and fluorescence (bool) of each
+        transition, where their id is the index.
     joined_transitions : dict
         The return value of transition_pairs.
         Contains all combinations of joined_states (combined with double underscore) as keys and their id pairs as
@@ -271,8 +271,8 @@ def construct_network(single_transitions):
     Parameters
     ----------
     single_transitions : pd.DataFrame
-        Contains name (str), rate (float), trivial_name (str) and fluorescence (bool) of each transition, where their
-        id is the index.
+        Contains name (str), rate (float), trivial_name (str), abbreviation (str) and fluorescence (bool) of each
+        transition, where their id is the index.
 
     Returns
     -------
@@ -286,7 +286,7 @@ def construct_network(single_transitions):
         name = row['name']
         split = name.split('_')
         source, destination = split[1], split[2]
-        edge = (source, destination, {'w': row['trivial_name']})
+        edge = (source, destination, {'w': row['abbreviation']})
         edges.append(edge)
     network.add_edges_from(edges)
 
