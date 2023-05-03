@@ -34,8 +34,8 @@
     &quot;settings.editor.selected.configurable&quot;: &quot;preferences.editor&quot;
   }
 }</component>
-  <component name="RunManager" selected="Python.calc_rate_constant">
-    <configuration name="calc_rate_constant" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+  <component name="RunManager" selected="Python.formulas">
+    <configuration name="formulas" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="scr" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -47,7 +47,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/calc_rate_constant.py" />
+      <option name="SCRIPT_NAME" value="C:\Users\SagixOffice\OneDrive - Universität Würzburg\GitHub\Photoswitching\src\formulas.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -137,7 +137,7 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Python.calc_rate_constant" />
+      <item itemvalue="Python.formulas" />
       <item itemvalue="Python tests.pytest in tests" />
       <item itemvalue="Python tests.pytest for test_gillespie_algorithm.test_direct_method_py" />
       <item itemvalue="Python tests.pytest in test_gillespie_algorithm.py" />
@@ -146,7 +146,7 @@
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.calc_rate_constant" />
+        <item itemvalue="Python.formulas" />
         <item itemvalue="Python tests.pytest in test_initialize.py" />
         <item itemvalue="Python tests.pytest in test_processing.py" />
         <item itemvalue="Python tests.pytest in test_gillespie_algorithm.py" />

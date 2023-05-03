@@ -62,8 +62,31 @@ class FluorophoreSystem:
     transition_lifetimes : dict
         Keys are 'transition_occurrences', 'transition_occurrences_all', 'transition_times', 'transition_times_all',
         'mean_transition_times', 'mean_transition_times_all'.
+
+    - Defined during method emitters() call -
+    emissions : np.ndarray
+        Contains indices that correspond to time points at which emissions have happened. Using it to index
+        state_series or transition_series will result in the outcome AFTER the emission event (hence, the joined state
+        or transition the follows the emission event).
+    events : np.ndarray
+        Contains indices that correspond to time points at which emissions have happened and were detected.
+    time_points_events : np.ndarray
+        Contains the time points at which an event occurs.
+    event_time_series : pd.Series
+        Contains the time points in seconds as index and the number of events as values.
+    on_periods : np.ndarray
+        Contains the durations of each ON period.
+    off_periods : np.ndarray
+        Contains the durations of each OFF period.
+    emission_statistics : dict
+        Keys are 'total_emissions', 'total_events', 'mean_time_between_events'.
+
+    - Defined during method fcs() call -
+    autocorrelation : tuple
+        Contains two arrays, the first is the time differences (i.e., tau or lag time) that correspond to the
+        autocorrelation values, the second is the autocorrelation values.
     """
-    def __init__(self, number_fluorophores, distances, single_states, rates):
+    def __init__(self, number_fluorophores, distances, transitions):
         """
         Parameters
         ----------
@@ -71,20 +94,19 @@ class FluorophoreSystem:
             Number of fluorophores of the system.
         distances : float, Collection
             Distances of the fluorophores to each other.
-        single_states : iterable object
-            Contains elements of type str describing each single state a single fluorophore can occupy.
-        rates : list
+        transitions : list
             Contains a list for each transition like [k_singlestate1_singlestate2 (str), rate (float), trivial name
             (str), abbreviation (str), fluorescence (bool)].
         """
-        self.parameter_collection = pd.DataFrame([number_fluorophores, distances, single_states, rates],
+        single_states = init.extract_single_states(transitions)
+        self.parameter_collection = pd.DataFrame([number_fluorophores, distances, single_states, transitions],
                                                  index=[['init', 'init', 'init', 'init'],
                                                         ['number_fluorophores', 'distances', 'single_states', 'rates']])
 
         self.single_states = {i: state for i, state in enumerate(single_states)}
         ###############################################################################################################
-        self.single_transitions = pd.DataFrame(rates,  columns=['name', 'rate', 'trivial_name', 'abbreviation',
-                                                                'fluorescence'])
+        self.single_transitions = pd.DataFrame(transitions,  columns=['name', 'rate', 'trivial_name', 'abbreviation',
+                                                                      'fluorescence'])
         self.single_transitions.index.name = 'id'
         ###############################################################################################################
         joined_states = init.state_pairs(self.parameter_collection.loc[('init', 'number_fluorophores'), 0],
@@ -115,6 +137,16 @@ class FluorophoreSystem:
         self.transition_series = None
         self.single_state_lifetimes = None
         self.transition_lifetimes = None
+
+        self.emissions = None
+        self.events = None
+        self.time_points_events = None
+        self.event_time_series = None
+        self.on_periods = None
+        self.off_periods = None
+        self.emission_statistics = None
+
+        self.autocorrelation = None
 
     def simulate(self, n_steps=100, seed=100):
         """
@@ -163,61 +195,6 @@ class FluorophoreSystem:
             pr.time_occurrence_statistics(self.parameter_collection.loc[('init', 'number_fluorophores'), 0],
                                           self.single_states, self.single_transitions, self.time_series,
                                           self.transition_series, self.single_state_series)
-
-
-class GeneralModel(FluorophoreSystem):
-    """
-    Derived class from FluorophoreSystem. Photophysical states follow the classic Jablonski model.
-
-    Attributes
-    ----------
-    - Defined during method emitters() call -
-    emissions : np.ndarray
-        Contains indices that correspond to time points at which emissions have happened. Using it to index
-        state_series or transition_series will result in the outcome AFTER the emission event (hence, the joined state
-        or transition the follows the emission event).
-    events : np.ndarray
-        Contains indices that correspond to time points at which emissions have happened and were detected.
-    time_points_events : np.ndarray
-        Contains the time points at which an event occurs.
-    event_time_series : pd.Series
-        Contains the time points in seconds as index and the number of events as values.
-    on_periods : np.ndarray
-        Contains the durations of each ON period.
-    off_periods : np.ndarray
-        Contains the durations of each OFF period.
-    emission_statistics : dict
-        Keys are 'total_emissions', 'total_events', 'mean_time_between_events'.
-
-    - Defined during method fcs() call -
-    autocorrelation : tuple
-        Contains two arrays, the first is the time differences (i.e., tau or lag time) that correspond to the
-        autocorrelation values, the second is the autocorrelation values.
-    """
-    def __init__(self, number_fluorophores, distances, rates):
-        """
-        Parameters
-        ----------
-        number_fluorophores : int
-            Number of fluorophores of the system.
-        distances : float, Collection
-            Distances of the fluorophores to each other.
-        rates : list
-            Contains a list for each transition like [k_singlestate1_singlestate2 (str), rate (float), trivial name
-            (str), abbreviation (str), fluorescence (bool)].
-        """
-        single_states = ("S0", "S1", "T1", "B")
-        super().__init__(number_fluorophores, distances, single_states, rates)
-
-        self.emissions = None
-        self.events = None
-        self.time_points_events = None
-        self.event_time_series = None
-        self.on_periods = None
-        self.off_periods = None
-        self.emission_statistics = None
-
-        self.autocorrelation = None
 
     def emitters(self, photon_collection_rate=1, resample="5ms", emccd_gain=None, threshold=0, memory=0,
                  remove_heading_off_period=False, seed=100):
@@ -310,29 +287,34 @@ class GeneralModel(FluorophoreSystem):
                 print('Logarithmic autocorrelation not possible. Event_time_series too short.')
 
 
-class Cy5Model(GeneralModel):
+class Cy5(FluorophoreSystem):
     """
-    Derived class from GeneralModel. Photophysical states include the simplified cis isomer of the fluorophore Cy5.
+    Derived class from FluorophoreSystem. Photophysical processes represent the fluorophore Cy5. A special property of
+    this fluorophore is its isomerization processes that convert the fluorophore between a cis and a trans state.
     """
-    def __init__(self, number_fluorophores, distances, rates):
-        single_states = ("tS0", "tS1", "tT1", "Cis", "B")
-        super(GeneralModel, self).__init__(number_fluorophores, distances, single_states, rates)
-        # sets the method resolution order __mro__ such that it starts from GeneralModel
-
-
-class Cy5dSTORMModel(GeneralModel):
-    """
-    Derived class from GeneralModel. Photophysical states include the dSTORM OFF state.
-    """
-    def __init__(self, number_fluorophores, distances, rates):
-        single_states = ("tS0", "tS1", "tT1", "Cis", "OFF", "B")
-        super(GeneralModel, self).__init__(number_fluorophores, distances, single_states, rates)
-
-
-class dSTORMModel(GeneralModel):
-    """
-    Derived class from GeneralModel. Photophysical states include the dSTORM OFF state.
-    """
-    def __init__(self, number_fluorophores, distances, rates):
-        single_states = ("S0", "S1", "T1", "OFF", "B")
-        super(GeneralModel, self).__init__(number_fluorophores, distances, single_states, rates)
+    def __init__(self, number_fluorophores, distances, transitions=None, user=None, irradiance=None, wavelength=None,
+                 dstorm_parameters=None):
+        """
+        Parameters
+        ----------
+        number_fluorophores : int
+            Number of fluorophores of the system.
+        distances : float, Collection
+            Distances of the fluorophores to each other.
+        transitions: None, list
+            Contains a list for each transition like [k_singlestate1_singlestate2 (str), rate (float), trivial name
+            (str), abbreviation (str), fluorescence (bool)].
+        user : str
+            One of r'\vie43sq', r'\SagixOffice'.
+        irradiance : float
+            The irradiance in kW/cm².
+        wavelength : float
+            In nm.
+        dstorm_parameters : dict
+            May contain the following keys: reducing_agent, concentration, k_pet, ph, same.
+        """
+        if transitions is None:
+            file_path = rf"C:\Users{user}\OneDrive - Universität Würzburg\GitHub\Photoswitching\src\fluorophores\\"
+            transitions = init.determine_rate_constants(file_path, irradiance, wavelength, fluorophore='cy5',
+                                                        dstorm_parameters=dstorm_parameters)
+        super().__init__(number_fluorophores, distances, transitions)

@@ -20,7 +20,7 @@ def autocorrelate(event_time_series, normalize=False, log=False, m=2, deltat=5e-
         4,8,12,16; ... .
         Only needed if log is True.
     deltat : float
-        The time between each entry of event_time_series.
+        The time between each entry of event_time_series. In seconds.
         Only needed if log is True.
 
     Returns

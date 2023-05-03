@@ -1,5 +1,111 @@
+import pandas as pd
 import numpy as np
 import networkx as nx
+import src.formulas as fo
+
+
+def determine_rate_constants(path, irradiance, wavelength, fluorophore, dstorm_parameters):
+    """
+    Determines rate constants and constructs list of transitions based on fluorophore-specific excel files.
+
+    Parameters
+    ----------
+    path : str
+        Path of directory containing excel files.
+    irradiance : float
+        The irradiance in kW/cm².
+    wavelength : float
+        In nm.
+    fluorophore : str
+        'cy5' or else.
+    dstorm_parameters : dict
+        May contain the following keys: reducing_agent, concentration, k_pet, ph, same.
+
+    Returns
+    -------
+    transitions : list
+        Contains a list for each transition like [k_singlestate1_singlestate2 (str), rate (float), trivial name
+        (str), abbreviation (str), fluorescence (bool)].
+    """
+    transitions = []
+
+    wavenumber, wavelength, frequency = fo.convert_wavenumber_wavelength_frequency(wavelength=wavelength)
+    photon_flux = fo.calculate_photon_flux(irradiance, frequency)
+
+    path_properties = path + fluorophore + '_properties.xlsx'
+    path_absorption = path + fluorophore + '_absorption.xlsx'
+    dataframe_properties = pd.read_excel(path_properties, sheet_name=0, index_col='property')
+    dataframe_absorption = pd.read_excel(path_absorption, sheet_name=0, index_col='wavelength [nm]')
+
+    relative_extinction = dataframe_absorption.loc[int(wavelength), 'relative extinction']
+    maximum_extinction_coefficient = dataframe_properties.loc['maximum extinction coefficient [1/(cm M)]', 'value']
+    quantum_yield = dataframe_properties.loc['quantum yield', 'value']
+    fluorescence_lifetime = dataframe_properties.loc['fluorescence lifetime [s]', 'value']
+
+    effective_extinction = relative_extinction * maximum_extinction_coefficient
+    excitation_rate = fo.calculate_excitation_rate(photon_flux=photon_flux, extinction_coefficient=effective_extinction)
+    transitions.append(['k_S0_S1', excitation_rate, 'excitation', 'EXC', False])
+
+    emission_rate = fo.calculate_emission_rate(quantum_yield, fluorescence_lifetime)
+    transitions.append(['k_S1_S0', emission_rate, 'fluorescent emission', 'FLU', True])
+
+    isc_st_rate = dataframe_properties.loc['intersystem crossing ST rate [1/s]', 'value']
+    transitions.append(['k_S1_T1', isc_st_rate, 'intersystem crossing ST', 'ISCST', False])
+
+    if fluorophore == 'cy5':
+        isomerization_rate = dataframe_properties.loc['isomerization [1/s]', 'value']
+        back_isomerization_cross_section = dataframe_properties.loc['back-isomerization cross section [cm²]', 'value']
+        back_isomerization_rate = fo.calculate_back_isomerization_rate(photon_flux, back_isomerization_cross_section)
+        internal_conversion_rate = fo.calculate_internal_conversion_rate(quantum_yield, emission_rate,
+                                                                         isomerization_rate, isc_st_rate)
+        transitions.append(['k_S1_S0', internal_conversion_rate, 'internal conversion S', 'ICS', False])
+        transitions.append(['k_S1_Cis', isomerization_rate, 'isomerization', 'ISO', False])
+        transitions.append(['k_Cis_S0', back_isomerization_rate, 'backisomerization', 'BISO', False])
+    else:
+        internal_conversion_rate = fo.calculate_internal_conversion_rate(quantum_yield, emission_rate, isc_st_rate)
+        transitions.append(['k_S1_S0', internal_conversion_rate, 'internal conversion S', 'ICS', False])
+
+    isc_ts_rate = dataframe_properties.loc['intersystem crossing TS rate [1/s]', 'value']
+    transitions.append(['k_T1_S0', isc_ts_rate, 'intersystem crossing TS', 'ISCTS', False])
+
+    dstorm_reduction_rate = dataframe_properties.loc['dstorm reduction rate [1/(s M)]', 'value']
+    dstorm_reduction_rate = fo.calculate_reduction_rate(k_pet=dstorm_reduction_rate, **dstorm_parameters)
+    transitions.append(['k_T1_OFF', dstorm_reduction_rate, 'reduction', 'RED', False])
+
+    dstorm_oxidation_rate = dataframe_properties.loc['dstorm oxidation rate [1/s]', 'value']
+    transitions.append(['k_OFF_S0', dstorm_oxidation_rate, 'oxidation', 'OX', False])
+
+    photobleaching_rate = dataframe_properties.loc['photobleaching rate [1/s]', 'value']
+    transitions.append(['k_T1_B', photobleaching_rate, 'photobleaching', 'BLE', False])
+
+    return transitions
+
+
+def extract_single_states(transitions):
+    """
+    Extracts the single states based on the description of each transition (like k_S1_S0).
+
+    Parameters
+    ----------
+    transitions : list
+            Contains a list for each transition like [k_singlestate1_singlestate2 (str), rate (float), trivial name
+            (str), abbreviation (str), fluorescence (bool)].
+
+    Returns
+    -------
+    single_states : list
+        Contains elements of type str describing each single state a single fluorophore can occupy.
+    """
+    single_states = []
+    for transition in transitions:
+        description = transition[0]
+        _, source, destination = description.split('_')
+        if source not in single_states:
+            single_states.append(source)
+        if destination not in single_states:
+            single_states.append(destination)
+
+    return single_states
 
 
 def recursion(number, original_number, iterable, collector=None):
@@ -48,9 +154,8 @@ def state_pairs(number, single_states):
     ----------
     number : int
         The amount of combinations.
-    single_states : dict
-        Contains (key, value) pairs of type (int, str), where the key denotes the id and the value the name of the
-        single state.
+    single_states : list
+        Contains elements of type str describing each single state a single fluorophore can occupy.
 
     Returns
     -------
@@ -188,6 +293,7 @@ def construct_transition_rate_list(single_transitions, joined_transitions):
         rate = row['rate']
         trivial_name = row['trivial_name']
         fluorescence = row['fluorescence']
+        # noinspection PyTypeChecker
         transition_rate_list = rate_assignment(transition_rate_list, joined_transitions, source, destination, rate,
                                                identification, trivial_name, fluorescence)
 

@@ -282,7 +282,7 @@ class FigureCollection:
         normalize_to : None, int
             Index of datapoint to which the data is normalized.
         unit : str
-            One of "s", "ms", "us".
+            One of "s", "ms", "us". Influences the unit the data is displayed in.
         kwargs : custom_plot.universal_figure arguments
 
         Returns
@@ -313,7 +313,7 @@ class FigureCollection:
 
         return fig, ax
 
-    def on_off(self, mode="on", time_series=False, display_mean=True, **kwargs):
+    def on_off(self, mode="on", time_series=False, **kwargs):
         """
         Shows the on or off periods.
 
@@ -323,8 +323,6 @@ class FigureCollection:
             One of "on", "off", "mesh".
         time_series : bool
             Whether to display a time series or the frequency (i.e., histogram).
-        display_mean : bool
-            Whether to display the mean value in the top right corner.
         kwargs : custom_plot.universal_figure arguments
 
         Returns
@@ -334,60 +332,57 @@ class FigureCollection:
         ax : matplotlib.axes.Axes
             Contains most of the figure elements.
         """
-        #kwargs.setdefault('title', f"frames: {self.system.last_parameters['resample']}")
+        mean = None
         if time_series:
-            kwargs.setdefault('xlabel', "number")
+            kwargs.setdefault('xlabel', "frame number")
             if mode == "mesh":
+                kwargs.setdefault('title', 'ON OFF periods')
+                kwargs.setdefault('legend', True)
+                kwargs.setdefault('label', ['ON periods', 'OFF periods'])
                 kwargs.setdefault('type_', "multiple_line")
                 kwargs.setdefault('data', [[np.arange(0, self.system.on_periods.size*2, 2), self.system.on_periods],
                                   [np.arange(1, self.system.off_periods.size*2, 2), self.system.off_periods]])
                 colors = cm.rainbow(np.linspace(0, 1, 2))
                 kwargs.setdefault('color', colors)
-                kwargs.setdefault('ylabel', "ON/OFF periods")
+                kwargs.setdefault('ylabel', "consecutive frames")
             elif mode == "on":
+                kwargs.setdefault('title', 'ON periods')
                 kwargs.setdefault('type_', "line")
                 kwargs.setdefault('data', [np.arange(0, self.system.on_periods.size), self.system.on_periods])
-                kwargs.setdefault('ylabel', "ON periods")
+                kwargs.setdefault('ylabel', "consecutive frames")
             else:
+                kwargs.setdefault('title', 'OFF periods')
                 kwargs.setdefault('type_', "line")
                 kwargs.setdefault('data', [np.arange(0, self.system.off_periods.size), self.system.off_periods])
-                kwargs.setdefault('ylabel', "OFF periods")
+                kwargs.setdefault('ylabel', "consecutive frames")
 
         else:
             kwargs.setdefault('ylabel', "PD")
             kwargs.setdefault('density', True)
             if mode == "mesh":
-                kwargs.setdefault('type_', "multiple_hist")
-                kwargs.setdefault('data', [self.system.on_periods, self.system.off_periods])
-                kwargs.setdefault('xlabel', "ON/OFF periods")
-                colors = cm.rainbow(np.linspace(0, 1, 2))
-                kwargs.setdefault('color', colors)
+                raise ValueError("'mesh' not possible for histogram.")
             elif mode == "on":
+                kwargs.setdefault('title', 'ON periods')
                 kwargs.setdefault('type_', "hist")
                 kwargs.setdefault('data', self.system.on_periods)
-                kwargs.setdefault('xlabel', "ON periods")
+                kwargs.setdefault('bins', np.arange(1, np.max(self.system.on_periods) + 1) - 0.5)
+                kwargs.setdefault('xlabel', "consecutive frames")
+                mean = np.mean(self.system.on_periods)
             else:
+                kwargs.setdefault('title', 'OFF periods')
                 kwargs.setdefault('type_', "hist")
                 kwargs.setdefault('data', self.system.off_periods)
-                kwargs.setdefault('xlabel', "OFF periods")
+                kwargs.setdefault('bins', np.arange(1, np.max(self.system.off_periods) + 1) - 0.5)
+                kwargs.setdefault('xlabel', "consecutive frames")
+                mean = np.mean(self.system.off_periods)
 
         fig, ax = cp.universal_figure(**kwargs)
-        if display_mean:
-            if mode == "mesh":
-                mean_on = np.mean(self.system.on_periods)
-                mean_off = np.mean(self.system.off_periods)
-                ax[0].text(x=0.7, y=0.85, s=f"ON mean: {mean_on:.2f}", transform=ax[0].transAxes, fontsize=16)
-                ax[0].text(x=0.7, y=0.75, s=f"OFF mean: {mean_off:.2f}", transform=ax[0].transAxes, fontsize=16)
-            else:
-                if mode == "on":
-                    mean = np.mean(self.system.on_periods)
-                else:
-                    mean = np.mean(self.system.off_periods)
-                ax[0].text(x=0.7, y=0.85, s=f"mean: {mean:.2f}", transform=ax[0].transAxes, fontsize=16)
+        if mean is not None:
+            ax[0][0].text(x=0.7, y=0.85, s=f"mean: {mean:.2f}", transform=ax[0][0].transAxes, fontsize=16)
 
         return fig, ax
 
-    def add_table(self, fig, grid, level_0='emitters', scale=(1, 1), fontsize=20):
+    def add_table(self, fig, grid, level_0='emitters', level_1=None, scale=(1, 1), fontsize=20):
         """
         Adds a table to a subplot figure.
 
@@ -400,8 +395,10 @@ class FigureCollection:
             be abc. E.g., suppose a subplot with 2 rows and 3 columns and the table should span the entire lower row -
             then we want to use half the figure, hence divide it into two parts (a=2, b=1). We want to place it in the
             second row, hence the position c is 2 (it starts at 1, not at 0). The value to insert is then 212.
-        level_0 : str
-            Name of the 0th level index of the multiindex dataframe parameter_collection.
+        level_0 : list
+            List of names of the 0th level index of the multiindex dataframe parameter_collection.
+        level_1 : list
+            List of lists of names of the 1th level index of the multiindex dataframe parameter_collection.
         scale : tuple
             To scale the table in x and y direction.
         fontsize : float
@@ -414,8 +411,10 @@ class FigureCollection:
         """
         new_ax = fig.add_subplot(grid)
         new_ax.axis('off')
-        table = new_ax.table(cellText=self.system.parameter_collection.loc[level_0, :].values,
-                             rowLabels=self.system.parameter_collection.loc[level_0, :].index,
+        new_table = pd.concat([self.system.parameter_collection.loc[(level_0_atm, level_1_atm), :]
+                               for level_0_atm, level_1_atm in zip(level_0, level_1)])
+        table = new_ax.table(cellText=new_table.values,
+                             rowLabels=[index_name[0] + '  ' + index_name[1] for index_name in new_table.index],
                              loc='center')
         table.scale(scale[0], scale[1])
         table.set_fontsize(fontsize)
