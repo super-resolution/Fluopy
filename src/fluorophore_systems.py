@@ -18,17 +18,18 @@ class FluorophoreSystem:
     - Defined during instantiation of class object -
     parameter_collection : pd.DataFrame
         Collection of parameters given to any method of FluorophoreSystem and its derived classes. Multiindex level 0
+        describes the class method, level 1 describes the parameter passed to that method.
     single_states : dict
         Contains (key, value) pairs of type (int, str), where the key denotes the id and the value the name of the
         single state.
-    single_transitions : pd.DataFrame
+    unique_transitions : pd.DataFrame
         Contains name (str), rate (float), trivial_name (str), abbreviation (str) and fluorescence (bool) of each
         transition, where their id is the index.
     joined_states : pd.DataFrame
         Contains name (str), single_states (array), single_state_counter (array) and absorbing (bool) of each joined
         state, where their id is the index.
     joined_transitions : pd.DataFrame
-        Contains name (str), joined_states_id (tuple), single_transition_id (int), rate (float), trivial_name (str) and
+        Contains name (str), joined_states_id (tuple), unique_transition_id (int), rate (float), trivial_name (str) and
         fluorescence (bool) of each joined state transition, where their id is the index.
     transition_matrix : np.ndarray
         Contains the normalized rate constants (i.e., the point probabilities) for each transition at the corresponding
@@ -96,18 +97,21 @@ class FluorophoreSystem:
             Distances of the fluorophores to each other.
         transitions : list
             Contains a list for each transition like [k_singlestate1_singlestate2 (str), rate (float), trivial name
-            (str), abbreviation (str), fluorescence (bool)].
+            (str), abbreviation (str), fluorescence (bool)]. In the case of energy transfers, the first entry is
+            k_singlestate1_singlestate2__singlestate1_singlestate2, where the first part represents one fluorophore and
+            the second part the other fluorophore.
         """
         single_states = init.extract_single_states(transitions)
         self.parameter_collection = pd.DataFrame([number_fluorophores, distances, single_states, transitions],
                                                  index=[['init', 'init', 'init', 'init'],
-                                                        ['number_fluorophores', 'distances', 'single_states', 'rates']])
+                                                        ['number_fluorophores', 'distances', 'single_states',
+                                                         'transitions']])
 
         self.single_states = {i: state for i, state in enumerate(single_states)}
         ###############################################################################################################
-        self.single_transitions = pd.DataFrame(transitions,  columns=['name', 'rate', 'trivial_name', 'abbreviation',
+        self.unique_transitions = pd.DataFrame(transitions,  columns=['name', 'rate', 'trivial_name', 'abbreviation',
                                                                       'fluorescence'])
-        self.single_transitions.index.name = 'id'
+        self.unique_transitions.index.name = 'id'
         ###############################################################################################################
         joined_states = init.state_pairs(self.parameter_collection.loc[('init', 'number_fluorophores'), 0],
                                          single_states)
@@ -116,16 +120,16 @@ class FluorophoreSystem:
         self.joined_states.index.name = 'id'
         ###############################################################################################################
         joined_transitions = init.transition_pairs(self.joined_states)
-        transition_rate_list = init.construct_transition_rate_list(self.single_transitions, joined_transitions)
+        transition_rate_list = init.construct_transition_rate_list(self.unique_transitions, joined_transitions)
         self.joined_transitions = pd.DataFrame(transition_rate_list, columns=['name', 'joined_states_id',
-                                                                              'single_transition_id', 'rate',
+                                                                              'unique_transition_id', 'rate',
                                                                               'trivial_name', 'fluorescence'])
         self.joined_transitions.index.name = 'id'
         ###############################################################################################################
         self.transition_matrix, self.row_sums = init.construct_transition_matrices(self.joined_transitions,
                                                                                    self.joined_states)
         self.joined_states = init.add_absorbing_states(self.joined_states, self.joined_transitions)
-        self.graph = init.construct_network(self.single_transitions)
+        self.graph = init.construct_network(self.unique_transitions)
 
         self.plot = fi.FigureCollection(self)
 
@@ -188,12 +192,12 @@ class FluorophoreSystem:
                                            self.state_series, self.joined_states)
         transition_cum_sum, transition_sorted_indices = pr.multiple_transitions(self.joined_transitions,
                                                                                 self.joined_states,
-                                                                                self.single_transitions)
+                                                                                self.unique_transitions)
         self.transition_series = pr.generate_transition_series(self.state_series, transition_cum_sum,
                                                                transition_sorted_indices, seed)
         self.single_state_lifetimes, self.transition_lifetimes = \
             pr.time_occurrence_statistics(self.parameter_collection.loc[('init', 'number_fluorophores'), 0],
-                                          self.single_states, self.single_transitions, self.time_series,
+                                          self.single_states, self.unique_transitions, self.time_series,
                                           self.transition_series, self.single_state_series)
 
     def emitters(self, photon_collection_rate=1, resample="5ms", emccd_gain=None, threshold=0, memory=0,
@@ -229,7 +233,7 @@ class FluorophoreSystem:
                                              'remove_heading_off_period', 'seed']])
         self.parameter_collection = pd.concat([self.parameter_collection, new_dataframe])
 
-        self.emissions = et.get_emissions(self.single_transitions, self.transition_series)
+        self.emissions = et.get_emissions(self.unique_transitions, self.transition_series)
         self.events = et.get_events(self.emissions, photon_collection_rate, seed)
         self.time_points_events = self.time_series[self.events]
         self.event_time_series = et.construct_event_time_series(self.time_points_events, resample, emccd_gain, seed)
@@ -303,7 +307,9 @@ class Cy5(FluorophoreSystem):
             Distances of the fluorophores to each other.
         transitions: None, list
             Contains a list for each transition like [k_singlestate1_singlestate2 (str), rate (float), trivial name
-            (str), abbreviation (str), fluorescence (bool)].
+            (str), abbreviation (str), fluorescence (bool)]. In the case of energy transfers, the first entry is
+            k_singlestate1_singlestate2__singlestate1_singlestate2, where the first part represents one fluorophore and
+            the second part the other fluorophore.
         user : str
             One of r'\vie43sq', r'\SagixOffice'.
         irradiance : float

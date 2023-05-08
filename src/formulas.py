@@ -200,3 +200,30 @@ def calculate_reduction_rate(reducing_agent='mea', concentration=100, k_pet=None
     reduction_rate = k_pet * concentration
 
     return reduction_rate
+
+
+def calculate_fret_rate(distance, emission_rate, spectral_overlap_integral, dipole_orientation_factor, constant=1):
+    """
+    Calculates the Förster resonance energy transfer rate.
+
+    Parameters
+    ----------
+    distance : float
+        In nm.
+    emission_rate : float
+        In 1/s.
+    spectral_overlap_integral : float
+        In 1/(M cm).
+    dipole_orientation_factor : float
+        The dipole orientation factor κ².
+    constant : float
+        To adjust for the given units.
+
+    Returns
+    -------
+    fret_rate : float
+        In 1/s.
+    """
+    fret_rate = constant * ((dipole_orientation_factor**2 * emission_rate) / distance**6) * spectral_overlap_integral
+
+    return fret_rate

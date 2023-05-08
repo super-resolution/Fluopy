@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def multiple_transitions(joined_transitions, joined_states, single_transitions):
+def multiple_transitions(joined_transitions, joined_states, unique_transitions):
     """
     In case there are multiple transitions between the same two joined states, the selection of which transition has
     happened will be based on the cumulative sum of probabilities and inserting a random number between 0 and 1 (similar
@@ -11,30 +11,30 @@ def multiple_transitions(joined_transitions, joined_states, single_transitions):
     Parameters
     ----------
     joined_transitions : pd.DataFrame
-        Contains name (str), joined_states_id (tuple), single_transition_id (int), rate (float), trivial_name (str) and
+        Contains name (str), joined_states_id (tuple), unique_transition_id (int), rate (float), trivial_name (str) and
         fluorescence (bool) of each joined state transition, where their id is the index.
     joined_states : pd.DataFrame
         Contains name (str), single_states (array), single_state_counter (array) and absorbing (bool) of each joined
         state, where their id is the index.
-    single_transitions : pd.DataFrame
+    unique_transitions : pd.DataFrame
         Contains name (str), rate (float), trivial_name (str), abbreviation (str) and fluorescence (bool) of each
         transition, where their id is the index.
 
     Returns
     -------
     transition_cum_sum : np.ndarray
-        Of shape (joined_states.index.size, joined_states.index.size, single_transitions.index.size).
+        Of shape (joined_states.index.size, joined_states.index.size, unique_transitions.index.size).
         Contains the cumulative sum of all available transitions of each joined_state combination.
     transition_sorted_indices : np.ndarray
-        Of shape (joined_states.index.size, joined_states.index.size, single_transitions.index.size).
-        Contains the ids of the single_transitions ordered in a way such that it corresponds to the order of cum_sum.
+        Of shape (joined_states.index.size, joined_states.index.size, unique_transitions.index.size).
+        Contains the ids of the unique_transitions ordered in a way such that it corresponds to the order of cum_sum.
     """
     uni_dir = joined_states.index.size
-    transition_count = single_transitions.index.size
+    transition_count = unique_transitions.index.size
     transitions = np.empty(shape=(uni_dir, uni_dir, transition_count))
     transitions[:] = 0
     for index_pair, transition_id, rate in zip(joined_transitions['joined_states_id'],
-                                               joined_transitions['single_transition_id'],
+                                               joined_transitions['unique_transition_id'],
                                                joined_transitions['rate']):
         transitions[index_pair][transition_id] = rate  # the index pair may occur multiple times, the transition id in
         # combination with the index pair is unique
@@ -99,12 +99,12 @@ def generate_transition_series(state_series, transition_cum_sum, transition_sort
         The simulated consecutive joined states ids.
     transition_cum_sum : np.ndarray
         The first return value of multiple_transitions.
-        Of shape (joined_states.index.size, joined_states.index.size, single_transitions.index.size).
+        Of shape (joined_states.index.size, joined_states.index.size, unique_transitions.index.size).
         Contains the cumulative sum of all available transitions of each joined_state combination.
     transition_sorted_indices : np.ndarray
         The second return value of multiple_transitions.
-        Of shape (joined_states.index.size, joined_states.index.size, single_transitions.index.size).
-        Contains the ids of the single_transitions ordered in a way such that it corresponds to the order of cum_sum.
+        Of shape (joined_states.index.size, joined_states.index.size, unique_transitions.index.size).
+        Contains the ids of the unique_transitions ordered in a way such that it corresponds to the order of cum_sum.
     seed : None, int, BitGenerator, Generator
         Seed to initialize a BitGenerator.
 
@@ -119,7 +119,7 @@ def generate_transition_series(state_series, transition_cum_sum, transition_sort
     values_to_insert = rng.uniform(low=0, high=1, size=current_states.shape[0])  # 1d array
 
     specific_cum_sums = transition_cum_sum[current_states, future_states, :]  # transition_cum_sum is a 3D array,
-    # specific_cum_sums is a 2D array of shape (current_states.shape[0], single_transitions.index.size)
+    # specific_cum_sums is a 2D array of shape (current_states.shape[0], unique_transitions.index.size)
     insert_at = searchsorted2d(specific_cum_sums, values_to_insert)  # 1d array
 
     transition_series = transition_sorted_indices[current_states, future_states, insert_at]
@@ -159,7 +159,7 @@ def convert_single_state_series(number_fluorophores, state_series, joined_states
     return single_state_series
 
 
-def time_occurrence_statistics(number_fluorophores, single_states, single_transitions, time_series,
+def time_occurrence_statistics(number_fluorophores, single_states, unique_transitions, time_series,
                                transition_series, single_state_series):
     """
     Returns two dictionaries containing statistics of single state occupations and transition occurrences (distribution,
@@ -172,7 +172,7 @@ def time_occurrence_statistics(number_fluorophores, single_states, single_transi
     single_states : dict
         Contains (key, value) pairs of type (int, str), where the key denotes the id and the value the name of the
         single state.
-    single_transitions : pd.DataFrame
+    unique_transitions : pd.DataFrame
         Contains name (str), rate (float), trivial_name (str), abbreviation (str) and fluorescence (bool) of each
         transition, where their id is the index.
     time_series : np.ndarray
@@ -218,8 +218,8 @@ def time_occurrence_statistics(number_fluorophores, single_states, single_transi
     total_lifetimes = np.zeros(shape=(number_fluorophores, single_states.shape[0]))
 
     transition_times = []
-    transition_times_all = [np.array([]) for _ in single_transitions.index]
-    mean_transition_times = np.zeros(shape=(number_fluorophores, single_transitions.index.size))
+    transition_times_all = [np.array([]) for _ in unique_transitions.index]
+    mean_transition_times = np.zeros(shape=(number_fluorophores, unique_transitions.index.size))
     transition_occurrences = []
 
     for i in range(number_fluorophores):
@@ -237,7 +237,6 @@ def time_occurrence_statistics(number_fluorophores, single_states, single_transi
         single_state_occurrences.append(single_state_occurrence)
         lifetimes_fluorophore.append(time_intervals)
         transition_occurrences.append(transitions)
-
         time_intervals_states = []
         for j, state in enumerate(single_states):
             time_intervals_state = time_intervals[np.where(initial_single_states == state)]
@@ -254,7 +253,7 @@ def time_occurrence_statistics(number_fluorophores, single_states, single_transi
         lifetimes_single_states.append(time_intervals_states)
 
         time_intervals_transitions = []
-        for transition in single_transitions.index:
+        for transition in unique_transitions.index:
             time_intervals_transition = time_intervals[np.where(transitions == transition)]
             if time_intervals_transition.size == 0:
                 mean = np.nan

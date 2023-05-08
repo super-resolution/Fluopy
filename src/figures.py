@@ -24,7 +24,7 @@ class FigureCollection:
         """
         self.system = system
 
-    def network(self, seed):
+    def network(self, type='shell'):
         """
         Shows photophysical system as graph.
         Adapted from
@@ -32,8 +32,8 @@ class FigureCollection:
 
         Parameters
         ----------
-        seed : None, int, RandomState
-            Seed to initialize a RandomState.
+        type : str
+            Specifies networkx layout. One of 'shell', 'planar', 'circular', 'kamada'.
 
         Returns
         -------
@@ -42,24 +42,58 @@ class FigureCollection:
         ax : matplotlib.axes.Axes
             Contains most of the figure elements.
         """
-        rng = np.random.RandomState(seed)
         g = self.system.graph
         fig, ax = plt.subplots()
-        pos = nx.spring_layout(g, seed=rng)
-        nx.draw_networkx_nodes(g, pos, ax=ax)
-        nx.draw_networkx_labels(g, pos, ax=ax)
-        curved_edges = []
-        for edge in g.edges:
-            if list(reversed(edge[:2])) + [edge[2]] in g.edges:
-                curved_edges.append(edge)
-        straight_edges = list(set(g.edges) - set(curved_edges))
-        nx.draw_networkx_edges(g, pos, ax=ax, edgelist=straight_edges)
-        arc_rad = 0.25
-        nx.draw_networkx_edges(g, pos, ax=ax, edgelist=curved_edges, connectionstyle=f'arc3, rad = {arc_rad}')
+        if type == 'circular':
+            pos = nx.circular_layout(g)
+        elif type == 'planar':
+            pos = nx.planar_layout(g)
+        elif type == 'shell':
+            pos = nx.shell_layout(g)
+        else:
+            pos = nx.kamada_kawai_layout(g)
+
+        labels = {}
+        colormap = []
+        for i, node in enumerate(g):
+            if '(2)' in node:
+                colormap.append('red')
+                labels[node] = node.replace('(2)', '')
+            else:
+                colormap.append('blue')
+                labels[node] = node
+        nx.draw_networkx_nodes(g, pos, ax=ax, node_color=colormap)
+        nx.draw_networkx_labels(g, pos, ax=ax, labels=labels)
+
         edge_weights = nx.get_edge_attributes(g, 'w')
-        curved_edge_labels = {edge: edge_weights[edge] for edge in curved_edges}
+        straight_edges = []
+        arc_rad = 0
+        arc_rad_reversed = 0
+        for new_edge in g.edges:
+            nothing_found = True
+            for old_edge in straight_edges:
+                if new_edge[:2] == old_edge[:2]:
+                    arc_rad += 0.25
+                    nothing_found = False
+                    nx.draw_networkx_edges(g, pos, ax=ax, edgelist=[new_edge],
+                                           connectionstyle=f'arc3, rad = {arc_rad}')
+                    mi.draw_networkx_curved_edge_labels(g, pos, ax=ax, edge_labels={new_edge: edge_weights[new_edge]},
+                                                        rotate=False, rad=arc_rad)
+                    break
+                elif list(reversed(new_edge[:2])) == list(old_edge[:2]):
+                    arc_rad_reversed += 0.25
+                    nothing_found = False
+                    nx.draw_networkx_edges(g, pos, ax=ax, edgelist=[new_edge],
+                                           connectionstyle=f'arc3, rad = {arc_rad_reversed}')
+                    mi.draw_networkx_curved_edge_labels(g, pos, ax=ax, edge_labels={new_edge: edge_weights[new_edge]},
+                                                        rotate=False, rad=arc_rad_reversed)
+                    break
+            if nothing_found:
+                arc_rad = 0
+                arc_rad_reversed = 0
+                straight_edges.append(new_edge)
+        nx.draw_networkx_edges(g, pos, ax=ax, edgelist=straight_edges)
         straight_edge_labels = {edge: edge_weights[edge] for edge in straight_edges}
-        mi.draw_networkx_curved_edge_labels(g, pos, ax=ax, edge_labels=curved_edge_labels, rotate=False, rad=arc_rad)
         mi.draw_networkx_curved_edge_labels(g, pos, ax=ax, edge_labels=straight_edge_labels, rotate=False, rad=0)
 
         return fig, ax
@@ -107,11 +141,11 @@ class FigureCollection:
             kwargs.setdefault('bins', np.arange(0, len(self.system.single_states)+1)-0.5)
             kwargs.setdefault('xticklabels', dict(labels=self.system.single_states.values(), rotation=70))
         elif mode == "transitions":
-            labels = self.system.single_transitions['abbreviation'].values
+            labels = self.system.unique_transitions['abbreviation'].values
             kwargs.setdefault('title', 'transition occurrences')
             kwargs.setdefault('data', self.system.transition_lifetimes[key2])
-            kwargs.setdefault('xticks', range(self.system.single_transitions.index.size))
-            kwargs.setdefault('bins', np.arange(0, self.system.single_transitions.index.size+1)-0.5)
+            kwargs.setdefault('xticks', range(self.system.unique_transitions.index.size))
+            kwargs.setdefault('bins', np.arange(0, self.system.unique_transitions.index.size+1)-0.5)
             kwargs.setdefault('xticklabels', dict(labels=labels, rotation=90, va='bottom'))
             kwargs.setdefault('tick_params', dict(axis='x', direction='in', pad=-10))
 
@@ -170,10 +204,10 @@ class FigureCollection:
                 kwargs.setdefault('ylabel', "total [s]")
         elif mode == "transitions":
             kwargs.setdefault('title', 'time to transition')
-            labels = self.system.single_transitions['abbreviation'].values
-            kwargs.setdefault('xticks', range(self.system.single_transitions.index.size))
+            labels = self.system.unique_transitions['abbreviation'].values
+            kwargs.setdefault('xticks', range(self.system.unique_transitions.index.size))
             kwargs.setdefault('xticklabels', dict(labels=labels, rotation=90, va='bottom'))
-            kwargs.setdefault('data', [np.arange(self.system.single_transitions.index.size),
+            kwargs.setdefault('data', [np.arange(self.system.unique_transitions.index.size),
                                        self.system.transition_lifetimes[key3]])
             kwargs.setdefault('ylabel', "mean [s]")
             kwargs.setdefault('tick_params', dict(axis='x', direction='in', pad=-10))
@@ -193,7 +227,7 @@ class FigureCollection:
         single_state_id : None, int
             The id of the single state of interest. Can be looked up in single_states (keys).
         transition_id : None, int
-            The id of the transition of interest. Can be looked up in single_transitions (index).
+            The id of the transition of interest. Can be looked up in unique_transitions (index).
         kwargs : custom_plot.universal_figure arguments
 
         Returns
@@ -228,11 +262,11 @@ class FigureCollection:
             kwargs.setdefault('title', 'time to transition distribution')
             if index1 is not None:
                 kwargs.setdefault('data', (self.system.transition_lifetimes[key2][index1][transition_id]))
-                kwargs.setdefault('xlabel', f'{self.system.single_transitions.loc[transition_id, "abbreviation"]} '
+                kwargs.setdefault('xlabel', f'{self.system.unique_transitions.loc[transition_id, "abbreviation"]} '
                                             f'of fluo_{index1} [s]')
             else:
                 kwargs.setdefault('data', (self.system.transition_lifetimes[key2][transition_id]))
-                kwargs.setdefault('xlabel', f'{self.system.single_transitions.loc[transition_id, "abbreviation"]} [s]')
+                kwargs.setdefault('xlabel', f'{self.system.unique_transitions.loc[transition_id, "abbreviation"]} [s]')
 
         fig, ax = cp.universal_figure(**kwargs)
 

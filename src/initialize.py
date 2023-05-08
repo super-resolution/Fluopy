@@ -4,7 +4,7 @@ import networkx as nx
 import src.formulas as fo
 
 
-def determine_rate_constants(path, irradiance, wavelength, fluorophore, dstorm_parameters):
+def determine_rate_constants(path, distance, irradiance, wavelength, fluorophore, dstorm_parameters):
     """
     Determines rate constants and constructs list of transitions based on fluorophore-specific excel files.
 
@@ -12,6 +12,8 @@ def determine_rate_constants(path, irradiance, wavelength, fluorophore, dstorm_p
     ----------
     path : str
         Path of directory containing excel files.
+    distance : float
+        The distance f
     irradiance : float
         The irradiance in kW/cm².
     wavelength : float
@@ -25,7 +27,9 @@ def determine_rate_constants(path, irradiance, wavelength, fluorophore, dstorm_p
     -------
     transitions : list
         Contains a list for each transition like [k_singlestate1_singlestate2 (str), rate (float), trivial name
-        (str), abbreviation (str), fluorescence (bool)].
+        (str), abbreviation (str), fluorescence (bool)]. In the case of energy transfers, the first entry is
+        k_singlestate1_singlestate2__singlestate1_singlestate2, where the first part represents one fluorophore and
+        the second part the other fluorophore.
     """
     transitions = []
 
@@ -44,13 +48,13 @@ def determine_rate_constants(path, irradiance, wavelength, fluorophore, dstorm_p
 
     effective_extinction = relative_extinction * maximum_extinction_coefficient
     excitation_rate = fo.calculate_excitation_rate(photon_flux=photon_flux, extinction_coefficient=effective_extinction)
-    transitions.append(['k_S0_S1', excitation_rate, 'excitation', 'EXC', False])
+    transitions.append(['S0_S1', excitation_rate, 'excitation', 'EXC', False])
 
     emission_rate = fo.calculate_emission_rate(quantum_yield, fluorescence_lifetime)
-    transitions.append(['k_S1_S0', emission_rate, 'fluorescent emission', 'FLU', True])
+    transitions.append(['S1_S0', emission_rate, 'fluorescent emission', 'FLU', True])
 
     isc_st_rate = dataframe_properties.loc['intersystem crossing ST rate [1/s]', 'value']
-    transitions.append(['k_S1_T1', isc_st_rate, 'intersystem crossing ST', 'ISCST', False])
+    transitions.append(['S1_T1', isc_st_rate, 'intersystem crossing ST', 'ISCST', False])
 
     if fluorophore == 'cy5':
         isomerization_rate = dataframe_properties.loc['isomerization [1/s]', 'value']
@@ -58,25 +62,31 @@ def determine_rate_constants(path, irradiance, wavelength, fluorophore, dstorm_p
         back_isomerization_rate = fo.calculate_back_isomerization_rate(photon_flux, back_isomerization_cross_section)
         internal_conversion_rate = fo.calculate_internal_conversion_rate(quantum_yield, emission_rate,
                                                                          isomerization_rate, isc_st_rate)
-        transitions.append(['k_S1_S0', internal_conversion_rate, 'internal conversion S', 'ICS', False])
-        transitions.append(['k_S1_Cis', isomerization_rate, 'isomerization', 'ISO', False])
-        transitions.append(['k_Cis_S0', back_isomerization_rate, 'backisomerization', 'BISO', False])
+        transitions.append(['S1_S0', internal_conversion_rate, 'internal conversion S', 'ICS', False])
+        transitions.append(['S1_Cis', isomerization_rate, 'isomerization', 'ISO', False])
+        transitions.append(['Cis_S0', back_isomerization_rate, 'backisomerization', 'BISO', False])
     else:
         internal_conversion_rate = fo.calculate_internal_conversion_rate(quantum_yield, emission_rate, isc_st_rate)
-        transitions.append(['k_S1_S0', internal_conversion_rate, 'internal conversion S', 'ICS', False])
+        transitions.append(['S1_S0', internal_conversion_rate, 'internal conversion S', 'ICS', False])
 
     isc_ts_rate = dataframe_properties.loc['intersystem crossing TS rate [1/s]', 'value']
-    transitions.append(['k_T1_S0', isc_ts_rate, 'intersystem crossing TS', 'ISCTS', False])
+    transitions.append(['T1_S0', isc_ts_rate, 'intersystem crossing TS', 'ISCTS', False])
 
     dstorm_reduction_rate = dataframe_properties.loc['dstorm reduction rate [1/(s M)]', 'value']
     dstorm_reduction_rate = fo.calculate_reduction_rate(k_pet=dstorm_reduction_rate, **dstorm_parameters)
-    transitions.append(['k_T1_OFF', dstorm_reduction_rate, 'reduction', 'RED', False])
+    transitions.append(['T1_OFF', dstorm_reduction_rate, 'reduction', 'RED', False])
 
     dstorm_oxidation_rate = dataframe_properties.loc['dstorm oxidation rate [1/s]', 'value']
-    transitions.append(['k_OFF_S0', dstorm_oxidation_rate, 'oxidation', 'OX', False])
+    transitions.append(['OFF_S0', dstorm_oxidation_rate, 'oxidation', 'OX', False])
 
     photobleaching_rate = dataframe_properties.loc['photobleaching rate [1/s]', 'value']
-    transitions.append(['k_T1_B', photobleaching_rate, 'photobleaching', 'BLE', False])
+    transitions.append(['T1_B', photobleaching_rate, 'photobleaching', 'BLE', False])
+
+    fret_spectral_overlap_integral = dataframe_properties.loc['fret spectral overlap integral', 'value']
+    fret_dipole_orientation_factor = dataframe_properties.loc['fret dipole orientation factor', 'value']
+    fret_rate = fo.calculate_fret_rate(distance, emission_rate, fret_spectral_overlap_integral,
+                                       fret_dipole_orientation_factor)
+    transitions.append(['S1_S0__S0_S1', fret_rate, 'energy transfer', 'FRET', False])
 
     return transitions
 
@@ -88,8 +98,10 @@ def extract_single_states(transitions):
     Parameters
     ----------
     transitions : list
-            Contains a list for each transition like [k_singlestate1_singlestate2 (str), rate (float), trivial name
-            (str), abbreviation (str), fluorescence (bool)].
+        Contains a list for each transition like [k_singlestate1_singlestate2 (str), rate (float), trivial name
+        (str), abbreviation (str), fluorescence (bool)]. In the case of energy transfers, the first entry is
+        k_singlestate1_singlestate2__singlestate1_singlestate2, where the first part represents one fluorophore and
+        the second part the other fluorophore.
 
     Returns
     -------
@@ -99,11 +111,12 @@ def extract_single_states(transitions):
     single_states = []
     for transition in transitions:
         description = transition[0]
-        _, source, destination = description.split('_')
-        if source not in single_states:
-            single_states.append(source)
-        if destination not in single_states:
-            single_states.append(destination)
+        states = description.split('_')
+        if len(states) > 2:
+            states.remove('')
+        for state in states:
+            if state not in single_states:
+                single_states.append(state)
 
     return single_states
 
@@ -207,8 +220,8 @@ def transition_pairs(joined_states):
     return joined_transitions
 
 
-def rate_assignment(transition_rate_list, joined_transitions, source, destination, rate,
-                    identification, name, fluorescence):
+def rate_assignment(transition_rate_list, joined_transitions, identification, rate, name, fluorescence, source1,
+                    destination1, source2=None, destination2=None):
     """
     Adds a transition in list form (see construct_transition_rate_list) to the transition_rate_list, if source is part
     of the first joined state of the transition and destination is part of the second joined state of the transition.
@@ -222,18 +235,22 @@ def rate_assignment(transition_rate_list, joined_transitions, source, destinatio
         The return value of transition_pairs.
         Contains all combinations of joined_states (combined with double underscore) as keys and their id pairs as
         values.
-    source : str
-        Search value of the first joined state.
-    destination : str
-        Search value of the second joined state.
-    rate : float
-        The rate of the target transition.
     identification : int
         The id of the target transition.
+    rate : float
+        The rate of the target transition.
     name : str
         The trivial name of the target transition.
     fluorescence : bool
         Whether the transition emits fluorescence.
+    source1 : str
+        Search value of the first joined state of one fluorophore.
+    destination1 : str
+        Search value of the second joined state of one fluorophore.
+    source2 : None, str
+        Search value of the first joined state of a second fluorophore.
+    destination2 : None, str
+        Search value of the second joined state of a second fluorophore.
 
     Returns
     -------
@@ -244,27 +261,46 @@ def rate_assignment(transition_rate_list, joined_transitions, source, destinatio
         current_state, future_state = transition.split("__")
         current_state_split = current_state.split("_")
         future_state_split = future_state.split("_")
-        if source in current_state_split:
-            indices_current = [i for i, e in enumerate(current_state_split) if e == source]
-            for i in indices_current:
-                if destination in future_state_split[i]:
-                    future_state_part = future_state_split[:i] + future_state_split[i+1:]
-                    current_state_part = current_state_split[:i] + current_state_split[i+1:]
-                    if not future_state_part == current_state_part:
-                        break
-                    else:
-                        transition_rate_list.append([transition, value_pair, identification, rate, name, fluorescence])
+        if source2 is None and destination2 is None:
+            if source1 in current_state_split:
+                indices_current = [i for i, e in enumerate(current_state_split) if e == source1]
+                for i in indices_current:
+                    if destination1 in future_state_split[i]:
+                        future_state_part = future_state_split[:i] + future_state_split[i+1:]
+                        current_state_part = current_state_split[:i] + current_state_split[i+1:]
+                        if not future_state_part == current_state_part:
+                            break
+                        else:
+                            transition_rate_list.append([transition, value_pair, identification, rate, name, fluorescence])
+        else:
+            if source1 and source2 in current_state_split and destination1 and destination2 in future_state_split:
+                indices_current1 = [i for i, e in enumerate(current_state_split) if e == source1]
+                indices_current2 = [i for i, e in enumerate(current_state_split) if e == source2]
+                for i in indices_current1:
+                    if destination1 in future_state_split[i]:
+                        for j in indices_current2:
+                            if destination2 in future_state_split[j]:
+                                if i > j:
+                                    future_state_part = future_state_split[:j] + future_state_split[j+1:i] + future_state_split[i+1:]
+                                    current_state_part = current_state_split[:j] + current_state_split[j+1:i] + current_state_split[i+1:]
+                                else:
+                                    future_state_part = future_state_split[:i] + future_state_split[i+1:j] + future_state_split[j+1:]
+                                    current_state_part = current_state_split[:i] + current_state_split[i+1:j] + current_state_split[j+1:]
+                                if not future_state_part == current_state_part:
+                                    break
+                                else:
+                                    transition_rate_list.append([transition, value_pair, identification, rate, name, fluorescence])
 
     return transition_rate_list
 
 
-def construct_transition_rate_list(single_transitions, joined_transitions):
+def construct_transition_rate_list(unique_transitions, joined_transitions):
     """
     Constructs a list that contains lists of each possible transition from one joined state to another.
 
     Parameters
     ----------
-    single_transitions : pd.DataFrame
+    unique_transitions : pd.DataFrame
         Contains name (str), rate (float), trivial_name (str), abbreviation (str) and fluorescence (bool) of each
         transition, where their id is the index.
     joined_transitions : dict
@@ -284,18 +320,24 @@ def construct_transition_rate_list(single_transitions, joined_transitions):
             - fluorescence (bool), e.g. True
     """
     transition_rate_list = list()
-
-    for identification, row in single_transitions.iterrows():
-        name = row['name']
-        split = name.split("_")
-        source, destination = split[1], split[2]
-
+    for identification, row in unique_transitions.iterrows():
         rate = row['rate']
         trivial_name = row['trivial_name']
         fluorescence = row['fluorescence']
-        # noinspection PyTypeChecker
-        transition_rate_list = rate_assignment(transition_rate_list, joined_transitions, source, destination, rate,
-                                               identification, trivial_name, fluorescence)
+        name = row['name']
+        states = name.split("_")
+        if len(states) > 2:
+            states.remove('')
+            source1, destination1, source2, destination2 = states
+            # noinspection PyTypeChecker
+            transition_rate_list = rate_assignment(transition_rate_list, joined_transitions, identification, rate,
+                                                   trivial_name, fluorescence, source1, destination1, source2,
+                                                   destination2)
+        else:
+            source1, destination1 = states
+            # noinspection PyTypeChecker
+            transition_rate_list = rate_assignment(transition_rate_list, joined_transitions, identification, rate,
+                                                   trivial_name, fluorescence, source1, destination1)
 
     return transition_rate_list
 
@@ -311,7 +353,7 @@ def add_absorbing_states(joined_states, joined_transitions):
         Contains name (str), single_states (array) and single_state_counter (array) of each joined state, where their id
         is the index.
     joined_transitions : pd.DataFrame
-        Contains name (str), joined_states_id (tuple), single_transition_id (int), rate (float), trivial_name (str) and
+        Contains name (str), joined_states_id (tuple), unique_transition_id (int), rate (float), trivial_name (str) and
         fluorescence (bool) of each joined state transition, where their id is the index.
 
     Returns
@@ -339,7 +381,7 @@ def construct_transition_matrices(joined_transitions, joined_states):
     Parameters
     ----------
     joined_transitions : pd.DataFrame
-        Contains name (str), joined_states_id (tuple), single_transition_id (int), rate (float), trivial_name (str) and
+        Contains name (str), joined_states_id (tuple), unique_transition_id (int), rate (float), trivial_name (str) and
         fluorescence (bool) of each joined state transition, where their id is the index.
     joined_states : pd.DataFrame
         Contains name (str), single_states (array), single_state_counter (array) and absorbing (bool) of each joined
@@ -370,13 +412,13 @@ def construct_transition_matrices(joined_transitions, joined_states):
     return transition_matrix, row_sums
 
 
-def construct_network(single_transitions):
+def construct_network(unique_transitions):
     """
     Constructs network based on the single states (nodes) and their transitions (edges) given.
 
     Parameters
     ----------
-    single_transitions : pd.DataFrame
+    unique_transitions : pd.DataFrame
         Contains name (str), rate (float), trivial_name (str), abbreviation (str) and fluorescence (bool) of each
         transition, where their id is the index.
 
@@ -387,13 +429,18 @@ def construct_network(single_transitions):
     """
     network = nx.MultiDiGraph()  # each edge has entry ('node1', 'node2', id of this node combination)
     edges = []
-
-    for identification, row in single_transitions.iterrows():
+    for identification, row in unique_transitions.iterrows():
         name = row['name']
-        split = name.split('_')
-        source, destination = split[1], split[2]
-        edge = (source, destination, {'w': row['abbreviation']})
-        edges.append(edge)
+        states = name.split('_')
+        if len(states) > 2:
+            states.remove('')
+            source1, destination1, source2, destination2 = states
+            edge = (source1, source2 + '(2)', {'w': row['abbreviation']})
+            edges.append(edge)
+        else:
+            source, destination = states
+            edge = (source, destination, {'w': row['abbreviation']})
+            edges.append(edge)
     network.add_edges_from(edges)
 
     return network

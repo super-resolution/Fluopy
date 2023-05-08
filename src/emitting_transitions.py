@@ -3,14 +3,14 @@ import pandas as pd
 from scipy.stats import gamma
 
 
-def get_emissions(single_transitions, transition_series):
+def get_emissions(unique_transitions, transition_series):
     """
     Construct an array that contains indices for time_series which yield the time points at which emissions have
     happened.
 
     Parameters
     ----------
-    single_transitions : pd.DataFrame
+    unique_transitions : pd.DataFrame
         Contains name (str), rate (float), trivial_name (str), abbreviation (str) and fluorescence (bool) of each
         transition, where their id is the index.
     transition_series : np.ndarray
@@ -24,7 +24,7 @@ def get_emissions(single_transitions, transition_series):
         state_series or transition_series will result in the outcome AFTER the emission event (hence, the joined state
         or transition the follows the emission event).
     """
-    emitting_transition_ids = single_transitions.loc[single_transitions['fluorescence'] == True].index.to_numpy()
+    emitting_transition_ids = unique_transitions.loc[unique_transitions['fluorescence'] == True].index.to_numpy()
     emissions = np.where(transition_series == emitting_transition_ids)[0] + 1
     # + 1 since the emission of a photon happens during the transition and hence the signal will coincide with the
     # appearance of the follow-up joined state. The transition series contains the NEXT transition, so its original
