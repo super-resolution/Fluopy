@@ -67,7 +67,7 @@ def draw_networkx_curved_edge_labels(G, pos, edge_labels=None, label_pos=0.5, fo
     return text_items
 
 
-def time_complexity(mode, number_fluorophores, simulation_steps_exp, seed, rates):
+def time_complexity(mode, number_fluorophores, simulation_steps_exp, seed, transitions):
     """
     Measures the time durations of simulations and their post-processing steps. Mode 'simulation_steps' runs the
     simulation using 10**3 up to 10**simulation_steps_exp steps. Mode 'number_fluorophores' runs the simulation using
@@ -83,9 +83,11 @@ def time_complexity(mode, number_fluorophores, simulation_steps_exp, seed, rates
         Specifies (maximum) 10 ** simulation_steps_exp simulation steps.
     seed : None, int, BitGenerator, Generator
         Seed to initialize a BitGenerator.
-    rates : list
-        Contains a list for each transition like [k_singlestate1_singlestate2 (str), rate (float), trivial name (str),
-        abbreviation (str), fluorescence (bool)].
+    transitions : list
+            Contains a list for each transition like [k_singlestate1_singlestate2 (str), rate (float), trivial name
+            (str), abbreviation (str), fluorescence (bool)]. In the case of energy transfers, the first entry is
+            k_singlestate1_singlestate2__singlestate1_singlestate2, where the first part represents one fluorophore and
+            the second part the other fluorophore.
     Returns
     -------
     times : list
@@ -97,7 +99,7 @@ def time_complexity(mode, number_fluorophores, simulation_steps_exp, seed, rates
         steps = np.logspace(3, simulation_steps_exp, simulation_steps_exp - 2)
         for step in steps:
             start = time.time()
-            system = fs.GeneralModel(number_fluorophores, distances=1, rates=rates)
+            system = fs.FluorophoreSystem(number_fluorophores, distances=1, transitions=transitions)
             system.simulate(n_steps=int(step), seed=rng)
             system.process()
             system.emitters(photon_collection_rate=0.5, resample='5ms', emccd_gain=10)
@@ -107,7 +109,7 @@ def time_complexity(mode, number_fluorophores, simulation_steps_exp, seed, rates
         n_fluo = np.arange(1, number_fluorophores + 1, 1)
         for n in n_fluo:
             start = time.time()
-            system = fs.GeneralModel(n, distances=1, rates=rates)
+            system = fs.FluorophoreSystem(n, distances=1, transitions=transitions)
             system.simulate(n_steps=int(10 ** simulation_steps_exp), seed=rng)
             system.process()
             system.emitters(photon_collection_rate=0.5, resample='5ms', emccd_gain=10)
@@ -146,3 +148,12 @@ def delete_subplots(fig, ax, keep_number=None, del_positions=None):
             fig.delaxes(ax[position[0], position[1]])
 
     return fig
+
+
+def create_row_subtitles(fig, nrows, ncols, titles):
+    grid = plt.GridSpec(nrows, ncols)
+    for i in range(nrows):
+        row = fig.add_subplot(grid[i, ::])
+        row.set_title(titles[i], fontsize=22, pad=20, fontweight='bold')
+        row.set_frame_on(False)
+        row.axis('off')

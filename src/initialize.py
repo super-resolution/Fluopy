@@ -4,7 +4,7 @@ import networkx as nx
 import src.formulas as fo
 
 
-def determine_rate_constants(path, distance, irradiance, wavelength, fluorophore, dstorm_parameters):
+def determine_rate_constants(path, distances, irradiance, wavelength, fluorophore, dstorm_parameters):
     """
     Determines rate constants and constructs list of transitions based on fluorophore-specific excel files.
 
@@ -12,8 +12,8 @@ def determine_rate_constants(path, distance, irradiance, wavelength, fluorophore
     ----------
     path : str
         Path of directory containing excel files.
-    distance : float
-        The distance f
+    distances : float
+        The distance between fluorophores.
     irradiance : float
         The irradiance in kW/cm².
     wavelength : float
@@ -82,13 +82,64 @@ def determine_rate_constants(path, distance, irradiance, wavelength, fluorophore
     photobleaching_rate = dataframe_properties.loc['photobleaching rate [1/s]', 'value']
     transitions.append(['T1_B', photobleaching_rate, 'photobleaching', 'BLE', False])
 
-    fret_spectral_overlap_integral = dataframe_properties.loc['fret spectral overlap integral', 'value']
+    hfret_spectral_overlap_integral = dataframe_properties.loc['HOMO Fret', 'value']
     fret_dipole_orientation_factor = dataframe_properties.loc['fret dipole orientation factor', 'value']
-    fret_rate = fo.calculate_fret_rate(distance, emission_rate, fret_spectral_overlap_integral,
-                                       fret_dipole_orientation_factor)
-    transitions.append(['S1_S0__S0_S1', fret_rate, 'energy transfer', 'FRET', False])
+    hfret_rate = fo.calculate_fret_rate(distances, emission_rate, hfret_spectral_overlap_integral,
+                                        fret_dipole_orientation_factor)
+    transitions.append(['S1_S0__S0_S1', hfret_rate, 'energy transfer HFRET', 'HFRET', False])
+
+    tfret_spectral_overlap_integral = dataframe_properties.loc['Triplet', 'value']
+    tfret_rate = fo.calculate_fret_rate(distances, emission_rate, tfret_spectral_overlap_integral,
+                                        fret_dipole_orientation_factor)
+    transitions.append(['S1_S0__T1_S1', tfret_rate, 'energy transfer TFRET', 'TFRET', False])
+
+    if fluorophore == 'cy5':
+        cfret_spectral_overlap_integral = dataframe_properties.loc['Cis', 'value']
+        cfret_rate = fo.calculate_fret_rate(distances, emission_rate, cfret_spectral_overlap_integral,
+                                            fret_dipole_orientation_factor)
+        transitions.append(['S1_S0__Cis_Cis', cfret_rate, 'energy transfer CFRET', 'CFRET', False])
+
+    ofret_spectral_overlap_integral = dataframe_properties.loc['OFF', 'value']
+    ofret_rate = fo.calculate_fret_rate(distances, emission_rate, ofret_spectral_overlap_integral,
+                                        fret_dipole_orientation_factor)
+    transitions.append(['S1_S0__OFF_S0', ofret_rate, 'energy transfer OFRET', 'OFRET', False])
 
     return transitions
+
+
+def filter_transitions(transitions, remove=None):
+    """
+    Filters the transitions list by removing all entries that have a rate of 0 and all transitions with abbreviations
+    listed in remove.
+
+    Parameters
+    ----------
+    transitions : list
+        Contains a list for each transition like [k_singlestate1_singlestate2 (str), rate (float), trivial name
+        (str), abbreviation (str), fluorescence (bool)]. In the case of energy transfers, the first entry is
+        k_singlestate1_singlestate2__singlestate1_singlestate2, where the first part represents one fluorophore and
+        the second part the other fluorophore.
+    remove : None, list
+        Contains abbreviations (str) of transitions to be removed.
+
+    Returns
+    -------
+    transitions : list
+        Altered input parameter, not containing any transition with rate of 0 or with abbreviation of remove.
+    """
+    filtered_transitions = []
+
+    if remove is not None:
+        for transition in transitions:
+            if transition[1] != 0:
+                if transition[3] not in remove:
+                    filtered_transitions.append(transition)
+    else:
+        for transition in transitions:
+            if transition[1] != 0:
+                filtered_transitions.append(transition)
+
+    return filtered_transitions
 
 
 def extract_single_states(transitions):
@@ -271,7 +322,8 @@ def rate_assignment(transition_rate_list, joined_transitions, identification, ra
                         if not future_state_part == current_state_part:
                             break
                         else:
-                            transition_rate_list.append([transition, value_pair, identification, rate, name, fluorescence])
+                            transition_rate_list.append([transition, value_pair, identification, rate, name,
+                                                         fluorescence])
         else:
             if source1 and source2 in current_state_split and destination1 and destination2 in future_state_split:
                 indices_current1 = [i for i, e in enumerate(current_state_split) if e == source1]
@@ -281,15 +333,20 @@ def rate_assignment(transition_rate_list, joined_transitions, identification, ra
                         for j in indices_current2:
                             if destination2 in future_state_split[j]:
                                 if i > j:
-                                    future_state_part = future_state_split[:j] + future_state_split[j+1:i] + future_state_split[i+1:]
-                                    current_state_part = current_state_split[:j] + current_state_split[j+1:i] + current_state_split[i+1:]
+                                    future_state_part = future_state_split[:j] + future_state_split[j+1:i] + \
+                                                        future_state_split[i+1:]
+                                    current_state_part = current_state_split[:j] + current_state_split[j+1:i] + \
+                                                         current_state_split[i+1:]
                                 else:
-                                    future_state_part = future_state_split[:i] + future_state_split[i+1:j] + future_state_split[j+1:]
-                                    current_state_part = current_state_split[:i] + current_state_split[i+1:j] + current_state_split[j+1:]
+                                    future_state_part = future_state_split[:i] + future_state_split[i+1:j] + \
+                                                        future_state_split[j+1:]
+                                    current_state_part = current_state_split[:i] + current_state_split[i+1:j] + \
+                                                         current_state_split[j+1:]
                                 if not future_state_part == current_state_part:
                                     break
                                 else:
-                                    transition_rate_list.append([transition, value_pair, identification, rate, name, fluorescence])
+                                    transition_rate_list.append([transition, value_pair, identification, rate, name,
+                                                                 fluorescence])
 
     return transition_rate_list
 

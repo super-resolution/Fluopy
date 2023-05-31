@@ -8,7 +8,8 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
                      ylabel="y", xlabel="x", legend=False, label=None, title=None, xlim=None, ylim=None, xscale=None,
                      yscale=None, xticks=None, yticks=None, xticklabels=None, yticklabels=None, tick_params=None,
                      tick_spacing_x=None, tick_spacing_y=None, tick_style_x=None, tick_style_y=None, second_axis_x=True,
-                     second_axis_y=True, fig=None, axes=None, **type_specific_kwargs):
+                     second_axis_y=True, draw_marker=None, plot_distribution=None, fig=None, axes=None,
+                     **type_specific_kwargs):
     """
     Constructs a figure in versatile types and designs.
 
@@ -25,7 +26,7 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
     scale : float
         Factor to scale the figure.
     type_ : str
-        Type of the plot. One of "hist", "bar", "line", "multiple_line".
+        Type of the plot. One of "hist", "bar", "line", "multiple_line", "scatter".
     data : np.ndarray, Collection
         Data to be plotted. Required formation depends on input parameter type_.
     color : str, list
@@ -56,7 +57,7 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
         Keyword 'labels' with labels to place at the given tick locations. Keyword 'rotation' to rotate text.
     yticklabels : dict
         Keyword 'labels' with labels to place at the given tick locations. Keyword 'rotation' to rotate text.
-    tick_params = dict
+    tick_params : dict
         Parameters to pass to .tick_params().
     tick_spacing_x : float
         Set a tick on each integer multiple of tick_spacing_x.
@@ -70,6 +71,12 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
         Whether to plot a second x-axis.
     second_axis_y : bool
         Whether to plot a second y-axis.
+    draw_marker : Collection
+        The data positions, consists of x and y.
+    plot_distribution : Collection
+        Contains distr.rv_continuous_frozen or distr.rv_discrete_frozen or distr.rv_frozen and label.
+    fig : matplotlib.figure.Figure
+        The top level container for all the plot elements.
     axes : list
         Contains matplotlib.axes.Axes objects.
     type_specific_kwargs : type_ properties
@@ -144,7 +151,20 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
 
         # data incorporation
         if type_ == "hist":
-            ax.hist(x=dat, color=color, label=label, **type_specific_kwargs)
+            _, bins, _ = ax.hist(x=dat, color=color, label=label, **type_specific_kwargs)
+            if plot_distribution is not None:
+                try:
+                    plot_distribution[0].pmf(0)  # check if the distribution is discrete
+                    if np.min(bins) < 0:
+                        minimum = 0
+                    else:
+                        minimum = int(np.min(bins))
+                    x = np.linspace(minimum, int(np.max(bins)), int(np.max(bins)) - minimum + 1)
+                    ax.plot(x, plot_distribution[0].pmf(x), c='k', label=plot_distribution[1])
+                except AttributeError:
+                    x = np.linspace(np.min(bins), np.max(bins), 100)
+                    ax.plot(x, plot_distribution[0].pdf(x), c='k', label=plot_distribution[1])
+
         elif type_ == "multiple_hist":
             for j, dat_ in enumerate(dat):
                 ax.hist(x=dat_, color=color[j], label=label[j], **type_specific_kwargs)
@@ -164,9 +184,8 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
         elif type_ == "multiple_line":
             for j, dat_ in enumerate(dat):
                 ax.plot(dat_[0], dat_[1], color=color[j], label=label[j], **type_specific_kwargs)
-
-        if legend:
-            ax.legend()
+        elif type_ == "scatter":
+            ax.scatter(dat[0], dat[1], color=color, label=label, **type_specific_kwargs)
 
         # second x-axis
         if second_axis_x is not None:
@@ -182,6 +201,12 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
             sec_ax.yaxis.set_major_locator(ticker.FixedLocator(ticks))
             sec_ax.tick_params(axis="y", width=2, direction="in", labelright=False, length=6)
             sec_ax.tick_params(which="minor", axis="y", direction="in", width=2, length=4, labelright=False)
+
+        if draw_marker is not None:
+            ax.scatter(*draw_marker, marker='x', c='k', label='pred')
+
+        if legend:
+            ax.legend()
 
     axes = axes.reshape(nrows, ncols)
 

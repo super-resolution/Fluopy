@@ -7,7 +7,7 @@ import numpy as np
 # constants give an insight in the mean occupation time only if it is the only rate constant.
 
 
-def direct_method(transition_matrix, row_sums, n_steps, seed):
+def direct_method(transition_matrix, row_sums, n_steps, start_id, seed):
     """
     The direct method of the gillespie algorithm (i.e., the stochastic simulation algorithm). Note that in this version,
     the propensities are equal to the rate constants, because the occupied state's population is assumed to be  always 1
@@ -28,6 +28,8 @@ def direct_method(transition_matrix, row_sums, n_steps, seed):
     n_steps : int
         Maximum number of simulation steps. If the Markov chain reaches an absorbing joined state, the simulation stops
         early.
+    start_id : int
+        Id of the starting joined state.
     seed : None, int, BitGenerator, Generator
         Seed to initialize a BitGenerator.
 
@@ -44,7 +46,7 @@ def direct_method(transition_matrix, row_sums, n_steps, seed):
     rng = np.random.default_rng(seed)
 
     current_state = np.zeros(shape=row_sums.shape[0])
-    current_state[0] = 1
+    current_state[start_id] = 1
 
     time_step_series = np.empty(n_steps + 1)
     time_step_series[0] = 0

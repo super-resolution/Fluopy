@@ -1,7 +1,46 @@
 import numpy as np
 
 from mpmath import nsum, inf, factorial
-from scipy.special import gamma
+from scipy.special import gamma, i1
+from scipy.stats import rv_discrete
+
+
+def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100):
+    """
+    The high gain amplification noise distribution as proposed in https://doi.org/10.1117/12.2004621 with the
+    adjustment of not considering 0 as a possible variable's value. The support is limited to a maximum x of
+    127499 * gain / v.
+    Applies if gain is added to poisson distributed photon counts. This is the case, if the interarrival time is
+    exponentially distributed or can be approximated with an exponential distribution.
+    Resembles a high gain approximation, indicating a better fit for higher gains. Indeed, low gains of 1 to 10 should
+    be avoided.
+
+    Parameters
+    ----------
+    x_min : int
+        Minimum support value.
+    x_max : int
+        Maximum support value.
+    v : float
+        The mean of the non-amplified (nearly) poissonian photon count distribution. Has to include 0 counts.
+    gain : float
+        The gain applied to the photon counts.
+
+    Returns
+    -------
+    distribution : scipy.stats._distn_infrastructure.rv_sample
+        High gain amplification noise distribution.
+    """
+    # the value z of iv cannot be larger than ~714:
+    x = np.arange(x_min, x_max)
+
+    x = x.astype(float)
+
+    probabilities = 1 / x * np.exp(-(x/gain + v)) * np.sqrt(v * x/gain) * i1(2*np.sqrt(v * x/gain))
+    probabilities = probabilities / np.sum(probabilities)
+    distribution = rv_discrete(name='high_gain_distr', values=(x, probabilities))
+
+    return distribution
 
 
 def calculate_lambda(r1, r2):

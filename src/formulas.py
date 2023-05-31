@@ -114,7 +114,8 @@ def calculate_emission_rate(quantum_yield, fluorescence_lifetime):
     return emis_rate
 
 
-def calculate_internal_conversion_rate(quantum_yield, emission_rate, *other_outgoing_rates):
+def calculate_internal_conversion_rate(quantum_yield, emission_rate, *other_outgoing_rates_args,
+                                       **other_outgoing_rates_kwargs):
     """
     Calculates the rate of internal conversion from the first excited state to the vibrationally excited but
     electronic ground state.
@@ -125,7 +126,9 @@ def calculate_internal_conversion_rate(quantum_yield, emission_rate, *other_outg
         Number between 0 and 1.
     emission_rate : float
         The rate of emission in 1/s.
-    other_outgoing_rates : floats
+    other_outgoing_rates_args : floats
+        Rates of all other transitions (except fluorescence emission) that leave the first excited state in 1/s.
+    other_outgoing_rates_kwargs : floats
         Rates of all other transitions (except fluorescence emission) that leave the first excited state in 1/s.
 
     Returns
@@ -134,7 +137,9 @@ def calculate_internal_conversion_rate(quantum_yield, emission_rate, *other_outg
         The rate of internal conversion in 1/s.
     """
     internal_conversion_rate = emission_rate / quantum_yield - emission_rate
-    for outgoing_rate in other_outgoing_rates:
+    for outgoing_rate in other_outgoing_rates_args:
+        internal_conversion_rate -= outgoing_rate
+    for _, outgoing_rate in other_outgoing_rates_kwargs.items():
         internal_conversion_rate -= outgoing_rate
 
     return internal_conversion_rate
@@ -202,7 +207,36 @@ def calculate_reduction_rate(reducing_agent='mea', concentration=100, k_pet=None
     return reduction_rate
 
 
-def calculate_fret_rate(distance, emission_rate, spectral_overlap_integral, dipole_orientation_factor, constant=1):
+def calculate_spectral_overlap_integral(donor, acceptor, wavelengths):
+    """
+    Calculates the spectral overlap integral defined as the integral of the multiplication of the donor emission
+    spectrum normalized to an area of 1, the acceptor molar extinction coefficient as a function of wavelength and the
+    wavelength to the power of 4.
+
+    Parameters
+    ----------
+    donor : np.ndarray
+        Contains emission values of the donor - they don't have to be normalized yet.
+    acceptor : np.ndarray
+        Contains the acceptors molar extinction coefficients in 1/(M cm).
+    wavelengths : np.ndarray
+        The wavelength values in nm, that correspond to the respective donor and acceptor values.
+
+    Returns
+    -------
+    spectral_overlap_integral : float
+        The value of the spectral overlap integral in (nm**4)/(M cm).
+
+    """
+    donor = donor / np.trapz(donor)  # normalize spectrum to area of 1
+    not_integrated = donor * acceptor * wavelengths**4
+    spectral_overlap_integral = np.trapz(not_integrated)
+
+    return spectral_overlap_integral
+
+
+def calculate_fret_rate(distance, emission_rate, spectral_overlap_integral, dipole_orientation_factor,
+                        refractive_index=1):
     """
     Calculates the Förster resonance energy transfer rate.
 
@@ -213,17 +247,18 @@ def calculate_fret_rate(distance, emission_rate, spectral_overlap_integral, dipo
     emission_rate : float
         In 1/s.
     spectral_overlap_integral : float
-        In 1/(M cm).
+        In (nm**4)/(M cm).
     dipole_orientation_factor : float
         The dipole orientation factor κ².
-    constant : float
-        To adjust for the given units.
+    refractive_index : float
+        The refractive index.
 
     Returns
     -------
     fret_rate : float
         In 1/s.
     """
-    fret_rate = constant * ((dipole_orientation_factor**2 * emission_rate) / distance**6) * spectral_overlap_integral
+    fret_rate = 8.785*1e-11 * ((dipole_orientation_factor * emission_rate) /
+                               (refractive_index**4 * distance**6)) * spectral_overlap_integral
 
     return fret_rate

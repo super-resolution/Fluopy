@@ -8,6 +8,9 @@ import src.emitting_transitions as et
 import src.figures as fi
 
 
+pd.options.display.float_format = '{:.2e}'.format
+
+
 class FluorophoreSystem:
     """
     Base class of fluorophore systems and their serial quantum state behavior based on continuous time Markov chain
@@ -57,12 +60,14 @@ class FluorophoreSystem:
     transition_series : np.ndarray
         Contains the NEXT transition id for each corresponding simulated joined state (except the last).
     single_state_lifetimes : dict
-        Keys are 'single_state_occurrences', 'single_state_occurrences_all', 'lifetimes_fluorophore',
-        'lifetimes_single_states', 'lifetimes_single_states_all', 'mean_lifetimes', 'mean_lifetimes_all',
-        'total_lifetimes', 'total_lifetimes_all'.
+        Keys are 'single_state_occurrences', 'single_state_occurrences_all', 'single_state_occurrences_pred',
+        'lifetimes_fluorophore', 'lifetimes_single_states', 'lifetimes_single_states_all',
+        'lifetimes_single_states_pred', 'mean_lifetimes', 'mean_lifetimes_all', 'mean_lifetimes_pred',
+        'total_lifetimes', 'total_lifetimes_all', 'total_lifetimes_pred'.
     transition_lifetimes : dict
-        Keys are 'transition_occurrences', 'transition_occurrences_all', 'transition_times', 'transition_times_all',
-        'mean_transition_times', 'mean_transition_times_all'.
+        Keys are 'transition_occurrences', 'transition_occurrences_all', 'transition_occurrences_pred',
+        'transition_times', 'transition_times_all', 'transition_times_pred', 'mean_transition_times',
+        'mean_transition_times_all', 'mean_transition_times_pred'.
 
     - Defined during method emitters() call -
     emissions : np.ndarray
@@ -87,7 +92,7 @@ class FluorophoreSystem:
         Contains two arrays, the first is the time differences (i.e., tau or lag time) that correspond to the
         autocorrelation values, the second is the autocorrelation values.
     """
-    def __init__(self, number_fluorophores, distances, transitions):
+    def __init__(self, number_fluorophores, distances, transitions, remove=None):
         """
         Parameters
         ----------
@@ -100,12 +105,15 @@ class FluorophoreSystem:
             (str), abbreviation (str), fluorescence (bool)]. In the case of energy transfers, the first entry is
             k_singlestate1_singlestate2__singlestate1_singlestate2, where the first part represents one fluorophore and
             the second part the other fluorophore.
+        remove : None, list
+            Contains abbreviations (str) of transitions to be removed.
         """
+        transitions = init.filter_transitions(transitions, remove)
         single_states = init.extract_single_states(transitions)
-        self.parameter_collection = pd.DataFrame([number_fluorophores, distances, single_states, transitions],
-                                                 index=[['init', 'init', 'init', 'init'],
+        self.parameter_collection = pd.DataFrame([number_fluorophores, distances, single_states, transitions, remove],
+                                                 index=[['init', 'init', 'init', 'init', 'init'],
                                                         ['number_fluorophores', 'distances', 'single_states',
-                                                         'transitions']])
+                                                         'transitions', 'remove']])
 
         self.single_states = {i: state for i, state in enumerate(single_states)}
         ###############################################################################################################
@@ -152,7 +160,24 @@ class FluorophoreSystem:
 
         self.autocorrelation = None
 
-    def simulate(self, n_steps=100, seed=100):
+    def update_transitions(self, update):
+        """
+        Update the unique_transition dataframe, where update contains the abbreviations and their new rate values.
+
+        Parameters
+        ----------
+        update : dict
+            Keys are abbreviations of transitions, values are rates.
+        """
+        for transition in self.parameter_collection.loc[('init', 'transitions'), 0]:
+            if transition[3] in update:
+                transition[1] = update[transition[3]]
+
+        kwargs = self.parameter_collection.loc['init', 0].to_dict()
+        del kwargs['single_states']
+        FluorophoreSystem.__init__(self, **kwargs)
+
+    def simulate(self, n_steps=100, start_id=0, seed=100):
         """
         Simulates the CTMC using the direct method of the Gillespie algorithm.
 
@@ -161,16 +186,20 @@ class FluorophoreSystem:
         n_steps : int
             Maximum number of simulation steps. If the Markov chain reaches an absorbing joined state, the simulation
             stops early.
+        start_id : int
+            Id of the starting joined state.
         seed : None, int, BitGenerator, Generator
             Seed to initialize a BitGenerator.
         """
         if 'simulate' in self.parameter_collection.index.unique(level=0):
             self.parameter_collection.drop('simulate', level=0, inplace=True)
-        new_dataframe = pd.DataFrame([n_steps, seed], index=[['simulate', 'simulate'], ['n_steps', 'seed']])
+        new_dataframe = pd.DataFrame([n_steps, start_id, seed], index=[['simulate', 'simulate', 'simulate'],
+                                                                       ['n_steps', 'start_id', 'seed']])
         self.parameter_collection = pd.concat([self.parameter_collection, new_dataframe])
 
         self.time_series, self.time_step_series, self.state_series = ga.direct_method(self.transition_matrix,
-                                                                                      self.row_sums, n_steps, seed)
+                                                                                      self.row_sums, n_steps, start_id,
+                                                                                      seed)
 
     def process(self, seed=100):
         """
@@ -297,7 +326,7 @@ class Cy5(FluorophoreSystem):
     this fluorophore is its isomerization processes that convert the fluorophore between a cis and a trans state.
     """
     def __init__(self, number_fluorophores, distances, transitions=None, user=None, irradiance=None, wavelength=None,
-                 dstorm_parameters=None):
+                 dstorm_parameters=None, remove=None):
         """
         Parameters
         ----------
@@ -318,9 +347,12 @@ class Cy5(FluorophoreSystem):
             In nm.
         dstorm_parameters : dict
             May contain the following keys: reducing_agent, concentration, k_pet, ph, same.
+        remove : None, list
+            Contains abbreviations (str) of transitions to be removed.
         """
         if transitions is None:
             file_path = rf"C:\Users{user}\OneDrive - Universität Würzburg\GitHub\Photoswitching\src\fluorophores\\"
-            transitions = init.determine_rate_constants(file_path, irradiance, wavelength, fluorophore='cy5',
+            transitions = init.determine_rate_constants(path=file_path, distances=distances, irradiance=irradiance,
+                                                        wavelength=wavelength, fluorophore='cy5',
                                                         dstorm_parameters=dstorm_parameters)
-        super().__init__(number_fluorophores, distances, transitions)
+        super().__init__(number_fluorophores, distances, transitions, remove)
