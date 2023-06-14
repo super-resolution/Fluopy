@@ -1,7 +1,8 @@
+"""Contains functions related to time-correlated single photon counting."""
 import numpy as np
 import src.processing as pr
-import src.fluorophore_systems as fs
 from scipy.stats import erlang
+import src.fluorophore_systems as fs
 
 
 def tcspc_simulation(transitions, n_pulses, seed):
@@ -32,7 +33,7 @@ def tcspc_simulation(transitions, n_pulses, seed):
     rng = np.random.default_rng(seed)
     times = []
     for pulse in range(n_pulses):
-        system.simulate(n_steps=1000, start_id=start_id, seed=rng)
+        system.simulate(n_steps=100000, start_id=start_id, seed=rng)
         # n_steps sufficiently large to ensure the system encounters absorbing state
         transition_cum_sum, transition_sorted_indices = pr.multiple_transitions(system.joined_transitions,
                                                                                 system.joined_states,

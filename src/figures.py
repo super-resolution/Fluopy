@@ -1,8 +1,9 @@
+"""Collection of figures related to FluorophoreSystem."""
 import numpy as np
 import pandas as pd
+import networkx as nx
 import src.custom_plot as cp
 import src.miscellaneous as mi
-import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 
@@ -24,7 +25,7 @@ class FigureCollection:
         """
         self.system = system
 
-    def network(self, type='shell'):
+    def network(self, type='shell', colors=None):
         """
         Shows photophysical system as graph.
         Adapted from
@@ -34,6 +35,9 @@ class FigureCollection:
         ----------
         type : str
             Specifies networkx layout. One of 'shell', 'planar', 'circular', 'kamada'.
+        colors : collection
+            Specifies colors used in the graph. The first str specifies the color for intrafluorophore transitions, the
+            second str specifies the color for interfluorophore transitions.
 
         Returns
         -------
@@ -42,6 +46,9 @@ class FigureCollection:
         ax : matplotlib.axes.Axes
             Contains most of the figure elements.
         """
+        if colors is None:
+            colors = ['blue', 'red']
+
         g = self.system.graph
         fig, ax = plt.subplots()
         if type == 'circular':
@@ -57,10 +64,10 @@ class FigureCollection:
         colormap = []
         for i, node in enumerate(g):
             if '(2)' in node:
-                colormap.append('red')
+                colormap.append(colors[1])
                 labels[node] = node.replace('(2)', '')
             else:
-                colormap.append('blue')
+                colormap.append(colors[0])
                 labels[node] = node
         nx.draw_networkx_nodes(g, pos, ax=ax, node_color=colormap)
         nx.draw_networkx_labels(g, pos, ax=ax, labels=labels)

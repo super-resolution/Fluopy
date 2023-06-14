@@ -1,3 +1,5 @@
+"""Contains functions that work on simulated series to identify emissions, generate experiment-like outputs and
+calculate corresponding statistics."""
 import numpy as np
 import pandas as pd
 from scipy.stats import geom

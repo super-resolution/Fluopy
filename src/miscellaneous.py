@@ -1,18 +1,17 @@
-import matplotlib.pyplot as plt
-import numpy as np
+"""Contains functions that are beneficial but play no central role."""
 import time
+import numpy as np
+import matplotlib.pyplot as plt
 import src.fluorophore_systems as fs
 
 
-def draw_networkx_curved_edge_labels(G, pos, edge_labels=None, label_pos=0.5, font_size=10, font_color="k",
-                                     font_family="sans-serif", font_weight="normal", alpha=None, bbox=None,
-                                     horizontalalignment="center", verticalalignment="center", ax=None, rotate=True,
-                                     clip_on=True, rad=0):
+def draw_networkx_curved_edge_labels(G, pos, edge_labels=None, font_size=10, font_color="k", font_family="sans-serif",
+                                     font_weight="normal", alpha=None, bbox=None, horizontalalignment="center",
+                                     verticalalignment="center", ax=None, rotate=True, clip_on=True, rad=0):
     """
     Adapted from https://stackoverflow.com/questions/22785849/drawing-multiple-edges-between-two-nodes-with-networkx.
     For documentation, see draw_networkx_edge_labels on networkx.org/documentation. In this adaption, the rad parameter
     was added.
-
     """
     if ax is None:
         ax = plt.gca()
@@ -24,7 +23,6 @@ def draw_networkx_curved_edge_labels(G, pos, edge_labels=None, label_pos=0.5, fo
     for (n1, n2, _), label in labels.items():
         (x1, y1) = pos[n1]
         (x2, y2) = pos[n2]
-        (x, y) = (x1 * label_pos + x2 * (1.0 - label_pos), y1 * label_pos + y2 * (1.0 - label_pos),)
         pos_1 = ax.transData.transform(np.array(pos[n1]))
         pos_2 = ax.transData.transform(np.array(pos[n2]))
         linear_mid = 0.5*pos_1 + 0.5*pos_2
@@ -151,6 +149,24 @@ def delete_subplots(fig, ax, keep_number=None, del_positions=None):
 
 
 def create_row_subtitles(fig, nrows, ncols, titles):
+    """
+    Creates subtitles of figure displayed in the middle of each row.
+
+    Parameters
+    ----------
+    fig : matplotlib.figure.Figure
+        The top level container for all the plot elements.
+    nrows : int
+        Number of rows of the figure.
+    ncols : int
+        Number of columns of the figure.
+    titles : collection
+        Contains elements of type str. Must have the same length as nrows.
+
+    Returns
+    -------
+    None
+    """
     grid = plt.GridSpec(nrows, ncols)
     for i in range(nrows):
         row = fig.add_subplot(grid[i, ::])

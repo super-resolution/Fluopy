@@ -1,5 +1,6 @@
-import pandas as pd
+"""Contains functions to prepare photophysical simulations using few information."""
 import numpy as np
+import pandas as pd
 import networkx as nx
 import src.formulas as fo
 
@@ -172,7 +173,7 @@ def extract_single_states(transitions):
     return single_states
 
 
-def recursion(number, original_number, iterable, collector=None):
+def _recursion(number, original_number, iterable, collector=None):
     """
     Combines all elements of iterable with elements of iterable original_number of times.
 
@@ -198,7 +199,7 @@ def recursion(number, original_number, iterable, collector=None):
         for i in iterable:  # the outer for loop (if number is max) still runs, even if it is interrupted by new
             # function calls with smaller numbers and their for loops
             collector.append(i)
-            yield from recursion(number - 1, original_number, iterable, collector)
+            yield from _recursion(number - 1, original_number, iterable, collector)
             collector.pop()
     else:
         if len(collector) > original_number:  # this is to shift the collector to the left
@@ -227,7 +228,7 @@ def state_pairs(number, single_states):
         Combined single states as keys, list of two arrays as values. The first array contains the corresponding
         single state ids, the second array contains the number of each single state.
     """
-    state_pair_generator = recursion(number, number, single_states)
+    state_pair_generator = _recursion(number=number, original_number=number, iterable=single_states)
 
     joined_states = dict()
     single_states = np.array(single_states)
@@ -386,15 +387,15 @@ def construct_transition_rate_list(unique_transitions, joined_transitions):
         if len(states) > 2:
             states.remove('')
             source1, destination1, source2, destination2 = states
-            # noinspection PyTypeChecker
-            transition_rate_list = rate_assignment(transition_rate_list, joined_transitions, identification, rate,
-                                                   trivial_name, fluorescence, source1, destination1, source2,
-                                                   destination2)
         else:
             source1, destination1 = states
-            # noinspection PyTypeChecker
-            transition_rate_list = rate_assignment(transition_rate_list, joined_transitions, identification, rate,
-                                                   trivial_name, fluorescence, source1, destination1)
+            source2, destination2 = None, None
+        # noinspection PyTypeChecker
+        transition_rate_list = rate_assignment(transition_rate_list=transition_rate_list,
+                                               joined_transitions=joined_transitions, identification=identification,
+                                               rate=rate, name=trivial_name, fluorescence=fluorescence,
+                                               source1=source1, destination1=destination1, source2=source2,
+                                               destination2=destination2)
 
     return transition_rate_list
 

@@ -1,3 +1,4 @@
+"""Contains functions that work on simulated series but not exclusively on emissions."""
 import numpy as np
 from scipy.stats import expon
 
@@ -56,7 +57,7 @@ def multiple_transitions(joined_transitions, joined_states, unique_transitions):
     return transition_cum_sum, transition_sorted_indices
 
 
-def searchsorted2d(arr_2d, arr_1d):
+def _searchsorted2d(arr_2d, arr_1d):
     """
     From https://stackoverflow.com/questions/56471109/how-to-vectorize-with-numpy-searchsorted-in-a-2d-array. Because
     of some conditions, the code below is largely modified yielding a simpler version.
@@ -121,7 +122,7 @@ def generate_transition_series(state_series, transition_cum_sum, transition_sort
 
     specific_cum_sums = transition_cum_sum[current_states, future_states, :]  # transition_cum_sum is a 3D array,
     # specific_cum_sums is a 2D array of shape (current_states.shape[0], unique_transitions.index.size)
-    insert_at = searchsorted2d(specific_cum_sums, values_to_insert)  # 1d array
+    insert_at = _searchsorted2d(arr_2d=specific_cum_sums, arr_1d=values_to_insert)  # 1d array
 
     transition_series = transition_sorted_indices[current_states, future_states, insert_at]
 
@@ -451,10 +452,10 @@ def time_occurrence_statistics(number_fluorophores, single_states, unique_transi
         total_lifetimes_pred = None
     else:
         mean_lifetimes_pred, lifetimes_single_states_pred, mean_transition_times_pred, transition_times_pred = \
-            predict_lifetimes(single_states, unique_transitions)
-        single_state_occurrences_pred, transition_occurrences_pred = predict_occurrences(single_states,
-                                                                                         unique_transitions,
-                                                                                         mean_lifetimes_pred)
+            predict_lifetimes(single_states=single_states, unique_transitions=unique_transitions)
+        single_state_occurrences_pred, transition_occurrences_pred = \
+            predict_occurrences(single_states=single_states, unique_transitions=unique_transitions,
+                                mean_lifetimes=mean_lifetimes_pred)
         total_lifetimes_pred = single_state_occurrences_pred * mean_lifetimes_pred * time_series.shape[0]
     ###################################################################################################################
     single_state_lifetimes = {'single_state_occurrences': single_state_occurrences,

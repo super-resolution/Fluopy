@@ -1,8 +1,9 @@
+"""Contains distributions as PDFs, CDFs or RVS-generators that are important in the context of photophysical
+processes."""
 import numpy as np
-
-from mpmath import nsum, inf, factorial
 from scipy.special import gamma, i1
 from scipy.stats import rv_discrete
+from mpmath import nsum, inf, factorial
 
 
 def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100):
@@ -43,13 +44,24 @@ def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100
     return distribution
 
 
-def calculate_lambda(r1, r2):
-    lam = 1 / (1/r1 + 1/r2)
-
-    return lam
-
-
 def hypoexponential_distribution_two_parameters_pdf(a, b, x):
+    """
+    Probability density function of two-parameter hypoexponential distribution.
+
+    Parameters
+    ----------
+    a : float
+        Rate of one of the underlying exponential distributions.
+    b : float
+        Rate of the other of the underlying exponential distributions.
+    x : float, np.ndarray
+        Sample.
+
+    Returns
+    -------
+    pdf : float, np.ndarray
+        Probability densities.
+    """
 
     pdf = a*b / (a-b) * (np.exp(-b * x) - np.exp(-a * x))
 
@@ -57,6 +69,23 @@ def hypoexponential_distribution_two_parameters_pdf(a, b, x):
 
 
 def hypoexponential_distribution_two_parameters_cdf(a, b, x):
+    """
+    Cumulative distribution function of two-parameter hypoexponential distribution.
+
+    Parameters
+    ----------
+    a : float
+        Rate of one of the underlying exponential distributions.
+    b : float
+        Rate of the other of the underlying exponential distributions.
+    x : float, np.ndarray
+        Sample.
+
+    Returns
+    -------
+    cdf : float, np.ndarray
+        Probabilities of samples less than or equal to x.
+    """
 
     cdf = 1 - b / (b - a) * np.exp(-a * x) + a / (b - a) * np.exp(-b * x)
     # note that this is the cdf and not the pdf, so the /(r2 - r1) makes sense
@@ -65,6 +94,25 @@ def hypoexponential_distribution_two_parameters_cdf(a, b, x):
 
 
 def hypoexponential_distribution_three_parameters_pdf(a, b, c, x):
+    """
+    Probability density function of three-parameter hypoexponential distribution.
+
+    Parameters
+    ----------
+    a : float
+        Rate of the first of the underlying exponential distributions.
+    b : float
+        Rate of the second of the underlying exponential distributions.
+    c : float
+        Rate of the third of the underlying exponential distributions.
+    x : float, np.ndarray
+        Sample.
+
+    Returns
+    -------
+    pdf : float, np.ndarray
+        Probability densities.
+    """
 
     z = a * b * c
     pdf = np.exp(-c * x) * z /((a-c) * (b-c)) + np.exp(-a * x) * z /((-a+b) * (-a+c)) + np.exp(-b * x) * z /((a-b) * (-b+c))
@@ -73,6 +121,25 @@ def hypoexponential_distribution_three_parameters_pdf(a, b, c, x):
 
 
 def hypoexponential_distribution_three_parameters_cdf(a, b, c, x):
+    """
+    Cumulative distribution function of three-parameter hypoexponential distribution.
+
+    Parameters
+    ----------
+    a : float
+        Rate of the first of the underlying exponential distributions.
+    b : float
+        Rate of the second of the underlying exponential distributions.
+    c : float
+        Rate of the third of the underlying exponential distributions.
+    x : float, np.ndarray
+        Sample.
+
+    Returns
+    -------
+    cdf : float, np.ndarray
+        Probabilities of samples less than or equal to x.
+    """
 
     cdf = 1 - np.exp(-c * x) * a * b /((a-c) * (b-c)) - np.exp(-a * x) * b * c /((-a+b) * (-a+c)) - np.exp(-b * x) * a * c /((a-b) * (-b+c))
 
@@ -84,7 +151,34 @@ def hypoexponential_distribution_three_parameters_cdf(a, b, c, x):
 
 
 def rejection_sampling(pdf, x_min, x_max, y_min, y_max, batch, size, parameters):
+    """
+    Technique to sample from a distribution with a known PDF.
+    Adapted from https://cosmiccoding.com.au/tutorials/rejection_sampling/.
 
+    Parameters
+    ----------
+    pdf : callable
+        Probability density function of distribution of interest.
+    x_min : float
+        Sample space lower bound.
+    x_max : float
+        Sample space upper bound.
+    y_min : float
+        Probability density lower bound.
+    y_max : float
+        Probability density upper bound.
+    batch : int
+        Number of possible samples tested simultaneously.
+    size : int
+        Number of samples to be generated.
+    parameters : list
+        Parameters to be passed to pdf in corresponding order.
+
+    Returns
+    -------
+    samples : np.ndarray
+        Generated samples.
+    """
     samples = []
     while len(samples) < size:
         x = np.random.uniform(x_min, x_max, size=batch)

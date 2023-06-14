@@ -1,11 +1,12 @@
+"""Classes to represent fluorophores in photophysical simulations."""
 import numpy as np
 import pandas as pd
 import src.fcs as fcs
+import src.figures as fi
 import src.processing as pr
 import src.initialize as init
 import src.gillespie_algorithm as ga
 import src.emitting_transitions as et
-import src.figures as fi
 
 
 pd.options.display.float_format = '{:.2e}'.format
@@ -108,8 +109,8 @@ class FluorophoreSystem:
         remove : None, list
             Contains abbreviations (str) of transitions to be removed.
         """
-        transitions = init.filter_transitions(transitions, remove)
-        single_states = init.extract_single_states(transitions)
+        transitions = init.filter_transitions(transitions=transitions, remove=remove)
+        single_states = init.extract_single_states(transitions=transitions)
         self.parameter_collection = pd.DataFrame([number_fluorophores, distances, single_states, transitions, remove],
                                                  index=[['init', 'init', 'init', 'init', 'init'],
                                                         ['number_fluorophores', 'distances', 'single_states',
@@ -121,25 +122,28 @@ class FluorophoreSystem:
                                                                       'fluorescence'])
         self.unique_transitions.index.name = 'id'
         ###############################################################################################################
-        joined_states = init.state_pairs(self.parameter_collection.loc[('init', 'number_fluorophores'), 0],
-                                         single_states)
+        joined_states = init.state_pairs(number=self.parameter_collection.loc[('init', 'number_fluorophores'), 0],
+                                         single_states=single_states)
         self.joined_states = pd.DataFrame.from_dict(joined_states, orient='index', columns=['', '']).reset_index()
         self.joined_states.columns = ['name', 'single_states', 'single_state_counter']
         self.joined_states.index.name = 'id'
         ###############################################################################################################
-        joined_transitions = init.transition_pairs(self.joined_states)
-        transition_rate_list = init.construct_transition_rate_list(self.unique_transitions, joined_transitions)
+        joined_transitions = init.transition_pairs(joined_states=self.joined_states)
+        transition_rate_list = init.construct_transition_rate_list(unique_transitions=self.unique_transitions,
+                                                                   joined_transitions=joined_transitions)
         self.joined_transitions = pd.DataFrame(transition_rate_list, columns=['name', 'joined_states_id',
                                                                               'unique_transition_id', 'rate',
                                                                               'trivial_name', 'fluorescence'])
         self.joined_transitions.index.name = 'id'
         ###############################################################################################################
-        self.transition_matrix, self.row_sums = init.construct_transition_matrices(self.joined_transitions,
-                                                                                   self.joined_states)
-        self.joined_states = init.add_absorbing_states(self.joined_states, self.joined_transitions)
-        self.graph = init.construct_network(self.unique_transitions)
+        self.transition_matrix, self.row_sums = \
+            init.construct_transition_matrices(joined_transitions=self.joined_transitions,
+                                               joined_states=self.joined_states)
+        self.joined_states = init.add_absorbing_states(joined_states=self.joined_states,
+                                                       joined_transitions=self.joined_transitions)
+        self.graph = init.construct_network(unique_transitions=self.unique_transitions)
 
-        self.plot = fi.FigureCollection(self)
+        self.plot = fi.FigureCollection(system=self)
 
         self.time_series = None
         self.time_step_series = None
@@ -177,7 +181,7 @@ class FluorophoreSystem:
         del kwargs['single_states']
         FluorophoreSystem.__init__(self, **kwargs)
 
-    def simulate(self, n_steps=100, start_id=0, seed=100):
+    def simulate(self, n_steps=100, start_id=0, end_time=None, seed=100):
         """
         Simulates the CTMC using the direct method of the Gillespie algorithm.
 
@@ -186,8 +190,12 @@ class FluorophoreSystem:
         n_steps : int
             Maximum number of simulation steps. If the Markov chain reaches an absorbing joined state, the simulation
             stops early.
+            If end_time is not None, n_steps serves as size parameter instead of simulation step parameter.
         start_id : int
             Id of the starting joined state.
+        end_time : float
+            Time at which simulation ends. If not None, simulation will be carried out until time limit is met instead
+            of n_steps. n_steps is then used as size parameter.
         seed : None, int, BitGenerator, Generator
             Seed to initialize a BitGenerator.
         """
@@ -197,9 +205,14 @@ class FluorophoreSystem:
                                                                        ['n_steps', 'start_id', 'seed']])
         self.parameter_collection = pd.concat([self.parameter_collection, new_dataframe])
 
-        self.time_series, self.time_step_series, self.state_series = ga.direct_method(self.transition_matrix,
-                                                                                      self.row_sums, n_steps, start_id,
-                                                                                      seed)
+        if end_time is None:
+            self.time_series, self.time_step_series, self.state_series = \
+                ga.direct_method_steps(transition_matrix=self.transition_matrix, row_sums=self.row_sums,
+                                       n_steps=n_steps, start_id=start_id, seed=seed)
+        else:
+            self.time_series, self.time_step_series, self.state_series = \
+                ga.direct_method_time(transition_matrix=self.transition_matrix, row_sums=self.row_sums,
+                                      size=n_steps, start_id=start_id, end_time=end_time, seed=seed)
 
     def process(self, seed=100):
         """
@@ -216,18 +229,22 @@ class FluorophoreSystem:
         new_dataframe = pd.DataFrame([seed], index=[['process'], ['seed']])
         self.parameter_collection = pd.concat([self.parameter_collection, new_dataframe])
 
+        number_fluorophores = self.parameter_collection.loc[('init', 'number_fluorophores'), 0]
         self.single_state_series = \
-            pr.convert_single_state_series(self.parameter_collection.loc[('init', 'number_fluorophores'), 0],
-                                           self.state_series, self.joined_states)
-        transition_cum_sum, transition_sorted_indices = pr.multiple_transitions(self.joined_transitions,
-                                                                                self.joined_states,
-                                                                                self.unique_transitions)
-        self.transition_series = pr.generate_transition_series(self.state_series, transition_cum_sum,
-                                                               transition_sorted_indices, seed)
+            pr.convert_single_state_series(number_fluorophores=number_fluorophores, state_series=self.state_series,
+                                           joined_states=self.joined_states)
+        transition_cum_sum, transition_sorted_indices = \
+            pr.multiple_transitions(joined_transitions=self.joined_transitions, joined_states=self.joined_states,
+                                    unique_transitions=self.unique_transitions)
+        self.transition_series = pr.generate_transition_series(state_series=self.state_series,
+                                                               transition_cum_sum=transition_cum_sum,
+                                                               transition_sorted_indices=transition_sorted_indices,
+                                                               seed=seed)
         self.single_state_lifetimes, self.transition_lifetimes = \
-            pr.time_occurrence_statistics(self.parameter_collection.loc[('init', 'number_fluorophores'), 0],
-                                          self.single_states, self.unique_transitions, self.time_series,
-                                          self.transition_series, self.single_state_series)
+            pr.time_occurrence_statistics(number_fluorophores=number_fluorophores, single_states=self.single_states,
+                                          unique_transitions=self.unique_transitions, time_series=self.time_series,
+                                          transition_series=self.transition_series,
+                                          single_state_series=self.single_state_series)
 
     def emitters(self, photon_collection_rate=1, resample="5ms", emccd_gain=None, threshold=0, memory=0,
                  remove_heading_off_period=False, seed=100):
@@ -262,12 +279,15 @@ class FluorophoreSystem:
                                              'remove_heading_off_period', 'seed']])
         self.parameter_collection = pd.concat([self.parameter_collection, new_dataframe])
 
-        self.emissions = et.get_emissions(self.unique_transitions, self.transition_series)
-        self.events = et.get_events(self.emissions, photon_collection_rate, seed)
+        self.emissions = et.get_emissions(unique_transitions=self.unique_transitions,
+                                          transition_series=self.transition_series)
+        self.events = et.get_events(emissions=self.emissions, photon_collection_rate=photon_collection_rate, seed=seed)
         self.time_points_events = self.time_series[self.events]
-        self.event_time_series = et.construct_event_time_series(self.time_points_events, resample, emccd_gain, seed)
-        self.on_periods, self.off_periods, _, _ = et.blink_statistics(self.event_time_series, threshold, memory,
-                                                                      remove_heading_off_period)
+        self.event_time_series = et.construct_event_time_series(time_points_events=self.time_points_events,
+                                                                resample=resample, emccd_gain=emccd_gain, seed=seed)
+        self.on_periods, self.off_periods, _, _ = \
+            et.blink_statistics(event_time_series=self.event_time_series, threshold=threshold, memory=memory,
+                                remove_heading_off_period=remove_heading_off_period)
         self.emission_statistics = {'total_emissions': self.emissions.size,
                                     'total_events': self.events.size,
                                     'mean_time_between_events': np.mean(np.diff(self.time_points_events))}
@@ -303,21 +323,19 @@ class FluorophoreSystem:
 
         deltat_float = pd.to_timedelta(deltat) / np.timedelta64(1, 's')
         if deltat == self.parameter_collection.loc[('emitters', 'resample'), 0]:
-            try:
-                self.autocorrelation = fcs.autocorrelate(self.event_time_series, normalize, log, m, deltat_float)
-            except ValueError:
-                print('Logarithmic autocorrelation not possible. Event_time_series too short.')
-
+            event_time_series = self.event_time_series
         else:
-            new_event_time_series = et.construct_event_time_series(self.time_points_events, deltat,
-                                                                   self.parameter_collection.loc[
+            event_time_series = et.construct_event_time_series(time_points_events=self.time_points_events,
+                                                                   resample=deltat,
+                                                                   emccd_gain=self.parameter_collection.loc[
                                                                        ('emitters', 'emccd_gain'), 0],
-                                                                   self.parameter_collection.loc[
+                                                                   seed=self.parameter_collection.loc[
                                                                        ('emitters', 'seed'), 0])
-            try:
-                self.autocorrelation = fcs.autocorrelate(new_event_time_series, normalize, log, m, deltat_float)
-            except ValueError:
-                print('Logarithmic autocorrelation not possible. Event_time_series too short.')
+        try:
+            self.autocorrelation = fcs.autocorrelate(event_time_series=event_time_series, normalize=normalize,
+                                                 log=log, m=m, deltat=deltat_float)
+        except ValueError:
+            print('Logarithmic autocorrelation not possible. Event_time_series too short.')
 
 
 class Cy5(FluorophoreSystem):
@@ -355,4 +373,5 @@ class Cy5(FluorophoreSystem):
             transitions = init.determine_rate_constants(path=file_path, distances=distances, irradiance=irradiance,
                                                         wavelength=wavelength, fluorophore='cy5',
                                                         dstorm_parameters=dstorm_parameters)
-        super().__init__(number_fluorophores, distances, transitions, remove)
+        super().__init__(number_fluorophores=number_fluorophores, distances=distances, transitions=transitions,
+                         remove=remove)

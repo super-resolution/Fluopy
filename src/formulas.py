@@ -1,3 +1,4 @@
+"""Contains mathematical expressions that are important in the context of photophysical processes."""
 import numpy as np
 from scipy import constants
 
@@ -17,22 +18,25 @@ def convert_wavenumber_wavelength_frequency(wavenumber=None, wavelength=None, fr
 
     Returns
     -------
-    wavenumber : float
+    wavenumber : np.ndarray
         In 1/cm.
-    wavelength : float
+    wavelength : np.ndarray
         In nm.
-    frequency : float
+    frequency : np.ndarray
         In Hz.
     """
     if wavenumber is not None:
+        wavenumber = np.asarray(wavenumber)
         wavelength = 1/(wavenumber * 1e2) * 1e9
         frequency = wavenumber * 1e2 * constants.c
 
     elif wavelength is not None:
+        wavelength = np.asarray(wavelength)
         wavenumber = 1/(wavelength * 1e-9) * 1e-2
         frequency = constants.c / (wavelength * 1e-9)
 
     elif frequency is not None:
+        frequency = np.asarray(frequency)
         wavenumber = frequency / constants.c * 1e-2
         wavelength = constants.c / frequency * 1e9
 
@@ -55,9 +59,11 @@ def calculate_photon_flux(irradiance, frequency):
 
     Returns
     -------
-    photon_flux : float
+    photon_flux : np.ndarray
         The photon flux in 1/(m² s).
     """
+    irradiance = np.asarray(irradiance)
+    frequency = np.asarray(frequency)
     irradiance = irradiance * 1e3 * 1e4
     photon_flux = irradiance / (constants.h * frequency)
 
@@ -106,7 +112,7 @@ def calculate_emission_rate(quantum_yield, fluorescence_lifetime):
 
     Returns
     -------
-    emis_rat : float
+    emis_rate : float
         The rate of emission in 1/s.
     """
     emis_rate = quantum_yield / fluorescence_lifetime
@@ -147,7 +153,7 @@ def calculate_internal_conversion_rate(quantum_yield, emission_rate, *other_outg
 
 def calculate_back_isomerization_rate(photon_flux, absorption_cross_section):
     """
-    Returns the back-isomerization rate for a given irradiance and an absorption cross section of the isomer.
+    Returns the back-isomerization rate for a given irradiance and an absorption cross section of the molecule/isomer.
 
     Parameters
     ----------
