@@ -326,14 +326,14 @@ class FluorophoreSystem:
             event_time_series = self.event_time_series
         else:
             event_time_series = et.construct_event_time_series(time_points_events=self.time_points_events,
-                                                                   resample=deltat,
-                                                                   emccd_gain=self.parameter_collection.loc[
-                                                                       ('emitters', 'emccd_gain'), 0],
-                                                                   seed=self.parameter_collection.loc[
-                                                                       ('emitters', 'seed'), 0])
+                                                               resample=deltat,
+                                                               emccd_gain=self.parameter_collection.loc[
+                                                                   ('emitters', 'emccd_gain'), 0],
+                                                               seed=self.parameter_collection.loc[
+                                                                   ('emitters', 'seed'), 0])
         try:
-            self.autocorrelation = fcs.autocorrelate(event_time_series=event_time_series, normalize=normalize,
-                                                 log=log, m=m, deltat=deltat_float)
+            self.autocorrelation = fcs.autocorrelate_time_series(event_time_series=event_time_series,
+                                                                 normalize=normalize, log=log, m=m, deltat=deltat_float)
         except ValueError:
             print('Logarithmic autocorrelation not possible. Event_time_series too short.')
 

@@ -168,7 +168,21 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
 
         elif type_ == "multiple_hist":
             for j, dat_ in enumerate(dat):
-                ax.hist(x=dat_, color=color[j], label=label[j], **type_specific_kwargs)
+                _, bins, _ = ax.hist(x=dat_, color=color(j), label=label[j], **type_specific_kwargs)
+                if plot_distribution is not None:
+                    plot_distr = plot_distribution[j]
+                    try:
+                        plot_distr.pmf(0)  # check if the distribution is discrete
+                        if np.min(bins) < 0:
+                            minimum = 0
+                        else:
+                            minimum = int(np.min(bins))
+                        x = np.linspace(minimum, int(np.max(bins)), int(np.max(bins)) - minimum + 1)
+                        ax.plot(x, plot_distr.pmf(x), c='k', label='pred')
+                    except AttributeError:
+                        x = np.linspace(np.min(bins), np.max(bins), 100)
+                        ax.plot(x, plot_distr.pdf(x), c='k', label='pred')
+
         elif type_ == "bar":
             if dat[1].ndim > 1:
                 for j, dat_ in enumerate(dat[1]):
@@ -184,7 +198,7 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
             ax.plot(dat[0], dat[1], color=color, label=label, **type_specific_kwargs)
         elif type_ == "multiple_line":
             for j, dat_ in enumerate(dat):
-                ax.plot(dat_[0], dat_[1], color=color[j], label=label[j], **type_specific_kwargs)
+                ax.plot(dat_[0], dat_[1], color=color(j), label=label[j], **type_specific_kwargs)
         elif type_ == "scatter":
             ax.scatter(dat[0], dat[1], color=color, label=label, **type_specific_kwargs)
 

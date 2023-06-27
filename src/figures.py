@@ -124,7 +124,7 @@ class FigureCollection:
         ax : matplotlib.axes.Axes
             Contains most of the figure elements.
         """
-        kwargs.setdefault('type_', "hist")
+        kwargs.setdefault('type_', "hist")  # set default is used if nothing else is mentioned
         kwargs.setdefault('ylabel', "PD")
         kwargs.setdefault('xlabel', None)
         kwargs.setdefault('density', True)

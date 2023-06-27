@@ -1,9 +1,8 @@
 """Contains distributions as PDFs, CDFs or RVS-generators that are important in the context of photophysical
 processes."""
 import numpy as np
-from scipy.special import gamma, i1
+from scipy.special import i1
 from scipy.stats import rv_discrete
-from mpmath import nsum, inf, factorial
 
 
 def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100):
@@ -141,7 +140,8 @@ def hypoexponential_distribution_three_parameters_cdf(a, b, c, x):
         Probabilities of samples less than or equal to x.
     """
 
-    cdf = 1 - np.exp(-c * x) * a * b /((a-c) * (b-c)) - np.exp(-a * x) * b * c /((-a+b) * (-a+c)) - np.exp(-b * x) * a * c /((a-b) * (-b+c))
+    cdf = 1 - np.exp(-c * x) * a * b /((a-c) * (b-c)) - np.exp(-a * x) * b * c /((-a+b) * (-a+c)) - np.exp(-b * x) * a \
+          * c /((a-b) * (-b+c))
 
     return cdf
 
@@ -186,25 +186,3 @@ def rejection_sampling(pdf, x_min, x_max, y_min, y_max, batch, size, parameters)
         samples += x[y < pdf(*parameters, x)].tolist()
 
     return samples[:size]
-
-
-def phi(b, c, w, z):
-    f = b**2/c
-    result = float(nsum(lambda k, l: f * w**k * z**l / (factorial(l)*factorial(k)), [0, inf], [0, inf]))
-
-    return result
-
-
-def c_x(t, a, b, x):
-    part1 = (a * b)**x
-    part2 = t**(2*x)/gamma(1+2*x)
-    part3 = phi(x, 1+2*x, -t*a, -t*b)
-    func = part1 * part2 * part3
-
-    return func
-
-
-def counts_hypo_interarrival_times_pmf(t, a, b, x):
-    pmf = c_x(t, a, b, x) - c_x(t, a, b, x+1)
-
-    return pmf
