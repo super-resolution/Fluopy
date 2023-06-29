@@ -17,10 +17,10 @@ def construct_network(transition_df):
             edge = (source, destination, {'w': row['abbreviation']})
             edges.append(edge)
         else:
-            source_1 = initial_state[0].name
-            source_2 = initial_state[1].name
-            destination_1 = final_state[0].name
-            destination_2 = final_state[0].name
+            source_1 = initial_state.value[0].name
+            source_2 = initial_state.value[1].name
+            destination_1 = final_state.value[0].name
+            destination_2 = final_state.value[0].name
             edge = (source_1, source_2 + '(2)', {'w': row['abbreviation']})
             edges.append(edge)
 
@@ -31,7 +31,7 @@ def construct_network(transition_df):
 
 def plot_network(network, type='shell', colors=None):
     if colors is None:
-        colors = ['blue', 'red']
+        colors = ['#ADD8E6', '#FFF0C8']
 
     g = network
     fig, ax = plt.subplots()

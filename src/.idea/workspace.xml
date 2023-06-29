@@ -34,7 +34,28 @@
     &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;
   }
 }</component>
-  <component name="RunManager" selected="Python.hjjh">
+  <component name="RunManager" selected="Python.NEW_cy5">
+    <configuration name="NEW_cy5" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="scr" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/NEW_cy5.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration name="hjjh" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="scr" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -54,22 +75,6 @@
       <option name="MODULE_MODE" value="false" />
       <option name="REDIRECT_INPUT" value="false" />
       <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="pytest for test_gillespie_algorithm.test_direct_method_py" type="tests" factoryName="py.test" temporary="true" nameIsGenerated="true">
-      <module name="scr" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/tests" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="_new_keywords" value="&quot;&quot;" />
-      <option name="_new_parameters" value="&quot;&quot;" />
-      <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;test_gillespie_algorithm.test_direct_method_py&quot;" />
-      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
     <configuration name="pytest in test_gillespie_algorithm.py" type="tests" factoryName="py.test" temporary="true" nameIsGenerated="true">
@@ -137,20 +142,20 @@
       <method v="2" />
     </configuration>
     <list>
+      <item itemvalue="Python.NEW_cy5" />
       <item itemvalue="Python.hjjh" />
       <item itemvalue="Python tests.pytest in tests" />
-      <item itemvalue="Python tests.pytest for test_gillespie_algorithm.test_direct_method_py" />
       <item itemvalue="Python tests.pytest in test_gillespie_algorithm.py" />
       <item itemvalue="Python tests.pytest in test_initialize.py" />
       <item itemvalue="Python tests.pytest in test_processing.py" />
     </list>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.NEW_cy5" />
         <item itemvalue="Python.hjjh" />
         <item itemvalue="Python tests.pytest in test_processing.py" />
         <item itemvalue="Python tests.pytest in test_initialize.py" />
         <item itemvalue="Python tests.pytest in test_gillespie_algorithm.py" />
-        <item itemvalue="Python tests.pytest for test_gillespie_algorithm.test_direct_method_py" />
       </list>
     </recent_temporary>
   </component>

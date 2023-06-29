@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+from matplotlib.pyplot import cm
+import src.custom_plot as cp
 
 
 class Blinking:
@@ -9,7 +11,7 @@ class Blinking:
         self.on_periods_frames = None
         self.off_periods_frames = None
 
-    def get_blinking_statistics(self, event_time_series, threshold, memory, remove_heading_off_period):
+    def get_blinking_statistics(self, event_time_series, threshold=0, memory=0, remove_heading_off_period=True):
         df = pd.DataFrame({'frame': np.arange(0, event_time_series.size), 'intensity': event_time_series.values})
 
         df = df[df.intensity > threshold]
@@ -112,3 +114,48 @@ class Blinking:
         self.on_periods_frames = on_periods_frames
         self.off_periods_frames = off_periods_frames
 
+    def plot(self, mode, **kwargs):
+        if mode == 'on_histogram':
+            data = self.on_periods
+            kwargs.setdefault('title', 'ON periods')
+            fig, ax = plot_histogram(data=data, **kwargs)
+        elif mode == 'off_histogram':
+            data = self.off_periods
+            kwargs.setdefault('title', 'OFF periods')
+            fig, ax = plot_histogram(data=data, **kwargs)
+        elif mode == 'on_frame_series':
+            data = [np.arange(0, self.on_periods.size), self.on_periods]
+            kwargs.setdefault('title', 'ON periods')
+            fig, ax = plot_frame_series(data=data, **kwargs)
+        elif mode == 'off_frame_series':
+            data = [np.arange(0, self.off_periods.size), self.off_periods]
+            kwargs.setdefault('title', 'OFF periods')
+            fig, ax = plot_frame_series(data=data, **kwargs)
+        else:
+            raise AttributeError(f'mode {mode} unknown.')
+
+        return fig, ax
+
+
+def plot_histogram(data, **kwargs):
+    kwargs.setdefault('type_', 'hist')
+    kwargs.setdefault('xlabel', 'consecutive frames')
+    kwargs.setdefault('ylabel', 'PD')
+    kwargs.setdefault('density', True)
+
+    mean = np.mean(data)
+
+    fig, ax = cp.universal_figure(data=data, **kwargs)
+    ax[0][0].text(x=0.7, y=0.85, s=f"mean: {mean:.2f}", transform=ax[0][0].transAxes, fontsize=16)
+
+    return fig, ax
+
+
+def plot_frame_series(data, **kwargs):
+    kwargs.setdefault('type_', 'line')
+    kwargs.setdefault('xlabel', 'frame number')
+    kwargs.setdefault('ylabel', 'consecutive frames')
+
+    fig, ax = cp.universal_figure(data=data, **kwargs)
+
+    return fig, ax

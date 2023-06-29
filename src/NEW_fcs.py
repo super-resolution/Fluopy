@@ -12,6 +12,7 @@ class FCS:
 
     def autocorrelate_time_points(self, event_time_points, exp_min=-8, exp_max=2, points_per_base=4, base=10,
                                   normalize=True):
+        # generally much faster than autocorrelation based on time series
         bins = pc.make_loglags(exp_min=exp_min, exp_max=exp_max, points_per_base=points_per_base, base=base)
         self.autocorrelation = pc.pcorrelate(event_time_points, event_time_points, bins=bins, normalize=normalize)
         self.tau = np.mean([bins[1:], bins[:-1]], 0)

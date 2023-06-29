@@ -42,14 +42,18 @@ class PhotophysicsMC:
                                    self.simulation.time_series, photon_collection_rate, resample, emccd_gain,
                                    seed)
 
-    def perform_FCS(self, exp_min=-8, exp_max=2, points_per_base=4, base=10, normalize=True):
+    def perform_fcs(self, exp_min=-8, exp_max=2, points_per_base=4, base=10, normalize=True):
         if self.emissions.event_time_points is None:
             raise ValueError('call method fetch_emissions() before calling perform_FCS().')
         self.fcs.autocorrelate_time_points(self.emissions.event_time_points, exp_min, exp_max, points_per_base, base,
                                            normalize)
 
-    def perform_TCSPC(self):
-        return None
+    def perform_tcspc(self, start_at=(0, 0, 0), n_steps=1000, seed=100):
+        self.tcspc.modify_transition_matrix(self.transitions.transition_matrix, self.transitions.row_sums,
+                                            self.transitions.combined_state_transitions_df,
+                                            self.fluorophore_system.count)
+        self.tcspc.run_simulation(self.transitions.combined_state_transitions_df, start_at, n_steps, seed)
+        self.tcspc.get_observed_lifetimes(self.transitions.combined_state_transitions_df)
 
     def evaluate_blinking(self):
         if self.emissions.event_time_series is None:

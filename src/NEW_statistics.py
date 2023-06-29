@@ -60,11 +60,11 @@ class Prediction:
     @staticmethod
     def predict_state_occurrences(single_states, transition_df):
 
-        i_s0 = np.where(single_states == SingleState.S0.value)[0]
-        i_s1 = np.where(single_states == SingleState.S1.value)[0]
-        i_t1 = np.where(single_states == SingleState.T1.value)[0]
-        i_cis = np.where(single_states == SingleState.Cis.value)[0]
-        i_off = np.where(single_states == SingleState.OFF.value)[0]
+        i_s0 = np.where(single_states == SingleState.S0.value)[0][0]
+        i_s1 = np.where(single_states == SingleState.S1.value)[0][0]
+        i_t1 = np.where(single_states == SingleState.T1.value)[0][0]
+        i_cis = np.where(single_states == SingleState.Cis.value)[0][0]
+        i_off = np.where(single_states == SingleState.OFF.value)[0][0]
 
         b = np.zeros(shape=single_states.size)
         b[0] = 1
@@ -123,11 +123,11 @@ class Prediction:
 
     def predict_transition_occurrences(self, single_states, transition_df):
 
-        i_s0 = np.where(single_states == SingleState.S0.value)[0]
-        i_s1 = np.where(single_states == SingleState.S1.value)[0]
-        i_t1 = np.where(single_states == SingleState.T1.value)[0]
-        i_cis = np.where(single_states == SingleState.Cis.value)[0]
-        i_off = np.where(single_states == SingleState.OFF.value)[0]
+        i_s0 = np.where(single_states == SingleState.S0.value)[0][0]
+        i_s1 = np.where(single_states == SingleState.S1.value)[0][0]
+        i_t1 = np.where(single_states == SingleState.T1.value)[0][0]
+        i_cis = np.where(single_states == SingleState.Cis.value)[0][0]
+        i_off = np.where(single_states == SingleState.OFF.value)[0][0]
 
         transition_occurrences = np.zeros(transition_df.index.size)
         for index, row in transition_df.iterrows():
@@ -146,7 +146,7 @@ class Prediction:
                 raise ValueError
 
             state_occurrence = self.state_occurrences[i]
-            total_rate = 1 / self.lifetime_distributions[i][0].mean()  # the extra [0] is needed because np.where
+            total_rate = 1 / self.lifetime_distributions[i].mean()  # the extra [0] is needed because np.where
             # returns array, hence the indexed array returns an array[element] and not the element
             current_rate = row['rate']
             transition_occurrence = state_occurrence * current_rate / total_rate
@@ -208,7 +208,7 @@ class Prediction:
 class Analysis:
     def __init__(self, simulation, transitions):
         if simulation.transition_series is None:
-            raise ValueError('analysis not available if simulation were not ran.')
+            raise ValueError('analysis not available if simulation was not ran.')
         else:
             self.lifetime_distributions, self.transition_time_distributions = \
                 self.get_lifetimes(simulation, transitions)
@@ -262,7 +262,8 @@ class Analysis:
             changes_at_and_last = np.append(changes_at, last_state)
             states = state_series_fluorophore[changes_at_and_last]
             state_ids, state_counts = np.unique(states, return_counts=True)
-            state_occurrences[state_ids] = state_counts
+            corresponding_state_indices = np.in1d(transitions.single_states, state_ids).nonzero()[0]
+            state_occurrences[corresponding_state_indices] = state_counts
 
         for j in transitions.transition_df.index:
             combined_state_transition_ids = transitions.combined_state_transitions_df[

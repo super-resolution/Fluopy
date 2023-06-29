@@ -5,16 +5,18 @@ from typing import Optional, ClassVar
 from dataclasses import dataclass, field, asdict
 from itertools import product
 import src.NEW_network as net
+import src.formulas as fo
 
 
 class SingleState(Enum):
     S0 = 0
     S1 = 1
-    T1 = 2
-    Cis = 3
-    OFF = 4
-    B = 5
-    # the numbering could be a problem for plotting
+    S2 = 2
+    T1 = 3
+    T2 = 4
+    Cis = 5
+    OFF = 6
+    B = 7
 
 
 class PairedState(Enum):
@@ -24,6 +26,7 @@ class PairedState(Enum):
     S1_Cis = [SingleState.S1, SingleState.Cis]
     S1_OFF = [SingleState.S1, SingleState.OFF]
     S0_S0 = [SingleState.S0, SingleState.S0]
+    S0_T2 = [SingleState.S0, SingleState.T2]
 
     @property
     def single_state_values(self):
@@ -44,7 +47,8 @@ class TransitionType(Enum):
     INTERSYSTEM_CROSSING_ST = TransitionAttributes('ISCST', SingleState.S1, SingleState.T1, False)
     INTERSYSTEM_CROSSING_TS = TransitionAttributes('ISCTS', SingleState.T1, SingleState.S0, False)
     INTERNAL_CONVERSION_S = TransitionAttributes('ICS', SingleState.S1, SingleState.S0, False)
-    PHOTOBLEACHING = TransitionAttributes('BLE', SingleState.T1, SingleState.B, False)
+    PHOTOBLEACHING_1 = TransitionAttributes('BLE1', SingleState.T1, SingleState.B, False)
+    PHOTOBLEACHING_2 = TransitionAttributes('BLE2', SingleState.T2, SingleState.B, False)
 
     REDUCTION = TransitionAttributes('RED', SingleState.T1, SingleState.OFF, False)
     OXIDATION = TransitionAttributes('OXI', SingleState.OFF, SingleState.S0, False)
@@ -53,7 +57,7 @@ class TransitionType(Enum):
     BACKISOMERIZATION = TransitionAttributes('BISO', SingleState.Cis, SingleState.S0, False)
 
     HOMO_FRET = TransitionAttributes('HFRET', PairedState.S1_S0, PairedState.S0_S1, False)
-    TRIPLET_FRET = TransitionAttributes('TFRET', PairedState.S1_T1, PairedState.S0_S1, False)
+    TRIPLET_FRET = TransitionAttributes('TFRET', PairedState.S1_T1, PairedState.S0_T2, False)
     CIS_FRET = TransitionAttributes('CFRET', PairedState.S1_Cis, PairedState.S0_S0, False)
     OFF_FRET = TransitionAttributes('OFRET', PairedState.S1_OFF, PairedState.S0_S0, False)
 
@@ -74,7 +78,7 @@ class TransitionType(Enum):
         return self.value.photon
 
 
-@dataclass(slots=True, order=True)  # frozen=True if code will not be modified (autoreload complications otherwise)
+@dataclass(slots=True)  # frozen=True if code will not be modified (autoreload complications otherwise)
 class Transition:
     _count: ClassVar[int] = -1
 
@@ -126,8 +130,12 @@ class TransitionSet:
                                 if transition.abbreviation not in remove_list]
         return TransitionSet(transitions=filtered_transitions)
 
-    def construct_combined_state_transitions(self, fluorophore_system):
+    def adjust_rates(self, change_dict):
+        for transition in self.transitions:
+            if transition.abbreviation in change_dict:
+                transition.rate = change_dict[transition.abbreviation]
 
+    def construct_combined_state_transitions(self, fluorophore_system):
         state_combinations = get_state_combinations(self.single_states, fluorophore_system.count)
         combined_state_transitions = get_combined_state_transitions(state_combinations)
         combined_state_transitions_with_rates = construct_transition_rate_list(self.transitions,
@@ -189,7 +197,8 @@ def rate_assignment_energy_transfer(transition, transition_rate_list, combined_s
     destination_1, destination_2 = transition.final_state.single_state_values
     distance = transition.distance
     for (current_state, future_state) in combined_state_transitions:
-        if source_1 in current_state and source_2 in current_state and destination_1 in future_state and destination_2 in future_state:
+        if source_1 in current_state and source_2 in current_state and destination_1 in future_state and destination_2 \
+                in future_state:
             indices_current_1 = [i for i, e in enumerate(current_state) if e == source_1]
             indices_current_2 = [i for i, e in enumerate(current_state) if e == source_2]
             for i in indices_current_1:
@@ -270,17 +279,26 @@ def construct_transition_matrices(combined_state_transitions_df):
 
     row_sums = transition_rate_matrix.sum(axis=1)
 
-    for i, row_sum in enumerate(row_sums):
-        if row_sum > 0:
-            transition_matrix[i] = transition_rate_matrix[i] / row_sum
+    transition_matrix = np.divide(transition_rate_matrix, np.expand_dims(row_sums, axis=1),
+                                  out=np.zeros_like(transition_rate_matrix), where=row_sums != 0)
 
     return transition_matrix, row_sums
 
 
-# should in some way include calculate_fret_rate
-def energy_transfer_rates(transition_type, distances, rates):
+def get_energy_transfer_transitions(transition_type, distances, rates=None, calculate_rates=None):
+    if rates is None and calculate_rates is None:
+        return AttributeError('either rates or calculate_rates must be defined.')
+    elif rates is not None and calculate_rates is not None:
+        return AttributeError('either rates or calculate_rates must be None.')
     distances = np.unique(list(distances.values()))
-    energy_transfers = [Transition(rate=rate, transition_type=transition_type, distance=distance)
-                        for rate, distance in zip(rates, distances)]
+    if rates is not None:
+        energy_transfer_transitions = [Transition(rate=rate, transition_type=transition_type, distance=distance)
+                                       for rate, distance in zip(rates, distances)]
+    else:
+        energy_transfer_transitions = []
+        for distance in distances:
+            rate = fo.calculate_fret_rate(distance=distance, **calculate_rates)
+            energy_transfer_transitions.append(Transition(rate=rate, transition_type=transition_type,
+                                                          distance=distance))
 
-    return energy_transfers
+    return energy_transfer_transitions

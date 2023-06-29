@@ -45,7 +45,6 @@ def direct_method_steps(transition_matrix, row_sums, combined_state_transitions,
     cumsum_sorted_trm = np.cumsum(sorted_transition_matrix, axis=1)
 
     for i in range(n_steps):
-
         current_state_lambda = row_sums[current_state_index]
 
         if current_state_lambda == 0:

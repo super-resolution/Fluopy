@@ -20,3 +20,13 @@ def create_row_subtitles(fig, nrows, ncols, titles):
         row.set_title(titles[i], fontsize=22, pad=20, fontweight='bold')
         row.set_frame_on(False)
         row.axis('off')
+
+
+def add_table(fig, grid, series, labels, x_scale, y_scale, fontsize):
+    new_ax = fig.add_subplot(grid)
+    new_ax.axis('off')
+    table = new_ax.table(cellText=series.values, rowLabels=labels, loc='center')
+    table.scale(x_scale, y_scale)
+    table.set_fontsize(fontsize)
+
+    return fig
