@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 
 def construct_network(transition_df):
-    from src.NEW_transitions import SingleState  # avoids circular import
+    from src.transitions import SingleState  # avoids circular import
     network = nx.MultiDiGraph()
     edges = []
     for id, row in transition_df.iterrows():

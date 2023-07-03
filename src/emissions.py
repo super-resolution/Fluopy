@@ -5,18 +5,20 @@ import src.custom_plot as cp
 
 
 class Emissions:
-    def __init__(self, transition_df, transition_series, time_series, photon_collection_rate, resample, emccd_gain,
+    def __init__(self, simulation, photon_collection_rate, resample, emccd_gain,
                  seed):
-        self.emissions = self.get_emissions(transition_df, transition_series)
+        if simulation.transition_series is None:
+            raise ValueError('emissions not available if simulation has not been run.')
+        self.simulation = simulation
+        self.emissions = self.get_emissions()
         self.events = self.get_events(photon_collection_rate, seed)
-        self.event_time_points = time_series[self.events]
+        self.event_time_points = self.simulation.time_series[self.events]
         self.event_time_series = self.construct_event_time_series(resample, emccd_gain, seed)
 
-    @staticmethod
-    def get_emissions(combined_state_transitions_df, transition_series):
-        df = combined_state_transitions_df
+    def get_emissions(self):
+        df = self.simulation.transitions.combined_state_transitions_df
         emitting_transition_ids = df.loc[df['photon'] == True].index.to_numpy()
-        emissions = np.in1d(transition_series, emitting_transition_ids).nonzero()[0]
+        emissions = np.in1d(self.simulation.transition_series, emitting_transition_ids).nonzero()[0]
 
         return emissions
 

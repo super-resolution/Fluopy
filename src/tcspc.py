@@ -1,97 +1,84 @@
-"""Contains functions related to time-correlated single photon counting."""
 import numpy as np
-import src.processing as pr
-from scipy.stats import erlang
-import src.fluorophore_systems as fs
+import src.simulation as si
+import src.custom_plot as cp
+from src.transitions import SingleState
 
 
-def tcspc_simulation(transitions, n_pulses, seed):
-    """
-    Simulates a TCSPC experiment, meaning that only the time points of fluorescence and the time points of the laser
-    pulses are available data. Restricted to 2 fluorophores. Neglects instrument response function (IRF).
+class TCSPC:
+    def __init__(self, transitions):
+        if transitions.transition_matrix is None:
+            raise ValueError('tcspc not available if transitions not finalized.')
+        self.transitions = transitions
 
-    Parameters
-    ----------
-    transitions : list
-        Contains a list for each transition like [k_singlestate1_singlestate2 (str), rate (float), trivial name
-        (str), abbreviation (str), fluorescence (bool)]. In the case of energy transfers, the first entry is
-        k_singlestate1_singlestate2__singlestate1_singlestate2, where the first part represents one fluorophore and
-        the second part the other fluorophore.
-    n_pulses : int
-        Number of laser pulses being simulated.
-    seed : None, int, BitGenerator, Generator
-        Seed to initialize a BitGenerator.
+        self.modified_transition_matrix, self.modified_row_sums = self.modify_transition_matrix()
 
-    Returns
-    -------
-    times : np.ndarray
-        Contains the time differences between laser pulse and fluorescence.
-    """
-    system = fs.FluorophoreSystem(number_fluorophores=2, distances=1, transitions=transitions)
-    fluorescence_id = system.unique_transitions.index[system.unique_transitions['fluorescence'] == True]
-    start_id = system.joined_states.index[system.joined_states['name'] == 'S1_S0']
-    rng = np.random.default_rng(seed)
-    times = []
-    for pulse in range(n_pulses):
-        system.simulate(n_steps=100000, start_id=start_id, seed=rng)
-        # n_steps sufficiently large to ensure the system encounters absorbing state
-        transition_cum_sum, transition_sorted_indices = pr.multiple_transitions(system.joined_transitions,
-                                                                                system.joined_states,
-                                                                                system.unique_transitions)
-        transition_series = pr.generate_transition_series(system.state_series, transition_cum_sum,
-                                                          transition_sorted_indices, seed=rng)
-        if transition_series[-1] == fluorescence_id:
-            time = system.time_series[-1]
-            times.append(time)
+        self.transition_series = None
+        self.time_series = None
 
-    times = np.array(times)
+        self.observed_lifetimes = None
 
-    return times
+    def modify_transition_matrix(self):
+        df = self.transitions.combined_state_transitions_df
+        excitations = df[df['abbreviation'] == 'EXC']
+        indices_to_modify = excitations.index.values[self.transitions.fluorophore_system.count:]
+        transition_rate_matrix = self.transitions.transition_matrix * self.transitions.row_sums
+        transition_rate_matrix[:, indices_to_modify] = 0
+        modified_row_sums = transition_rate_matrix.sum(axis=1)
+        modified_transition_matrix = np.divide(transition_rate_matrix, np.expand_dims(modified_row_sums, axis=1),
+                                               out=np.zeros_like(transition_rate_matrix), where=modified_row_sums != 0)
+        return modified_transition_matrix, modified_row_sums
+
+    def run(self, start_at, n_steps, seed):
+        self.time_series, _, self.transition_series = \
+            si.direct_method_steps(self.modified_transition_matrix, self.modified_row_sums,
+                                   self.transitions.combined_state_transitions_df, start_at, n_steps, seed)
+
+    def get_observed_lifetimes(self):
+        if self.transition_series is None:
+            raise ValueError('get_observed_lifetimes() not available if run() has not been called.')
+        df = self.transitions.combined_state_transitions_df
+        excitation_values = df[df['abbreviation'] == 'EXC'].index.values
+        fluorescence_values = df[df['abbreviation'] == 'FLU'].index.values
+        excitation_indices = np.in1d(self.transition_series, excitation_values).nonzero()[0]
+        emission_indices = np.in1d(self.transition_series, fluorescence_values).nonzero()[0]
+        excitation_times = self.time_series[excitation_indices]
+        emission_times = self.time_series[emission_indices]
+
+        corresponding_excitation_time_indices = np.searchsorted(excitation_times, emission_times, side='right') - 1
+        corresponding_excitation_times = excitation_times[corresponding_excitation_time_indices]
+
+        self.observed_lifetimes = emission_times - corresponding_excitation_times
+
+        return self
+
+    def plot(self, **kwargs):
+        kwargs.setdefault('type_', 'hist')
+        kwargs.setdefault('xlabel', 'observed lifetime [s]')
+        kwargs.setdefault('ylabel', 'PD')
+        kwargs.setdefault('density', True)
+
+        fig, ax = cp.universal_figure(data=self.observed_lifetimes, **kwargs)
+
+        return fig, ax
+
+    @staticmethod
+    def predict(transition_df, fluorophore_count, accuracy, size, seed):
+        # since only one fluorophore gets excited, all the other fluorophores can be seen as S0. Only if homoFRET
+        # happens, one fluorophore stays in S1, otherwise S1 is gone. Each energy transfer that starts from S1 has
+        # to be considered; if two fluorophores, they have to be considered once. If three fluorophores in equilateral
+        # triangle, twice. If four fluorophores in square, the smaller distance rate twice and the larger distance rate
+        # once. This has to be considered for homo FRET probability, fluorescence lifetime and fluorescence probability.
+        fluorescence_lifetime, hfret_probability, fluorescence_probability = get_transition_probabilities(transition_df)
+        rng = np.random.default_rng(seed)
 
 
-def fluorescence_lifetime_distribution_hfret_rvs(fluo_prob, fret_prob, fluo_lifetime, accuracy, size, seed):
-    """
-    Generates random variates of OBSERVED fluorescence lifetimes in a TCSPC experiment that involves homoFRET (i.e.,
-    energy migration FRET, emFRET).
+        return None
 
-    Parameters
-    ----------
-    fluo_prob : float
-        The probability of fluorescence in one step (e.g., directly after excitation).
-    fret_prob : float
-        The probability of fret in one step (e.g., directly after excitation).
-    fluo_lifetime : float
-        The theoretical fluorescence lifetime in presence of an acceptor.
-    accuracy : int
-        The accuracy of the resulting random variates. The higher, the more accurate.
-    size : int
-        The number of random variates generated.
-    seed : None, int, BitGenerator, Generator
-        Seed to initialize a BitGenerator.
 
-    Returns
-    -------
-    times : np.ndarray
-        Contains random variates of TCSPC-OBSERVED fluorescence lifetimes involving homoFRET.
-    """
-    rng = np.random.default_rng(seed)
+def get_transition_probabilities(transition_df):
+    non_energy_transfer_S1_transitions = transition_df[transition_df['initial_state'] == SingleState.S1]
+    fluorescence_lifetime = None
+    hfret_probability = None
+    fluorescence_probability = None
 
-    probabilities = []
-    distributions = []
-    for i in range(accuracy):
-        probability = fluo_prob * fret_prob**i
-        probabilities.append(probability)
-        a = i + 1
-        scale = fluo_lifetime  # the mean of the erlang distribution is a*scale
-        distr = erlang(a=a, scale=scale)
-        distributions.append(distr)
-
-    probabilities = probabilities / np.sum(probabilities)
-    random_numbers = np.random.uniform(0, 1, size)
-    cumulative_probabilities = np.cumsum(probabilities)
-    times = np.ones(size)
-    for i in range(size):
-        index = np.searchsorted(cumulative_probabilities, random_numbers[i])
-        times[i] = distributions[index].rvs(size=1, random_state=rng)
-
-    return times
+    return fluorescence_lifetime, hfret_probability, fluorescence_probability

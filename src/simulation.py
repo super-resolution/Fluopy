@@ -2,27 +2,32 @@ import numpy as np
 
 
 class Simulation:
-    def __init__(self):
+    def __init__(self, transitions):
+        if transitions.transition_matrix is None:
+            raise ValueError('simulation not available if transitions not finalized.')
+        self.transitions = transitions
         self.time_series = None
         self.time_step_series = None
         self.transition_series = None
         self.state_series = None
 
-    def run(self, transitions, start_at=(0, 0, 0), size=int(1e5), end_time=None, seed=None):
-
+    def run(self, start_at=None, size=int(1e5), end_time=None, seed=None):
+        if start_at is None:
+            start_at = tuple(np.zeros(shape=self.transitions.fluorophore_system.count, dtype=int))
         if end_time is None:
-            self.time_series, self.time_step_series, self.transition_series =\
-                direct_method_steps(transitions.transition_matrix, transitions.row_sums,
-                                    transitions.combined_state_transitions_df, start_at, size, seed)
+            self.time_series, self.time_step_series, self.transition_series = \
+                direct_method_steps(self.transitions.transition_matrix, self.transitions.row_sums,
+                                    self.transitions.combined_state_transitions_df, start_at, size, seed)
         else:
-            self.time_series, self.time_step_series, self.transition_series =\
-                direct_method_time(transitions.transition_matrix, transitions.row_sums,
-                                   transitions.combined_state_transitions_df, start_at, size, end_time, seed)
+            self.time_series, self.time_step_series, self.transition_series = \
+                direct_method_time(self.transitions.transition_matrix, self.transitions.row_sums,
+                                   self.transitions.combined_state_transitions_df, start_at, size, end_time, seed)
 
-        final_states = transitions.combined_state_transitions_df['final_state']
+        final_states = self.transitions.combined_state_transitions_df['final_state']
 
         self.state_series = np.empty(shape=(len(final_states[0]), self.time_series.size), dtype=np.int64)
         self.state_series[:, 0] = start_at
+        print(self.state_series)
         for i, _ in enumerate(final_states[0]):
             final_states_fluorophore = final_states.map(lambda x: x[i]).to_numpy()
             self.state_series[i][1:] = final_states_fluorophore[self.transition_series]
