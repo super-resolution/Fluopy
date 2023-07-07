@@ -1,3 +1,6 @@
+"""
+Module setup
+"""
 from distutils.core import setup
 from Cython.Build import cythonize
 import numpy

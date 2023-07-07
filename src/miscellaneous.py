@@ -1,20 +1,63 @@
+"""
+Module miscellaneous
+"""
 import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
 
 
-def delete_subplots(fig, ax, keep_number=None, del_positions=None):
-    flattened = ax.flatten()
+def delete_subplots(axes, keep_number=None, del_positions=None):
+    """
+    Deletes subplots from figure object.
+
+    Parameters
+    ----------
+    axes : np.ndarray
+        Contains matplotlib.axes._subplots.AxesSubplots.
+    keep_number : None, int
+        Number of subplots to keep. Assumes them to be in the first keep_number positions of the flattened ax array.
+    del_positions : None, np.ndarray
+        An array that contains a 1-D array of shape (2,) for each ax to be deleted like [row, column].
+
+    Returns
+    -------
+    None
+    """
+    flattened = axes.flatten()
+    fig = flattened[0].get_figure()
     if keep_number is not None:
         for i in range(flattened.size - keep_number):
             fig.delaxes(flattened[-1 - i])
     elif del_positions is not None:
         for position in del_positions:
-            fig.delaxes(ax[position[0], position[1]])
-
-    return fig
+            fig.delaxes(axes[position[0], position[1]])
 
 
-def create_row_subtitles(fig, nrows, ncols, titles):
-    grid = plt.GridSpec(nrows, ncols)
+def create_row_subtitles(axes, nrows=1, ncols=1, titles=None):
+    """
+    Creates subtitles of figure displayed in the middle of each row.
+
+    Parameters
+    ----------
+    axes : np.ndarray
+        Contains matplotlib.axes._subplots.AxesSubplots.
+    nrows : int
+        Number of rows in the figure.
+    ncols : int
+        Number of columns in the figure.
+    titles : collection
+        Containes elements of type str. Must have the same length as nrows.
+
+    Returns
+    -------
+    None
+    """
+    if titles is None:
+        titles = ['default_title']
+
+    flattened = axes.flatten()
+    fig = flattened[0].get_figure()
+    grid = plt.GridSpec(nrows=nrows, ncols=ncols)
     for i in range(nrows):
         row = fig.add_subplot(grid[i, ::])
         row.set_title(titles[i], fontsize=22, pad=20, fontweight='bold')
@@ -22,11 +65,37 @@ def create_row_subtitles(fig, nrows, ncols, titles):
         row.axis('off')
 
 
-def add_table(fig, grid, series, labels, x_scale, y_scale, fontsize):
+def add_table(axes, series, grid=111, xscale=1, yscale=1, fontsize=12):
+    """
+    Adds a table to a subplot figure.
+
+    Parameters
+    ----------
+    axes : np.ndarray
+        matplotlib.axes._subplots.AxesSubplots.
+    series : pd.Series
+        Values to display in table with index as labels.
+    grid : int
+        Divide the figure subplots into an a x b grid. Choose a position c for the table such that it corresponds to
+        the index + 1 of the flattened grid.
+        Example: suppose a subplot with 2 rows and 3 columns. The table should span the entire lower row, hence half
+        of the figure. Divide the figure into 2 rows and 1 column (a = 2, b = 1). The position c is 2. The value to use
+        for grid is abc, hence in the example 212.
+    xscale : float
+        Scale table in x direction.
+    yscale : float
+        Scale table in y direction.
+    fontsize : float
+        Set the font size.
+
+    Returns
+    -------
+    None
+    """
+    flattened = axes.flatten()
+    fig = flattened[0].get_figure()
     new_ax = fig.add_subplot(grid)
     new_ax.axis('off')
-    table = new_ax.table(cellText=series.values, rowLabels=labels, loc='center')
-    table.scale(x_scale, y_scale)
-    table.set_fontsize(fontsize)
-
-    return fig
+    table = new_ax.table(cellText=series.values[:, np.newaxis], rowLabels=series.index, loc='center')
+    table.scale(xscale=xscale, yscale=yscale)
+    table.set_fontsize(size=fontsize)

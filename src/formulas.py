@@ -1,4 +1,6 @@
-"""Contains mathematical expressions that are important in the context of photophysical processes."""
+"""
+Module formulas
+"""
 import numpy as np
 from scipy import constants
 
@@ -25,6 +27,8 @@ def convert_wavenumber_wavelength_frequency(wavenumber=None, wavelength=None, fr
     frequency : np.ndarray
         In Hz.
     """
+    if sum(1 for _ in filter(None.__ne__, [wavelength, wavenumber, frequency])) != 1:
+        raise ValueError('One and only one of wavenumber, wavelength and frequency must not be None.')
     if wavenumber is not None:
         wavenumber = np.asarray(wavenumber)
         wavelength = 1/(wavenumber * 1e2) * 1e9
@@ -41,12 +45,12 @@ def convert_wavenumber_wavelength_frequency(wavenumber=None, wavelength=None, fr
         wavelength = constants.c / frequency * 1e9
 
     else:
-        raise ValueError('One of wavenumber, wavelength and frequency must not be None.')
+        pass
 
     return wavenumber, wavelength, frequency
 
 
-def calculate_photon_flux(irradiance, frequency):
+def calculate_photon_flux(irradiance=2, frequency=4.5e14):
     """
     Calculates the photon flux based on the irradiance and the frequency of the light.
 
@@ -70,7 +74,7 @@ def calculate_photon_flux(irradiance, frequency):
     return photon_flux
 
 
-def calculate_excitation_rate(photon_flux, extinction_coefficient=None, absorption_cross_section=None):
+def calculate_excitation_rate(photon_flux=8e25, extinction_coefficient=None, absorption_cross_section=None):
     """
     Returns the excitation rate for a given irradiance and an extinction coefficient or an absorption cross section.
 
@@ -99,7 +103,7 @@ def calculate_excitation_rate(photon_flux, extinction_coefficient=None, absorpti
     return excitation_rate
 
 
-def calculate_emission_rate(quantum_yield, fluorescence_lifetime):
+def calculate_emission_rate(quantum_yield=0.5, fluorescence_lifetime=1e-9):
     """
     Returns the rate of fluorescent emission based on the quantum yield and the fluorescence lifetime.
 
@@ -120,7 +124,7 @@ def calculate_emission_rate(quantum_yield, fluorescence_lifetime):
     return emis_rate
 
 
-def calculate_internal_conversion_rate(quantum_yield, emission_rate, *other_outgoing_rates_args,
+def calculate_internal_conversion_rate(quantum_yield=0.5, emission_rate=5e8, *other_outgoing_rates_args,
                                        **other_outgoing_rates_kwargs):
     """
     Calculates the rate of internal conversion from the first excited state to the vibrationally excited but
@@ -151,7 +155,7 @@ def calculate_internal_conversion_rate(quantum_yield, emission_rate, *other_outg
     return internal_conversion_rate
 
 
-def calculate_back_isomerization_rate(photon_flux, absorption_cross_section):
+def calculate_back_isomerization_rate(photon_flux=8e25, absorption_cross_section=1e-17):
     """
     Returns the back-isomerization rate for a given irradiance and an absorption cross section of the molecule/isomer.
 
@@ -168,7 +172,6 @@ def calculate_back_isomerization_rate(photon_flux, absorption_cross_section):
         The back-isomerization rate in 1/s.
     """
     absorption_cross_section = absorption_cross_section * 1e-4
-
     back_isomerization_rate = photon_flux * absorption_cross_section
 
     return back_isomerization_rate
@@ -198,7 +201,7 @@ def calculate_reduction_rate(reducing_agent='mea', concentration=100, k_pet=None
     """
     # the factor 1/7 (or 7) comes from protocols stating to either use 100 µl 100 mM MEA or 10 µl 143 mM beta-ME
     if ph != 8:
-        print('Not implemented yet')
+        raise AttributeError(f'ph of {ph} not implemented yet.')
         # some function (inverse sigmoid) to adjust the rates
 
     if not same:
@@ -213,7 +216,7 @@ def calculate_reduction_rate(reducing_agent='mea', concentration=100, k_pet=None
     return reduction_rate
 
 
-def calculate_spectral_overlap_integral(donor, acceptor, wavelengths):
+def calculate_spectral_overlap_integral(donor=None, acceptor=None, wavelengths=None):
     """
     Calculates the spectral overlap integral defined as the integral of the multiplication of the donor emission
     spectrum normalized to an area of 1, the acceptor molar extinction coefficient as a function of wavelength and the
@@ -232,7 +235,6 @@ def calculate_spectral_overlap_integral(donor, acceptor, wavelengths):
     -------
     spectral_overlap_integral : float
         The value of the spectral overlap integral in (nm**4)/(M cm).
-
     """
     donor = donor / np.trapz(donor)  # normalize spectrum to area of 1
     not_integrated = donor * acceptor * wavelengths**4
@@ -241,7 +243,7 @@ def calculate_spectral_overlap_integral(donor, acceptor, wavelengths):
     return spectral_overlap_integral
 
 
-def calculate_fret_rate(distance, emission_rate, spectral_overlap_integral, dipole_orientation_factor,
+def calculate_fret_rate(distance=10, emission_rate=5e8, spectral_overlap_integral=1e16, dipole_orientation_factor=2/3,
                         refractive_index=1):
     """
     Calculates the Förster resonance energy transfer rate.

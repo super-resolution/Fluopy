@@ -1,43 +1,114 @@
+"""
+Module blinking
+"""
 import numpy as np
 import pandas as pd
-import src.custom_plot as cp
+import src.figure as fi
 
 
 class Blinking:
+    """
+    Container for blinking-associated attributes.
+
+    Attributes
+    ----------
+    emissions : src.emissions.Emissions
+        Container for emission-associated attributes.
+    on_periods : np.ndarray
+        Contains the durations of each ON period.
+    off_periods : np.ndarray
+        Contains the durations of each OFF period.
+    on_periods_frames : np.ndarray
+        Contains the first frame of each ON period.
+    off_periods_frames : np.ndarray
+        Contains the first frame of each OFF period.
+    """
     def __init__(self, emissions, threshold=0, memory=0, remove_heading_off_period=True):
+        """
+        Parameters
+        ----------
+        emissions : src.emissions.Emissions
+            Container for emission-associated attributes.
+        threshold : int
+            Maximum value of photons per frame to be considered an OFF frame.
+        memory : int
+            Number of OFF frames to be neglected. They are included in the ON times.
+        remove_heading_off_period : bool
+            If True and the series starts with an OFF frame, the leading OFF frame is discarded.
+        """
         self.emissions = emissions
         self.on_periods, self.off_periods, self.on_periods_frames, self.off_periods_frames = \
-            get_blinking_statistics(self.emissions.event_time_series, )
+            get_blinking_statistics(event_time_series=self.emissions.event_time_series, threshold=threshold,
+                                    memory=memory, remove_heading_off_period=remove_heading_off_period)
 
-    def plot(self, mode, **kwargs):
+    def plot(self, mode='off_histogram', **kwargs):
+        """
+        Plot histogram or frame series of ON or OFF periods.
+
+        Parameters
+        ----------
+        mode : str
+            One of 'on_histogram', 'off_histogram', 'on_frame_series', 'off_frame_series'.
+        kwargs : src.figure.universal_figure arguments
+
+        Returns
+        -------
+        axes : np.ndarray
+            Contains matplotlib.axes._subplots.AxesSubplots.
+        """
         if mode == 'on_histogram':
             data = self.on_periods
             kwargs.setdefault('title', 'ON periods')
-            fig, ax = plot_histogram(data=data, **kwargs)
+            axes = plot_histogram(data=data, **kwargs)
         elif mode == 'off_histogram':
             data = self.off_periods
             kwargs.setdefault('title', 'OFF periods')
-            fig, ax = plot_histogram(data=data, **kwargs)
+            axes = plot_histogram(data=data, **kwargs)
         elif mode == 'on_frame_series':
-            data = [np.arange(0, self.on_periods.size), self.on_periods]
+            data = np.array([np.arange(0, self.on_periods.size), self.on_periods])
             kwargs.setdefault('title', 'ON periods')
-            fig, ax = plot_frame_series(data=data, **kwargs)
+            axes = plot_frame_series(data=data, **kwargs)
         elif mode == 'off_frame_series':
-            data = [np.arange(0, self.off_periods.size), self.off_periods]
+            data = np.array([np.arange(0, self.off_periods.size), self.off_periods])
             kwargs.setdefault('title', 'OFF periods')
-            fig, ax = plot_frame_series(data=data, **kwargs)
+            axes = plot_frame_series(data=data, **kwargs)
         else:
             raise AttributeError(f'mode {mode} unknown.')
 
-        return fig, ax
+        return axes
 
 
 def get_blinking_statistics(event_time_series, threshold=0, memory=0, remove_heading_off_period=True):
-    df = pd.DataFrame({'frame': np.arange(0, event_time_series.size),
-                       'intensity': event_time_series.values})
+    """
+    Determines ON and OFF times of event_time_series given that each entry represents the collected photons of one
+    frame.
 
+    Parameters
+    ----------
+    event_time_series : pd.Series
+        The return value of construct_event_time_series.
+        Contains the time points in seconds as index (time steps in between resemble frames) and the number of events
+        (i.e., detected photons) as values.
+    threshold : int
+        Maximum value of photons per frame to be considered an OFF frame.
+    memory : int
+        Number of OFF frames to be neglected. They are included in the ON times.
+    remove_heading_off_period : bool
+        If True and the series starts with an OFF frame, the leading OFF frame is discarded.
+
+    Returns
+    -------
+    on_periods : np.ndarray
+        Contains the durations of each ON period.
+    off_periods : np.ndarray
+        Contains the durations of each OFF period.
+    on_periods_frames : np.ndarray
+        Contains the first frame of each ON period.
+    off_periods_frames : np.ndarray
+        Contains the first frame of each OFF period.
+    """
+    df = pd.DataFrame({'frame': np.arange(0, event_time_series.size), 'intensity': event_time_series.values})
     df = df[df.intensity > threshold]
-
     frames = df.frame.values
 
     if frames.size != 0:
@@ -50,7 +121,7 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0, remove_hea
         if off_periods_indices.size == 0:
             off_periods = np.array([], dtype=int)
             if frames[0] > memory and not remove_heading_off_period:
-                off_periods = np.insert(off_periods, 0, frames[0])
+                off_periods = np.insert(arr=off_periods, obj=0, values=frames[0])
                 on_periods = np.array([frames[-1] - frames[0] + 1])
                 off_periods_frames = np.array([0])
                 on_periods_frames = np.array(frames[0])
@@ -135,6 +206,19 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0, remove_hea
 
 
 def plot_histogram(data, **kwargs):
+    """
+    Plot histogram of ON or OFF periods.
+
+    Parameters
+    ----------
+    data : 1-D array_like
+    kwargs : src.figure.universal_figure arguments
+
+    Returns
+    -------
+    axes : np.ndarray
+        Contains matplotlib.axes._subplots.AxesSubplots.
+    """
     kwargs.setdefault('type_', 'hist')
     kwargs.setdefault('xlabel', 'consecutive frames')
     kwargs.setdefault('ylabel', 'PD')
@@ -142,17 +226,31 @@ def plot_histogram(data, **kwargs):
 
     mean = np.mean(data)
 
-    fig, ax = cp.universal_figure(data=data, **kwargs)
-    ax[0][0].text(x=0.7, y=0.85, s=f"mean: {mean:.2f}", transform=ax[0][0].transAxes, fontsize=16)
+    axes = fi.universal_figure(data=data, **kwargs)
+    axes[0][0].text(x=0.7, y=0.85, s=f"mean: {mean:.2f}", transform=axes[0][0].transAxes, fontsize=16)
 
-    return fig, ax
+    return axes
 
 
 def plot_frame_series(data, **kwargs):
+    """
+    Plot frame series of ON or OFF periods.
+
+    Parameters
+    ----------
+    data : 2-D array_like
+        Contains x and y data.
+    kwargs : src.figure.universal_figure arguments
+
+    Returns
+    -------
+    axes : np.ndarray
+        Contains matplotlib.axes._subplots.AxesSubplots.
+    """
     kwargs.setdefault('type_', 'line')
     kwargs.setdefault('xlabel', 'frame number')
     kwargs.setdefault('ylabel', 'consecutive frames')
 
-    fig, ax = cp.universal_figure(data=data, **kwargs)
+    axes = fi.universal_figure(data=data, **kwargs)
 
-    return fig, ax
+    return axes

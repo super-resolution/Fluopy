@@ -1,13 +1,45 @@
+"""
+Module statistics
+"""
 from scipy.stats import expon
 import numpy as np
-import src.custom_plot as cp
+import pandas as pd
+import src.figure as fi
 from matplotlib.pyplot import cm
 from src.transitions import SingleState
 import src.miscellaneous as mi
 
 
 class Prediction:
+    """
+    Container of lifetimes, state and transition occurrences obtained by computation-associated attributes and methods.
+
+    Attributes
+    ----------
+    transitions : src.transitions.TransitionSet
+        Collection of all relevant transitions and related attributes.
+    lifetime_distributions : 1-D array_like
+        Contains objects of type scipy.stats.*.rv_frozen for each entry in transitions.single_states.
+    transition_time_distributions : 1-D array_like
+        Contains objects of type scipy.stats.*.rv_frozen for each entry in transitions.transitions.
+    mean_lifetimes : 1-D array_like
+        Means of lifetime_distributions.
+    mean_transition_times : 1-D array_like
+        Means of transition_time_distributions.
+    state_occurrences : 1-D array_like
+        Expected relative frequencies of each entry in transitions.single_states.
+    transition_occurrences : 1-D array_like
+        Expected relative frequencies of each entry in transitions.transitions.
+    relative_total_times : 1-D array_like
+        Time spent in the state per ALL state occurrences for each entry in transitions.single_states.
+    """
     def __init__(self, transitions):
+        """
+        Parameters
+        ----------
+        transitions : src.transitions.TransitionSet
+            Collection of all relevant transitions and related attributes.
+        """
         if (transitions.transition_df['energy_transfer'] == True).any():
             raise ValueError('prediction not available if energy transfers can occur.')
         else:
@@ -22,7 +54,17 @@ class Prediction:
             self.relative_total_times = self.state_occurrences * self.mean_lifetimes
 
     def predict_lifetimes(self):
+        """
+        Predict the lifetime distributions of transitions.single_states and the time until occurrence distributions of
+        transitions.transitions.
 
+        Returns
+        -------
+        lifetime_distributions : 1-D array_like
+            Contains objects of type scipy.stats.*.rv_frozen for each entry in transitions.single_states.
+        transition_time_distributions : 1-D array_like
+            Contains objects of type scipy.stats.*.rv_frozen for each entry in transitions.transitions.
+        """
         lifetime_distributions = np.empty(self.transitions.single_states.size, dtype=np.object)
         transition_time_distributions = np.empty(len(self.transitions.transitions), dtype=np.object)
 
@@ -44,7 +86,14 @@ class Prediction:
         return lifetime_distributions, transition_time_distributions
 
     def predict_state_occurrences(self):
+        """
+        Predict the relative frequencies of occurrences of transitions.single_states.
 
+        Returns
+        -------
+        state_occurrences : 1-D array_like
+            Expected relative frequencies of each entry in transitions.single_states.
+        """
         single_states = self.transitions.single_states
         df = self.transitions.transition_df
 
@@ -110,6 +159,14 @@ class Prediction:
         return state_occurrences
 
     def predict_transition_occurrences(self):
+        """
+        Predict the relative frequencies of occurrences of transitions.transitions.
+
+        Returns
+        -------
+        transition_occurrences : 1-D array_like
+            Expected relative frequencies of each entry in transitions.transitions.
+        """
         single_states = self.transitions.single_states
         df = self.transitions.transition_df
 
@@ -144,7 +201,28 @@ class Prediction:
 
         return transition_occurrences
 
-    def plot(self, mode, x=None, exclude=None, **kwargs):
+    def plot(self, mode='state_occurrences', x=None, exclude=None, **kwargs):
+        """
+        Plot class attributes.
+
+        Parameters
+        ----------
+        mode : str
+            One of 'state_occurrences', 'transition_occurrences', 'mean_lifetimes', 'mean_transition_times',
+            'relative_total_times', 'lifetime_distributions', 'transition_time_distributions'.
+        x : 1-D array_like
+            Value range of the x-axis.
+            Only used if mode is a probability distribution.
+        exclude : Collection
+            Ids of transitions.single_states or transitions.transitions that should not be displayed.
+            Only used if mode is a probability distribution.
+        kwargs : src.figure.universal_figure arguments
+
+        Returns
+        -------
+        axes : np.ndarray
+            Contains matplotlib.axes._subplots.AxesSubplots.
+        """
         single_states = self.transitions.single_states
         df = self.transitions.transition_df
 
@@ -163,43 +241,93 @@ class Prediction:
                 data = [np.arange(single_states.size), self.relative_total_times]
             else:
                 raise AttributeError(f'mode {mode} unknown.')
-            fig, ax = plot_bar(single_states, df, mode=mode, data=data, **kwargs)
+            axes = plot_bar(data=data, single_states=single_states, df=df, mode=mode, **kwargs)
         else:
             if mode == 'lifetime_distributions':
-                labels = [SingleState(i).name for i in single_states if i not in exclude]
+                labels = [SingleState(id).name for id in single_states if id not in exclude]
+                indices = [index for index, id in enumerate(single_states) if id not in exclude]
                 x = np.linspace(0, 1, 1000) if x is None else x
                 data = [[x, distribution.pdf(x)] for i, distribution in enumerate(self.lifetime_distributions) if
-                        i not in exclude]
+                        i in indices]
             elif mode == 'transition_time_distributions':
-                labels = [transition for i, transition in df['abbreviation'].iteritems() if
-                          i not in exclude]
+                labels = [transition for id, transition in df['abbreviation'].iteritems() if
+                          id not in exclude]
                 x = np.linspace(0, 1, 1000) if x is None else x
-                data = [[x, distribution.pdf(x)] for i, distribution in enumerate(self.transition_time_distributions) if
-                        i not in exclude]
+                data = [[x, distribution.pdf(x)] for id, distribution in enumerate(self.transition_time_distributions)
+                        if id not in exclude]
             else:
                 raise AttributeError(f'mode {mode} unknown.')
-            fig, ax = plot_prediction_distr(mode=mode, data=data, label=labels, **kwargs)
+            axes = plot_prediction_distr(data=data, mode=mode, label=labels, **kwargs)
 
-        return fig, ax
+        return axes
 
     def plot_all(self, x_lifetimes=None, x_transitions=None, exclude_lifetimes=None,
                  exclude_transitions=None):
-        fig, ax = self.plot(mode='state_occurrences', ncols=4, nrows=2, fig_width=20, fig_height=6,
-                            scale=0.5)
-        _, _ = self.plot(mode='mean_lifetimes', fig=fig, axes=ax[0, 1])
-        _, _ = self.plot(mode='lifetime_distributions', fig=fig, axes=ax[0, 2], x=x_lifetimes,
-                         exclude=exclude_lifetimes)
-        _, _ = self.plot(mode='relative_total_times', fig=fig, axes=ax[0, 3])
-        _, _ = self.plot(mode='transition_occurrences', fig=fig, axes=ax[1, 0])
-        _, _ = self.plot(mode='mean_transition_times', fig=fig, axes=ax[1, 1])
-        _, _ = self.plot(mode='transition_time_distributions', fig=fig, axes=ax[1, 2], x=x_transitions,
-                         exclude=exclude_transitions)
-        mi.delete_subplots(fig=fig, ax=ax, keep_number=7)
-        fig.tight_layout()
+        """
+        Plot all class attributes.
+
+        Parameters
+        ----------
+        x_lifetimes : 1-D array_like
+            Value range of the x-axis of lifetime_distributions
+        x_transitions : 1-D array_like
+            Value range of the x-axis of transition_time_distributions.
+        exclude_lifetimes : Collection
+            Ids of transitions.single_states whose lifetime_distribution should not be displayed.
+        exclude_transitions : Collection
+            Ids of transitions.transitions whose transition_time_distribuiton should not be displayed.
+
+        Returns
+        -------
+        axes : np.ndarray
+            Contains matplotlib.axes._subplots.AxesSubplots.
+        """
+        axes = self.plot(mode='state_occurrences', ncols=4, nrows=2, fig_width=20, fig_height=6, scale=0.5)
+        _ = self.plot(mode='mean_lifetimes', axes=axes[0, 1])
+        _ = self.plot(mode='lifetime_distributions', axes=axes[0, 2], x=x_lifetimes, exclude=exclude_lifetimes)
+        _ = self.plot(mode='relative_total_times', axes=axes[0, 3])
+        _ = self.plot(mode='transition_occurrences', axes=axes[1, 0])
+        _ = self.plot(mode='mean_transition_times', axes=axes[1, 1])
+        _ = self.plot(mode='transition_time_distributions', axes=axes[1, 2], x=x_transitions,
+                      exclude=exclude_transitions)
+        mi.delete_subplots(axes=axes, keep_number=7)
+        axes[0, 0].get_figure().tight_layout()
+
+        return axes
 
 
 class Analysis:
+    """
+    Container of lifetimes, state and transition occurrences obtained by simulation-associated attributes and methods.
+
+    Attributes
+    ----------
+    simulation : src.simulation.Simulation
+        Container for simulation-associated attributes.
+    transitions : src.transitions.TransitionSet
+        Container for all relevant transitions and related attributes.
+    lifetime_distributions : Collection
+        Contains 1-D array_like for each entry in transitions.single_states.
+    transition_time_distributions : Collection
+        Contains 1-D array_like for each entry in transitions.transitions.
+    mean_lifetimes : 1-D array_like
+        Means of lifetime_distributions.
+    mean_transition_times : 1-D array_like
+        Means of transition_time_distributions.
+    state_occurrences : 1-D array_like
+        Relative frequencies of each entry in transitions.single_states.
+    transition_occurrences : 1-D array_like
+        Relative frequencies of each entry in transitions.transitions.
+    relative_total_times : 1-D array_like
+        Time spent in the state per ALL state occurrences for each entry in transitions.single_states.
+    """
     def __init__(self, simulation):
+        """
+        Parameters
+        ----------
+        simulation : src.simulation.Simulation
+            Container for simulation-associated attributes.
+        """
         if simulation.transition_series is None:
             raise ValueError('analysis not available if simulation has not been run.')
         else:
@@ -207,19 +335,32 @@ class Analysis:
             self.transitions = simulation.transitions
             self.lifetime_distributions, self.transition_time_distributions = \
                 self.get_lifetimes()
-            self.mean_lifetimes = np.array([np.mean(lifetime_distribution) for lifetime_distribution in
-                                            self.lifetime_distributions])
-            self.mean_transition_times = np.array([np.mean(transition_time_distribution) for
-                                                   transition_time_distribution in self.transition_time_distributions])
+            self.mean_lifetimes = np.array([np.mean(lifetime_distribution) if lifetime_distribution.size > 0 else np.nan
+                                            for lifetime_distribution in self.lifetime_distributions])
+            self.mean_transition_times = np.array([np.mean(transition_time_distribution)
+                                                   if transition_time_distribution.size > 0 else np.nan
+                                                   for transition_time_distribution
+                                                   in self.transition_time_distributions])
             total_times = np.array([np.sum(lifetime_distribution) for lifetime_distribution in
                                     self.lifetime_distributions])
 
-            self.relative_total_times = total_times / self.simulation.transition_series.size
             state_occurrences, transition_occurrences = self.get_occurrences()
             self.state_occurrences = state_occurrences / np.sum(state_occurrences)
             self.transition_occurrences = transition_occurrences / np.sum(transition_occurrences)
+            self.relative_total_times = total_times / self.simulation.transition_series.size
 
     def get_lifetimes(self):
+        """
+        Get the simulated lifetime distributions of transitions.single_states and the simulated time until occurrence
+        distributions of transitions.transitions.
+
+        Returns
+        -------
+        lifetime_distributions : Collection
+            Contains 1-D array_like for each entry in transitions.single_states.
+        transition_time_distributions : Collection
+            Contains 1-D array_like for each entry in transitions.transitions.
+        """
         lifetime_distributions = [np.array([]) for _ in self.transitions.single_states]
         transition_time_distributions = [np.array([]) for _ in self.transitions.transition_df.index]
         for i, state_series_fluorophore in enumerate(self.simulation.state_series):
@@ -246,8 +387,18 @@ class Analysis:
         return lifetime_distributions, transition_time_distributions
 
     def get_occurrences(self):
-        state_occurrences = np.empty(shape=self.transitions.single_states.size, dtype=np.int64)
-        transition_occurrences = np.empty(shape=self.transitions.transition_df.index.size, dtype=np.int64)
+        """
+        Get simulated total occurrences of transitions.single_states and transitions.transitions.
+
+        Returns
+        -------
+        state_occurrences : 1-D array_like
+            Total occurrences of each entry in transitions.single_states.
+        transition_occurrences : 1-D array_like
+            Total occurrences of each entry in transitions.transitions.
+        """
+        state_occurrences = np.zeros(shape=self.transitions.single_states.size, dtype=np.int64)
+        transition_occurrences = np.zeros(shape=self.transitions.transition_df.index.size, dtype=np.int64)
 
         for state_series_fluorophore in self.simulation.state_series:
             differences = np.diff(state_series_fluorophore)
@@ -257,7 +408,7 @@ class Analysis:
             states = state_series_fluorophore[changes_at_and_last]
             state_ids, state_counts = np.unique(states, return_counts=True)
             corresponding_state_indices = np.in1d(self.transitions.single_states, state_ids).nonzero()[0]
-            state_occurrences[corresponding_state_indices] = state_counts
+            state_occurrences[corresponding_state_indices] += state_counts
 
         for j in self.transitions.transition_df.index:
             combined_state_transition_ids = self.transitions.combined_state_transitions_df[
@@ -267,7 +418,28 @@ class Analysis:
 
         return state_occurrences, transition_occurrences
 
-    def plot(self, mode, exclude=None, prediction=None, **kwargs):
+    def plot(self, mode='state_occurrences', exclude=None, prediction=None, **kwargs):
+        """
+        Plot class attributes.
+
+        Parameters
+        ----------
+        mode : str
+            One of 'state_occurrences', 'transition_occurrences', 'mean_lifetimes', 'mean_transition_times',
+            'relative_total_times', 'lifetime_distributions', 'transition_time_distributions'.
+        exclude : Collection
+            Ids of transitions.single_states or transitions.transitions that should not be displayed.
+            Only used if mode is a probability distribution.
+        prediction : None, Prediction
+            Container of lifetimes, state and transition occurrences obtained by computation-associated attributes and
+            methods.
+        kwargs : src.figure.universal_figure arguments
+
+        Returns
+        -------
+        axes : np.ndarray
+            Contains matplotlib.axes._subplots.AxesSubplots.
+        """
         if exclude is None:
             exclude = []
         marker = None
@@ -283,11 +455,11 @@ class Analysis:
                 if prediction is not None:
                     marker = [x_states, prediction.state_occurrences]
             elif mode == 'mean_lifetimes':
-                data = [x_states, self.mean_lifetimes]
+                data = [x_states, np.nan_to_num(self.mean_lifetimes)]
                 if prediction is not None:
                     marker = [x_states, prediction.mean_lifetimes]
             elif mode == 'mean_transition_times':
-                data = [x_transitions, self.mean_transition_times]
+                data = [x_transitions, np.nan_to_num(self.mean_transition_times)]
                 if prediction is not None:
                     marker = [x_transitions, prediction.mean_transition_times]
             elif mode == 'relative_total_times':
@@ -296,47 +468,91 @@ class Analysis:
                     marker = [x_states, prediction.relative_total_times]
             else:
                 raise AttributeError(f'mode {mode} unknown.')
-            fig, ax = plot_bar(self.transitions.single_states, self.transitions.transition_df, mode=mode, data=data,
-                               draw_marker=marker, **kwargs)
+            axes = plot_bar(data=data, single_states=self.transitions.single_states, df=self.transitions.transition_df,
+                            mode=mode, draw_marker=marker, **kwargs)
         else:
             plot_distribution = None
             if mode == 'lifetime_distributions':
-                labels = [SingleState(i).name for i in self.transitions.single_states if i not in exclude]
+                labels = [SingleState(id).name for id in self.transitions.single_states if id not in exclude]
+                indices = [index for index, id in enumerate(self.transitions.single_states) if id not in exclude]
                 data = [distribution for i, distribution in enumerate(self.lifetime_distributions) if
-                        i not in exclude]
+                        i in indices]
                 if prediction is not None:
-                    plot_distribution = prediction.lifetime_distributions
+                    plot_distribution = prediction.lifetime_distributions[indices]
             elif mode == 'transition_time_distributions':
-                labels = [transition for i, transition in self.transitions.transition_df['abbreviation'].iteritems() if
-                          i not in exclude]
-                data = [distribution for i, distribution in enumerate(self.transition_time_distributions) if
-                        i not in exclude]
+                labels = [transition for id, transition in self.transitions.transition_df['abbreviation'].iteritems() if
+                          id not in exclude]
+                data = [distribution for id, distribution in enumerate(self.transition_time_distributions) if
+                        id not in exclude]
                 if prediction is not None:
-                    plot_distribution = prediction.transition_time_distributions
+                    plot_distribution = [distribution for id, distribution in
+                                         enumerate(prediction.transition_time_distributions) if id not in exclude]
             else:
                 raise AttributeError(f'mode {mode} unknown.')
 
-            fig, ax = plot_analysis_distr(mode=mode, data=data, label=labels, plot_distribution=plot_distribution,
-                                          **kwargs)
+            axes = plot_analysis_distr(data=data, mode=mode, label=labels, plot_distribution=plot_distribution,
+                                       **kwargs)
 
-        return fig, ax
+        return axes
 
     def plot_all(self, exclude_lifetimes=None, exclude_transitions=None, prediction=None):
-        fig, ax = self.plot(mode='state_occurrences', ncols=4, nrows=2, fig_width=20, fig_height=6,
-                            scale=0.5, prediction=prediction)
-        _, _ = self.plot(mode='mean_lifetimes', fig=fig, axes=ax[0, 1], prediction=prediction)
-        _, _ = self.plot(mode='lifetime_distributions', fig=fig, axes=ax[0, 2], exclude=exclude_lifetimes,
+        """
+        Plot all class attributes.
+
+        Parameters
+        ----------
+        exclude_lifetimes : Collection
+            Ids of transitions.single_states whose lifetime_distribution should not be displayed.
+        exclude_transitions : Collection
+            Ids of transitions.transitions whose transition_time_distribution should not be displayed.
+        prediction : None, Prediction
+            Container of lifetimes, state and transition occurrences obtained by computation-associated attributes and
+            methods.
+
+        Returns
+        -------
+        axes : np.ndarray
+            Contains matplotlib.axes._subplots.AxesSubplots.
+        """
+        axes = self.plot(mode='state_occurrences', ncols=4, nrows=2, fig_width=20, fig_height=6, scale=0.5,
                          prediction=prediction)
-        _, _ = self.plot(mode='relative_total_times', fig=fig, axes=ax[0, 3], prediction=prediction)
-        _, _ = self.plot(mode='transition_occurrences', fig=fig, axes=ax[1, 0], prediction=prediction)
-        _, _ = self.plot(mode='mean_transition_times', fig=fig, axes=ax[1, 1], prediction=prediction)
-        _, _ = self.plot(mode='transition_time_distributions', fig=fig, axes=ax[1, 2],
-                         exclude=exclude_transitions, prediction=prediction)
-        mi.delete_subplots(fig=fig, ax=ax, keep_number=7)
-        fig.tight_layout()
+        _ = self.plot(mode='mean_lifetimes', axes=axes[0, 1], prediction=prediction)
+        _ = self.plot(mode='lifetime_distributions', axes=axes[0, 2], exclude=exclude_lifetimes,
+                      prediction=prediction)
+        _ = self.plot(mode='relative_total_times', axes=axes[0, 3], prediction=prediction)
+        _ = self.plot(mode='transition_occurrences', axes=axes[1, 0], prediction=prediction)
+        _ = self.plot(mode='mean_transition_times', axes=axes[1, 1], prediction=prediction)
+        _ = self.plot(mode='transition_time_distributions', axes=axes[1, 2],
+                      exclude=exclude_transitions, prediction=prediction)
+        mi.delete_subplots(axes=axes, keep_number=7)
+        axes[0, 0].get_figure().tight_layout()
+
+        return axes
 
 
-def plot_bar(single_states, df, mode, data, **kwargs):
+def plot_bar(data, single_states, df, mode='state_occurrences', **kwargs):
+    """
+    Bar plot.
+
+    Parameters
+    ----------
+    data : 2-D array_like
+        Contains x and y data.
+    single_states : 1-D array_like
+        Contains the values of all relevant SingleStates.
+    df : pd.DataFrame
+        Dataframe of all transitions with non-zero rate containing their id as index and their other attributes as
+        columns.
+    mode : str
+        One of 'state_occurrences', 'transition_occurrences', 'mean_lifetimes', 'mean_transition_times',
+        'relative_total_times'.
+    kwargs : src.figure.universal_figure arguments
+
+    Returns
+    -------
+    axes : np.ndarray
+        Contains matplotlib.axes._subplots.AxesSubplots.
+    """
     from src.transitions import SingleState
     kwargs.setdefault('type_', 'bar')
     kwargs.setdefault('xlabel', None)
@@ -347,8 +563,7 @@ def plot_bar(single_states, df, mode, data, **kwargs):
         kwargs.setdefault('xticklabels', dict(labels=df['abbreviation'], rotation=70))
     else:
         kwargs.setdefault('xticks', range(single_states.size))
-        kwargs.setdefault('xticklabels', dict(labels=[SingleState(i).name for i in single_states],
-                                              rotation=70))
+        kwargs.setdefault('xticklabels', dict(labels=[SingleState(id).name for id in single_states], rotation=70))
     if mode == 'state_occurrences':
         kwargs.setdefault('ylabel', 'PR')
         kwargs.setdefault('title', 'single states')
@@ -365,12 +580,28 @@ def plot_bar(single_states, df, mode, data, **kwargs):
         kwargs.setdefault('ylabel', 'duration per event [s]')
         kwargs.setdefault('title', 'occupation time')
 
-    fig, ax = cp.universal_figure(data=data, **kwargs)
+    axes = fi.universal_figure(data=data, **kwargs)
 
-    return fig, ax
+    return axes
 
 
-def plot_prediction_distr(mode, data, **kwargs):
+def plot_prediction_distr(data, mode='lifetime_distributions', **kwargs):
+    """
+    Plot predicted distributions.
+
+    Parameters
+    ----------
+    data : Collection
+        Contains 2-D array_like.
+    mode : str
+        One of 'lifetime_distributions', 'transition_time_distributions'.
+    kwargs : src.figure.universal_figure arguments
+
+    Returns
+    -------
+    axes : np.ndarray
+        Contains matplotlib.axes._subplots.AxesSubplots.
+    """
     kwargs.setdefault('type_', 'multiple_line')
     kwargs.setdefault('ylabel', 'PD')
     kwargs.setdefault('legend', True)
@@ -382,12 +613,28 @@ def plot_prediction_distr(mode, data, **kwargs):
     elif mode == 'transition_time_distributions':
         kwargs.setdefault('xlabel', 'time to transition [s]')
 
-    fig, ax = cp.universal_figure(data=data, **kwargs)
+    axes = fi.universal_figure(data=data, **kwargs)
 
-    return fig, ax
+    return axes
 
 
-def plot_analysis_distr(mode, data, **kwargs):
+def plot_analysis_distr(data, mode='lifetime_distributions', **kwargs):
+    """
+    Plot simulated distributions.
+
+    Parameters
+    ----------
+    data : Collection
+        Contains 1-D array_like.
+    mode : str
+        One of 'lifetime_distributions', 'transition_time_distributions'.
+    kwargs : src.figure.universal_figure arguments
+
+    Returns
+    -------
+    axes : np.ndarray
+        Contains matplotlib.axes._subplots.AxesSubplots.
+    """
     kwargs.setdefault('type_', 'multiple_hist')
     kwargs.setdefault('ylabel', 'PD')
     kwargs.setdefault('legend', True)
@@ -400,6 +647,6 @@ def plot_analysis_distr(mode, data, **kwargs):
     elif mode == 'transition_time_distributions':
         kwargs.setdefault('xlabel', 'time to transition [s]')
 
-    fig, ax = cp.universal_figure(data=data, **kwargs)
+    axes = fi.universal_figure(data=data, **kwargs)
 
-    return fig, ax
+    return axes

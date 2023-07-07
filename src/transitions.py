@@ -1,3 +1,6 @@
+"""
+Module transitions
+"""
 from enum import Enum
 import numpy as np
 import pandas as pd
@@ -10,6 +13,9 @@ from pathlib import Path
 
 
 class SingleState(Enum):
+    """
+    Assigns a unique identifier (value) to each possible photophysical state.
+    """
     S0 = 0
     S1 = 1
     S2 = 2
@@ -21,6 +27,11 @@ class SingleState(Enum):
 
 
 class PairedState(Enum):
+    """
+    Assigns a combination of SingleState to each energy transfer related paired state. E.g., the classical Förster
+    resonance energy transfer needs one fluorophore to be in S1 and another fluorophore closeby to be in S0. After the
+    transition, the first fluorophore will be in S0 and the other in S1.
+    """
     S1_S0 = [SingleState.S1, SingleState.S0]
     S0_S1 = [SingleState.S0, SingleState.S1]
     S1_T1 = [SingleState.S1, SingleState.T1]
@@ -31,11 +42,28 @@ class PairedState(Enum):
 
     @property
     def single_state_values(self):
+        """
+        Returns a tuple of SingleState values.
+        """
         return self.value[0].value, self.value[1].value
 
 
 @dataclass
 class TransitionAttributes:
+    """
+    Contains constant attributes of photophysical transitions.
+
+    Attributes
+    ----------
+    abbreviation : str
+        Abbreviation of the transition.
+    initial_state : SingleState, PairedState
+        Initial state of the transition.
+    final_state : SingleState, PairedState
+        Final state of the transition.
+    photon : bool
+        Whether the transition emits a photon.
+    """
     abbreviation: str
     initial_state: SingleState | PairedState
     final_state: SingleState | PairedState
@@ -43,6 +71,9 @@ class TransitionAttributes:
 
 
 class TransitionType(Enum):
+    """
+    Assigns constant attributes to each possible photophysical transition.
+    """
     EXCITATION = TransitionAttributes('EXC', SingleState.S0, SingleState.S1, False)
     FLUORESCENT_EMISSION = TransitionAttributes('FLU', SingleState.S1, SingleState.S0, True)
     INTERSYSTEM_CROSSING_ST = TransitionAttributes('ISCST', SingleState.S1, SingleState.T1, False)
@@ -64,23 +95,59 @@ class TransitionType(Enum):
 
     @property
     def abbreviation(self):
+        """
+        Returns the abbreviation of type str.
+        """
         return self.value.abbreviation
 
     @property
     def initial_state(self):
+        """
+        Returns the initial state of type SingleState or PairedState.
+        """
         return self.value.initial_state
 
     @property
     def final_state(self):
+        """
+        Returns the final state of type SingleState or PairedState.
+        """
         return self.value.final_state
 
     @property
     def photon(self):
+        """
+        Returns bool indicating whether the transition emits a photon.
+        """
         return self.value.photon
 
 
 @dataclass(slots=True)  # frozen=True if code will not be modified (autoreload complications otherwise)
 class Transition:
+    """
+    Contains constant and variable attributes of photophysical transitions.
+
+    Attributes
+    ----------
+    id : int
+        The id of the transition. Not None if transition is part of a TransitionSet.
+    transition_type : TransitionType
+        The photophysical type of the transitions with its constant attributes.
+    abbreviation : str
+        The abbreviation of the transition.
+    initial_state : SingleState, PairedState
+        The initial state of the transition.
+    final_state : SingleState, PairedState
+        The final state of the transition.
+    rate : float
+        The rate of the transition.
+    photon : bool
+        Whether the transition emits a photon.
+    energy_transfer : bool
+        Whether the transition is an energy transfer.
+    distance : None, float
+        Not None if the transition is an energy transfer. The distance of the two involved fluorophores.
+    """
     id: int = field(init=False)
     transition_type: TransitionType = field()
     abbreviation: str = field(init=False)
@@ -97,6 +164,7 @@ class Transition:
         object.__setattr__(self, 'initial_state', self.transition_type.initial_state)
         object.__setattr__(self, 'final_state', self.transition_type.final_state)
         object.__setattr__(self, 'photon', self.transition_type.photon)
+        object.__setattr__(self, 'id', None)
         if isinstance(self.initial_state, PairedState):
             if self.distance is None:
                 raise AttributeError('distance has to be defined if transition is energy transfer.')
@@ -108,8 +176,39 @@ class Transition:
 
 
 class TransitionSet:
+    """
+    Collection of all relevant transitions and related attributes. Allows optional post-init-modification and
+    (subsequent) finalization.
 
+    Attributes
+    ----------
+    transitions : Collection
+        Contains all given transitions of type Transition with non-zero rate.
+    transition_df : pd.DataFrame
+        Dataframe of all given transitions with non-zero rate containing their id as index and their other attributes as
+        columns.
+    single_states : 1-D array_like
+        Contains the values of all relevant SingleStates.
+    fluorophore_system : src.fluorophores.FluorophoreSystem
+        Container for attributes of multiple, interrelated fluorophores.
+    combined_state_transitions_df : pd.DataFrame
+        Contains realizable combined_state_transitions with their id as index and their other attributes as columns.
+    transition_matrix : np.ndarray
+        Contains the normalized rate constants (i.e., point probabilities) for each possible combined_state_transition
+        at the corresponding index pair.
+    row_sums : np.ndarray
+        Contains the sum of each row of non-normalized transition rates, i.e., the sum of rates of all possbile
+        combined_state_transitions.
+    """
     def __init__(self, transitions, fluorophore_system):
+        """
+        Parameters
+        ----------
+        transitions : Collection
+            Contains transitions of type Transition.
+        fluorophore_system : src.fluorophores.FluorophoreSystem
+            Container for attributes of multiple, interrelated fluorophores.
+        """
         self.transitions = [transition for transition in transitions if transition.rate != 0]
         for i, transition in enumerate(self.transitions):
             transition.id = i
@@ -123,12 +222,22 @@ class TransitionSet:
         self.transition_matrix = None
         self.row_sums = None
 
-        self.predicted_lifetime_distributions = None
-        self.predicted_transition_time_distributions = None
-        self.predicted_state_occurrences = None
-        self.predicted_transition_occurrences = None
+    def filter_by_abbreviation(self, remove_list=None):
+        """
+        Removes transitions by their abbreviation.
 
-    def filter_by_abbreviation(self, remove_list):
+        Parameters
+        ----------
+        remove_list : Collection
+            Contains abbreviations of type str. Transitions with abbreviations contained in this list are removed.
+
+        Returns
+        -------
+        TransitionSet
+            Re-initilaization of the object with the modified transition collection.
+        """
+        if remove_list is None:
+            remove_list = []
         filtered_transitions = []
         for transition in self.transitions:
             if not transition.energy_transfer and transition.abbreviation not in remove_list:
@@ -139,43 +248,131 @@ class TransitionSet:
 
         return TransitionSet(transitions=filtered_transitions, fluorophore_system=self.fluorophore_system)
 
-    def adjust_rates(self, change_dict):
+    def adjust_rates(self, change_dict=None):
+        """
+        Modify rates of transitions.
+
+        Parameters
+        ----------
+        change_dict : dict
+            Contains abbreviations of transitions as key and rates as values.
+
+        Returns
+        -------
+        self
+        """
+        if change_dict is None:
+            change_dict = {}
         for transition in self.transitions:
             if transition.abbreviation in change_dict:
                 transition.rate = change_dict[transition.abbreviation]
 
+        return self
+
     def finalize(self):
-        state_combinations = get_state_combinations(self.single_states, self.fluorophore_system.count)
-        combined_state_transitions = get_combined_state_transitions(state_combinations)
-        combined_state_transitions_with_rates = construct_transition_rate_list(self.transitions,
-                                                                               combined_state_transitions,
-                                                                               self.fluorophore_system.distances)
+        """
+        Construct combined_state_transitions_df, transition_matrix and row_sums.
+
+        Returns
+        -------
+        self
+        """
+        state_combinations = get_state_combinations(states=self.single_states, repeat=self.fluorophore_system.count)
+        combined_state_transitions = get_combined_state_transitions(state_combinations=state_combinations)
+        combined_state_transitions_with_rates = \
+            construct_transition_rate_list(transitions=self.transitions,
+                                           combined_state_transitions=combined_state_transitions,
+                                           distance_lookup=self.fluorophore_system.distances)
 
         self.combined_state_transitions_df = pd.DataFrame(combined_state_transitions_with_rates,
                                                           columns=['initial_state', 'final_state', 'abbreviation',
                                                                    'transition_id', 'rate', 'photon'])
         self.combined_state_transitions_df.index.name = 'id'
 
-        self.transition_matrix, self.row_sums = construct_transition_matrix(self.combined_state_transitions_df)
+        self.transition_matrix, self.row_sums = \
+            construct_transition_matrix(combined_state_transitions_df=self.combined_state_transitions_df)
 
         return self
 
     def plot(self, graph_type='shell', colors=None):
-        network = net.construct_network(self.transition_df)
-        fig, ax = net.plot_network(network, graph_type, colors)
+        """
+        Plot photophysical system as network/graph.
 
-        return fig, ax
+        Parameters
+        ----------
+        graph_type : str
+            Specifies network layout. One of 'shell', 'circular', 'planar' or 'kamada'.
+        colors : Collection
+            Contains two colors as Hex values of type str.
+
+        Returns
+        -------
+        ax : matplotlib.axes._subplots.AxesSubplot
+        """
+        network = net.construct_network(transition_df=self.transition_df)
+        ax = net.plot_network(network=network, graph_type=graph_type, colors=colors)
+
+        return ax
 
 
-def get_state_combinations(states, fluorophore_count):
-    return list(product(states, repeat=fluorophore_count))
+def get_state_combinations(states, repeat=2):
+    """
+    Combines all given states with themselves repeat times. Cartesian product, see itertools.product().
+
+    Parameters
+    ----------
+    states : np.ndarray
+        States to be combined.
+    repeat : int
+        Number of repetitions.
+
+    Returns
+    -------
+    list
+        Contains state combinations of type tuple.
+    """
+    return list(product(states, repeat=repeat))
 
 
 def get_combined_state_transitions(state_combinations):
+    """
+    Combines all given state_combinations with themselves 2 times. Cartesian product, see itertools.product().
+    Each combination resembles a combined_state_transition.
+
+    Parameters
+    ----------
+    state_combinations : Collection
+        state_combinations to be combined.
+
+    Returns
+    -------
+    list
+        Contains combinations of state_combinations of type tuple.
+    """
     return list(product(state_combinations, repeat=2))
 
 
 def rate_assignment_standard(transition, transition_rate_list, combined_state_transitions):
+    """
+    Adds a realizable combined_state_transition that is no energy transfer as a list to the transition_rate_list.
+    Here, a combined_state_transition is realizable, if its first state_combination (i.e., current_state) and its second
+    state_combination (i.e., future_state) have and only have a change in the state of one fluorophore that can also be
+    found in the photophysical transition.
+
+    Parameters
+    ----------
+    transition : Transition
+        Contains constant and variable attributes of a photophysical transition.
+    transition_rate_list : Collection
+        Destination of realizable combined_state_transitions.
+    combined_state_transitions : Collection
+        Contains combinations of state_combinations of type tuple.
+
+    Returns
+    -------
+    transition_rate_list : list
+        The altered input parameter.
+    """
     source = transition.initial_state.value
     destination = transition.final_state.value
 
@@ -199,6 +396,28 @@ def rate_assignment_standard(transition, transition_rate_list, combined_state_tr
 
 
 def rate_assignment_energy_transfer(transition, transition_rate_list, combined_state_transitions, distance_lookup):
+    """
+    Adds a realizable combined_state_transition that is also an energy transfer as a list to the transition_rate_list.
+    Here, a combined_state_transition is realizable, if its first state_combination (i.e., current_state) and its second
+    state_combination (i.e., future_state) have and only have a change in the state of two fluorophores that can also be
+    found in the photophysical transition.
+
+    Parameters
+    ----------
+    transition : Transition
+        Contains constant and variable attributes of a photophysical transition.
+    transition_rate_list : Collection
+        Destination of realizable combined_state_transitions.
+    combined_state_transitions : Collection
+        Contains combinations of state_combinations of type tuple.
+    distance_lookup : dict
+        Contains tuples of 2 fluorophore ids as keys and their distance as values.
+
+    Returns
+    -------
+    transition_rate_list : list
+        The altered input parameter.
+    """
     source_1, source_2 = transition.initial_state.single_state_values
     destination_1, destination_2 = transition.final_state.single_state_values
     distance = transition.distance
@@ -215,12 +434,12 @@ def rate_assignment_energy_transfer(transition, transition_rate_list, combined_s
                                 future_state_part = future_state[:j] + future_state[j+1:i] + \
                                                     future_state[i+1:]
                                 current_state_part = current_state[:j] + current_state[j+1:i] + \
-                                                     current_state[i+1:]
+                                    current_state[i+1:]
                             else:
                                 future_state_part = future_state[:i] + future_state[i+1:j] + \
                                                     future_state[j+1:]
                                 current_state_part = current_state[:i] + current_state[i+1:j] + \
-                                                     current_state[j+1:]
+                                    current_state[j+1:]
                             if not future_state_part == current_state_part:
                                 break
                             else:
@@ -235,19 +454,53 @@ def rate_assignment_energy_transfer(transition, transition_rate_list, combined_s
 
 
 def construct_transition_rate_list(transitions, combined_state_transitions, distance_lookup):
+    """
+    Constructs a list that contains lists of each realizable combined_state_transition. The inner lists contain
+    initial state_combination, final state_combination, abbreviation, transition id, rate and whether a photon is
+    emitted.
+
+    Parameters
+    ----------
+    transitions : Collection
+        Contains transitions of type Transition with non-zero rate.
+    combined_state_transitions : Collection
+        Contains combinations of state_combinations of type tuple.
+    distance_lookup : dict
+        Contains tuples of 2 fluorophore ids as keys and their distance as values.
+
+    Returns
+    -------
+    transition_rate_list : list
+        Contains lists of each realizable combined_state_transition.
+    """
     transition_rate_list = list()
     for transition in transitions:
         if isinstance(transition.initial_state, SingleState):
-            transition_rate_list = rate_assignment_standard(transition, transition_rate_list,
-                                                            combined_state_transitions)
+            transition_rate_list = \
+                rate_assignment_standard(transition=transition, transition_rate_list=transition_rate_list,
+                                         combined_state_transitions=combined_state_transitions)
         else:
-            transition_rate_list = rate_assignment_energy_transfer(transition, transition_rate_list,
-                                                                   combined_state_transitions,
-                                                                   distance_lookup)
+            transition_rate_list = \
+                rate_assignment_energy_transfer(transition=transition, transition_rate_list=transition_rate_list,
+                                                combined_state_transitions=combined_state_transitions,
+                                                distance_lookup=distance_lookup)
     return transition_rate_list
 
 
 def get_single_states(transitions):
+    """
+    Gets the values of SingleStates that occur in transitions.
+
+    Parameters
+    ----------
+    transitions : Collection
+        Contains transitions of type Transition with non-zero rate.
+
+    Returns
+    -------
+    single_states : np.ndarray
+        Contains the values of all relevant SingleStates.
+    """
     single_states = []
     for transition in transitions:
         initial_state = transition.initial_state
@@ -269,7 +522,26 @@ def get_single_states(transitions):
 
 
 def construct_transition_matrix(combined_state_transitions_df):
+    """
+    Constructs a matrix of shape (combined_state_transitions_df.index.size, combined_state_transitions_df.index.size).
+    The matrix is non-zero at a position, if the first index is a final_state in combined_state_transition_df which
+    is the initial_state of the second index. In other words, the matrix is non-zero, if a transition (first index or
+    row) can be followed by another transition (second index or column).
 
+    Parameters
+    ----------
+    combined_state_transitions_df : pd.DataFrame
+        Contains realizable combined_state_transitions with their id as index and their other attributes as columns.
+
+    Returns
+    -------
+    transition_matrix : np.ndarray
+        Contains the normalized rate constants (i.e., point probabilities) for each possible combined_state_transition
+        at the corresponding index pair.
+    row_sums : np.ndarray
+        Contains the sum of each row of non-normalized transition rates, i.e., the sum of rates of all possbile
+        combined_state_transitions.
+    """
     transition_count = combined_state_transitions_df.index.size
     transition_rate_matrix = np.zeros(shape=(transition_count, transition_count))
 
@@ -287,14 +559,36 @@ def construct_transition_matrix(combined_state_transitions_df):
 
 
 def get_energy_transfer_transitions(transition_type, distances, rates=None, calculate_rates=None):
+    """
+    Gets an energy transfer transition of transition_type for each unqiue distance present in distances.
+
+    Parameters
+    ----------
+    transition_type : TransitionType
+        Type of the energy transfer transition.
+    distances : dict
+        Contains tuples of 2 fluorophore ids as keys and their distance as values.
+    rates : None, array_like
+        Contains (unsorted) rate values.
+    calculate_rates : None, dict
+        Contains the keys emission_rate, spectral_overlap_integral, dipole_orientation_factor.
+
+    Returns
+    -------
+    energy_transfer_transitions : Collection
+        Contains energy transfer transitions of type Transition.
+    """
     if rates is None and calculate_rates is None:
         return AttributeError('either rates or calculate_rates must be defined.')
     elif rates is not None and calculate_rates is not None:
         return AttributeError('either rates or calculate_rates must be None.')
+
     distances = np.unique(list(distances.values()))
     if rates is not None:
+        rates_sorted = np.sort(rates)
+        distances_sorted = np.sort(distances)
         energy_transfer_transitions = [Transition(rate=rate, transition_type=transition_type, distance=distance)
-                                       for rate, distance in zip(rates, distances)]
+                                       for rate, distance in zip(rates_sorted, distances_sorted)]
     else:
         energy_transfer_transitions = []
         for distance in distances:
@@ -305,24 +599,44 @@ def get_energy_transfer_transitions(transition_type, distances, rates=None, calc
     return energy_transfer_transitions
 
 
-def load_transitions(fluorophore_system, irradiance, wavelength, **dstorm_parameters):
-    if not hasattr(fluorophore_system.fluorophores[0], 'attributes'):
+def load_transitions(fluorophore_system, irradiance=2, wavelength=600, **dstorm_parameters):
+    """
+    Loads transitions based on the fluorophore type and experimental conditions to be mimicked.
+
+    Parameters
+    ----------
+    fluorophore_system : src.fluorophores.FluorophoreSystem
+        Container for attributes of multiple, interrelated fluorophores.
+    irradiance : float
+        Irradiance in kW/cm².
+    wavelength : float
+        Wavelength in nm.
+    dstorm_parameters : dict
+        May contain the following keys: reducing_agent, concentration, k_pet, ph, same.
+
+    Returns
+    -------
+    transitions : Collection
+        Contains transitions of type Transition.
+    """
+    if fluorophore_system.fluorophores[0].attribute_container is None:
         raise ValueError('load_transitions() not available for this kind of fluorophore.')
-    data = fluorophore_system.fluorophores[0].attributes
+    data = fluorophore_system.fluorophores[0].attribute_container
     distances = fluorophore_system.distances
 
     path_absorption = Path(__file__).parent / r'fluorophores\cy5_absorption.xlsx'
-    dataframe_absorption = pd.read_excel(path_absorption, sheet_name=0, index_col='wavelength [nm]')
+    dataframe_absorption = pd.read_excel(io=path_absorption, sheet_name=0, index_col='wavelength [nm]')
 
     wavenumber, wavelength, frequency = fo.convert_wavenumber_wavelength_frequency(wavelength=wavelength)
-    photon_flux = fo.calculate_photon_flux(irradiance, frequency)
+    photon_flux = fo.calculate_photon_flux(irradiance=irradiance, frequency=frequency)
     relative_extinction = dataframe_absorption.loc[int(wavelength), 'relative extinction']
     effective_extinction = relative_extinction * data.maximum_extinction_coefficient
 
     excitation_rate = fo.calculate_excitation_rate(photon_flux=photon_flux, extinction_coefficient=effective_extinction)
     excitation = Transition(rate=excitation_rate, transition_type=TransitionType.EXCITATION)
 
-    emission_rate = fo.calculate_emission_rate(data.quantum_yield, data.fluorescence_lifetime)
+    emission_rate = fo.calculate_emission_rate(quantum_yield=data.quantum_yield,
+                                               fluorescence_lifetime=data.fluorescence_lifetime)
     emission = Transition(rate=emission_rate, transition_type=TransitionType.FLUORESCENT_EMISSION)
 
     isc_st = Transition(rate=data.isc_st_rate, transition_type=TransitionType.INTERSYSTEM_CROSSING_ST)
@@ -331,13 +645,16 @@ def load_transitions(fluorophore_system, irradiance, wavelength, **dstorm_parame
 
     isomerization = Transition(rate=data.iso_rate, transition_type=TransitionType.ISOMERIZATION)
 
-    biso_rate = fo.calculate_back_isomerization_rate(photon_flux, data.biso_cross_section)
+    biso_rate = fo.calculate_back_isomerization_rate(photon_flux=photon_flux,
+                                                     absorption_cross_section=data.biso_cross_section)
     bisomerization = Transition(rate=biso_rate, transition_type=TransitionType.BACKISOMERIZATION)
 
-    internal_conversion_rate = fo.calculate_internal_conversion_rate(data.quantum_yield, emission_rate,
-                                                                     data.iso_rate, data.isc_st_rate)
+    internal_conversion_rate = fo.calculate_internal_conversion_rate(quantum_yield=data.quantum_yield,
+                                                                     emission_rate=emission_rate,
+                                                                     iso_rate=data.iso_rate,
+                                                                     isc_st_rate=data.isc_st_rate)
     internal_conversion = Transition(rate=internal_conversion_rate,
-                                        transition_type=TransitionType.INTERNAL_CONVERSION_S)
+                                     transition_type=TransitionType.INTERNAL_CONVERSION_S)
 
     dstorm_red_rate = fo.calculate_reduction_rate(k_pet=data.dstorm_red_rate_mol, **dstorm_parameters)
     dstorm_red = Transition(rate=dstorm_red_rate, transition_type=TransitionType.REDUCTION)
@@ -347,22 +664,22 @@ def load_transitions(fluorophore_system, irradiance, wavelength, **dstorm_parame
     calculate_homo_fret = {'emission_rate': emission_rate, 'spectral_overlap_integral': data.j_homo_fret,
                            'dipole_orientation_factor': data.fret_kappa_sq}
     homo_frets = get_energy_transfer_transitions(transition_type=TransitionType.HOMO_FRET, distances=distances,
-                                                    rates=None, calculate_rates=calculate_homo_fret)
+                                                 rates=None, calculate_rates=calculate_homo_fret)
 
     calculate_cis_fret = {'emission_rate': emission_rate, 'spectral_overlap_integral': data.j_cis_fret,
-                           'dipole_orientation_factor': data.fret_kappa_sq}
+                          'dipole_orientation_factor': data.fret_kappa_sq}
     cis_frets = get_energy_transfer_transitions(transition_type=TransitionType.CIS_FRET, distances=distances,
-                                                    rates=None, calculate_rates=calculate_cis_fret)
+                                                rates=None, calculate_rates=calculate_cis_fret)
 
     calculate_triplet_fret = {'emission_rate': emission_rate, 'spectral_overlap_integral': data.j_triplet_fret,
-                           'dipole_orientation_factor': data.fret_kappa_sq}
+                              'dipole_orientation_factor': data.fret_kappa_sq}
     triplet_frets = get_energy_transfer_transitions(transition_type=TransitionType.TRIPLET_FRET, distances=distances,
                                                     rates=None, calculate_rates=calculate_triplet_fret)
 
     calculate_off_fret = {'emission_rate': emission_rate, 'spectral_overlap_integral': data.j_off_fret,
-                           'dipole_orientation_factor': data.fret_kappa_sq}
+                          'dipole_orientation_factor': data.fret_kappa_sq}
     off_frets = get_energy_transfer_transitions(transition_type=TransitionType.OFF_FRET, distances=distances,
-                                                    rates=None, calculate_rates=calculate_off_fret)
+                                                rates=None, calculate_rates=calculate_off_fret)
 
     transitions = [excitation, emission, isc_st, isc_ts, isomerization, bisomerization, internal_conversion, dstorm_red,
                    dstorm_oxi] + homo_frets + cis_frets + triplet_frets + off_frets

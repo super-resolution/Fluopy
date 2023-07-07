@@ -1,5 +1,6 @@
-"""Contains distributions as PDFs, CDFs or RVS-generators that are important in the context of photophysical
-processes."""
+"""
+Module distributions
+"""
 import numpy as np
 from scipy.special import i1
 from scipy.stats import rv_discrete
@@ -32,7 +33,7 @@ def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100
         High gain amplification noise distribution.
     """
     # the value z of iv cannot be larger than ~714:
-    x = np.arange(x_min, x_max)
+    x = np.arange(start=x_min, stop=x_max)
 
     x = x.astype(float)
 
@@ -61,7 +62,6 @@ def hypoexponential_distribution_two_parameters_pdf(a, b, x):
     pdf : float, np.ndarray
         Probability densities.
     """
-
     pdf = a*b / (a-b) * (np.exp(-b * x) - np.exp(-a * x))
 
     return pdf
@@ -85,7 +85,6 @@ def hypoexponential_distribution_two_parameters_cdf(a, b, x):
     cdf : float, np.ndarray
         Probabilities of samples less than or equal to x.
     """
-
     cdf = 1 - b / (b - a) * np.exp(-a * x) + a / (b - a) * np.exp(-b * x)
     # note that this is the cdf and not the pdf, so the /(r2 - r1) makes sense
 
@@ -112,9 +111,9 @@ def hypoexponential_distribution_three_parameters_pdf(a, b, c, x):
     pdf : float, np.ndarray
         Probability densities.
     """
-
     z = a * b * c
-    pdf = np.exp(-c * x) * z /((a-c) * (b-c)) + np.exp(-a * x) * z /((-a+b) * (-a+c)) + np.exp(-b * x) * z /((a-b) * (-b+c))
+    pdf = np.exp(-c * x) * z / ((a - c) * (b - c)) + np.exp(-a * x) * z / ((-a + b) * (-a + c)) + \
+        np.exp(-b * x) * z / ((a - b) * (-b + c))
 
     return pdf
 
@@ -139,9 +138,8 @@ def hypoexponential_distribution_three_parameters_cdf(a, b, c, x):
     cdf : float, np.ndarray
         Probabilities of samples less than or equal to x.
     """
-
-    cdf = 1 - np.exp(-c * x) * a * b /((a-c) * (b-c)) - np.exp(-a * x) * b * c /((-a+b) * (-a+c)) - np.exp(-b * x) * a \
-          * c /((a-b) * (-b+c))
+    cdf = 1 - np.exp(-c * x) * a * b / ((a - c) * (b - c)) - np.exp(-a * x) * b * c / ((-a + b) * (-a + c)) - \
+        np.exp(-b * x) * a * c / ((a - b) * (-b + c))
 
     return cdf
 
@@ -181,8 +179,8 @@ def rejection_sampling(pdf, x_min, x_max, y_min, y_max, batch, size, parameters)
     """
     samples = []
     while len(samples) < size:
-        x = np.random.uniform(x_min, x_max, size=batch)
-        y = np.random.uniform(y_min, y_max, size=batch)
+        x = np.random.uniform(low=x_min, high=x_max, size=batch)
+        y = np.random.uniform(low=y_min, high=y_max, size=batch)
         samples += x[y < pdf(*parameters, x)].tolist()
 
     return samples[:size]
