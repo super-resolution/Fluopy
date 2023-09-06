@@ -65,7 +65,7 @@ def create_row_subtitles(axes, nrows=1, ncols=1, titles=None):
         row.axis('off')
 
 
-def add_table(axes, series, grid=111, xscale=1, yscale=1, fontsize=12):
+def add_table(axes, data, labels=None, grid=111, xscale=1, yscale=1, fontsize=12):
     """
     Adds a table to a subplot figure.
 
@@ -73,8 +73,11 @@ def add_table(axes, series, grid=111, xscale=1, yscale=1, fontsize=12):
     ----------
     axes : np.ndarray
         matplotlib.axes._subplots.AxesSubplots.
-    series : pd.Series
-        Values to display in table with index as labels.
+    data : 2-D array_like, pd.Series
+        If pd.Series, values to display in table with index as labels.
+    labels : None, 1-D array_like
+        Labels of table rows.
+        Only used if data is not pd.Series.
     grid : int
         Divide the figure subplots into an a x b grid. Choose a position c for the table such that it corresponds to
         the index + 1 of the flattened grid.
@@ -92,10 +95,16 @@ def add_table(axes, series, grid=111, xscale=1, yscale=1, fontsize=12):
     -------
     None
     """
+    if isinstance(data, pd.Series):
+        cells = data.values[:, np.newaxis]
+        labels = data.index
+    else:
+        cells = data
+
     flattened = axes.flatten()
     fig = flattened[0].get_figure()
     new_ax = fig.add_subplot(grid)
     new_ax.axis('off')
-    table = new_ax.table(cellText=series.values[:, np.newaxis], rowLabels=series.index, loc='center')
+    table = new_ax.table(cellText=cells, rowLabels=labels, loc='center')
     table.scale(xscale=xscale, yscale=yscale)
     table.set_fontsize(size=fontsize)

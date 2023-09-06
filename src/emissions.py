@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import geom
 import src.figure as fi
+import os
 
 
 class Emissions:
@@ -21,7 +22,9 @@ class Emissions:
         Indices of detected emitting transitions to apply to simulation.transition_series.
     event_time_points : 1-D array_like
         The time points at which emissions are detected.
-    event_time_series :
+    event_time_series : pd.Series
+        Contains the time points (increasing by a defined time interval) as index and the number of events (i.e.,
+        detected emissions) as values.
     """
     def __init__(self, simulation, photon_collection_rate=1, resample='5ms', emccd_gain=1, seed=None):
         if simulation.transition_series is None:
@@ -43,9 +46,9 @@ class Emissions:
         """
         df = self.simulation.transitions.combined_state_transitions_df
         emitting_transition_ids = df.loc[df['photon'] == True].index.to_numpy()
-        emissions = np.in1d(self.simulation.transition_series, emitting_transition_ids).nonzero()[0]
+        emission_indices = np.in1d(self.simulation.transition_series, emitting_transition_ids).nonzero()[0]
 
-        return emissions
+        return emission_indices
 
     def get_event_indices(self, photon_collection_rate=1, seed=None):
         """
@@ -63,6 +66,8 @@ class Emissions:
         event_indices : 1-D array_like
             Indices of detected emitting transitions to apply to simulation.transition_series.
         """
+        if photon_collection_rate > 1 or photon_collection_rate < 0:
+            raise ValueError('photon_collection_rate has to be between 0 and 1.')
         rng = np.random.default_rng(seed)
 
         amount_not_detected = round((1 - photon_collection_rate) * self.emission_indices.shape[0])
@@ -92,13 +97,23 @@ class Emissions:
             detected emissions) as values.
         """
         event_time_points = np.insert(self.event_time_points, 0, 0)
+        rng = np.random.default_rng(seed)
+
+        added_end_time = False
+        if event_time_points[-1] != self.simulation.time_series[-1]:
+            added_end_time = True
+            event_time_points = np.append(event_time_points, self.simulation.time_series[-1])
+
         time_deltas = pd.to_timedelta(event_time_points, unit='s')
         if emccd_gain is not None:
-            events = geom.rvs(p=1/emccd_gain, size=event_time_points.shape[0], random_state=seed)
+            events = geom.rvs(p=1/emccd_gain, size=event_time_points.shape[0], random_state=rng)
             events = events.astype(float)
         else:
             events = np.ones(shape=event_time_points.shape[0])
         events[0] = 0
+
+        if added_end_time:
+            events[-1] = 0
 
         event_time_series = pd.Series(events, index=time_deltas)
         event_time_series = event_time_series.resample(resample).sum()
@@ -137,10 +152,62 @@ class Emissions:
         elif mode == 'time_series':
             data = [self.event_time_series.index, self.event_time_series.values]
             axes = plot_time_series(data=data, **kwargs)
+        elif mode == 'cum_events':
+            cum_events = self.event_time_series.cumsum()
+            cum_events = cum_events / cum_events.max() * 100
+            data = [self.event_time_series.index, cum_events.values]
+            axes = plot_cumulative_events(data=data, **kwargs)
         else:
-            raise AttributeError('mode has to be one of "histogram" or "time_series".')
+            raise AttributeError('mode has to be one of "histogram", "time_series" or "cum_events".')
 
         return axes
+
+    def save(self, path, name_extension=''):
+        """
+        Saves event_time_series and event_time_points to a file.
+
+        Parameters
+        ----------
+        path : str
+            Directory where the files shall be stored.
+        name_extension : str
+            Optional file name extension.
+
+        Returns
+        -------
+        None
+        """
+        time_series_file = os.path.join(path, 'event_time_series' + name_extension)
+        time_points_file = os.path.join(path, 'event_time_points' + name_extension)
+        np.save(time_series_file, self.event_time_series)
+        np.save(time_points_file, self.event_time_points)
+
+    @classmethod
+    def load(cls, path, name_extension=''):
+        """
+        Load event_time_series and event_time_points from file.
+        Adapted from an unpopular answer of
+        https://stackoverflow.com/questions/682504/what-is-a-clean-pythonic-way-to-implement-multiple-constructors
+
+        Parameters
+        ----------
+        path : str
+            Directory where the files shall be stored.
+        name_extension : str
+            Optional file name extension.
+
+        Returns
+        -------
+        obj : src.emissions.Emissions
+            Instance of Emissions constructed with existing data.
+        """
+        obj = cls.__new__(cls)
+        obj.event_time_series = np.load(os.path.join(path, 'event_time_series' + name_extension + '.npy'))
+        obj.event_time_points = np.load(os.path.join(path, 'event_time_points' + name_extension + '.npy'))
+        obj.simulation = 'This attribute has no meaning when instance constructed via load().'
+        obj.emission_indices = 'This attribute has no meaning when instance constructed via load().'
+        obj.event_indices = 'This attribute has no meaning when instance constructed via load().'
+        return obj
 
 
 def plot_histogram(data, density=True, **kwargs):
@@ -194,6 +261,32 @@ def plot_time_series(data, **kwargs):
     kwargs.setdefault('xlabel', 'time [s]')
     kwargs.setdefault('ylabel', 'photon count')
 
-    ax = fi.universal_figure(data=data, **kwargs)
+    axes = fi.universal_figure(data=data, **kwargs)
 
-    return ax
+    return axes
+
+
+def plot_cumulative_events(data, **kwargs):
+    """
+    Plot cumulative events versus time.
+
+    Parameters
+    ----------
+    data : 2-D array_like
+        Contains x and y data.
+    kwargs : src.figure.universal_figure arguments
+
+    Returns
+    -------
+    axes : np.ndarray
+        Contains matplotlib.axes._subplots.AxesSubplots.
+    """
+    kwargs.setdefault('type_', 'line')
+    kwargs.setdefault('title', 'cum. events')
+    kwargs.setdefault('xlabel', 'time [s]')
+    kwargs.setdefault('ylabel', '%')
+    kwargs.setdefault('ylim', [0, 100])
+
+    axes = fi.universal_figure(data=data, **kwargs)
+
+    return axes

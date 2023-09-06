@@ -8,11 +8,11 @@ from matplotlib import rcParams, rcParamsDefault
 
 
 def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_="line", data=(0, 0), color="blue",
-                     ylabel="y", xlabel="x", legend=False, label=None, title=None, xlim=None, ylim=None, xscale=None,
-                     yscale=None, xticks=None, yticks=None, xticklabels=None, yticklabels=None, tick_params=None,
-                     tick_spacing_x=None, tick_spacing_y=None, tick_style_x=None, tick_style_y=None, second_axis_x=True,
-                     second_axis_y=True, draw_marker=None, plot_distribution=None, axes=None,
-                     **type_specific_kwargs):
+                     ylabel="y", xlabel="x", fontsize=21, legend=False, label=None, title=None, xlim=None, ylim=None,
+                     xscale=None, yscale=None, adjust_x=None, adjust_y=None, xticks=None, yticks=None, xticklabels=None,
+                     yticklabels=None, tick_params=None, tick_spacing_x=None, tick_spacing_y=None, tick_style_x=None,
+                     tick_style_y=None, second_axis_x=False, second_axis_y=False, draw_marker=None,
+                     plot_distribution=None, axes=None, **type_specific_kwargs):
     """
     Constructs a figure or modifies axes.
 
@@ -38,6 +38,8 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
         The label text of the y-axis.
     xlabel : str
         The label text of the x-axis.
+    fontsize : float
+        Size of font.
     legend : bool
         Whether to display a legend.
     label : str, list
@@ -52,7 +54,11 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
         One of "linear", "log", "symlog", "logit".
     yscale : str
         One of "linear", "log", "symlog", "logit".
-    xticks :  array-like
+    adjust_x : float
+        Factor with which the x data is multiplicated.
+    adjust_y : float
+        Factor with which the y data is multiplicated.
+    xticks : array-like
         xtick locations.
     yticks : array-like
         ytick locations.
@@ -103,14 +109,16 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
 
     ax = axes[0]
     # texts
-    ax.set_ylabel(ylabel, fontsize=21)
-    ax.set_xlabel(xlabel, fontsize=21)
+    ax.set_ylabel(ylabel, fontsize=fontsize)
+    ax.set_xlabel(xlabel, fontsize=fontsize)
     if title is not None:
-        ax.set_title(title, fontsize=21)
+        ax.set_title(title, fontsize=fontsize)
 
     # x-axis
     if xlim is not None:
         ax.set_xlim(xlim)
+    if adjust_x is not None:
+        ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda old_x, _: '{0:g}'.format(old_x * adjust_x)))
     if xscale is not None:
         ax.set_xscale(xscale)
 
@@ -125,6 +133,8 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
     # y-axis
     if ylim is not None:
         ax.set_ylim(ylim)
+    if adjust_y is not None:
+        ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda old_y, _: '{0:g}'.format(old_y * adjust_y)))
     if yscale is not None:
         ax.set_yscale(yscale)
 
@@ -137,7 +147,7 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
         ax.yaxis.set_major_locator(ticker.MultipleLocator(tick_spacing_y))
 
     # general tick formatting
-    ax.tick_params(labelsize=20, width=2, length=6)
+    ax.tick_params(labelsize=fontsize, width=2, length=6)
     if tick_params is not None:
         ax.tick_params(**tick_params)
     ax.tick_params(which="minor", width=2, length=4, labelleft=False, left=True)
@@ -150,7 +160,15 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
 
     # data incorporation
     if type_ == "hist":
-        _, bins, _ = ax.hist(x=data, color=color, label=label, **type_specific_kwargs)
+        dot = False
+        if 'histtype' in type_specific_kwargs and type_specific_kwargs['histtype'] == 'dot':
+            type_specific_kwargs.pop('histtype', None)
+            dot = True
+        n, bins, patches = ax.hist(x=data, color=color, label=label, **type_specific_kwargs)
+
+        if dot:
+            patches.remove()
+            ax.scatter(bins[:-1] + 0.5*(bins[1:] - bins[:-1]), n, marker='o', color=color, label=label, s=4)
         if plot_distribution is not None:
             try:
                 plot_distribution[0].pmf(0)  # check if the distribution is discrete
@@ -167,7 +185,17 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
     elif type_ == "multiple_hist":
         for j, dat_ in enumerate(data):
             if dat_.size != 0:
-                _, bins, _ = ax.hist(x=dat_, color=color(j), label=label[j], **type_specific_kwargs)
+                if callable(color):
+                    color = color(j)
+                elif isinstance(color, str):
+                    color = color
+                else:
+                    color = color[j]
+                if isinstance(label, str):
+                    label = label
+                else:
+                    label = label[j]
+                _, bins, _ = ax.hist(x=dat_, color=color, label=label, **type_specific_kwargs)
                 if plot_distribution is not None:
                     plot_distr = plot_distribution[j]
                     try:
@@ -197,19 +225,24 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
         ax.plot(data[0], data[1], color=color, label=label, **type_specific_kwargs)
     elif type_ == "multiple_line":
         for j, dat_ in enumerate(data):
-            ax.plot(dat_[0], dat_[1], color=color(j), label=label[j], **type_specific_kwargs)
+            if callable(color):
+                color = color(j)
+            else:
+                color = color
+            ax.plot(dat_[0], dat_[1], color=color, label=label[j], **type_specific_kwargs)
     elif type_ == "scatter":
         ax.scatter(data[0], data[1], color=color, label=label, **type_specific_kwargs)
 
     # second x-axis
-    if second_axis_x is not None:
+    if second_axis_x:
         ticks = ax.get_xticks()
         sec_ax = ax.secondary_xaxis("top")
         sec_ax.xaxis.set_major_locator(ticker.FixedLocator(ticks))
         sec_ax.tick_params(axis="x", width=2, direction="in", labeltop=False, length=6)
         sec_ax.tick_params(which="minor", axis="x", direction="in", width=2, length=4, labeltop=False)
+
     # second y-axis
-    if second_axis_y is not None:
+    if second_axis_y:
         ticks = ax.get_yticks()
         sec_ax = ax.secondary_yaxis("right")
         sec_ax.yaxis.set_major_locator(ticker.FixedLocator(ticks))

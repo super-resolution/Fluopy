@@ -42,13 +42,15 @@ class FCS:
         base : int
             The base of the exponentiation.
         normalize : bool
-            Whether to normalize the correlation.
+            Whether to normalize the autocorrelation.
 
         Returns
         -------
         self
         """
         # generally much faster than autocorrelation based on time series
+        if base**exp_max > self.emissions.event_time_points[-1]:
+            raise ValueError('Base to the power of exp_max cannot be larger than the last time point.')
         bins = pc.make_loglags(exp_min=exp_min, exp_max=exp_max, points_per_base=points_per_base, base=base)
         self.autocorrelation = pc.pcorrelate(t=self.emissions.event_time_points, u=self.emissions.event_time_points,
                                              bins=bins, normalize=normalize)
@@ -58,17 +60,19 @@ class FCS:
 
     def autocorrelate_time_series(self, log=True, m=4, normalize=True):
         """
-        Autocorrelation of emissions.event_time_series.
+        Autocorrelation of emissions.event_time_series. The minimum lag time is equal to resample value of series.
 
         Parameters
         ----------
         log : bool
-            Whether to compute the autocorrelation on a logarithmic scale.
+            Whether to compute the autocorrelation on a logarithmic scale. As time steps increase, correlation signals
+            are getting noisier, fluctuating around 0. Hence, log should usually be True.
         m : int
-            Defines the number of points on each level. E.g., m=4 leads to |1, 2, 3, 4| |2, 4, 6, 8| |4, 8, 12, 16| ...,
-            hence |1, 2, 3, 4, 6, 8, 12, 16, ...|.
+            Defines the number of points on each log level. E.g., m=4 leads to |1, 2, 3, 4| |2, 4, 6, 8| |4, 8, 12, 16|
+            ..., hence |1, 2, 3, 4, 6, 8, 12, 16, ...|.
+            Only used if log ist True.
         normalize : bool
-            Whether to normalize the autocorrelation. Normalization is
+            Whether to normalize the autocorrelation.
 
         Returns
         -------
@@ -78,11 +82,11 @@ class FCS:
         deltat = event_time_series.index[1]
         if normalize and log:
             autocorrelation = mp.autocorrelate(a=event_time_series.values, m=m, deltat=deltat, normalize=True)
-            self.tau, self.autocorrelation = np.transpose(autocorrelation[1:])
+            self.tau, autocorrelation = np.transpose(autocorrelation[1:])
 
         elif log and not normalize:
             autocorrelation = mp.autocorrelate(a=event_time_series.values, m=m, deltat=deltat, normalize=False)
-            self.tau, self.autocorrelation = np.transpose(autocorrelation[1:])
+            self.tau, autocorrelation = np.transpose(autocorrelation[1:])
 
         elif normalize and not log:
             mean = np.mean(event_time_series.values)
@@ -92,15 +96,17 @@ class FCS:
             autocorrelation = np.divide(autocorrelation, np.arange(autocorrelation.size, 0, -1))
             # averaging - in multipletau, this is included in normalize=True (denoted as M-k in documentation)
             autocorrelation = autocorrelation / mean ** 2  # normalization with mean squared
-            self.autocorrelation = autocorrelation[1:1000]
+            autocorrelation = autocorrelation[1:1000]
             self.tau = event_time_series.index.values[1:1000]
 
         else:
             autocorrelation = np.correlate(event_time_series.values, event_time_series.values, mode="full")
             # note that this version is the autocorrelation in the sense of signal processing and differs from the
             # statistical definition of autocorrelation.
-            self.autocorrelation = autocorrelation[autocorrelation.size // 2:][1:1000]
+            autocorrelation = autocorrelation[autocorrelation.size // 2:][1:1000]
             self.tau = event_time_series.index.values[1:1000]
+
+        self.autocorrelation = autocorrelation + 1
 
         return self
 
@@ -130,9 +136,121 @@ class FCS:
         kwargs.setdefault('title', rf"$\tau_{{min}} = {tau_data[0]:.2e}$ {unit}")
         kwargs.setdefault('type_', "line")
         kwargs.setdefault('xscale', "log")
-        kwargs.setdefault('xlabel', fr"$\tau [{unit}]$")
+        kwargs.setdefault('xlabel', fr"$\tau \ [{unit}]$")
         kwargs.setdefault('ylabel', r"$G(\tau)$")
 
         axes = fi.universal_figure(data=[tau_data, correl_data], **kwargs)
 
         return axes
+
+
+def fit_dark(tau, dark_lifetime, dark_occupation):
+    """
+    Fit function of dark states (e.g., triplet).
+
+    Parameters
+    ----------
+    tau : 1-D array_like
+        Time differences (i.e., τ, lag times).
+    dark_lifetime : float
+        Mean lifetime of the dark state.
+    dark_occupation : float
+        Steady state fraction of the dark state. Number between 0 and 1.
+
+    Returns
+    -------
+    autocorrelation : 1-D array_like
+        Autocorrelation values.
+    norm : float
+        Steady state fraction of other states. Number between 0 and 1.
+    """
+    if dark_occupation < 0 or dark_occupation >= 1:
+        raise ValueError('dark_occupation is bound to be between 0 and 1.')
+    tau = np.asarray(tau)
+    autocorrelation = dark_occupation * np.exp(-tau / dark_lifetime)
+    norm = 1 - dark_occupation
+
+    return autocorrelation, norm
+
+
+def fit_antibunching(tau, excitation_rate, s1_lifetime):
+    """
+    Fit function of antibunching.
+
+    Parameters
+    ----------
+    tau : 1-D array_like
+        Time differences (i.e., τ, lag times).
+    excitation_rate : float
+        Rate constant of excitation.
+    s1_lifetime : float
+        Mean lifetime of the S1 state.
+
+    Returns
+    -------
+    autocorrelation : 1-D array_like
+        Autocorrelation values.
+    """
+    tau = np.asarray(tau)
+    lifetime_s0_s1 = 1 / (1/s1_lifetime + excitation_rate)
+    autocorrelation = - np.exp(-tau/lifetime_s0_s1)
+
+    return autocorrelation
+
+
+def fit_triplet_cis(tau, k_isc, k_T, k_01, k_10, k_iso, k_biso_eff):
+    """
+    Fit function of triplet and cis as two non-independent dark states.
+
+    Parameters
+    ----------
+    tau : 1-D array_like
+        Time differences (i.e., τ, lag times).
+    k_isc : float
+        Rate constant of intersystem crossing to the triplet state.
+    k_T : float
+        Rate constant of intersystem crossing out of the triplet state.
+    k_01 : float
+        Rate constant of excitation.
+    k_10 : float
+        Inverse of fluorescence lifetime considering all rates from S1 (not just IC and FL).
+        Note: in the PAPER it is not clear which one they mean but the fit is significantly better if using this
+        version.
+    k_iso : float
+        Rate constant of isomerization from trans to cis.
+    k_biso_eff : float
+        Rate constant of back isomerization from cis to trans.
+
+    Returns
+    -------
+    autocorrelation : 1-D array_like
+        Autocorrelation values.
+    norm : float
+        Steady state fraction of other states. Number between 0 and 1.
+    """
+    tau = np.asarray(tau)
+    k_isc_eff = k_01 / (k_01 + k_10) * k_isc
+    k_iso_eff = k_01 / (k_01 + k_10) * k_iso
+
+    eigen_1 = 0
+
+    part_1 = (k_isc_eff + k_T + k_iso_eff + k_biso_eff)/2
+    part_2 = ((k_isc_eff + k_T + k_iso_eff + k_biso_eff)**2 / 4 - k_iso_eff*k_T -
+              k_isc_eff*k_biso_eff - k_T*k_biso_eff)**0.5
+    eigen_2 = - (part_1 + part_2)
+    eigen_3 = - (part_1 - part_2)
+
+    alpha = k_iso_eff*k_T + k_isc_eff*k_biso_eff + k_T*k_biso_eff
+    beta = k_isc_eff + k_iso_eff + k_T - k_biso_eff
+    gamma = ((k_isc_eff + k_iso_eff)**2 + (k_biso_eff - k_T)**2 +
+             2*(k_iso_eff - k_isc_eff)*(k_biso_eff - k_T))**0.5
+    delta = k_T * (k_iso_eff + k_biso_eff - k_T - k_isc_eff) + 2*k_isc_eff*k_biso_eff
+
+    z_1 = k_T*k_biso_eff / alpha
+    z_2 = (beta+gamma)*(k_T*gamma + delta)/(4*alpha*gamma)
+    z_3 = (beta-gamma)*(k_T*gamma - delta)/(4*alpha*gamma)
+
+    autocorrelation = z_2*np.exp(tau*eigen_2) + z_3*np.exp(tau*eigen_3)
+    norm = z_1
+
+    return autocorrelation, norm

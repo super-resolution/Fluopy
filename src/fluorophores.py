@@ -32,7 +32,7 @@ class Cy5(FluorophoreData):
 
     # photobleaching
     photobleach_s1_rate: float = 0
-    photobleach_t1_rate: float = 0
+    photobleach_t1_rate: float = 1
     photobleach_t2_rate: float = 0
 
     # cis/trans isomerization
@@ -74,9 +74,10 @@ class Fluorophore:
     attribute_container: Optional[FluorophoreData] = None
 
     def __post_init__(self):
+        object.__setattr__(self, 'id', None)
+        object.__setattr__(self, 'position', np.asarray(self.position))
         if self.name.lower() == 'cy5':
             object.__setattr__(self, 'attribute_container', Cy5)
-            object.__setattr__(self, 'id', None)
 
 
 @dataclass
@@ -100,15 +101,17 @@ class FluorophoreSystem:
     def __post_init__(self):
         for i, fluorophore in enumerate(self.fluorophores):
             fluorophore.id = i
-        object.__setattr__(self, 'distances', get_distances(self.fluorophores))
+        object.__setattr__(self, 'distances', get_distances([fluo.position for fluo in self.fluorophores]))
         object.__setattr__(self, 'count', len(self.fluorophores))
 
-    def plot(self, **kwargs):
+    def plot(self, quadratic=True, **kwargs):
         """
         Plot the positions of fluorophores.
 
         Parameters
         ----------
+        quadratic : bool
+            Whether to display the plot with same x and y axis scaling.
         kwargs : src.figure.universal_figure arguments
 
         Returns
@@ -128,67 +131,34 @@ class FluorophoreSystem:
         for i, label in enumerate(labels):
             axes[0, 0].annotate(label, (positions[0, i], positions[1, i]))
         axes[0, 0].margins(0.2, 0.2)
-        axes[0, 0].set_aspect('equal', adjustable='box')
+        if quadratic:
+            axes[0, 0].set_aspect('equal', adjustable='box')
 
         return axes
 
 
-def get_distances(fluorophores):
+def get_distances(positions):
     """
-    Gets distances between fluorophores based on their positions.
+    Gets distances between positions.
 
     Parameters
     ----------
-    fluorophores : Collection
-        Contains fluorophores of type Fluorophore.
+    positions : Collection
+        Contains coordinate pairs (2D).
 
     Returns
     -------
     distances : dict
-        Contains tuples of 2 fluorophore ids as keys and their distance as values.
+        Contains tuples of ids (order as positions) as keys and their distance as values.
     """
     distances = dict()
-    for fluorophore_1 in fluorophores:
-        for fluorophore_2 in fluorophores:
-            if fluorophore_1.id != fluorophore_2.id and (fluorophore_1.id, fluorophore_2.id) not in distances:
-                distances[(fluorophore_1.id, fluorophore_2.id)] = \
-                    np.linalg.norm(fluorophore_1.position - fluorophore_2.position)
+    positions = np.asarray(positions)
+    for i, position_1 in enumerate(positions):
+        for j, position_2 in enumerate(positions):
+            if i != j and (i, j) not in distances:
+                distances[(i, j)] = np.round(np.linalg.norm(position_1 - position_2), 3)
 
     return distances
-
-
-def get_positions_from_distance(distance, count):
-    """
-    Gets positions of up to 4 fluorophores based on a single distance. If it is 3 fluorophores, they are positioned in
-    an equilateral triangle. If it is 4 fluorophores, they are positioned in a square.
-
-    Parameters
-    ----------
-    distance : float
-        Minimum distance between fluorophores.
-    count : int
-        Number of fluorophores.
-
-    Returns
-    -------
-    positions : tuple
-        Contains np.ndarrays of x and y for each fluorophore.
-    """
-    position_1 = np.array([0, 0])
-    position_2 = np.array([distance, 0])
-    if count == 2:
-        positions = position_1, position_2
-    elif count == 3:
-        position_3 = triangle_third_position(position_1=position_1, position_2=position_2)
-        positions = position_1, position_2, position_3
-    elif count == 4:
-        position_3 = np.array([0, distance])
-        position_4 = np.array([distance, distance])
-        positions = position_1, position_2, position_3, position_4
-    else:
-        raise AttributeError('count has to be one of 2, 3 or 4.')
-
-    return positions
 
 
 def triangle_third_position(position_1=None, position_2=None):
@@ -219,6 +189,42 @@ def triangle_third_position(position_1=None, position_2=None):
     position_3 = np.array([x3, y3])
 
     return position_3
+
+
+def get_positions_from_distance(distance, count):
+    """
+    Gets positions of up to 4 fluorophores based on a single distance. If it is 3 fluorophores, they are positioned in
+    an equilateral triangle. If it is 4 fluorophores, they are positioned in a square.
+
+    Parameters
+    ----------
+    distance : float
+        Minimum distance between fluorophores.
+    count : int
+        Number of fluorophores.
+
+    Returns
+    -------
+    positions : np.ndarray
+        Contains np.ndarrays of x and y for each fluorophore.
+    """
+    position_1 = np.array([0, 0])
+    position_2 = np.array([distance, 0])
+    if count == 1:
+        positions = np.array([position_1])
+    elif count == 2:
+        positions = np.array([position_1, position_2])
+    elif count == 3:
+        position_3 = triangle_third_position(position_1=position_1, position_2=position_2)
+        positions = np.array([position_1, position_2, position_3])
+    elif count == 4:
+        position_3 = np.array([0, distance])
+        position_4 = np.array([distance, distance])
+        positions = np.array([position_1, position_2, position_3, position_4])
+    else:
+        raise AttributeError('count has to be one of 1, 2, 3 or 4.')
+
+    return positions
 
 
 def construct_fluorophores(name='cy5', distance=10, count=3):

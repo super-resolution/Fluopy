@@ -27,7 +27,12 @@ def construct_network(transition_df):
     for id, row in transition_df.iterrows():
         abbreviation = row['abbreviation']
         initial_state = row['initial_state']
-        if isinstance(initial_state, SingleState):
+        if type(initial_state).__name__ == 'SingleState':  # this could (and should) be done with isinstance,
+            # but isinstance fails if SingleState is imported from different files. E.g., if for testing the fixture
+            # may define it as __main__.SingleState, whereas the import statement within this function defines it as
+            # src.transitions.SingleState.
+            # https://stackoverflow.com/questions/15159854/python-namespace-main-class-not-isinstance-of-package-class
+            # https://stackoverflow.com/questions/53658252/why-do-circular-imports-cause-problems-with-object-identity-using-isinstance
             final_state = row['final_state']
             source = initial_state.name
             destination = final_state.name

@@ -56,14 +56,15 @@ class Blinking:
         axes : np.ndarray
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
+        sec_per_frame = self.emissions.event_time_series.index[1] - self.emissions.event_time_series.index[0]
         if mode == 'on_histogram':
             data = self.on_periods
             kwargs.setdefault('title', 'ON periods')
-            axes = plot_histogram(data=data, **kwargs)
+            axes = plot_histogram(data=data, sec_per_frame=sec_per_frame, **kwargs)
         elif mode == 'off_histogram':
             data = self.off_periods
             kwargs.setdefault('title', 'OFF periods')
-            axes = plot_histogram(data=data, **kwargs)
+            axes = plot_histogram(data=data, sec_per_frame=sec_per_frame, **kwargs)
         elif mode == 'on_frame_series':
             data = np.array([np.arange(0, self.on_periods.size), self.on_periods])
             kwargs.setdefault('title', 'ON periods')
@@ -81,7 +82,7 @@ class Blinking:
 def get_blinking_statistics(event_time_series, threshold=0, memory=0, remove_heading_off_period=True):
     """
     Determines ON and OFF times of event_time_series given that each entry represents the collected photons of one
-    frame.
+    frame. If the fluorescence trajectory is ending with an OFF period, it is not included.
 
     Parameters
     ----------
@@ -205,13 +206,21 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0, remove_hea
     return on_periods, off_periods, on_periods_frames, off_periods_frames
 
 
-def plot_histogram(data, **kwargs):
+def plot_histogram(data, density=True, display_mean=True, as_time=None, sec_per_frame=None, **kwargs):
     """
     Plot histogram of ON or OFF periods.
 
     Parameters
     ----------
     data : 1-D array_like
+    density : bool
+        Whether to display the histogram as probability densities. Else, probabilities.
+    display_mean : bool
+        Whether to display the mean inside the plot. The unit corresponds to the unit of the x-axis.
+    as_time : None, str
+        If not None, display the x-axis as time in unit as_time.
+    sec_per_frame : float
+        Duration of a frame in seconds.
     kwargs : src.figure.universal_figure arguments
 
     Returns
@@ -220,14 +229,30 @@ def plot_histogram(data, **kwargs):
         Contains matplotlib.axes._subplots.AxesSubplots.
     """
     kwargs.setdefault('type_', 'hist')
-    kwargs.setdefault('xlabel', 'consecutive frames')
-    kwargs.setdefault('ylabel', 'PD')
-    kwargs.setdefault('density', True)
-
-    mean = np.mean(data)
+    kwargs.setdefault('fontsize', 16)
+    if density:
+        kwargs.setdefault('ylabel', 'PD')
+        kwargs.setdefault('density', True)
+    else:
+        kwargs.setdefault('ylabel', 'Pr')
+        kwargs.setdefault('weights', np.ones_like(data) / data.size)
+    if as_time is not None:
+        kwargs.setdefault('xlabel', f'time [{as_time}]')
+        if as_time == 'ms':
+            data = data * sec_per_frame * 1000
+        elif as_time == 's':
+            data = data * sec_per_frame
+        else:
+            raise ValueError('given unit not implemented.')
+    else:
+        kwargs.setdefault('xlabel', 'consecutive frames')
 
     axes = fi.universal_figure(data=data, **kwargs)
-    axes[0][0].text(x=0.7, y=0.85, s=f"mean: {mean:.2f}", transform=axes[0][0].transAxes, fontsize=16)
+
+    if display_mean:
+        mean = np.mean(data)
+        axes[0][0].text(x=0.3, y=0.85, s=f"mean: {mean:.2f}", transform=axes[0][0].transAxes,
+                        fontsize=kwargs['fontsize'])
 
     return axes
 

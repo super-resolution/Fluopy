@@ -1,5 +1,8 @@
 """
 Module tcspc
+Assumes an infinitesimally short laser pulse that assures only one fluorophore to be excited per pulse. Hence, it is
+not suited for simulation of antibunching experiments that require a duration of the pulse to enable the potential
+excitation of multiple fluorophores.
 """
 import numpy as np
 import src.simulation as si
@@ -32,6 +35,10 @@ class TCSPC:
     predicted_obs_lifetimes : 1-D array_like
         Computed times between photon-driven excitation and fluorescent emission not considering whether the emission
         comes from the originally excited fluorophore.
+    true_fluorescence_lifetime : float
+        The true (not observed) fluorescence lifetime extracted from simulated data.
+    predicted_true_fluorescence_lifetime : float
+        The computed true (not observed) fluorescence lifetime.
     """
     def __init__(self, transitions):
         """
@@ -48,6 +55,8 @@ class TCSPC:
         self.transition_series = None
         self.observed_lifetimes = None
         self.predicted_obs_lifetimes = None
+        self.true_fluorescence_lifetime = None
+        self.predicted_true_fluorescence_lifetime = None
 
     def modify_transition_matrix(self):
         """
@@ -122,7 +131,8 @@ class TCSPC:
         emission_indices = np.in1d(self.transition_series, fluorescence_values).nonzero()[0]
         excitation_times = self.time_series[excitation_indices + 1]
         emission_times = self.time_series[emission_indices + 1]
-
+        pre_emission_times = self.time_series[emission_indices]
+        self.true_fluorescence_lifetime = np.mean(emission_times - pre_emission_times)
         corresponding_excitation_time_indices = np.searchsorted(excitation_times, emission_times, side='right') - 1
         corresponding_excitation_times = excitation_times[corresponding_excitation_time_indices]
 
@@ -178,7 +188,7 @@ class TCSPC:
         -------
         None
         """
-        fluorescence_lifetime, hfret_probability, fluorescence_probability = \
+        self.predicted_true_fluorescence_lifetime, hfret_probability, fluorescence_probability = \
             get_transition_probabilities(self.transitions.transition_df, self.transitions.fluorophore_system)
         rng = np.random.default_rng(seed)
         probabilities = []
@@ -186,7 +196,7 @@ class TCSPC:
         for i in range(accuracy):
             probability = fluorescence_probability * hfret_probability**i  # x**0 = 1
             probabilities.append(probability)
-            distribution = erlang(a=i+1, scale=fluorescence_lifetime)
+            distribution = erlang(a=i+1, scale=self.predicted_true_fluorescence_lifetime)
             distributions.append(distribution)
         weights = probabilities / np.sum(probabilities)  # otherwise, probabilites do not add up to 1
         random_numbers = np.random.uniform(0, 1, size)

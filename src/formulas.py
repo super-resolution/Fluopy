@@ -11,11 +11,11 @@ def convert_wavenumber_wavelength_frequency(wavenumber=None, wavelength=None, fr
 
     Parameters
     ----------
-    wavenumber : float
+    wavenumber : float, 1-D array_like
         In 1/cm.
-    wavelength : float
+    wavelength : float, 1-D array_like
         In nm.
-    frequency : float
+    frequency : float, 1-D array_like
         In Hz.
 
     Returns
@@ -31,18 +31,18 @@ def convert_wavenumber_wavelength_frequency(wavenumber=None, wavelength=None, fr
         raise ValueError('One and only one of wavenumber, wavelength and frequency must not be None.')
     if wavenumber is not None:
         wavenumber = np.asarray(wavenumber)
-        wavelength = 1/(wavenumber * 1e2) * 1e9
-        frequency = wavenumber * 1e2 * constants.c
+        wavelength = np.asarray(1/(wavenumber * 1e2) * 1e9)
+        frequency = np.asarray(wavenumber * 1e2 * constants.c)
 
     elif wavelength is not None:
         wavelength = np.asarray(wavelength)
-        wavenumber = 1/(wavelength * 1e-9) * 1e-2
-        frequency = constants.c / (wavelength * 1e-9)
+        wavenumber = np.asarray(1/(wavelength * 1e-9) * 1e-2)
+        frequency = np.asarray(constants.c / (wavelength * 1e-9))
 
     elif frequency is not None:
         frequency = np.asarray(frequency)
-        wavenumber = frequency / constants.c * 1e-2
-        wavelength = constants.c / frequency * 1e9
+        wavenumber = np.asarray(frequency / constants.c * 1e-2)
+        wavelength = np.asarray(constants.c / frequency * 1e9)
 
     else:
         pass
@@ -56,9 +56,9 @@ def calculate_photon_flux(irradiance=2, frequency=4.5e14):
 
     Parameters
     ----------
-    irradiance : float
+    irradiance : float, 1-D array_like
         The irradiance in kW/cm².
-    frequency : float
+    frequency : float, 1-D array_like
         The frequency in Hz.
 
     Returns
@@ -69,7 +69,7 @@ def calculate_photon_flux(irradiance=2, frequency=4.5e14):
     irradiance = np.asarray(irradiance)
     frequency = np.asarray(frequency)
     irradiance = irradiance * 1e3 * 1e4
-    photon_flux = irradiance / (constants.h * frequency)
+    photon_flux = np.asarray(irradiance / (constants.h * frequency))
 
     return photon_flux
 
@@ -80,25 +80,27 @@ def calculate_excitation_rate(photon_flux=8e25, extinction_coefficient=None, abs
 
     Parameters
     ----------
-    photon_flux : float
+    photon_flux : float, 1-D array_like
         The photon flux in 1/(m² s).
-    extinction_coefficient : float
+    extinction_coefficient : float, 1-D array_like
         Extinction coefficient of fluorophore at wavelength in 1/(cm M).
-    absorption_cross_section : float
+    absorption_cross_section : float, 1-D array_like
         Absorption cross section of fluorophore at wavelength in cm².
         The scattering cross section is assumed to be negligible, hence the absorption cross section equals the
         excitation cross section.
 
     Returns
     -------
-    excitation_rate : float
+    excitation_rate : float, np.ndarray
         The excitation rate in 1/s.
     """
+    if sum(1 for _ in filter(None.__ne__, [extinction_coefficient, absorption_cross_section])) != 1:
+        raise ValueError('One and only one of extinction_coefficient and absorption_cross_section must not be None.')
     if extinction_coefficient is not None:
-        absorption_cross_section = extinction_coefficient * 1e3 * np.log(10) / constants.Avogadro
-    absorption_cross_section = absorption_cross_section * 1e-4
+        absorption_cross_section = np.asarray(extinction_coefficient) * 1e3 * np.log(10) / constants.Avogadro
+    absorption_cross_section = np.asarray(absorption_cross_section) * 1e-4
 
-    excitation_rate = photon_flux * absorption_cross_section
+    excitation_rate = np.asarray(photon_flux) * np.asarray(absorption_cross_section)
 
     return excitation_rate
 
@@ -109,17 +111,17 @@ def calculate_emission_rate(quantum_yield=0.5, fluorescence_lifetime=1e-9):
 
     Parameters
     ----------
-    quantum_yield : float
+    quantum_yield : float, 1-D array_like
         Number between 0 and 1.
-    fluorescence_lifetime : float
+    fluorescence_lifetime : float, 1-D array_like
         The fluorescence lifetime in s.
 
     Returns
     -------
-    emis_rate : float
+    emis_rate : float, np.ndarray
         The rate of emission in 1/s.
     """
-    emis_rate = quantum_yield / fluorescence_lifetime
+    emis_rate = np.asarray(quantum_yield) / np.asarray(fluorescence_lifetime)
 
     return emis_rate
 
@@ -132,9 +134,9 @@ def calculate_internal_conversion_rate(quantum_yield=0.5, emission_rate=5e8, *ot
 
     Parameters
     ----------
-    quantum_yield : float
+    quantum_yield : float, 1-D array_like
         Number between 0 and 1.
-    emission_rate : float
+    emission_rate : float, 1-D array_like
         The rate of emission in 1/s.
     other_outgoing_rates_args : floats
         Rates of all other transitions (except fluorescence emission) that leave the first excited state in 1/s.
@@ -143,15 +145,20 @@ def calculate_internal_conversion_rate(quantum_yield=0.5, emission_rate=5e8, *ot
 
     Returns
     -------
-    internal_conversion_rate : float
+    internal_conversion_rate : float, np.ndarray
         The rate of internal conversion in 1/s.
     """
-    internal_conversion_rate = emission_rate / quantum_yield - emission_rate
+    quantum_yield = np.asarray(quantum_yield)
+    if np.any(quantum_yield < 0) or np.any(quantum_yield > 1):
+        raise ValueError('Quantum yield has to be between 0 and 1.')
+    internal_conversion_rate = np.asarray(emission_rate)/quantum_yield - np.asarray(emission_rate)
     for outgoing_rate in other_outgoing_rates_args:
         internal_conversion_rate -= outgoing_rate
     for _, outgoing_rate in other_outgoing_rates_kwargs.items():
         internal_conversion_rate -= outgoing_rate
-
+    if np.any(internal_conversion_rate < 0):
+        raise ValueError('emission rate is too low to produce the given quantum yield while competing with other given '
+                         'transitions.')
     return internal_conversion_rate
 
 
@@ -161,23 +168,23 @@ def calculate_back_isomerization_rate(photon_flux=8e25, absorption_cross_section
 
     Parameters
     ----------
-    photon_flux : float
+    photon_flux : float, 1-D array_like
         The photon flux in 1/(m² s).
-    absorption_cross_section : float
+    absorption_cross_section : float, 1-D array_like
         Absorption cross section of fluorophore isomer at wavelength w in cm².
 
     Returns
     -------
-    back_isomerization_rate : float
+    back_isomerization_rate : float, np.ndarray
         The back-isomerization rate in 1/s.
     """
-    absorption_cross_section = absorption_cross_section * 1e-4
-    back_isomerization_rate = photon_flux * absorption_cross_section
+    absorption_cross_section = np.asarray(absorption_cross_section) * 1e-4
+    back_isomerization_rate = np.asarray(photon_flux) * absorption_cross_section
 
     return back_isomerization_rate
 
 
-def calculate_reduction_rate(reducing_agent='mea', concentration=100, k_pet=None, ph=8, same=True):
+def calculate_reduction_rate(reducing_agent='mea', concentration=100, k_pet=1, ph=8, same=True):
     """
     Returns the dSTORM reduction rate for a given reducing agent and its concentration.
 
@@ -224,11 +231,11 @@ def calculate_spectral_overlap_integral(donor=None, acceptor=None, wavelengths=N
 
     Parameters
     ----------
-    donor : np.ndarray
+    donor : 1-D array_like
         Contains emission values of the donor - they don't have to be normalized yet.
-    acceptor : np.ndarray
+    acceptor : 1-D array_like
         Contains the acceptors molar extinction coefficients in 1/(M cm).
-    wavelengths : np.ndarray
+    wavelengths : 1-D array_like
         The wavelength values in nm, that correspond to the respective donor and acceptor values.
 
     Returns
@@ -236,6 +243,12 @@ def calculate_spectral_overlap_integral(donor=None, acceptor=None, wavelengths=N
     spectral_overlap_integral : float
         The value of the spectral overlap integral in (nm**4)/(M cm).
     """
+    donor = np.asarray(donor)
+    acceptor = np.asarray(acceptor)
+    wavelengths = np.asarray(wavelengths)
+    if donor.size != acceptor.size or donor.size != wavelengths.size:
+        raise AttributeError('donor, acceptor and wavelengths have to be of the same size.')
+
     donor = donor / np.trapz(donor)  # normalize spectrum to area of 1
     not_integrated = donor * acceptor * wavelengths**4
     spectral_overlap_integral = np.trapz(not_integrated)
@@ -270,3 +283,26 @@ def calculate_fret_rate(distance=10, emission_rate=5e8, spectral_overlap_integra
                                (refractive_index**4 * distance**6)) * spectral_overlap_integral
 
     return fret_rate
+
+
+def calculate_fret_efficiency(fret_rate=1e8, fluorescence_lifetime=1e-9):
+    """
+    Calculates the FRET efficiency.
+
+    Parameters
+    ----------
+    fret_rate : float
+        In 1/s.
+    fluorescence_lifetime : float
+        The fluorescence lifetime of the donor in absence of the acceptor in s.
+
+    Returns
+    -------
+    efficiency : float
+        The FRET efficiency (dimensionless). Between 0 and 1.
+    """
+    tau_1 = fluorescence_lifetime
+    tau_2 = 1 / (1/fluorescence_lifetime + fret_rate)
+    efficiency = 1 - tau_2 / tau_1
+
+    return efficiency
