@@ -23,7 +23,7 @@ class Blinking:
     off_periods_frames : np.ndarray
         Contains the first frame of each OFF period.
     """
-    def __init__(self, emissions, threshold=0, memory=0, remove_heading_off_period=True):
+    def __init__(self, emissions, threshold=0, memory=0):
         """
         Parameters
         ----------
@@ -33,13 +33,11 @@ class Blinking:
             Maximum value of photons per frame to be considered an OFF frame.
         memory : int
             Number of OFF frames to be neglected. They are included in the ON times.
-        remove_heading_off_period : bool
-            If True and the series starts with an OFF frame, the leading OFF frame is discarded.
         """
         self.emissions = emissions
         self.on_periods, self.off_periods, self.on_periods_frames, self.off_periods_frames = \
             get_blinking_statistics(event_time_series=self.emissions.event_time_series, threshold=threshold,
-                                    memory=memory, remove_heading_off_period=remove_heading_off_period)
+                                    memory=memory)
 
     def plot(self, mode='off_histogram', **kwargs):
         """
@@ -79,23 +77,22 @@ class Blinking:
         return axes
 
 
-def get_blinking_statistics(event_time_series, threshold=0, memory=0, remove_heading_off_period=True):
+def get_blinking_statistics(event_time_series, threshold=0, memory=0):
     """
     Determines ON and OFF times of event_time_series given that each entry represents the collected photons of one
-    frame. If the fluorescence trajectory is ending with an OFF period, it is not included.
+    frame. The ending period (doesn't matter whether it is ON or OFF) is discarded. If event_time_series starts with
+    an OFF period, it is discarded.
 
     Parameters
     ----------
     event_time_series : pd.Series
-        The return value of construct_event_time_series.
+        The return value of construct_event
         Contains the time points in seconds as index (time steps in between resemble frames) and the number of events
         (i.e., detected photons) as values.
     threshold : int
         Maximum value of photons per frame to be considered an OFF frame.
     memory : int
         Number of OFF frames to be neglected. They are included in the ON times.
-    remove_heading_off_period : bool
-        If True and the series starts with an OFF frame, the leading OFF frame is discarded.
 
     Returns
     -------
@@ -123,19 +120,12 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0, remove_hea
 
         if off_periods_indices.size == 0:
             off_periods = np.array([], dtype=int)
-            if frames[0] > memory and not remove_heading_off_period:
-                off_periods = np.insert(arr=off_periods, obj=0, values=frames[0])
+            if not remove_last_on_period:
                 on_periods = np.array([frames[-1] - frames[0] + 1])
-                off_periods_frames = np.array([0])
                 on_periods_frames = np.array(frames[0])
-                if remove_heading_off_period:
-                    off_periods = np.delete(off_periods, 0)
-            elif not remove_heading_off_period:
-                on_periods = np.array([frames[-1] + 1])
-                on_periods_frames = np.array([0])
             else:
-                on_periods = np.array([frames[-1] - frames[0] + 1])
-                on_periods_frames = np.array(frames[0])
+                on_periods = np.array([])
+                on_periods_frames = np.array([])
 
         else:
             off_periods_zero = np.where(differences > 1 + memory, 0, differences)
@@ -184,18 +174,11 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0, remove_hea
                 # add an initial off period if the series doesn't start with on period
                 off_periods_frames = np.insert(off_periods_frames, 0, 0)
                 on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
-                if remove_heading_off_period:
-                    off_periods = np.delete(off_periods, 0)
-                    off_periods_frames = np.delete(off_periods_frames, 0)
+                off_periods = np.delete(off_periods, 0)
+                off_periods_frames = np.delete(off_periods_frames, 0)
             elif frames[0] != 0:
-                if not remove_heading_off_period:
-                    on_periods[0] += frames[0]
-                    # add the initial on frames if they are rescued by memory
-                    on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
-                    on_periods_frames = np.insert(on_periods_frames, 0, 0)
-                else:
-                    on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
-                    on_periods_frames = np.insert(on_periods_frames, 0, frames[0])
+                on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
+                on_periods_frames = np.insert(on_periods_frames, 0, frames[0])
             else:
                 on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
                 on_periods_frames = np.insert(on_periods_frames, 0, 0)
