@@ -111,7 +111,9 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0, remove_hea
     df = pd.DataFrame({'frame': np.arange(0, event_time_series.size), 'intensity': event_time_series.values})
     df = df[df.intensity > threshold]
     frames = df.frame.values
-
+    remove_last_on_period = False
+    if frames[-1] + 1 == event_time_series.size:
+        remove_last_on_period = True
     if frames.size != 0:
 
         differences = np.diff(frames)
@@ -170,13 +172,13 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0, remove_hea
 
             max_index_off = np.max(off_periods_indices)
             # the index of the last off period
-            last_on_period = np.sum(off_periods_zero[max_index_off + 1:]) + 1
-            # the last on period is the sum of differences starting after the last off period
-            on_periods = np.append(on_periods, last_on_period)
-            # add the last on period
+            if not remove_last_on_period:
+                last_on_period = np.sum(off_periods_zero[max_index_off + 1:]) + 1
+                # the last on period is the sum of differences starting after the last off period
+                on_periods = np.append(on_periods, last_on_period)
+                # add the last on period
             off_periods = differences[off_periods_indices] - 1
             # the off periods
-
             if frames[0] > memory:
                 off_periods = np.insert(off_periods, 0, frames[0])
                 # add an initial off period if the series doesn't start with on period
@@ -197,6 +199,7 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0, remove_hea
             else:
                 on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
                 on_periods_frames = np.insert(on_periods_frames, 0, 0)
+            on_periods_frames = on_periods_frames[:on_periods.size]
     else:
         on_periods = np.array([])
         off_periods = np.array([])

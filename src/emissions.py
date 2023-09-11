@@ -7,7 +7,6 @@ from scipy.stats import geom
 import src.figure as fi
 import os
 
-
 class Emissions:
     """
     Container for emission-associated attributes.

@@ -12,6 +12,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import transitions as tr
+import fluorophores as fl
 
 
 def test_singlestate():
@@ -265,19 +266,22 @@ def test_load_transitions(fluorophore_system_object, parameters, expected):
             tr.load_transitions(fluorophore_system_object, *parameters)
     else:
         transitions = tr.load_transitions(fluorophore_system_object, *parameters)
-        index = 11
+        index = 14
         expected = [tr.Transition(tr.TransitionType.EXCITATION, 1946561.1940894993),
                     tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 2.7e+08),
-                    tr.Transition(tr.TransitionType.INTERSYSTEM_CROSSING_ST, 8.3e5),
-                    tr.Transition(tr.TransitionType.INTERSYSTEM_CROSSING_TS, 5e5),
-                    tr.Transition(tr.TransitionType.ISOMERIZATION, 2e7),
+                    tr.Transition(tr.TransitionType.INTERSYSTEM_CROSSING_ST, fl.Cy5.isc_st_rate),
+                    tr.Transition(tr.TransitionType.INTERSYSTEM_CROSSING_TS, fl.Cy5.isc_ts_rate),
+                    tr.Transition(tr.TransitionType.ISOMERIZATION, fl.Cy5.iso_rate),
                     tr.Transition(tr.TransitionType.BACKISOMERIZATION, 102695.97797787128),
                     tr.Transition(tr.TransitionType.INTERNAL_CONVERSION_S, 709169999.9999999),
-                    tr.Transition(tr.TransitionType.REDUCTION, 9.6e6),
-                    tr.Transition(tr.TransitionType.OXIDATION, 0.2),
+                    tr.Transition(tr.TransitionType.ET_CYCLE_T, 62620.57849336167),
+                    tr.Transition(tr.TransitionType.ET_CYCLE_S, 626205.7849336166),
+                    tr.Transition(tr.TransitionType.REDUCTION_T, 62.62057849336167),
+                    tr.Transition(tr.TransitionType.REDUCTION_S, 626.2057849336167),
+                    tr.Transition(tr.TransitionType.OXIDATION, fl.Cy5.dstorm_th_el_rate),
                     tr.Transition(tr.TransitionType.HOMO_FRET, 245101500000000.0, 1.0),
                     tr.Transition(tr.TransitionType.HOMO_FRET, 30665462018995.47, 1.414)]
         if parameters[2]:
-            expected.insert(9, tr.Transition(tr.TransitionType.PHOTOBLEACHING_1, 1.0))
-            index = 12
+            expected.insert(12, tr.Transition(tr.TransitionType.PHOTOBLEACHING_1, 1.0))
+            index = 15
         assert transitions[:index] == expected

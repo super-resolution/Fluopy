@@ -99,7 +99,10 @@ class TransitionType(Enum):
     PHOTOBLEACHING_1 = TransitionAttributes('BLE1', SingleState.T1, SingleState.B, False)
     PHOTOBLEACHING_2 = TransitionAttributes('BLE2', SingleState.T2, SingleState.B, False)
 
-    REDUCTION = TransitionAttributes('RED', SingleState.T1, SingleState.OFF, False)
+    ET_CYCLE_T = TransitionAttributes('ETT', SingleState.T1, SingleState.S0, False)
+    ET_CYCLE_S = TransitionAttributes('ETS', SingleState.S1, SingleState.S0, False)
+    REDUCTION_T = TransitionAttributes('REDT', SingleState.T1, SingleState.OFF, False)
+    REDUCTION_S = TransitionAttributes('REDS', SingleState.S1, SingleState.OFF, False)
     OXIDATION = TransitionAttributes('OXI', SingleState.OFF, SingleState.S0, False)
 
     ISOMERIZATION = TransitionAttributes('ISO', SingleState.S1, SingleState.Cis, False)
@@ -688,10 +691,16 @@ def load_transitions(fluorophore_system, irradiance=2, wavelength=600, bleaching
     internal_conversion = Transition(rate=internal_conversion_rate,
                                      transition_type=TransitionType.INTERNAL_CONVERSION_S)
 
-    dstorm_red_rate = fo.calculate_reduction_rate(k_pet=data.dstorm_red_rate_mol, **dstorm_parameters)
-    dstorm_red = Transition(rate=dstorm_red_rate, transition_type=TransitionType.REDUCTION)
-
-    dstorm_oxi = Transition(rate=data.dstorm_oxi_rate, transition_type=TransitionType.OXIDATION)
+    dstorm_pet_t_rate = fo.calculate_pet_rate(k_pet=data.dstorm_pet_t_rate_mol, **dstorm_parameters)
+    dstorm_pet_s_rate = fo.calculate_pet_rate(k_pet=data.dstorm_pet_s_rate_mol, **dstorm_parameters)
+    dstorm_pet_t = Transition(rate=dstorm_pet_t_rate, transition_type=TransitionType.ET_CYCLE_T)
+    dstorm_pet_s = Transition(rate=dstorm_pet_s_rate, transition_type=TransitionType.ET_CYCLE_S)
+    dstorm_red_t_rate = dstorm_pet_t_rate / 1000
+    dstorm_red_s_rate = dstorm_pet_s_rate / 1000
+    dstorm_red_t = Transition(rate=dstorm_red_t_rate, transition_type=TransitionType.REDUCTION_T)
+    dstorm_red_s = Transition(rate=dstorm_red_s_rate, transition_type=TransitionType.REDUCTION_S)
+    dstorm_oxi = Transition(rate=data.dstorm_th_el_rate, transition_type=TransitionType.OXIDATION)
+    dstorm = [dstorm_pet_t, dstorm_pet_s, dstorm_red_t, dstorm_red_s, dstorm_oxi]
 
     calculate_homo_fret = {'emission_rate': emission_rate, 'spectral_overlap_integral': data.j_homo_fret,
                            'dipole_orientation_factor': data.fret_kappa_sq}
@@ -716,7 +725,7 @@ def load_transitions(fluorophore_system, irradiance=2, wavelength=600, bleaching
     if bleaching:
         bleach = [Transition(rate=data.photobleach_t1_rate, transition_type=TransitionType.PHOTOBLEACHING_1)]
 
-    transitions = [excitation, emission, isc_st, isc_ts, isomerization, bisomerization, internal_conversion, dstorm_red,
-                   dstorm_oxi] + bleach + homo_frets + cis_frets + triplet_frets + off_frets
+    transitions = ([excitation, emission, isc_st, isc_ts, isomerization, bisomerization, internal_conversion] + dstorm
+                   + bleach + homo_frets + cis_frets + triplet_frets + off_frets)
 
     return transitions

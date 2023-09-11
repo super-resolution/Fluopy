@@ -28,7 +28,7 @@ class Cy5(FluorophoreData):
 
     # intersystem crossing
     isc_st_rate: float = 8.3e5
-    isc_ts_rate: float = 5e5
+    isc_ts_rate: float = 5e3
 
     # photobleaching
     photobleach_s1_rate: float = 0
@@ -48,8 +48,9 @@ class Cy5(FluorophoreData):
     j_off_fret: float = 1e15
 
     # dstorm-specific attributes
-    dstorm_red_rate_mol: float = 9.6e7
-    dstorm_oxi_rate: float = 2e-1
+    dstorm_pet_t_rate_mol: float = 1e8
+    dstorm_pet_s_rate_mol: float = 1e9
+    dstorm_th_el_rate: float = 2e-2
 
 
 @dataclass

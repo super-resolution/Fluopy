@@ -86,17 +86,23 @@ def test_calculate_back_isomerization_rate(parameters, expected):
 
 
 @pytest.mark.parametrize('parameters,expected',
-                         [[['mea', 100, 1, 7, True], 'AttributeError'],
-                          [['mea', 100, 1, 8, True], 0.1],
-                          [['βME', 100, 1, 8, True], 0.1],
-                          [['βME', 100, 1, 8, False], 0.7]])
-def test_calculate_reduction_rate(parameters, expected):
-    if expected == 'AttributeError':
-        with pytest.raises(AttributeError):
-            fo.calculate_reduction_rate(*parameters)
+                         [[[8, 9.6, 143], 3.50398]])
+def test_henderson_hasselbalch_equation(parameters, expected):
+    base_concentration = fo.henderson_hasselbalch_equation(*parameters)
+    np.testing.assert_allclose(base_concentration, expected, rtol=1e-4)
+
+
+@pytest.mark.parametrize('parameters,expected',
+                         [[['ßme', 100, 1, 8], 'ValueError'],
+                          [['mea', 100, 1, 8], 0.0004379],
+                          [['betaME', 100, 1, 8], 0.00245]])
+def test_calculate_pet_rate(parameters, expected):
+    if expected == 'ValueError':
+        with pytest.raises(ValueError):
+            fo.calculate_pet_rate(*parameters)
     else:
-        result = fo.calculate_reduction_rate(*parameters)
-        np.testing.assert_allclose(result, expected)
+        result = fo.calculate_pet_rate(*parameters)
+        np.testing.assert_allclose(result, expected, rtol=1e-3)
 
 
 @pytest.mark.parametrize('parameters,expected',

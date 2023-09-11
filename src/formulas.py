@@ -184,22 +184,44 @@ def calculate_back_isomerization_rate(photon_flux=8e25, absorption_cross_section
     return back_isomerization_rate
 
 
-def calculate_reduction_rate(reducing_agent='mea', concentration=100, k_pet=1, ph=8, same=True):
+def henderson_hasselbalch_equation(ph, pka, concentration):
+    """
+    Returns the estimated concentration of the base given the total concentration.
+
+    Parameters
+    ----------
+    ph : float
+        The pH as indicator of acidity or basicity.
+    pka : float
+        Acid dissociation constant.
+    concentration : float
+        Total concentration of the agent in mM.
+
+    Returns
+    -------
+    base_concentration : float
+        Concentration of the base in mM.
+    """
+    base_to_acid = 10**(ph - pka)
+    base_concentration = base_to_acid * concentration / (base_to_acid + 1)
+
+    return base_concentration
+
+
+def calculate_pet_rate(reducing_agent='mea', concentration=143, k_pet=1, ph=8):
     """
     Returns the dSTORM reduction rate for a given reducing agent and its concentration.
 
     Parameters
     ----------
     reducing_agent : str
-        One of 'mea', 'βME'.
+        One of 'mea', 'betaME'.
     concentration : float
         Concentration of the reducing agent in mM.
     k_pet : float
         The rate of photoinduced electron transfer in 1/(s M).
     ph : float
         The pH as indicator of acidity or basicity.
-    same : bool
-        Whether the reducing_agent corresponds to the k_pet.
 
     Returns
     -------
@@ -207,17 +229,15 @@ def calculate_reduction_rate(reducing_agent='mea', concentration=100, k_pet=1, p
         The reduction rate in 1/s.
     """
     # the factor 1/7 (or 7) comes from protocols stating to either use 100 µl 100 mM MEA or 10 µl 143 mM beta-ME
-    if ph != 8:
-        raise AttributeError(f'ph of {ph} not implemented yet.')
-        # some function (inverse sigmoid) to adjust the rates
+    if reducing_agent == 'betaME':
+        pka = 9.6
+    elif reducing_agent == 'mea':
+        pka = 9.5
+        k_pet *= 1/7
+    else:
+        raise ValueError('reducing_agent has to be one of "betaME", "mea".')
 
-    if not same:
-        if reducing_agent == 'mea':
-            k_pet = k_pet * 1/7
-        elif reducing_agent == 'βME':
-            k_pet = k_pet * 7
-
-    concentration = concentration * 1e-3
+    concentration = henderson_hasselbalch_equation(ph=ph, pka=pka, concentration=concentration) * 1e-3
     reduction_rate = k_pet * concentration
 
     return reduction_rate

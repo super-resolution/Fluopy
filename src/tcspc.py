@@ -1,8 +1,9 @@
 """
 Module tcspc
-Assumes an infinitesimally short laser pulse that assures only one fluorophore to be excited per pulse. Hence, it is
-not suited for simulation of antibunching experiments that require a duration of the pulse to enable the potential
-excitation of multiple fluorophores.
+Assumes an infinitesimally short laser pulse that assures only one fluorophore to be excited per pulse. Another pulse
+starts only if all fluorophores are in their ground state.
+This simulation is suited to demonstrate observed fluorescence lifetimes of homo-FRET experiments.
+This simulation is NOT suited to demonstrate effects of energy transfers that are not homo-FRET.
 """
 import numpy as np
 import src.simulation as si
