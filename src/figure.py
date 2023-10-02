@@ -223,6 +223,8 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
             ax.bar(x=data[0], height=data[1], color=color, label=label, **type_specific_kwargs)
     elif type_ == "line":
         ax.plot(data[0], data[1], color=color, label=label, **type_specific_kwargs)
+    elif type_ == "errorbar":
+        ax.errorbar(data[0], data[1], yerr=data[2], color=color, label=label, **type_specific_kwargs)
     elif type_ == "multiple_line":
         for j, dat_ in enumerate(data):
             if callable(color):

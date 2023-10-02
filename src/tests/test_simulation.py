@@ -51,6 +51,32 @@ def test_direct_method_steps(transition_set_object):
     os.remove('transition_series')
 
 
+def test_direct_method_steps_bleach(transition_set_object_bleach):
+    transition_set_object_bleach.finalize()
+    size = 100
+    time_series, transition_series = \
+        si.direct_method_steps(transition_matrix=transition_set_object_bleach.transition_matrix,
+                               row_sums=transition_set_object_bleach.row_sums, start_index=0,
+                               size=size, seed=3, use_memmap=None)
+    assert time_series[0] == 0
+    assert time_series.size != size + 1
+    assert transition_series.size != size
+    assert time_series.size == transition_series.size + 1
+    time_series_memmap, transition_series_memmap = \
+        si.direct_method_steps(transition_matrix=transition_set_object_bleach.transition_matrix,
+                               row_sums=transition_set_object_bleach.row_sums,
+                               start_index=0, size=size, seed=3, use_memmap='')
+    np.testing.assert_array_equal(time_series, time_series_memmap)
+    np.testing.assert_array_equal(transition_series, transition_series_memmap)
+    assert len(time_series_memmap.base) == time_series.size * 64 / 8
+    assert len(transition_series_memmap.base) == transition_series.size * 32 / 8
+    del time_series_memmap
+    del transition_series_memmap
+    gc.collect()
+    os.remove('time_series')
+    os.remove('transition_series')
+
+
 def test_direct_method_time(transition_set_object):
     transition_set_object.finalize()
     end_time = 10
@@ -63,6 +89,31 @@ def test_direct_method_time(transition_set_object):
     time_series_memmap, transition_series_memmap = \
         si.direct_method_time(transition_matrix=transition_set_object.transition_matrix,
                               row_sums=transition_set_object.row_sums,
+                              start_index=0, size=10, end_time=end_time, seed=3, use_memmap='')
+    np.testing.assert_array_equal(time_series, time_series_memmap)
+    np.testing.assert_array_equal(transition_series, transition_series_memmap)
+    assert len(time_series_memmap.base) == time_series.size * 64 / 8
+    assert len(transition_series_memmap.base) == transition_series.size * 32 / 8
+    del time_series_memmap
+    del transition_series_memmap
+    gc.collect()
+    os.remove('time_series')
+    os.remove('transition_series')
+
+
+def test_direct_method_time_bleach(transition_set_object_bleach):
+    transition_set_object_bleach.finalize()
+    end_time = 10
+    time_series, transition_series = si.direct_method_time(transition_matrix=transition_set_object_bleach.transition_matrix,
+                                                           row_sums=transition_set_object_bleach.row_sums, start_index=0,
+                                                           size=10, end_time=end_time, seed=3, use_memmap=None)
+    assert time_series[0] == 0
+    assert time_series.size == transition_series.size + 2
+    assert time_series[-1] == end_time
+    assert transition_set_object_bleach.combined_state_transitions_df['final_state'][transition_series[-1]] == (7, 7)
+    time_series_memmap, transition_series_memmap = \
+        si.direct_method_time(transition_matrix=transition_set_object_bleach.transition_matrix,
+                              row_sums=transition_set_object_bleach.row_sums,
                               start_index=0, size=10, end_time=end_time, seed=3, use_memmap='')
     np.testing.assert_array_equal(time_series, time_series_memmap)
     np.testing.assert_array_equal(transition_series, transition_series_memmap)

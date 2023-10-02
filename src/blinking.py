@@ -4,6 +4,7 @@ Module blinking
 import numpy as np
 import pandas as pd
 import src.figure as fi
+import src.transitions as tr
 
 
 class Blinking:
@@ -15,9 +16,9 @@ class Blinking:
     emissions : src.emissions.Emissions
         Container for emission-associated attributes.
     on_periods : np.ndarray
-        Contains the durations of each ON period.
+        Contains the durations of each ON period (in frames).
     off_periods : np.ndarray
-        Contains the durations of each OFF period.
+        Contains the durations of each OFF period (in frames).
     on_periods_frames : np.ndarray
         Contains the first frame of each ON period.
     off_periods_frames : np.ndarray
@@ -97,9 +98,9 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0):
     Returns
     -------
     on_periods : np.ndarray
-        Contains the durations of each ON period.
+        Contains the durations of each ON period (in frames).
     off_periods : np.ndarray
-        Contains the durations of each OFF period.
+        Contains the durations of each OFF period (in frames).
     on_periods_frames : np.ndarray
         Contains the first frame of each ON period.
     off_periods_frames : np.ndarray
@@ -192,6 +193,66 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0):
     return on_periods, off_periods, on_periods_frames, off_periods_frames
 
 
+def get_off_statistics(simulation, index, event_indices=None):
+    """
+    Determines ON and OFF intervals of a single fluorophore, where the OFF interval is defined as the fluorophore's time
+    spend in off state, whilst the ON interval is the times in between. This differs from blinking, since it may not
+    consider whether a photon is detected during the ON time and it only considers one fluorophore.
+
+    Parameters
+    ----------
+    simulation : src.simulation.Simulation
+        Container of simulation-associated attributes and methods.
+    index : int
+        Determines the fluorophore to be looked at.
+    event_indices : None, 1-D array_like
+        If not None, take into consideration if the ON interval actually yields a detected photon.
+
+    Returns
+    -------
+    all_times : 1-D array_like
+        Contains time points at which ON and OFF intervals start and end.
+    values : 1-D array_like
+        Values that correspond to all_times. 0 if time is associated with OFF, 1 otherwise.
+    """
+    if index + 1 > simulation.state_series.shape[0]:
+        raise ValueError(f'index assumes {index + 1} fluorophores but {simulation.state_series.shape[0]} are present.')
+    off_index = np.where(simulation.state_series[index] == tr.SingleState.OFF.value)[0]
+    off2_index = np.where(simulation.state_series[index] == tr.SingleState.OFF2.value)[0]
+    off_indices = np.sort(np.concatenate([off_index, off2_index]))
+    high_diffs = np.where(np.diff(off_indices) > 1)[0]
+    starting_indices = off_indices[high_diffs + 1]
+    starting_indices = np.insert(starting_indices, 0, off_indices[0])
+    ending_indices = off_indices[high_diffs] + 1  # ends when new state (s0) is reached
+    off_start = simulation.time_series[starting_indices]
+    off_end = simulation.time_series[ending_indices]
+    on_start = np.copy(off_end)
+    on_start = np.insert(on_start, 0, 0)
+    on_end = np.copy(off_start)
+    merged = np.concatenate((off_start, off_end, on_start, on_end))
+    all_times = np.sort(merged)
+    values = np.ones(int(all_times.size / 2))
+    values[1::2] = 0
+    values = np.vstack((values, values)).ravel('F')
+    if values.size != all_times.size:
+        values = np.append(values, 0)
+
+    if event_indices is not None:
+        differences = np.diff(simulation.state_series[index])
+        changes_at = np.where(differences != 0)[0]
+        events_from_this_fluorophore = event_indices[np.in1d(event_indices, changes_at).nonzero()[0]]
+        event_time_points = simulation.time_series[events_from_this_fluorophore+1]
+        event_time_points = event_time_points[event_time_points < all_times[-1]]
+        insertion_indices = np.searchsorted(all_times, event_time_points)
+        uniques = np.unique(insertion_indices)
+        add_starting_index = np.concatenate((uniques, uniques - 1))
+        mask = np.ones(values.size, bool)
+        mask[add_starting_index] = False
+        values[mask] = 0
+
+    return all_times, values
+
+
 def plot_histogram(data, density=True, display_mean=True, as_time=None, sec_per_frame=None, **kwargs):
     """
     Plot histogram of ON or OFF periods.
@@ -237,7 +298,7 @@ def plot_histogram(data, density=True, display_mean=True, as_time=None, sec_per_
 
     if display_mean:
         mean = np.mean(data)
-        axes[0][0].text(x=0.3, y=0.85, s=f"mean: {mean:.2f}", transform=axes[0][0].transAxes,
+        axes[0][0].text(x=0.3, y=0.85, s=fr"$\mu = {mean:.2f}$", transform=axes[0][0].transAxes,
                         fontsize=kwargs['fontsize'])
 
     return axes

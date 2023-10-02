@@ -31,7 +31,6 @@ class Cy5(FluorophoreData):
     isc_ts_rate: float = 5e3
 
     # photobleaching
-    photobleach_s1_rate: float = 0
     photobleach_t1_rate: float = 1
     photobleach_t2_rate: float = 0
 

@@ -349,7 +349,8 @@ class Analysis:
         """
         Get the simulated lifetime distributions of transitions.single_states and the simulated time until occurrence
         distributions of transitions.transitions.
-        Note: if energy transfer, the time to transition is only collected from the donor's point of view.
+        Note: if transition of interest is energy transfer, the time to transition is only collected from the donor's
+        point of view.
 
         Returns
         -------
@@ -531,6 +532,22 @@ class Analysis:
         axes[0, 0].get_figure().tight_layout()
 
         return axes
+
+
+def get_fluorescence_lifetime(simulation):
+    lifetimes = np.array([])
+    for i, state_series_fluorophore in enumerate(simulation.state_series):
+        differences = np.diff(state_series_fluorophore)
+        changes_at = np.where(differences != 0)[0]
+        changed = changes_at + 1
+        initial_single_states = state_series_fluorophore[changes_at]
+        total_times = simulation.time_series[changed]
+        time_intervals = np.diff(total_times)
+        time_intervals = np.insert(time_intervals, 0, total_times[0])
+        s1 = SingleState.S1.value
+        time_intervals_s1 = time_intervals[np.where(initial_single_states == s1)]
+        lifetimes = np.concatenate([lifetimes, time_intervals_s1])
+    return lifetimes
 
 
 def plot_bar(data, single_states, df, mode='state_occurrences', **kwargs):

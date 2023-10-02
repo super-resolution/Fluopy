@@ -233,7 +233,6 @@ def calculate_pet_rate(reducing_agent='mea', concentration=143, k_pet=1, ph=8):
         pka = 9.6
     elif reducing_agent == 'mea':
         pka = 9.5
-        k_pet *= 1/7
     else:
         raise ValueError('reducing_agent has to be one of "betaME", "mea".')
 

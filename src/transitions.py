@@ -26,6 +26,7 @@ class SingleState(Enum):
     Cis = 5
     OFF = 6
     B = 7
+    OFF2 = 8
 
 
 class PairedState(Enum):
@@ -38,9 +39,13 @@ class PairedState(Enum):
     S0_S1 = [SingleState.S0, SingleState.S1]
     S1_T1 = [SingleState.S1, SingleState.T1]
     S1_Cis = [SingleState.S1, SingleState.Cis]
+    S0_Cis = [SingleState.S0, SingleState.Cis]
     S1_OFF = [SingleState.S1, SingleState.OFF]
     S0_S0 = [SingleState.S0, SingleState.S0]
     S0_T2 = [SingleState.S0, SingleState.T2]
+    S1_S1 = [SingleState.S1, SingleState.S1]
+    S0_T1 = [SingleState.S0, SingleState.T1]
+    S0_OFF2 = [SingleState.S0, SingleState.OFF2]
 
     @property
     def single_state_values(self):
@@ -90,6 +95,7 @@ class TransitionType(Enum):
     """
     Assigns constant attributes to each possible photophysical transition.
     """
+    # general
     EXCITATION = TransitionAttributes('EXC', SingleState.S0, SingleState.S1, False)
     FLUORESCENT_EMISSION = TransitionAttributes('FLU', SingleState.S1, SingleState.S0, True)
     INTERSYSTEM_CROSSING_ST = TransitionAttributes('ISCST', SingleState.S1, SingleState.T1, False)
@@ -99,19 +105,26 @@ class TransitionType(Enum):
     PHOTOBLEACHING_1 = TransitionAttributes('BLE1', SingleState.T1, SingleState.B, False)
     PHOTOBLEACHING_2 = TransitionAttributes('BLE2', SingleState.T2, SingleState.B, False)
 
+    # dstorm
     ET_CYCLE_T = TransitionAttributes('ETT', SingleState.T1, SingleState.S0, False)
     ET_CYCLE_S = TransitionAttributes('ETS', SingleState.S1, SingleState.S0, False)
     REDUCTION_T = TransitionAttributes('REDT', SingleState.T1, SingleState.OFF, False)
     REDUCTION_S = TransitionAttributes('REDS', SingleState.S1, SingleState.OFF, False)
     OXIDATION = TransitionAttributes('OXI', SingleState.OFF, SingleState.S0, False)
+    OXIDATION_2 = TransitionAttributes('OXI2', SingleState.OFF2, SingleState.S0, False)
 
+    # cis trans isomerization
     ISOMERIZATION = TransitionAttributes('ISO', SingleState.S1, SingleState.Cis, False)
     BACKISOMERIZATION = TransitionAttributes('BISO', SingleState.Cis, SingleState.S0, False)
 
+    # energy transfers
     HOMO_FRET = TransitionAttributes('HFRET', PairedState.S1_S0, PairedState.S0_S1, False)
-    TRIPLET_FRET = TransitionAttributes('TFRET', PairedState.S1_T1, PairedState.S0_T2, False)
-    CIS_FRET = TransitionAttributes('CFRET', PairedState.S1_Cis, PairedState.S0_S0, False)
+    CIS_FRET_1 = TransitionAttributes('CFRET', PairedState.S1_Cis, PairedState.S0_Cis, False)
+    CIS_FRET_2 = TransitionAttributes('CFRET2', PairedState.S1_Cis, PairedState.S0_S0, False)
     OFF_FRET = TransitionAttributes('OFRET', PairedState.S1_OFF, PairedState.S0_S0, False)
+    OFF_FRET_2 = TransitionAttributes('OFRET2', PairedState.S1_OFF, PairedState.S0_OFF2, False)
+    S_S_ANNIHILATION = TransitionAttributes('SSA', PairedState.S1_S1, PairedState.S0_S1, False)
+    S_T_ANNIHILATION = TransitionAttributes('STA', PairedState.S1_T1, PairedState.S0_T1, False)
 
     @property
     def abbreviation(self):
@@ -261,7 +274,7 @@ class TransitionSet:
         Returns
         -------
         TransitionSet
-            Re-initilaization of the object with the modified transition collection.
+            Re-initialization of the object with the modified transition collection.
         """
         if remove_list is None:
             remove_list = []
@@ -289,7 +302,8 @@ class TransitionSet:
 
         Returns
         -------
-        self
+        TransitionSet
+            Re-initialization of the object with the modified transition collection.
         """
         if change_dict is None:
             change_dict = {}
@@ -709,13 +723,14 @@ def load_transitions(fluorophore_system, irradiance=2, wavelength=600, bleaching
 
     calculate_cis_fret = {'emission_rate': emission_rate, 'spectral_overlap_integral': data.j_cis_fret,
                           'dipole_orientation_factor': data.fret_kappa_sq}
-    cis_frets = get_energy_transfer_transitions(transition_type=TransitionType.CIS_FRET, distances=distances,
+    cis_frets = get_energy_transfer_transitions(transition_type=TransitionType.CIS_FRET_1, distances=distances,
                                                 rates=None, calculate_rates=calculate_cis_fret)
 
     calculate_triplet_fret = {'emission_rate': emission_rate, 'spectral_overlap_integral': data.j_triplet_fret,
                               'dipole_orientation_factor': data.fret_kappa_sq}
-    triplet_frets = get_energy_transfer_transitions(transition_type=TransitionType.TRIPLET_FRET, distances=distances,
-                                                    rates=None, calculate_rates=calculate_triplet_fret)
+    triplet_frets = get_energy_transfer_transitions(transition_type=TransitionType.S_T_ANNIHILATION,
+                                                    distances=distances, rates=None,
+                                                    calculate_rates=calculate_triplet_fret)
 
     calculate_off_fret = {'emission_rate': emission_rate, 'spectral_overlap_integral': data.j_off_fret,
                           'dipole_orientation_factor': data.fret_kappa_sq}

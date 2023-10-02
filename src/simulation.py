@@ -94,7 +94,7 @@ class Simulation:
         self.state_series[:, 0] = start_at
 
         for i, _ in enumerate(final_states[0]):
-            final_states_fluorophore = final_states.map(lambda x: x[i]).to_numpy()
+            final_states_fluorophore = final_states.map(lambda x: x[i]).to_numpy(dtype=np.int8)
             self.state_series[i][1:] = final_states_fluorophore[self.transition_series]
         if use_memmap is not None:
             self.state_series.flush()
@@ -177,14 +177,14 @@ def direct_method_steps(transition_matrix, row_sums, start_index=0, size=10, see
     transition_matrix_sorted_indices = np.argsort(transition_matrix, axis=1)
     sorted_transition_matrix = np.take_along_axis(transition_matrix, transition_matrix_sorted_indices, axis=1)
     cumsum_sorted_trm = np.cumsum(sorted_transition_matrix, axis=1)
+    absorbing_state_reached = False
 
     for i in range(size):
         current_state_lambda = row_sums[current_state_index]
 
         if current_state_lambda == 0:  # there is no outgoing transition
             # the Markov chain has encountered an absorbing state
-            time_step_series = time_step_series[:i + 2]
-            transition_series = transition_series[:i + 1]
+            absorbing_state_reached = True
             break
         # inverse transform sampling using the quantile function of the exponential distribution
         transition_time = 1 / current_state_lambda * np.log(1 / random_numbers[i, 0])
@@ -197,7 +197,24 @@ def direct_method_steps(transition_matrix, row_sums, start_index=0, size=10, see
 
         time_step_series[i + 1] = transition_time
 
+    if absorbing_state_reached:
+        if use_memmap is not None:
+            time_step_series.flush()
+            transition_series.flush()
+            time_series.flush()
+            time_step_series = np.memmap(os.path.join(use_memmap, 'time_step_series'), mode='r+',
+                                         dtype=np.float32, shape=(i + 1,))
+            transition_series = np.memmap(os.path.join(use_memmap, 'transition_series'), mode='r+',
+                                          dtype=np.uint32, shape=(i,))
+            time_series = np.memmap(os.path.join(use_memmap, 'time_series'),
+                                    dtype=np.float64, mode='r+', shape=(i + 1,))
+        else:
+            time_step_series.resize((i + 1, ))
+            transition_series.resize((i, ))
+            time_series.resize((i + 1, ))
+
     time_series[:] = np.cumsum(time_step_series, dtype=np.float64)
+
     if use_memmap is not None:
         del time_step_series
         del random_numbers
@@ -269,12 +286,14 @@ def direct_method_time(transition_matrix, row_sums, start_index=0, size=10, end_
     sorted_transition_matrix = np.take_along_axis(transition_matrix, transition_matrix_sorted_indices, axis=1)
     cumsum_sorted_trm = np.cumsum(sorted_transition_matrix, axis=1)
 
+    abso = 0
     i = 0
     j = 1
     while time_series[i] < end_time:
         current_state_lambda = row_sums[current_state_index]
 
         if current_state_lambda == 0:
+            abso = 1
             break
         transition_time = 1 / current_state_lambda * np.log(1 / random_numbers[i - (j - 1) * size, 0])
 
@@ -302,7 +321,7 @@ def direct_method_time(transition_matrix, row_sums, start_index=0, size=10, end_
                 time_series.resize((j*size+1, ))
                 transition_series.resize((j*size, ))
 
-    time_series[i] = end_time
+    time_series[i + abso] = end_time
 
     if use_memmap is not None:
         del random_numbers
@@ -310,15 +329,16 @@ def direct_method_time(transition_matrix, row_sums, start_index=0, size=10, end_
         os.remove(os.path.join(use_memmap, 'random_numbers'))
         time_series.flush()
         transition_series.flush()
-        time_series.base.resize(8*(i+1))  # 8 because it is 64/8 byte per number and resize works with byte
-        transition_series.base.resize(4*(i-1))
+        time_series.base.resize(8*(i+1+abso))  # 8 because it is 64/8 byte per number and resize works with byte
+        transition_series.base.resize(4*(i-1+abso))
         time_series.flush()
         transition_series.flush()
-        time_series = np.memmap(os.path.join(use_memmap, 'time_series'), mode='r+', dtype=np.float64, shape=(i+1, ))
+        time_series = np.memmap(os.path.join(use_memmap, 'time_series'), mode='r+', dtype=np.float64,
+                                shape=(i+1+abso, ))
         transition_series = np.memmap(os.path.join(use_memmap, 'transition_series'), mode='r+', dtype=np.uint32,
-                                      shape=(i-1,))
+                                      shape=(i-1+abso,))
     else:
-        transition_series = transition_series[:i-1]
-        time_series = time_series[:i+1]
+        transition_series = transition_series[:i-1+abso]
+        time_series = time_series[:i+1+abso]
 
     return time_series, transition_series

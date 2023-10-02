@@ -3,7 +3,9 @@ Module tcspc
 Assumes an infinitesimally short laser pulse that assures only one fluorophore to be excited per pulse. Another pulse
 starts only if all fluorophores are in their ground state.
 This simulation is suited to demonstrate observed fluorescence lifetimes of homo-FRET experiments.
-This simulation is NOT suited to demonstrate effects of energy transfers that are not homo-FRET.
+This simulation is NOT suited to demonstrate effects of energy transfers that are not homo-FRET, since they cannot
+occur. Note: the observed fluorescence lifetime of systems without homo-FRET should equal the true fluorescence
+lifetime.
 """
 import numpy as np
 import src.simulation as si

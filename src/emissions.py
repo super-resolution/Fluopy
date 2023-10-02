@@ -7,6 +7,7 @@ from scipy.stats import geom
 import src.figure as fi
 import os
 
+
 class Emissions:
     """
     Container for emission-associated attributes.
@@ -209,7 +210,7 @@ class Emissions:
         return obj
 
 
-def plot_histogram(data, density=True, **kwargs):
+def plot_histogram(data, density=True, display_mean=False, **kwargs):
     """
     Plot histogram of events.
 
@@ -218,6 +219,8 @@ def plot_histogram(data, density=True, **kwargs):
     data : 1-D array_like
     density : bool
         Whether to display the histogram as probability densities. Else, probabilities.
+    display_mean : bool
+        Whether to display the mean inside the plot. The unit corresponds to the unit of the x-axis.
     kwargs : src.figure.universal_figure arguments
 
     Returns
@@ -236,6 +239,11 @@ def plot_histogram(data, density=True, **kwargs):
         kwargs.setdefault('weights', np.ones_like(data) / data.size)
 
     axes = fi.universal_figure(data=data, **kwargs)
+
+    if display_mean:
+        mean = np.mean(data)
+        axes[0][0].text(x=0.3, y=0.85, s=fr"$\mu = {mean:.2f}$", transform=axes[0][0].transAxes,
+                        fontsize=kwargs['fontsize'])
 
     return axes
 

@@ -50,7 +50,26 @@ def transition_set_object():
     isc = tr.Transition(transition_type=tr.TransitionType.INTERSYSTEM_CROSSING_ST, rate=0)
     homo_fret_1 = tr.Transition(transition_type=tr.TransitionType.HOMO_FRET, rate=9, distance=7)
     homo_fret_2 = tr.Transition(transition_type=tr.TransitionType.HOMO_FRET, rate=9, distance=9.899)
+
     transitions = [excitation, emission, ics, isc, homo_fret_1, homo_fret_2]
+
+    return tr.TransitionSet(transitions=transitions, fluorophore_system=fluorophore_system)
+
+
+@pytest.fixture()
+def transition_set_object_bleach():
+    fluorophore_1 = fl.Fluorophore(name='Cy5', position=[1, 1])
+    fluorophore_2 = fl.Fluorophore(name='Cy5', position=[1, 8])
+    fluorophore_system = fl.FluorophoreSystem(fluorophores=[fluorophore_1, fluorophore_2])
+
+    excitation = tr.Transition(transition_type=tr.TransitionType.EXCITATION, rate=5)
+    emission = tr.Transition(transition_type=tr.TransitionType.FLUORESCENT_EMISSION, rate=4)
+    ics = tr.Transition(transition_type=tr.TransitionType.INTERNAL_CONVERSION_S, rate=1)
+    iscst = tr.Transition(transition_type=tr.TransitionType.INTERSYSTEM_CROSSING_ST, rate=2)
+    iscts = tr.Transition(transition_type=tr.TransitionType.INTERSYSTEM_CROSSING_TS, rate=5)
+    bleach = tr.Transition(transition_type=tr.TransitionType.PHOTOBLEACHING_1, rate=4)
+
+    transitions = [excitation, emission, ics, iscst, iscts, bleach]
 
     return tr.TransitionSet(transitions=transitions, fluorophore_system=fluorophore_system)
 
