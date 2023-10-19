@@ -4,52 +4,10 @@ Module fluorophores
 from dataclasses import dataclass, field
 from collections.abc import Collection
 import numpy as np
+import warnings
 from typing import Optional
 import src.figure as fi
-from abc import ABC
-
-
-@dataclass
-class FluorophoreData(ABC):
-    """
-    Abstract class, intended to be subclassed by fluorophore dataclasses that represent real fluorophores.
-    """
-    pass
-
-
-@dataclass
-class Cy5(FluorophoreData):
-    """
-    Contains constant attributes of the fluorophore Cy5.
-    """
-    maximum_extinction_coefficient: float = 2.5e5
-    quantum_yield: float = 0.27
-    fluorescence_lifetime: float = 1e-9
-
-    # intersystem crossing
-    isc_st_rate: float = 8.3e5
-    isc_ts_rate: float = 5e3
-
-    # photobleaching
-    photobleach_t1_rate: float = 1
-    photobleach_t2_rate: float = 0
-
-    # cis/trans isomerization
-    iso_rate: float = 2e7
-    biso_cross_section: float = 1.7e-17
-
-    # dipole orientation factor
-    fret_kappa_sq: float = 2/3
-    # spectral overlap integral
-    j_homo_fret: float = 1.55e16
-    j_cis_fret: float = 3e16
-    j_triplet_fret: float = 9e15
-    j_off_fret: float = 1e15
-
-    # dstorm-specific attributes
-    dstorm_pet_t_rate_mol: float = 1e8
-    dstorm_pet_s_rate_mol: float = 1e9
-    dstorm_th_el_rate: float = 2e-2
+from src.cy5_properties import Cy5, FluorophoreData
 
 
 @dataclass
@@ -65,19 +23,24 @@ class Fluorophore:
         Name of the fluorophore.
     position : Collection
         The position of the fluorophore in 2D space.
-    attribute_container : None, FluorophoreData
+    parameter_set : str
+        Parameter set of the fluorophore. Has no effect if the fluorophore only has one set.
+    constants : None, FluorophoreData
         Not None if the fluorophore has a defined FluorophoreData dataclass.
     """
     id: int = field(init=False)
     name: str = field()
     position: Collection[float, float] = field()
-    attribute_container: Optional[FluorophoreData] = None
+    parameter_set: str = field(default='set 1')
+    constants: Optional[FluorophoreData] = None
 
     def __post_init__(self):
         object.__setattr__(self, 'id', None)
         object.__setattr__(self, 'position', np.asarray(self.position))
         if self.name.lower() == 'cy5':
-            object.__setattr__(self, 'attribute_container', Cy5)
+            object.__setattr__(self, 'constants', Cy5(parameter_set=self.parameter_set))
+        else:
+            warnings.warn(f'Fluorophore {self.name} not known. Parameters have to be defined manually.')
 
 
 @dataclass
@@ -103,6 +66,42 @@ class FluorophoreSystem:
             fluorophore.id = i
         object.__setattr__(self, 'distances', get_distances([fluo.position for fluo in self.fluorophores]))
         object.__setattr__(self, 'count', len(self.fluorophores))
+
+    def load_transitions(self, irradiance=2, wavelength=600, bleaching=False, energy_transfer=True, dstorm=True,
+                         **dstorm_parameters):
+        """
+        Derives transitions based on fluorophore and the experimental conditions to be mimicked.
+
+        Parameters
+        ----------
+        irradiance : float
+            Irradiance in kW/cm².
+        wavelength : float
+            Wavelength in nm.
+        bleaching : bool
+            Whether to incooperate bleaching as a possible transition.
+        energy_transfer : bool
+            Whether to incooperate energy transfers as possible transitions.
+        dstorm : bool
+            Whether to incooperate dstorm photoswitching as possible transitions.
+        dstorm_parameters : dict
+            May contain the following keys: reducing_agent, concentration, k_pet, ph, same.
+            Only needed if dstorm is True.
+
+        Returns
+        -------
+        transitions : Collection
+            Contains transitions of type Transition.
+        """
+        if self.fluorophores[0].constants is None:
+            raise ValueError('load_transitions() not available for this kind of fluorophore.')
+        else:
+            transitions = \
+                self.fluorophores[0].constants.derive_transitions(irradiance=irradiance, wavelength=wavelength,
+                                                                  bleaching=bleaching, energy_transfer=energy_transfer,
+                                                                  distances=self.distances, dstorm=dstorm,
+                                                                  **dstorm_parameters)
+        return transitions
 
     def plot(self, quadratic=True, **kwargs):
         """
@@ -227,7 +226,7 @@ def get_positions_from_distance(distance, count):
     return positions
 
 
-def construct_fluorophores(name='cy5', distance=10, count=3):
+def construct_fluorophores(name='cy5', distance=10, count=3, parameter_set='set 1'):
     """
     Constructs a collection of fluorophores of up to 4 fluorophores of the same kind.
 
@@ -239,6 +238,8 @@ def construct_fluorophores(name='cy5', distance=10, count=3):
         Minimum distance between fluorophores.
     count : int
         Number of fluorophores.
+    parameter_set : str
+        Parameter set of the fluorophore. Has no effect if the fluorophore only has one set.
 
     Returns
     -------
@@ -246,6 +247,6 @@ def construct_fluorophores(name='cy5', distance=10, count=3):
         Contains fluorophores of type Fluorophore.
     """
     positions = get_positions_from_distance(distance=distance, count=count)
-    fluorophores = [Fluorophore(name=name, position=position) for position in positions]
+    fluorophores = [Fluorophore(name=name, position=position, parameter_set=parameter_set) for position in positions]
 
     return fluorophores

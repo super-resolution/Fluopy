@@ -2,7 +2,6 @@
 Module transitions
 """
 from enum import Enum
-import os
 import numpy as np
 import pandas as pd
 from typing import Optional
@@ -10,7 +9,6 @@ from dataclasses import dataclass, field, asdict
 from itertools import product
 import src.network as net
 import src.formulas as fo
-from pathlib import Path
 import warnings
 
 
@@ -125,6 +123,10 @@ class TransitionType(Enum):
     OFF_FRET_2 = TransitionAttributes('OFRET2', PairedState.S1_OFF, PairedState.S0_OFF2, False)
     S_S_ANNIHILATION = TransitionAttributes('SSA', PairedState.S1_S1, PairedState.S0_S1, False)
     S_T_ANNIHILATION = TransitionAttributes('STA', PairedState.S1_T1, PairedState.S0_T1, False)
+
+    # rhodamines
+    H2O_ATTACK = TransitionAttributes('H2O', SingleState.S1, SingleState.OFF, False)
+    BACK_REACTION = TransitionAttributes('BR', SingleState.OFF, SingleState.S0, False)
 
     @property
     def abbreviation(self):
@@ -644,103 +646,3 @@ def get_energy_transfer_transitions(transition_type, distances, rates=None, calc
                                                           distance=distance))
 
     return energy_transfer_transitions
-
-
-def load_transitions(fluorophore_system, irradiance=2, wavelength=600, bleaching=False, **dstorm_parameters):
-    """
-    Loads transitions based on the fluorophore type and experimental conditions to be mimicked.
-
-    Parameters
-    ----------
-    fluorophore_system : src.fluorophores.FluorophoreSystem
-        Container for attributes of multiple, interrelated fluorophores.
-    irradiance : float
-        Irradiance in kW/cm².
-    wavelength : float
-        Wavelength in nm.
-    bleaching : bool
-        Whether to incooperate bleaching as a possible transition.
-    dstorm_parameters : dict
-        May contain the following keys: reducing_agent, concentration, k_pet, ph, same.
-
-    Returns
-    -------
-    transitions : Collection
-        Contains transitions of type Transition.
-    """
-    if fluorophore_system.fluorophores[0].attribute_container is None:
-        raise ValueError('load_transitions() not available for this kind of fluorophore.')
-    data = fluorophore_system.fluorophores[0].attribute_container
-    distances = fluorophore_system.distances
-
-    path_absorption = os.path.join(Path(__file__).parent, 'fluorophores', 'cy5_rel_absorption.csv')
-    dataframe_absorption = pd.read_csv(filepath_or_buffer=path_absorption, index_col=0)
-
-    wavenumber, wavelength, frequency = fo.convert_wavenumber_wavelength_frequency(wavelength=wavelength)
-    photon_flux = fo.calculate_photon_flux(irradiance=irradiance, frequency=frequency)
-    relative_extinction = dataframe_absorption.loc[int(wavelength), 'relative extinction']
-    effective_extinction = relative_extinction * data.maximum_extinction_coefficient
-
-    excitation_rate = fo.calculate_excitation_rate(photon_flux=photon_flux, extinction_coefficient=effective_extinction)
-    excitation = Transition(rate=excitation_rate, transition_type=TransitionType.EXCITATION)
-
-    emission_rate = fo.calculate_emission_rate(quantum_yield=data.quantum_yield,
-                                               fluorescence_lifetime=data.fluorescence_lifetime)
-    emission = Transition(rate=emission_rate, transition_type=TransitionType.FLUORESCENT_EMISSION)
-
-    isc_st = Transition(rate=data.isc_st_rate, transition_type=TransitionType.INTERSYSTEM_CROSSING_ST)
-
-    isc_ts = Transition(rate=data.isc_ts_rate, transition_type=TransitionType.INTERSYSTEM_CROSSING_TS)
-
-    isomerization = Transition(rate=data.iso_rate, transition_type=TransitionType.ISOMERIZATION)
-
-    biso_rate = fo.calculate_back_isomerization_rate(photon_flux=photon_flux,
-                                                     absorption_cross_section=data.biso_cross_section)
-    bisomerization = Transition(rate=biso_rate, transition_type=TransitionType.BACKISOMERIZATION)
-
-    internal_conversion_rate = fo.calculate_internal_conversion_rate(quantum_yield=data.quantum_yield,
-                                                                     emission_rate=emission_rate,
-                                                                     iso_rate=data.iso_rate,
-                                                                     isc_st_rate=data.isc_st_rate)
-    internal_conversion = Transition(rate=internal_conversion_rate,
-                                     transition_type=TransitionType.INTERNAL_CONVERSION_S)
-
-    dstorm_pet_t_rate = fo.calculate_pet_rate(k_pet=data.dstorm_pet_t_rate_mol, **dstorm_parameters)
-    dstorm_pet_s_rate = fo.calculate_pet_rate(k_pet=data.dstorm_pet_s_rate_mol, **dstorm_parameters)
-    dstorm_pet_t = Transition(rate=dstorm_pet_t_rate, transition_type=TransitionType.ET_CYCLE_T)
-    dstorm_pet_s = Transition(rate=dstorm_pet_s_rate, transition_type=TransitionType.ET_CYCLE_S)
-    dstorm_red_t_rate = dstorm_pet_t_rate / 1000
-    dstorm_red_s_rate = dstorm_pet_s_rate / 1000
-    dstorm_red_t = Transition(rate=dstorm_red_t_rate, transition_type=TransitionType.REDUCTION_T)
-    dstorm_red_s = Transition(rate=dstorm_red_s_rate, transition_type=TransitionType.REDUCTION_S)
-    dstorm_oxi = Transition(rate=data.dstorm_th_el_rate, transition_type=TransitionType.OXIDATION)
-    dstorm = [dstorm_pet_t, dstorm_pet_s, dstorm_red_t, dstorm_red_s, dstorm_oxi]
-
-    calculate_homo_fret = {'emission_rate': emission_rate, 'spectral_overlap_integral': data.j_homo_fret,
-                           'dipole_orientation_factor': data.fret_kappa_sq}
-    homo_frets = get_energy_transfer_transitions(transition_type=TransitionType.HOMO_FRET, distances=distances,
-                                                 rates=None, calculate_rates=calculate_homo_fret)
-
-    calculate_cis_fret = {'emission_rate': emission_rate, 'spectral_overlap_integral': data.j_cis_fret,
-                          'dipole_orientation_factor': data.fret_kappa_sq}
-    cis_frets = get_energy_transfer_transitions(transition_type=TransitionType.CIS_FRET_1, distances=distances,
-                                                rates=None, calculate_rates=calculate_cis_fret)
-
-    calculate_triplet_fret = {'emission_rate': emission_rate, 'spectral_overlap_integral': data.j_triplet_fret,
-                              'dipole_orientation_factor': data.fret_kappa_sq}
-    triplet_frets = get_energy_transfer_transitions(transition_type=TransitionType.S_T_ANNIHILATION,
-                                                    distances=distances, rates=None,
-                                                    calculate_rates=calculate_triplet_fret)
-
-    calculate_off_fret = {'emission_rate': emission_rate, 'spectral_overlap_integral': data.j_off_fret,
-                          'dipole_orientation_factor': data.fret_kappa_sq}
-    off_frets = get_energy_transfer_transitions(transition_type=TransitionType.OFF_FRET, distances=distances,
-                                                rates=None, calculate_rates=calculate_off_fret)
-    bleach = []
-    if bleaching:
-        bleach = [Transition(rate=data.photobleach_t1_rate, transition_type=TransitionType.PHOTOBLEACHING_1)]
-
-    transitions = ([excitation, emission, isc_st, isc_ts, isomerization, bisomerization, internal_conversion] + dstorm
-                   + bleach + homo_frets + cis_frets + triplet_frets + off_frets)
-
-    return transitions

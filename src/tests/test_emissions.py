@@ -1,16 +1,8 @@
-import os
-import sys
-import inspect
-
-currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-parentdir = os.path.dirname(currentdir)
-sys.path.insert(0, parentdir)
-
 import pytest
 import numpy as np
 import pandas as pd
-import emissions as em
-import simulation as si
+import src.emissions as em
+import src.simulation as si
 
 
 @pytest.mark.parametrize('dirname,expected',

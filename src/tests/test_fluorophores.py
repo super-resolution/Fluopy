@@ -1,20 +1,13 @@
-import os
-import sys
-import inspect
-
-currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-parentdir = os.path.dirname(currentdir)
-sys.path.insert(0, parentdir)
-
 import pytest
 import numpy as np
-import fluorophores as fl
+import src.fluorophores as fl
+import src.cy5_properties as cy5
 
 
 @pytest.mark.parametrize('fluorophore_object,expected',
                          [[['atto488', [3.5, -4]], [None, 'atto488', np.array([3.5, -4]), None]],
-                          [['Cy5', [1, 1]], [None, 'Cy5', np.array([1, 1]), fl.Cy5]]],
-                         indirect=['fluorophore_object'])
+                          [['Cy5', [1, 1], 'test'], [None, 'Cy5', np.array([1, 1]), cy5.Cy5('test')]]],
+                          indirect=['fluorophore_object'])
 def test_fluorophore(fluorophore_object, expected):
     if expected[0] is None:
         assert fluorophore_object.id is None
@@ -23,13 +16,14 @@ def test_fluorophore(fluorophore_object, expected):
     assert fluorophore_object.name == expected[1]
     np.testing.assert_array_equal(fluorophore_object.position, expected[2])
     if expected[3] is None:
-        assert fluorophore_object.attribute_container is None
+        assert fluorophore_object.constants is None
     else:
-        assert fluorophore_object.attribute_container == expected[3]
+        assert fluorophore_object.constants == expected[3]
 
 
 @pytest.mark.parametrize('positions,expected',
-                         [[[[1, 1], [2, 1], [1, 2]], {(0, 1): 1,(0, 2): 1, (1, 0): 1, (1, 2): 1.414, (2, 0): 1, (2, 1): 1.414}],
+                         [[[[1, 1], [2, 1], [1, 2]], {(0, 1): 1, (0, 2): 1, (1, 0): 1, (1, 2): 1.414, (2, 0): 1,
+                                                      (2, 1): 1.414}],
                           [[[0, 1], [1, 1]], {(0, 1): 1, (1, 0): 1}],
                           [[[1, 1]], {}]])
 def test_get_distances(positions, expected):

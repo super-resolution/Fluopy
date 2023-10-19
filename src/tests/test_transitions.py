@@ -1,18 +1,9 @@
-import os
-import sys
-import inspect
-
-currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-parentdir = os.path.dirname(currentdir)
-sys.path.insert(0, parentdir)
-
 import pytest
 import copy
 import warnings
 import numpy as np
 import pandas as pd
-import transitions as tr
-import fluorophores as fl
+import src.transitions as tr
 
 
 def test_singlestate():
@@ -253,35 +244,3 @@ def test_get_energy_transfer_transitions(parameters, expected):
     else:
         energy_transfer_transitions = tr.get_energy_transfer_transitions(*parameters)
         assert energy_transfer_transitions == expected
-
-
-@pytest.mark.parametrize('fluorophore_system_object,parameters,expected',
-                         [[[['Atto488', [0, 0]], ['Cy5', [0, 1]]], [2, 600, False], 'ValueError'],
-                          [[['Cy5', [0, 0]], ['Cy5', [0, 1]], ['Cy5', [1, 1]]], [2, 600, False], []],
-                          [[['Cy5', [0, 0]], ['Cy5', [0, 1]], ['Cy5', [1, 1]]], [2, 600, True], []]],
-                         indirect=['fluorophore_system_object'])
-def test_load_transitions(fluorophore_system_object, parameters, expected):
-    if expected == 'ValueError':
-        with pytest.raises(ValueError):
-            tr.load_transitions(fluorophore_system_object, *parameters)
-    else:
-        transitions = tr.load_transitions(fluorophore_system_object, *parameters)
-        index = 14
-        expected = [tr.Transition(tr.TransitionType.EXCITATION, 1946561.1940894993),
-                    tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 2.7e+08),
-                    tr.Transition(tr.TransitionType.INTERSYSTEM_CROSSING_ST, fl.Cy5.isc_st_rate),
-                    tr.Transition(tr.TransitionType.INTERSYSTEM_CROSSING_TS, fl.Cy5.isc_ts_rate),
-                    tr.Transition(tr.TransitionType.ISOMERIZATION, fl.Cy5.iso_rate),
-                    tr.Transition(tr.TransitionType.BACKISOMERIZATION, 102695.97797787128),
-                    tr.Transition(tr.TransitionType.INTERNAL_CONVERSION_S, 709169999.9999999),
-                    tr.Transition(tr.TransitionType.ET_CYCLE_T, 62620.57849336167),
-                    tr.Transition(tr.TransitionType.ET_CYCLE_S, 626205.7849336166),
-                    tr.Transition(tr.TransitionType.REDUCTION_T, 62.62057849336167),
-                    tr.Transition(tr.TransitionType.REDUCTION_S, 626.2057849336167),
-                    tr.Transition(tr.TransitionType.OXIDATION, fl.Cy5.dstorm_th_el_rate),
-                    tr.Transition(tr.TransitionType.HOMO_FRET, 245101500000000.0, 1.0),
-                    tr.Transition(tr.TransitionType.HOMO_FRET, 30665462018995.47, 1.414)]
-        if parameters[2]:
-            expected.insert(12, tr.Transition(tr.TransitionType.PHOTOBLEACHING_1, 1.0))
-            index = 15
-        assert transitions[:index] == expected

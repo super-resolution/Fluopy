@@ -1,18 +1,16 @@
-import os
-import sys
-import inspect
-
-currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-parentdir = os.path.dirname(currentdir)
-sys.path.insert(0, parentdir)
-
 import pytest
-import fluorophores as fl
-import transitions as tr
-import simulation as si
-import emissions as em
-import fcs
-import blinking as bl
+import src.fluorophores as fl
+import src.transitions as tr
+import src.simulation as si
+import src.emissions as em
+import src.fcs as fcs
+import src.blinking as bl
+import src.cy5_properties as cy5
+
+
+@pytest.fixture()
+def cy5_object():
+    return cy5.Cy5(parameter_set='test')
 
 
 @pytest.fixture()

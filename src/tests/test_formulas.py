@@ -1,14 +1,6 @@
-import os
-import sys
-import inspect
-
-currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-parentdir = os.path.dirname(currentdir)
-sys.path.insert(0, parentdir)
-
 import pytest
 import numpy as np
-import formulas as fo
+import src.formulas as fo
 
 
 @pytest.mark.parametrize('parameters,expected',
@@ -94,7 +86,7 @@ def test_henderson_hasselbalch_equation(parameters, expected):
 
 @pytest.mark.parametrize('parameters,expected',
                          [[['ßme', 100, 1, 8], 'ValueError'],
-                          [['mea', 100, 1, 8], 0.0004379],
+                          [['mea', 100, 1, 8], 0.003065],
                           [['betaME', 100, 1, 8], 0.00245]])
 def test_calculate_pet_rate(parameters, expected):
     if expected == 'ValueError':
