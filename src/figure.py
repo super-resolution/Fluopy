@@ -96,6 +96,8 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
     # initialize figure
     rcParams["axes.linewidth"] = 2
     rcParams['figure.dpi'] = rcParamsDefault['figure.dpi'] * scale
+    rcParams['figure.facecolor'] = 'white'
+
     if axes is None:
         _, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(fig_width, fig_height))
     else:
@@ -186,16 +188,16 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
         for j, dat_ in enumerate(data):
             if dat_.size != 0:
                 if callable(color):
-                    color = color(j)
+                    use_color = color(j)
                 elif isinstance(color, str):
-                    color = color
+                    use_color = color
                 else:
-                    color = color[j]
+                    use_color = color[j]
                 if isinstance(label, str):
-                    label = label
+                    use_label = label
                 else:
-                    label = label[j]
-                _, bins, _ = ax.hist(x=dat_, color=color, label=label, **type_specific_kwargs)
+                    use_label = label[j]
+                _, bins, _ = ax.hist(x=dat_, color=use_color, label=use_label, **type_specific_kwargs)
                 if plot_distribution is not None:
                     plot_distr = plot_distribution[j]
                     try:
@@ -228,10 +230,10 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
     elif type_ == "multiple_line":
         for j, dat_ in enumerate(data):
             if callable(color):
-                color = color(j)
+                use_color = color(j)
             else:
-                color = color
-            ax.plot(dat_[0], dat_[1], color=color, label=label[j], **type_specific_kwargs)
+                use_color = color
+            ax.plot(dat_[0], dat_[1], color=use_color, label=label[j], **type_specific_kwargs)
     elif type_ == "scatter":
         ax.scatter(data[0], data[1], color=color, label=label, **type_specific_kwargs)
 

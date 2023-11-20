@@ -4,9 +4,10 @@ Module statistics
 from scipy.stats import expon
 import numpy as np
 import pandas as pd
+import warnings
 import src.figure as fi
 from matplotlib.pyplot import cm
-from src.transitions import SingleState
+from src.transitions import SingleState, get_state_combinations, get_combined_state_transitions, construct_transition_rate_list, construct_transition_matrix
 import src.miscellaneous as mi
 
 
@@ -26,33 +27,88 @@ class Prediction:
         Means of lifetime_distributions.
     mean_transition_times : 1-D array_like
         Means of transition_time_distributions.
-    state_occurrences : 1-D array_like
+    stationary_distribution_states : 1-D array_like
         Expected relative frequencies of each entry in transitions.single_states.
-    transition_occurrences : 1-D array_like
+    stationary_distribution_transitions : 1-D array_like
         Expected relative frequencies of each entry in transitions.transitions.
     state_occupations : 1-D array_like
         Expected probability of occupying each entry in transitions.single_states at any given point in time.
     """
-    def __init__(self, transitions):
+    def __init__(self, transitions, accuracy=int(1e9)):
         """
         Parameters
         ----------
         transitions : src.transitions.TransitionSet
             Collection of all relevant transitions and related attributes.
+        accuracy : int
+            Determines the exponent of matrix power. The higher, the more accurate up to the point floating point
+            precision impairs the result.
         """
+        self.energy_transfer = False
         if (transitions.transition_df['energy_transfer'] == True).any():
-            raise ValueError('prediction not available if energy transfers can occur.')
-        else:
-            self.transitions = transitions
+            if transitions.fluorophore_system.count > 2:
+                raise ValueError('prediction not available if energy transfers can occur and number of fluorophores'
+                                 'is larger than 2 due to too large matrix in np.linalg.matrix_power().')
+            else:
+                warnings.warn('prediction accuracy of energy transfers more difficult to tune due to larger matrix in '
+                              'np.linalg.matrix_power(). Only stationary distributions - lifetimes and occupations not'
+                              'available.')
+                self.energy_transfer = True
+
+        self.single_states = transitions.single_states.copy()
+        self.transition_df = transitions.transition_df.copy()
+        self.transition_matrix = transitions.transition_matrix.copy()
+        self.combined_state_transitions_df = transitions.combined_state_transitions_df.copy()
+        self.adjust_input()
+
+        self.stationary_distribution_transitions = \
+            self.predict_transition_occurrences(accuracy=accuracy)
+        self.stationary_distribution_states = self.predict_state_occurrences()
+        if not self.energy_transfer:
             self.lifetime_distributions, self.transition_time_distributions = \
                 self.predict_lifetimes()
             self.mean_lifetimes = np.array([distr.mean() for distr in self.lifetime_distributions])
             self.mean_transition_times = np.array([distr.mean() for distr in self.transition_time_distributions])
-
-            self.state_occurrences = self.predict_state_occurrences()
-            self.transition_occurrences = self.predict_transition_occurrences()
-            occupation_time_per_any_event = self.state_occurrences * self.mean_lifetimes
+            occupation_time_per_any_event = self.stationary_distribution_states * self.mean_lifetimes
             self.state_occupations = occupation_time_per_any_event / occupation_time_per_any_event.sum()
+        else:
+            self.lifetime_distributions, self.transition_time_distributions, self.mean_lifetimes, \
+                self.mean_transition_times, self.state_occupations = None, None, None, None, None
+
+    def adjust_input(self):
+        """
+
+        Returns
+        -------
+
+        """
+        absorbing_states = []
+        for i, single_state in enumerate(self.single_states):
+            single_state_obj = SingleState(single_state)
+            if single_state_obj not in self.transition_df['initial_state'].values:
+                absorbing_states.append(single_state_obj)
+                self.single_states = np.delete(self.single_states, i)
+                drop_transitions = self.transition_df[self.transition_df['final_state'] == single_state_obj].index
+                self.transition_df = self.transition_df.drop(drop_transitions)
+                if self.energy_transfer:
+                    drop_combined_transitions = self.combined_state_transitions_df['transition_id'].isin(drop_transitions)
+                    drop_combined_transitions = drop_combined_transitions[drop_combined_transitions].index
+                    self.combined_state_transitions_df = self.combined_state_transitions_df.drop(drop_combined_transitions)
+        if len(absorbing_states) > 0:
+            warnings.warn(f'absorbing states detected: {absorbing_states}! These, as well as their associated '
+                          f'transitions will not be considered.')
+        if not self.energy_transfer:
+            state_combinations = get_state_combinations(states=self.single_states, repeat=1)
+            combined_state_transitions = get_combined_state_transitions(state_combinations=state_combinations)
+            combined_state_transitions_with_rates = \
+                construct_transition_rate_list(transition_df=self.transition_df,
+                                               combined_state_transitions=combined_state_transitions,
+                                               distance_lookup={})
+
+            self.combined_state_transitions_df = pd.DataFrame(combined_state_transitions_with_rates,
+                                                              columns=['initial_state', 'final_state', 'abbreviation',
+                                                                       'transition_id', 'rate', 'photon'])
+        self.transition_matrix, _ = construct_transition_matrix(self.combined_state_transitions_df)
 
     def predict_lifetimes(self):
         """
@@ -66,13 +122,13 @@ class Prediction:
         transition_time_distributions : 1-D array_like
             Contains objects of type scipy.stats.*.rv_frozen for each entry in transitions.transitions.
         """
-        lifetime_distributions = np.empty(self.transitions.single_states.size, dtype=np.object)
-        transition_time_distributions = np.empty(len(self.transitions.transitions), dtype=np.object)
+        lifetime_distributions = np.empty(self.single_states.size, dtype=np.object)
+        transition_time_distributions = np.empty(self.transition_df.shape[0], dtype=np.object)
 
-        for i, state in enumerate(self.transitions.single_states):
+        for i, state in enumerate(self.single_states):
             total_rate = 0
             associated_transitions = []
-            for j, transition in enumerate(self.transitions.transitions):
+            for j, transition in self.transition_df.iterrows():
                 source = transition.initial_state.value
                 if source == state:
                     total_rate += transition.rate
@@ -86,117 +142,66 @@ class Prediction:
 
         return lifetime_distributions, transition_time_distributions
 
+    def predict_transition_occurrences(self, accuracy):
+        """
+        Predict the relative frequencies of occurrences of transitions.transitions.
+
+        Returns
+        -------
+        stationary_distribution_transitions : 1-D array_like
+            Expected relative frequencies of each entry in transitions.transitions.
+        accuracy : int
+            Determines the exponent of matrix power. The higher, the more accurate up to the point floating point
+            precision impairs the result.
+        energy_transfer : bool
+            Whether energy transfers are possible.
+        """
+        matrix_power = np.linalg.matrix_power(self.transition_matrix, accuracy)
+        stationary_distribution_combined_state_transitions = matrix_power[0]
+        # note the restrictions of this method: https://brilliant.org/wiki/stationary-distributions/
+        transitions_combined = self.combined_state_transitions_df['abbreviation']
+        transitions = self.transition_df['abbreviation']
+        stationary_distribution_transitions = np.zeros_like(transitions)
+        for i, transition in enumerate(transitions):
+            indices = transitions_combined.index[transitions_combined == transition].tolist()
+            stationary_distribution_transitions[i] = stationary_distribution_combined_state_transitions[indices].sum()
+
+        return stationary_distribution_transitions
+
     def predict_state_occurrences(self):
         """
         Predict the relative frequencies of occurrences of transitions.single_states.
 
         Returns
         -------
-        state_occurrences : 1-D array_like
+        stationary_distribution_states : 1-D array_like
             Expected relative frequencies of each entry in transitions.single_states.
         """
-        single_states = self.transitions.single_states
-        df = self.transitions.transition_df
-
-        i_s0 = np.where(single_states == SingleState.S0.value)[0][0]
-        i_s1 = np.where(single_states == SingleState.S1.value)[0][0]
-
-        b = np.zeros(shape=single_states.size)
-        b[0] = 1
-
-        # sum of all states has to equal number of steps
-        a_arrays = np.zeros(shape=(single_states.size, single_states.size))
-        a_arrays[0][:] = 1
-
-        # S1 has to occur as often as S0
-        a_arrays[1][i_s0] = 1
-        a_arrays[1][i_s1] = -1
-
-        if single_states.size > 2:
-            i_t1 = np.where(single_states == SingleState.T1.value)[0][0]
-            s1_transitions = df[df['initial_state'] == SingleState.S1]
-            s1_direct_deexcitation = s1_transitions[s1_transitions['final_state'] == SingleState.S0]
-            s1_indirect_deexcitation = s1_transitions[s1_transitions['final_state'] != SingleState.S0]
-
-            t1_transitions = df[df['initial_state'] == SingleState.T1]
-            t1_direct_deexcitation = t1_transitions[t1_transitions['final_state'] == SingleState.S0]
-            t1_indirect_deexcitation = t1_transitions[t1_transitions['final_state'] != SingleState.S0]
-
-            # T1 coverage
-            s1_nuniques = s1_indirect_deexcitation['abbreviation'].nunique()
-            a_arrays[2][i_s0] = -1
-            a_arrays[2][i_t1] = s1_direct_deexcitation['rate'].sum() / s1_indirect_deexcitation['rate'].sum() + 1
-            # + 1 adds the population of the ith state
-
-            if s1_nuniques == 2:
-                i_cis = np.where(single_states == SingleState.Cis.value)[0][0]
-                # T1 coverage
-                a_arrays[2][i_cis] = s1_direct_deexcitation['rate'].sum() / s1_indirect_deexcitation['rate'].sum() + 1
-                # Cis coverage
-                s1_uniques = s1_indirect_deexcitation['abbreviation'].unique()
-                rate_1 = s1_indirect_deexcitation[s1_indirect_deexcitation['abbreviation'] == s1_uniques[0]][
-                    'rate'].sum()
-                rate_2 = s1_indirect_deexcitation[s1_indirect_deexcitation['abbreviation'] != s1_uniques[0]][
-                    'rate'].sum()
-                a_arrays[i_cis][i_t1] = -1
-                a_arrays[i_cis][i_cis] = rate_1 / rate_2
-            elif s1_nuniques > 2:
-                raise ValueError('Only two alternative singlet deexcitation pathways implemented.')
-
-            # OFF coverage
-            t1_nuniques = t1_indirect_deexcitation['abbreviation'].nunique()
-            if t1_nuniques == 1:
-                i_off = np.where(single_states == SingleState.OFF.value)[0][0]
-                a_arrays[i_off][i_off] = -1
-                a_arrays[i_off][i_t1] = t1_indirect_deexcitation['rate'].sum() / (t1_direct_deexcitation['rate'].sum() +
-                                                                                  t1_indirect_deexcitation[
-                                                                                      'rate'].sum())
-
-            elif t1_nuniques > 1:
-                raise ValueError('Only one alternative triplet deexcitation pathway implemented.')
-
-        state_occurrences = np.linalg.solve(a_arrays, b)
-
-        return state_occurrences
-
-    def predict_transition_occurrences(self):
-        """
-        Predict the relative frequencies of occurrences of transitions.transitions.
-
-        Returns
-        -------
-        transition_occurrences : 1-D array_like
-            Expected relative frequencies of each entry in transitions.transitions.
-        """
-        single_states = self.transitions.single_states
-        df = self.transitions.transition_df
-
-        transition_occurrences = np.zeros(df.index.size)
-        for index, row in df.iterrows():
-            source = row['initial_state']
-            if source == SingleState.S0:
-                i = np.where(single_states == SingleState.S0.value)[0][0]
-            elif source == SingleState.S1:
-                i = np.where(single_states == SingleState.S1.value)[0][0]
-            elif source == SingleState.T1:
-                i = np.where(single_states == SingleState.T1.value)[0][0]
-            elif source == SingleState.Cis:
-                i = np.where(single_states == SingleState.Cis.value)[0][0]
-            elif source == SingleState.OFF:
-                i = np.where(single_states == SingleState.OFF.value)[0][0]
+        single_states = self.single_states
+        stationary_distribution_states = np.zeros_like(single_states, dtype=np.float64)
+        transitions = self.transition_df
+        for n, (id, transition) in enumerate(transitions.iterrows()):
+            final_state = transition['final_state']
+            factor = 1
+            if transition['energy_transfer']:
+                donor_i, acceptor_i = transition['initial_state'].single_state_values
+                donor_f, acceptor_f = final_state.single_state_values
+                if acceptor_i == acceptor_f:
+                    indices = np.where(single_states == donor_f)[0][0]
+                elif donor_f == acceptor_f:
+                    indices = np.where(single_states == donor_f)[0][0]
+                else:
+                    indices = np.array([np.where(single_states == donor_f)[0][0], np.where(single_states == acceptor_f)[0][0]])
+                    factor = 0.5
             else:
-                raise ValueError
+                indices = np.where(single_states == final_state.value)[0][0]
 
-            state_occurrence = self.state_occurrences[i]
-            total_rate = 1 / self.lifetime_distributions[i].mean()  # the extra [0] is needed because np.where
-            # returns array, hence the indexed array returns an array[element] and not the element
-            current_rate = row['rate']
-            transition_occurrence = state_occurrence * current_rate / total_rate
-            transition_occurrences[index] = transition_occurrence
+            stationary_distribution_states[indices] += self.stationary_distribution_transitions[n] * factor
+            # factor to adjust that an energy transfer effects two fluorophores, not only one
 
-        return transition_occurrences
+        return stationary_distribution_states
 
-    def plot(self, mode='state_occurrences', x=None, exclude=None, **kwargs):
+    def plot(self, mode='state_occurrences', x=None, include=None, **kwargs):
         """
         Plot class attributes.
 
@@ -208,8 +213,8 @@ class Prediction:
         x : 1-D array_like
             Value range of the x-axis.
             Only used if mode is a probability distribution.
-        exclude : Collection
-            Ids of transitions.single_states or transitions.transitions that should not be displayed.
+        include : Collection
+            Ids of transitions.single_states or transitions.transitions that should be displayed.
             Only used if mode is a probability distribution.
         kwargs : src.figure.universal_figure arguments
 
@@ -218,16 +223,16 @@ class Prediction:
         axes : np.ndarray
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
-        single_states = self.transitions.single_states
-        df = self.transitions.transition_df
+        single_states = self.single_states
+        df = self.transition_df
 
-        if exclude is None:
-            exclude = []
+        if include is None:
+            include = [0]
         if 'distribution' not in mode:
             if mode == 'transition_occurrences':
-                data = [np.arange(df.index.size), self.transition_occurrences]
+                data = [np.arange(df.index.size), self.stationary_distribution_transitions]
             elif mode == 'state_occurrences':
-                data = [np.arange(single_states.size), self.state_occurrences]
+                data = [np.arange(single_states.size), self.stationary_distribution_states]
             elif mode == 'mean_lifetimes':
                 data = [np.arange(single_states.size), self.mean_lifetimes]
             elif mode == 'mean_transition_times':
@@ -239,25 +244,25 @@ class Prediction:
             axes = plot_bar(data=data, single_states=single_states, df=df, mode=mode, **kwargs)
         else:
             if mode == 'lifetime_distributions':
-                labels = [SingleState(id).name for id in single_states if id not in exclude]
-                indices = [index for index, id in enumerate(single_states) if id not in exclude]
+                labels = [SingleState(id).name for id in single_states if id in include]
+                indices = [index for index, id in enumerate(single_states) if id in include]
                 x = np.linspace(0, 1, 1000) if x is None else x
                 data = [[x, distribution.pdf(x)] for i, distribution in enumerate(self.lifetime_distributions) if
                         i in indices]
             elif mode == 'transition_time_distributions':
                 labels = [transition for id, transition in df['abbreviation'].iteritems() if
-                          id not in exclude]
+                          id in include]
                 x = np.linspace(0, 1, 1000) if x is None else x
                 data = [[x, distribution.pdf(x)] for id, distribution in enumerate(self.transition_time_distributions)
-                        if id not in exclude]
+                        if id in include]
             else:
                 raise AttributeError(f'mode {mode} unknown.')
             axes = plot_prediction_distr(data=data, mode=mode, label=labels, **kwargs)
 
         return axes
 
-    def plot_all(self, x_lifetimes=None, x_transitions=None, exclude_lifetimes=None,
-                 exclude_transitions=None):
+    def plot_all(self, x_lifetimes=None, x_transitions=None, include_lifetimes=None,
+                 include_transitions=None):
         """
         Plot all class attributes.
 
@@ -267,26 +272,31 @@ class Prediction:
             Value range of the x-axis of lifetime_distributions
         x_transitions : 1-D array_like
             Value range of the x-axis of transition_time_distributions.
-        exclude_lifetimes : Collection
-            Ids of transitions.single_states whose lifetime_distribution should not be displayed.
-        exclude_transitions : Collection
-            Ids of transitions.transitions whose transition_time_distribuiton should not be displayed.
+        include_lifetimes : Collection
+            Ids of transitions.single_states whose lifetime_distribution should be displayed.
+        include_transitions : Collection
+            Ids of transitions.transitions whose transition_time_distribuiton should be displayed.
 
         Returns
         -------
         axes : np.ndarray
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
-        axes = self.plot(mode='state_occurrences', ncols=4, nrows=2, fig_width=20, fig_height=6, scale=0.5)
-        _ = self.plot(mode='mean_lifetimes', axes=axes[0, 1])
-        _ = self.plot(mode='lifetime_distributions', axes=axes[0, 2], x=x_lifetimes, exclude=exclude_lifetimes)
-        _ = self.plot(mode='state_occupations', axes=axes[0, 3])
-        _ = self.plot(mode='transition_occurrences', axes=axes[1, 0])
-        _ = self.plot(mode='mean_transition_times', axes=axes[1, 1])
-        _ = self.plot(mode='transition_time_distributions', axes=axes[1, 2], x=x_transitions,
-                      exclude=exclude_transitions)
-        mi.delete_subplots(axes=axes, keep_number=7)
-        axes[0, 0].get_figure().tight_layout()
+        if self.energy_transfer:
+            axes = self.plot(mode='state_occurrences', ncols=2, nrows=1, fig_width=20, fig_height=6, scale=0.5)
+            _ = self.plot(mode='transition_occurrences', axes=axes[0, 1])
+        
+        else:
+            axes = self.plot(mode='state_occurrences', ncols=4, nrows=2, fig_width=20, fig_height=6, scale=0.5)
+            _ = self.plot(mode='mean_lifetimes', axes=axes[0, 1])
+            _ = self.plot(mode='lifetime_distributions', axes=axes[0, 2], x=x_lifetimes, include=include_lifetimes)
+            _ = self.plot(mode='state_occupations', axes=axes[0, 3])
+            _ = self.plot(mode='transition_occurrences', axes=axes[1, 0])
+            _ = self.plot(mode='mean_transition_times', axes=axes[1, 1])
+            _ = self.plot(mode='transition_time_distributions', axes=axes[1, 2], x=x_transitions,
+                        include=include_transitions)
+            mi.delete_subplots(axes=axes, keep_number=7)
+            axes[0, 0].get_figure().tight_layout()
 
         return axes
 
@@ -294,6 +304,9 @@ class Prediction:
 class Analysis:
     """
     Container of lifetimes, state and transition occurrences obtained by simulation-associated attributes and methods.
+    Note that here, state_occurrences and transition_occurrences correspond to stationary_distribution_states and
+    stationary_distribution_transitions of Prediction. If the simulation has not taken sufficient steps, the resulting
+    distribution might vary from the stationary distribution.
 
     Attributes
     ----------
@@ -325,9 +338,31 @@ class Analysis:
         """
         if simulation.transition_series is None:
             raise ValueError('analysis not available if simulation has not been run.')
+
         else:
             self.simulation = simulation
+            self.single_states = simulation.transitions.single_states
+            self.transition_df = simulation.transitions.transition_df
             self.transitions = simulation.transitions
+
+            absorbing_states = []
+            for i, single_state in enumerate(self.single_states):
+                single_state_obj = SingleState(single_state)
+                if single_state_obj not in self.transition_df['initial_state'].values:
+                    absorbing_states.append(single_state_obj)
+                    self.single_states = np.delete(self.single_states, i)
+                    drop_transitions = self.transition_df[self.transition_df['final_state'] == single_state_obj].index
+                    self.transition_df = self.transition_df.drop(drop_transitions)
+            if len(absorbing_states) > 0:
+                count = 0
+                for i, state_series in enumerate(self.simulation.state_series):
+                    last_single_state = SingleState(state_series[-1])
+                    if last_single_state in absorbing_states:
+                        count += 1
+                        print(f'fluorophore {i} has reached the markovian absorbing state {last_single_state}')
+                print(f'{count} of {self.transitions.fluorophore_system.count} fluorophores reached the absorbing '
+                      f'state. \nNote: absorbing states are not further considered in analysis.')
+
             self.lifetime_distributions, self.transition_time_distributions = \
                 self.get_lifetimes()
             self.mean_lifetimes = np.array([np.mean(lifetime_distribution) if lifetime_distribution.size > 0 else np.nan
@@ -359,8 +394,8 @@ class Analysis:
         transition_time_distributions : Collection
             Contains 1-D array_like for each entry in transitions.transitions.
         """
-        lifetime_distributions = [np.array([]) for _ in self.transitions.single_states]
-        transition_time_distributions = [np.array([]) for _ in self.transitions.transition_df.index]
+        lifetime_distributions = [np.array([]) for _ in self.single_states]
+        transition_time_distributions = [np.array([]) for _ in self.transition_df.index]
         for i, state_series_fluorophore in enumerate(self.simulation.state_series):
             differences = np.diff(state_series_fluorophore)
             changes_at = np.where(differences != 0)[0]
@@ -369,17 +404,17 @@ class Analysis:
             total_times = self.simulation.time_series[changed]
             time_intervals = np.diff(total_times)
             time_intervals = np.insert(time_intervals, 0, total_times[0])
-            for j, state in enumerate(self.transitions.single_states):
+            for j, state in enumerate(self.single_states):
                 time_intervals_state = time_intervals[np.where(initial_single_states == state)]
                 lifetime_distributions[j] = np.concatenate([lifetime_distributions[j], time_intervals_state])
 
             transitions_fluorophore = self.simulation.transition_series[changes_at]
-            for j in self.transitions.transition_df.index:
+            for j, index in enumerate(self.transition_df.index):
                 combined_state_transition_ids = self.transitions.combined_state_transitions_df[
-                    self.transitions.combined_state_transitions_df['transition_id'] == j].index.values
+                    self.transitions.combined_state_transitions_df['transition_id'] == index].index.values
                 transition_ids = np.in1d(transitions_fluorophore, combined_state_transition_ids).nonzero()[0]
-                if self.transitions.transition_df.at[j, 'energy_transfer']:
-                    source_donor = self.transitions.transition_df.at[j, 'initial_state'].donor.value
+                if self.transition_df.at[index, 'energy_transfer']:
+                    source_donor = self.transition_df.at[index, 'initial_state'].donor.value
                     donor_indices = np.where(initial_single_states == source_donor)[0]
                     transition_ids = transition_ids[np.in1d(transition_ids, donor_indices)]
 
@@ -400,8 +435,8 @@ class Analysis:
         transition_occurrences : 1-D array_like
             Total occurrences of each entry in transitions.transitions.
         """
-        state_occurrences = np.zeros(shape=self.transitions.single_states.size, dtype=np.int64)
-        transition_occurrences = np.zeros(shape=self.transitions.transition_df.index.size, dtype=np.int64)
+        state_occurrences = np.zeros(shape=self.single_states.size, dtype=np.int64)
+        transition_occurrences = np.zeros(shape=self.transition_df.index.size, dtype=np.int64)
 
         for state_series_fluorophore in self.simulation.state_series:
             differences = np.diff(state_series_fluorophore)
@@ -410,18 +445,20 @@ class Analysis:
             changes_at_and_last = np.append(changes_at, last_state)
             states = state_series_fluorophore[changes_at_and_last]
             state_ids, state_counts = np.unique(states, return_counts=True)
-            corresponding_state_indices = np.in1d(self.transitions.single_states, state_ids).nonzero()[0]
+            corresponding_state_indices = np.in1d(self.single_states, state_ids).nonzero()[0]
+            keep_indices = np.in1d(state_ids, self.single_states).nonzero()[0]
+            state_counts = state_counts[keep_indices]
             state_occurrences[corresponding_state_indices] += state_counts
 
-        for j in self.transitions.transition_df.index:
+        for j, index in enumerate(self.transition_df.index):
             combined_state_transition_ids = self.transitions.combined_state_transitions_df[
-                self.transitions.combined_state_transitions_df['transition_id'] == j].index.values
+                self.transitions.combined_state_transitions_df['transition_id'] == index].index.values
             transition_ids = np.in1d(self.simulation.transition_series, combined_state_transition_ids).nonzero()[0]
             transition_occurrences[j] = transition_ids.size
 
         return state_occurrences, transition_occurrences
 
-    def plot(self, mode='state_occurrences', exclude=None, prediction=None, **kwargs):
+    def plot(self, mode='state_occurrences', include=None, prediction=None, **kwargs):
         """
         Plot class attributes.
 
@@ -430,8 +467,8 @@ class Analysis:
         mode : str
             One of 'state_occurrences', 'transition_occurrences', 'mean_lifetimes', 'mean_transition_times',
             'state_occupations', 'lifetime_distributions', 'transition_time_distributions'.
-        exclude : Collection
-            Ids of transitions.single_states or transitions.transitions that should not be displayed.
+        include : Collection
+            Ids of transitions.single_states or transitions.transitions that should be displayed.
             Only used if mode is a probability distribution.
         prediction : None, Prediction
             Container of lifetimes, state and transition occurrences obtained by computation-associated attributes and
@@ -443,20 +480,20 @@ class Analysis:
         axes : np.ndarray
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
-        if exclude is None:
-            exclude = []
+        if include is None:
+            include = [0]
         marker = None
-        x_states = np.arange(self.transitions.single_states.size)
-        x_transitions = np.arange(self.transitions.transition_df.index.size)
+        x_states = np.arange(self.single_states.size)
+        x_transitions = np.arange(self.transition_df.index.size)
         if 'distribution' not in mode:
             if mode == 'transition_occurrences':
                 data = [x_transitions, self.transition_occurrences]
                 if prediction is not None:
-                    marker = [x_transitions, prediction.transition_occurrences]
+                    marker = [x_transitions, prediction.stationary_distribution_transitions]
             elif mode == 'state_occurrences':
                 data = [x_states, self.state_occurrences]
                 if prediction is not None:
-                    marker = [x_states, prediction.state_occurrences]
+                    marker = [x_states, prediction.stationary_distribution_states]
             elif mode == 'mean_lifetimes':
                 data = [x_states, np.nan_to_num(self.mean_lifetimes)]
                 if prediction is not None:
@@ -471,25 +508,25 @@ class Analysis:
                     marker = [x_states, prediction.state_occupations]
             else:
                 raise AttributeError(f'mode {mode} unknown.')
-            axes = plot_bar(data=data, single_states=self.transitions.single_states, df=self.transitions.transition_df,
+            axes = plot_bar(data=data, single_states=self.single_states, df=self.transition_df,
                             mode=mode, draw_marker=marker, **kwargs)
         else:
             plot_distribution = None
             if mode == 'lifetime_distributions':
-                labels = [SingleState(id).name for id in self.transitions.single_states if id not in exclude]
-                indices = [index for index, id in enumerate(self.transitions.single_states) if id not in exclude]
+                labels = [SingleState(id).name for id in self.single_states if id in include]
+                indices = [index for index, id in enumerate(self.single_states) if id in include]
                 data = [distribution for i, distribution in enumerate(self.lifetime_distributions) if
                         i in indices]
                 if prediction is not None:
                     plot_distribution = prediction.lifetime_distributions[indices]
             elif mode == 'transition_time_distributions':
-                labels = [transition for id, transition in self.transitions.transition_df['abbreviation'].iteritems() if
-                          id not in exclude]
+                labels = [transition for id, transition in self.transition_df['abbreviation'].iteritems() if
+                          id in include]
                 data = [distribution for id, distribution in enumerate(self.transition_time_distributions) if
-                        id not in exclude]
+                        id in include]
                 if prediction is not None:
                     plot_distribution = [distribution for id, distribution in
-                                         enumerate(prediction.transition_time_distributions) if id not in exclude]
+                                         enumerate(prediction.transition_time_distributions) if id in include]
             else:
                 raise AttributeError(f'mode {mode} unknown.')
 
@@ -499,16 +536,16 @@ class Analysis:
 
         return axes
 
-    def plot_all(self, exclude_lifetimes=None, exclude_transitions=None, prediction=None):
+    def plot_all(self, include_lifetimes=None, include_transitions=None, prediction=None):
         """
         Plot all class attributes.
 
         Parameters
         ----------
-        exclude_lifetimes : Collection
-            Ids of transitions.single_states whose lifetime_distribution should not be displayed.
-        exclude_transitions : Collection
-            Ids of transitions.transitions whose transition_time_distribution should not be displayed.
+        include_lifetimes : Collection
+            Ids of transitions.single_states whose lifetime_distribution should be displayed.
+        include_transitions : Collection
+            Ids of transitions.transitions whose transition_time_distribution should be displayed.
         prediction : None, Prediction
             Container of lifetimes, state and transition occurrences obtained by computation-associated attributes and
             methods.
@@ -518,16 +555,22 @@ class Analysis:
         axes : np.ndarray
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
+        if prediction is not None:
+            prediction_1 = prediction
+            if prediction.energy_transfer:
+                prediction_2 = None
+            else:
+                prediction_2 = prediction
         axes = self.plot(mode='state_occurrences', ncols=4, nrows=2, fig_width=20, fig_height=6, scale=0.5,
-                         prediction=prediction)
-        _ = self.plot(mode='mean_lifetimes', axes=axes[0, 1], prediction=prediction)
-        _ = self.plot(mode='lifetime_distributions', axes=axes[0, 2], exclude=exclude_lifetimes,
-                      prediction=prediction)
-        _ = self.plot(mode='state_occupations', axes=axes[0, 3], prediction=prediction)
-        _ = self.plot(mode='transition_occurrences', axes=axes[1, 0], prediction=prediction)
-        _ = self.plot(mode='mean_transition_times', axes=axes[1, 1], prediction=prediction)
+                         prediction=prediction_1)
+        _ = self.plot(mode='mean_lifetimes', axes=axes[0, 1], prediction=prediction_2)
+        _ = self.plot(mode='lifetime_distributions', axes=axes[0, 2], include=include_lifetimes,
+                      prediction=prediction_2)
+        _ = self.plot(mode='state_occupations', axes=axes[0, 3], prediction=prediction_2)
+        _ = self.plot(mode='transition_occurrences', axes=axes[1, 0], prediction=prediction_1)
+        _ = self.plot(mode='mean_transition_times', axes=axes[1, 1], prediction=prediction_2)
         _ = self.plot(mode='transition_time_distributions', axes=axes[1, 2],
-                      exclude=exclude_transitions, prediction=prediction)
+                      include=include_transitions, prediction=prediction_2)
         mi.delete_subplots(axes=axes, keep_number=7)
         axes[0, 0].get_figure().tight_layout()
 
@@ -586,7 +629,7 @@ def plot_bar(data, single_states, df, mode='state_occurrences', **kwargs):
         kwargs.setdefault('xticklabels', dict(labels=[SingleState(id).name for id in single_states], rotation=70))
     if mode == 'state_occurrences':
         kwargs.setdefault('ylabel', 'PR')
-        kwargs.setdefault('title', 'single states')
+        kwargs.setdefault('title', 'occurrences')
     elif mode == 'transition_occurrences':
         kwargs.setdefault('ylabel', 'PR')
         kwargs.setdefault('title', 'transitions')

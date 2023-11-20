@@ -102,6 +102,7 @@ class TransitionType(Enum):
     SINGLET_QUENCHING = TransitionAttributes('SQ', SingleState.S1, SingleState.S0, False)
     PHOTOBLEACHING_1 = TransitionAttributes('BLE1', SingleState.T1, SingleState.B, False)
     PHOTOBLEACHING_2 = TransitionAttributes('BLE2', SingleState.T2, SingleState.B, False)
+    REVERSE_INTERSYSTEM_CROSSING = TransitionAttributes('RISC', SingleState.T2, SingleState.S1, False)
 
     # dstorm
     ET_CYCLE_T = TransitionAttributes('ETT', SingleState.T1, SingleState.S0, False)
@@ -125,8 +126,9 @@ class TransitionType(Enum):
     S_T_ANNIHILATION = TransitionAttributes('STA', PairedState.S1_T1, PairedState.S0_T1, False)
 
     # rhodamines
-    H2O_ATTACK = TransitionAttributes('H2O', SingleState.S1, SingleState.OFF, False)
+    H2O_ATTACK_S = TransitionAttributes('H2OS', SingleState.S1, SingleState.OFF, False)
     BACK_REACTION = TransitionAttributes('BR', SingleState.OFF, SingleState.S0, False)
+    H2O_ATTACK_T = TransitionAttributes('H2OT', SingleState.T1, SingleState.OFF, False)
 
     @property
     def abbreviation(self):
@@ -326,7 +328,7 @@ class TransitionSet:
         state_combinations = get_state_combinations(states=self.single_states, repeat=self.fluorophore_system.count)
         combined_state_transitions = get_combined_state_transitions(state_combinations=state_combinations)
         combined_state_transitions_with_rates = \
-            construct_transition_rate_list(transitions=self.transitions,
+            construct_transition_rate_list(transition_df=self.transition_df,
                                            combined_state_transitions=combined_state_transitions,
                                            distance_lookup=self.fluorophore_system.distances)
 
@@ -453,8 +455,10 @@ def rate_assignment_standard(transition, transition_rate_list, combined_state_tr
     transition_rate_list : list
         The altered input parameter.
     """
-    source = transition.initial_state.value
-    destination = transition.final_state.value
+    transition_id = transition[0]
+    transition = transition[1]
+    source = transition['initial_state'].value
+    destination = transition['final_state'].value
 
     for (current_state, future_state) in combined_state_transitions:
         if source in current_state:
@@ -466,11 +470,8 @@ def rate_assignment_standard(transition, transition_rate_list, combined_state_tr
                     if not future_state_part == current_state_part:
                         break
                     else:
-                        name = transition.abbreviation
-                        rate = transition.rate
-                        photon = transition.photon
-                        transition_id = transition.id
-                        transition_rate_list.append([current_state, future_state, name, transition_id, rate, photon])
+                        transition_rate_list.append([current_state, future_state, transition['abbreviation'],
+                                                     transition_id, transition['rate'], transition['photon']])
 
     return transition_rate_list
 
@@ -499,9 +500,11 @@ def rate_assignment_energy_transfer(transition, transition_rate_list, combined_s
     transition_rate_list : list
         The altered input parameter.
     """
-    source_donor, source_acceptor = transition.initial_state.single_state_values
-    destination_donor, destination_acceptor = transition.final_state.single_state_values
-    distance = transition.distance
+    transition_id = transition[0]
+    transition = transition[1]
+    source_donor, source_acceptor = transition['initial_state'].single_state_values
+    destination_donor, destination_acceptor = transition['final_state'].single_state_values
+    distance = transition['distance']
     for (current_state, future_state) in combined_state_transitions:
         if source_donor in current_state and source_acceptor in current_state and destination_donor in future_state \
                 and destination_acceptor in future_state:
@@ -524,17 +527,13 @@ def rate_assignment_energy_transfer(transition, transition_rate_list, combined_s
                             if not future_state_part == current_state_part:
                                 break
                             else:
-                                name = transition.abbreviation
-                                rate = transition.rate
-                                photon = transition.photon
-                                transition_id = transition.id
-                                transition_rate_list.append([current_state, future_state, name, transition_id, rate,
-                                                             photon])
+                                transition_rate_list.append([current_state, future_state, transition['abbreviation'],
+                                                             transition_id, transition['rate'], transition['photon']])
 
     return transition_rate_list
 
 
-def construct_transition_rate_list(transitions, combined_state_transitions, distance_lookup):
+def construct_transition_rate_list(transition_df, combined_state_transitions, distance_lookup):
     """
     Constructs a list that contains lists of each realizable combined_state_transition. The inner lists contain
     initial state_combination, final state_combination, abbreviation, transition id, rate and whether a photon is
@@ -555,8 +554,8 @@ def construct_transition_rate_list(transitions, combined_state_transitions, dist
         Contains lists of each realizable combined_state_transition.
     """
     transition_rate_list = list()
-    for transition in transitions:
-        if isinstance(transition.initial_state, SingleState):
+    for transition in transition_df.iterrows():
+        if isinstance(transition[1]['initial_state'], SingleState):
             transition_rate_list = \
                 rate_assignment_standard(transition=transition, transition_rate_list=transition_rate_list,
                                          combined_state_transitions=combined_state_transitions)

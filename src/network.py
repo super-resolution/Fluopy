@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def construct_network(transition_df):
+def construct_network(transition_df, numerical=False):
     """
     Constructs a network of transitions (edges) and their involved states (nodes).
 
@@ -15,12 +15,17 @@ def construct_network(transition_df):
     transition_df : pd.DataFrame
         Dataframe of transitions containing their id as index and their other attributes as columns
         (see src.transitions.Transition).
+    numerical : bool
+        Whether the graph has numerical vertices (else alphabetical).
 
     Returns
     -------
     network : nx.MultiDiGraph
         Markov Chain representation by nodes and edges.
     """
+    if transition_df['energy_transfer'].any() and numerical:
+        raise ValueError('numerical only available for systems without energy transfer.')
+
     from src.transitions import SingleState  # avoids circular import
     network = nx.MultiDiGraph()
     edges = []
@@ -34,8 +39,12 @@ def construct_network(transition_df):
             # https://stackoverflow.com/questions/15159854/python-namespace-main-class-not-isinstance-of-package-class
             # https://stackoverflow.com/questions/53658252/why-do-circular-imports-cause-problems-with-object-identity-using-isinstance
             final_state = row['final_state']
-            source = initial_state.name
-            destination = final_state.name
+            if numerical:
+                source = initial_state.value
+                destination = final_state.value
+            else:
+                source = initial_state.name
+                destination = final_state.name 
             edge = (source, destination, {'w': abbreviation})
             edges.append(edge)
         else:
@@ -47,6 +56,71 @@ def construct_network(transition_df):
     network.add_edges_from(edges)
 
     return network
+
+
+def check_graph_suitable(G, starting_node):
+    """
+    Checks whether a graph is suitable for the algorithms to simulate a Markov chain using
+    its prediction. The requirements are irreducability and acyclic if the starting node is 
+    not part of the cycle.
+
+    Parameters
+    ----------
+    G : nx.MultiDiGraph
+        Markov Chain representation by nodes and edges.
+    starting_node : int
+        Numeric value representing the starting node (i.e., state). 
+
+    Returns
+    -------
+    graph_suited : bool
+        Whether the graph is suited for the algorithms.
+    cycles : list
+        Contains each simple cycle of G.
+    """
+    graph_suited = True
+    # check for absorbing states:
+    for out_degree in G.out_degree:
+        if out_degree == 0:
+            graph_suited = False
+    
+    # check for reversible reactions and loops that do not contain the starting node:
+    cycles = list(nx.simple_cycles(G))
+    for cycle in cycles:
+        if starting_node not in cycle:
+            graph_suited = False
+    
+    return graph_suited, cycles
+
+
+def determine_node_order(G, starting_node):
+    """
+    Determine the order of nodes of a graph such that each node that leads to another node has been visited
+    before the other node. Requires the graph to be a DAG (directed acyclic graph). If the starting  node
+    is part of each cycle, it can be removed to convert the graph to DAG. 
+
+    Parameters
+    ----------
+    G : nx.MultiDiGraph
+        Markov Chain representation by nodes and edges.
+    starting_node : int
+        Numeric value representing the starting node (i.e., state). 
+
+    Returns
+    -------
+    node_order : generator
+        Yields the topological sort of the graph.
+    """
+    G_mutated = G.copy()
+    edges_to_remove = []
+    for edge in G.edges:
+        if edge[1] == starting_node:
+            edges_to_remove.append(edge)
+    G_mutated.remove_edges_from(edges_to_remove)
+    node_order = nx.topological_sort(G_mutated)#
+    print(type(node_order))
+
+    return node_order
 
 
 def plot_network(network, graph_type='shell', colors=None):
@@ -84,7 +158,7 @@ def plot_network(network, graph_type='shell', colors=None):
     labels = {}
     colormap = []
     for i, node in enumerate(g):
-        if '(2)' in node:
+        if isinstance(node, str) and '(2)' in node:
             colormap.append(colors[1])
             labels[node] = node.replace('(2)', '')
         else:
@@ -113,6 +187,7 @@ def plot_network(network, graph_type='shell', colors=None):
                 nothing_found = False
                 nx.draw_networkx_edges(G=g, pos=pos, ax=ax, edgelist=[new_edge],
                                        connectionstyle=f'arc3, rad = {arc_rad_reversed}')
+                print(edge_weights)
                 draw_networkx_curved_edge_labels(G=g, pos=pos, ax=ax, edge_labels={new_edge: edge_weights[new_edge]},
                                                 rad=arc_rad_reversed)
                 break

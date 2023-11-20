@@ -231,6 +231,7 @@ def plot_histogram(data, density=True, display_mean=False, **kwargs):
     kwargs.setdefault('type_', 'hist')
     kwargs.setdefault('title', 'intensity distribution')
     kwargs.setdefault('xlabel', 'photon count')
+    kwargs.setdefault('fontsize', 16)
     if density:
         kwargs.setdefault('ylabel', 'PD')
         kwargs.setdefault('density', True)

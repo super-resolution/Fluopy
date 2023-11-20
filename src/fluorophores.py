@@ -190,10 +190,11 @@ def triangle_third_position(position_1=None, position_2=None):
     return position_3
 
 
-def get_positions_from_distance(distance, count):
+def get_positions_from_distance(distance, count, shape='triangle'):
     """
-    Gets positions of up to 4 fluorophores based on a single distance. If it is 3 fluorophores, they are positioned in
-    an equilateral triangle. If it is 4 fluorophores, they are positioned in a square.
+    Gets positions of up to 4 fluorophores based on a single distance. If it is 3 fluorophores, they are positioned
+    either in an equilateral triangle or in a square with a missing vertex. If it is 4 fluorophores, they are
+    positioned in a square.
 
     Parameters
     ----------
@@ -201,6 +202,8 @@ def get_positions_from_distance(distance, count):
         Minimum distance between fluorophores.
     count : int
         Number of fluorophores.
+    shape : str
+        One of 'triangle', 'square'. Only needed if count is 3.
 
     Returns
     -------
@@ -214,7 +217,12 @@ def get_positions_from_distance(distance, count):
     elif count == 2:
         positions = np.array([position_1, position_2])
     elif count == 3:
-        position_3 = triangle_third_position(position_1=position_1, position_2=position_2)
+        if shape == 'triangle':
+            position_3 = triangle_third_position(position_1=position_1, position_2=position_2)
+        elif shape == 'square':
+            position_3 = np.array([0, distance])
+        else:
+            raise ValueError(f"shape {shape} not known. Can either be 'triangle' or 'square'.")
         positions = np.array([position_1, position_2, position_3])
     elif count == 4:
         position_3 = np.array([0, distance])
@@ -226,7 +234,7 @@ def get_positions_from_distance(distance, count):
     return positions
 
 
-def construct_fluorophores(name='cy5', distance=10, count=3, parameter_set='set 1'):
+def construct_fluorophores(name='cy5', distance=10, count=3, shape='triangle', parameter_set='set 1'):
     """
     Constructs a collection of fluorophores of up to 4 fluorophores of the same kind.
 
@@ -238,6 +246,8 @@ def construct_fluorophores(name='cy5', distance=10, count=3, parameter_set='set 
         Minimum distance between fluorophores.
     count : int
         Number of fluorophores.
+    shape : str
+        One of 'triangle', 'square'. Only needed if count is 3.
     parameter_set : str
         Parameter set of the fluorophore. Has no effect if the fluorophore only has one set.
 
@@ -246,7 +256,7 @@ def construct_fluorophores(name='cy5', distance=10, count=3, parameter_set='set 
     fluorophores : Collection
         Contains fluorophores of type Fluorophore.
     """
-    positions = get_positions_from_distance(distance=distance, count=count)
+    positions = get_positions_from_distance(distance=distance, count=count, shape=shape)
     fluorophores = [Fluorophore(name=name, position=position, parameter_set=parameter_set) for position in positions]
 
     return fluorophores
