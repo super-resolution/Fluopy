@@ -3,7 +3,7 @@ Module emissions
 """
 import numpy as np
 import pandas as pd
-from scipy.stats import geom
+from scipy.stats import geom, norm
 import src.figure as fi
 import os
 
@@ -27,6 +27,26 @@ class Emissions:
         detected emissions) as values.
     """
     def __init__(self, simulation, photon_collection_rate=1, resample='5ms', emccd_gain=1, seed=None):
+        """_summary_
+
+        Parameters
+        ----------
+        simulation : _type_
+            _description_
+        photon_collection_rate : int, optional
+            _description_, by default 1
+        resample : str, optional
+            _description_, by default '5ms'
+        emccd_gain : int, optional
+            _description_, by default 1
+        seed : _type_, optional
+            _description_, by default None
+
+        Raises
+        ------
+        ValueError
+            _description_
+        """
         if simulation.transition_series is None:
             raise ValueError('emissions not available if simulation has not been run.')
         self.simulation = simulation
@@ -122,6 +142,13 @@ class Emissions:
         event_time_series.index = in_seconds
 
         return event_time_series
+    
+
+    def add_noise(self, mean, std):
+        size = self.event_time_series.size
+        variates = norm(mean, std).rvs(size)
+        self.event_time_series = self.event_time_series + variates
+
 
     def plot(self, mode='time_series', density=True, include_0=False, **kwargs):
         """

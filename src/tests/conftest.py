@@ -1,5 +1,5 @@
 import pytest
-import src.fluorophores as fl
+import src.fluorophore_collection as fl
 import src.transitions as tr
 import src.simulation as si
 import src.emissions as em

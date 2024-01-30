@@ -144,11 +144,11 @@
     </configuration>
     <list>
       <item itemvalue="Python.conftest" />
+      <item itemvalue="Python tests.pytest in tests" />
       <item itemvalue="Python tests.pytest for test_cy5_properties.test_derive_transitions" />
       <item itemvalue="Python tests.pytest for test_fluorophores.test_fluorophore" />
       <item itemvalue="Python tests.pytest for test_simulation.test_direct_method_time_bleach" />
       <item itemvalue="Python tests.pytest in test_cy5_properties.py" />
-      <item itemvalue="Python tests.pytest in tests" />
     </list>
     <recent_temporary>
       <list>

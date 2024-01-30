@@ -10,6 +10,7 @@ from itertools import product
 import src.network as net
 import src.formulas as fo
 import warnings
+import src.fluorophore_collection as fl
 
 
 class SingleState(Enum):
@@ -251,14 +252,22 @@ class TransitionSet:
         self.transitions = [transition for transition in transitions if transition.rate != 0]
         for i, transition in enumerate(self.transitions):
             transition.id = i
-            if transition.distance is not None:
-                if transition.distance not in list(fluorophore_system.distances.values()):
-                    warnings.warn(f'{transition.abbreviation} not usable due to distance mismatch.'
-                                  f'Distance given: {transition.distance}, distances expected:'
-                                  f' {np.unique(list(fluorophore_system.distances.values()))}')
         self.transition_df = pd.DataFrame([asdict(transition) for transition in self.transitions])
         self.transition_df.set_index('id', inplace=True)
-        self.single_states = get_single_states(self.transitions)
+        
+        ets = self.transition_df[self.transition_df['energy_transfer']].groupby(['transition_type'], sort=False)
+
+        for _, et in ets:
+            unusable_transitions = list(set(et['distance']) - set(fluorophore_system.distances.values()))
+            unusable_distances = list(set(fluorophore_system.distances.values()) - set(et['distance']))
+            if len(unusable_transitions) > 0:
+                warnings.warn(f'{et["transition_type"].iloc[0].name} distance(s) {unusable_transitions} ' +
+                              'do not correspond to the fluorophore distance(s).', stacklevel=2)
+            if len(unusable_distances) > 0: 
+                warnings.warn(f'{et["transition_type"].iloc[0].name} does not include the fluorophore ' +
+                              f'distance(s) {unusable_distances}.', stacklevel=2)
+            
+        self.single_states = get_single_states(self.transitions, self.transition_df)
 
         self.combined_state_transitions_df = None
         self.transition_matrix = None
@@ -341,8 +350,37 @@ class TransitionSet:
             construct_transition_matrix(combined_state_transitions_df=self.combined_state_transitions_df)
 
         return self
+   
 
-    def plot(self, graph_type='shell', colors=None):
+    def reduce(self):
+        """
+        Return another TransitionSet that contains no transitions to absorbing states.
+        If energy transfers are not possible, the system is additionally reduced to one fluorophore.
+        
+        Returns
+        -------
+        TransitionSet
+            Modified instance.
+        """
+        transitions = self.transitions.copy()
+        remove_list = []
+        for i, single_state in enumerate(self.single_states):
+            single_state = SingleState(single_state)
+            if single_state not in self.transition_df['initial_state'].values:
+                remove_list.append(self.transition_df[self.transition_df['final_state'] == single_state].index)
+        transitions = [transition for i, transition in enumerate(transitions) if i not in remove_list]
+        if not (self.transition_df['energy_transfer'] == True).any() and self.fluorophore_system.count > 1:
+            fluorophore_system = fl.FluorophoreSystem(fluorophores=[self.fluorophore_system.fluorophores[0]])
+        else:
+            fluorophore_system = self.fluorophore_system
+        reduced_set = TransitionSet(transitions=transitions, fluorophore_system=fluorophore_system)
+        reduced_set.finalize()
+
+        return reduced_set
+
+
+
+    def plot(self, graph_type='shell', colors=None, scale=1):
         """
         Plot photophysical system as network/graph.
 
@@ -352,18 +390,20 @@ class TransitionSet:
             Specifies network layout. One of 'shell', 'circular', 'planar' or 'kamada'.
         colors : Collection
             Contains two colors as Hex values of type str.
+        scale : float
+            Factor to scale the figure.
 
         Returns
         -------
         ax : matplotlib.axes._subplots.AxesSubplot
         """
-        network = net.construct_network(transition_df=self.transition_df)
-        ax = net.plot_network(network=network, graph_type=graph_type, colors=colors)
+        graph = net.construct_graph_states(transition_df=self.transition_df, numerical=False)
+        ax = net.plot_graph(G=graph, graph_type=graph_type, colors=colors, scale=scale)
 
         return ax
 
 
-def get_single_states(transitions):
+def get_single_states(transitions, transition_df):
     """
     Gets the values of SingleStates that occur in transitions.
 
@@ -393,7 +433,18 @@ def get_single_states(transitions):
                 if final_st.value not in single_states:
                     single_states.append(final_st.value)
     single_states = np.array(single_states)
-
+    single_state_df = pd.DataFrame(single_states, columns=['single_states'])
+    single_state_df['absorbing'] = False
+    for i, single_state in single_state_df['single_states'].items():
+        if single_state not in transition_df['initial_state'].apply(lambda x: x.value).values:
+            single_state_df.at[i, 'absorbing'] = True
+    final_states = transition_df['final_state'].apply(lambda x: x.value).values
+    absorbing_states = single_state_df['single_states'][single_state_df['absorbing']]
+    transition_df['absorbing'] = False
+    if not absorbing_states.empty:
+        indices = np.where(final_states == absorbing_states.values)[0]
+        transition_df.loc[indices, 'absorbing'] = True
+    
     return single_states
 
 

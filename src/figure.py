@@ -8,7 +8,7 @@ from matplotlib import rcParams, rcParamsDefault
 
 
 def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_="line", data=(0, 0), color="blue",
-                     ylabel="y", xlabel="x", fontsize=21, legend=False, label=None, title=None, xlim=None, ylim=None,
+                     ylabel="y", xlabel="x", fontsize=21, legend=False, label=None, legendcolor='black', title=None, xlim=None, ylim=None,
                      xscale=None, yscale=None, adjust_x=None, adjust_y=None, xticks=None, yticks=None, xticklabels=None,
                      yticklabels=None, tick_params=None, tick_spacing_x=None, tick_spacing_y=None, tick_style_x=None,
                      tick_style_y=None, second_axis_x=False, second_axis_y=False, draw_marker=None,
@@ -44,6 +44,8 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
         Whether to display a legend.
     label : str, list
         Label to pass to legend.
+    legendcolor : str
+        Color of text in legend.
     title : str
         The title of the plot.
     xlim : float, Collection
@@ -255,9 +257,9 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
 
     if draw_marker is not None:
         ax.scatter(*draw_marker, marker='x', c='k', label='pred')
-
+    
     if legend:
-        ax.legend()
+        ax.legend(labelcolor=legendcolor)
 
     axes = axes.reshape(nrows, ncols)
 

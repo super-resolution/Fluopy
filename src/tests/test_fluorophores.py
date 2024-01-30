@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-import src.fluorophores as fl
+import src.fluorophore_collection as fl
 import src.cy5_properties as cy5
 
 

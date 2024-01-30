@@ -4,7 +4,7 @@ from pathlib import Path
 import os
 import src.formulas as fo
 import pandas as pd
-from abc import ABC
+from src.abstract_classes import FluorophoreData
 
 
 MAXIMUM_EXTINCTION_COEFFICIENT = 2.5e5
@@ -26,14 +26,6 @@ J_OFF_FRET = 1e15  # donor: S1, acceptor: OFF
 PET_T_RATE_MOL = 1e8
 PET_S_RATE_MOL = 1e9
 THERMAL_ELIM_RATE = 2e-2
-
-
-@dataclass
-class FluorophoreData(ABC):
-    """
-    Abstract class, intended to be subclassed by fluorophore dataclasses that represent real fluorophores.
-    """
-    pass
 
 
 @dataclass
@@ -124,7 +116,7 @@ class Cy5(FluorophoreData):
         dstorm : bool
             Whether to incooperate dstorm photoswitching as possible transitions.
         dstorm_parameters : dict
-            May contain the following keys: reducing_agent, concentration, k_pet, ph, same.
+            May contain the following keys: reducing_agent, concentration, k_pet, ph.
             Only needed if dstorm is True.
 
         Returns
@@ -132,7 +124,7 @@ class Cy5(FluorophoreData):
         transitions : Collection
             Contains transitions of type Transition.
         """
-        path_absorption = os.path.join(Path(__file__).parent, 'fluorophores', 'cy5_rel_absorption.csv')
+        path_absorption = os.path.join(Path(__file__).parent, 'cy5_rel_absorption.csv')
         dataframe_absorption = pd.read_csv(filepath_or_buffer=path_absorption, index_col=0)
 
         wavenumber, wavelength, frequency = fo.convert_wavenumber_wavelength_frequency(wavelength=wavelength)

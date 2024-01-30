@@ -1,3 +1,9 @@
 {
-    "autoDocstring.docstringFormat": "numpy"
+    "autoDocstring.docstringFormat": "numpy",
+    "launch": {
+
+
+        "configurations": [],
+        "compounds": []
+    }
 }

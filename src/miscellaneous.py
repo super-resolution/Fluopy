@@ -55,8 +55,7 @@ def create_row_subtitles(axes, nrows=1, ncols=1, titles=None):
     if titles is None:
         titles = ['default_title']
 
-    flattened = axes.flatten()
-    fig = flattened[0].get_figure()
+    fig = get_figure(axes)
     grid = plt.GridSpec(nrows=nrows, ncols=ncols)
     for i in range(nrows):
         row = fig.add_subplot(grid[i, ::])
@@ -101,10 +100,20 @@ def add_table(axes, data, labels=None, grid=111, xscale=1, yscale=1, fontsize=12
     else:
         cells = data
 
-    flattened = axes.flatten()
-    fig = flattened[0].get_figure()
+    fig = get_figure(axes)
     new_ax = fig.add_subplot(grid)
     new_ax.axis('off')
     table = new_ax.table(cellText=cells, rowLabels=labels, loc='center')
     table.scale(xscale=xscale, yscale=yscale)
     table.set_fontsize(size=fontsize)
+
+
+def get_figure(axes):
+    if isinstance(axes, np.ndarray):
+        flattened = axes.flatten()
+        ax = flattened[0]
+    else:
+        ax = axes
+    fig = ax.get_figure()
+
+    return fig

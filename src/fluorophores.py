@@ -7,7 +7,9 @@ import numpy as np
 import warnings
 from typing import Optional
 import src.figure as fi
-from src.cy5_properties import Cy5, FluorophoreData
+from src.fluorophore_collection.cy5_properties import Cy5
+from src.fluorophore_collection.simple_examples import Example
+from src.abstract_classes import FluorophoreData
 
 
 @dataclass
@@ -39,6 +41,8 @@ class Fluorophore:
         object.__setattr__(self, 'position', np.asarray(self.position))
         if self.name.lower() == 'cy5':
             object.__setattr__(self, 'constants', Cy5(parameter_set=self.parameter_set))
+        elif self.name.lower() == 'example':
+            object.__setattr__(self, 'constants', Example(parameter_set=self.parameter_set))
         else:
             warnings.warn(f'Fluorophore {self.name} not known. Parameters have to be defined manually.')
 
@@ -85,7 +89,7 @@ class FluorophoreSystem:
         dstorm : bool
             Whether to incooperate dstorm photoswitching as possible transitions.
         dstorm_parameters : dict
-            May contain the following keys: reducing_agent, concentration, k_pet, ph, same.
+            May contain the following keys: reducing_agent, concentration, k_pet, ph.
             Only needed if dstorm is True.
 
         Returns
