@@ -124,7 +124,7 @@ class Cy5(FluorophoreData):
         transitions : Collection
             Contains transitions of type Transition.
         """
-        path_absorption = os.path.join(Path(__file__).parent, 'cy5_rel_absorption.csv')
+        path_absorption = os.path.join(Path(__file__).parent, 'cy5_data', 'cy5_rel_absorption.csv')
         dataframe_absorption = pd.read_csv(filepath_or_buffer=path_absorption, index_col=0)
 
         wavenumber, wavelength, frequency = fo.convert_wavenumber_wavelength_frequency(wavelength=wavelength)

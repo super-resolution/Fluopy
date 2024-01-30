@@ -10,7 +10,7 @@ from itertools import product
 import src.network as net
 import src.formulas as fo
 import warnings
-import src.fluorophore_collection as fl
+import src.fluorophores as fl
 
 
 class SingleState(Enum):

@@ -7,8 +7,8 @@ import numpy as np
 import warnings
 from typing import Optional
 import src.figure as fi
-from src.fluorophore_collection.cy5_properties import Cy5
-from src.fluorophore_collection.simple_examples import Example
+from src.fluorophore_collection.cy5 import Cy5
+from src.fluorophore_collection.examples import Example
 from src.abstract_classes import FluorophoreData
 
 

@@ -1,11 +1,11 @@
 import pytest
-import src.fluorophore_collection as fl
+import src.fluorophores as fl
 import src.transitions as tr
 import src.simulation as si
 import src.emissions as em
 import src.fcs as fcs
 import src.blinking as bl
-import src.cy5_properties as cy5
+import src.fluorophore_collection.cy5 as cy5
 
 
 @pytest.fixture()
