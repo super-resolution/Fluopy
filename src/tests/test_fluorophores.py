@@ -55,9 +55,10 @@ def test_triangle_third_position(position_1, position_2, expected):
                           [5, 0, 'AttributeError'],
                           [5, 5, 'AttributeError']])
 def test_get_positions_from_distance(distance, count, expected):
-    if expected == 'AttributeError':
-        with pytest.raises(AttributeError):
-            fl.get_positions_from_distance(distance, count)
+    if isinstance(expected, str):
+        if expected == 'AttributeError':
+            with pytest.raises(AttributeError):
+                fl.get_positions_from_distance(distance, count)
     else:
         np.testing.assert_allclose(fl.get_positions_from_distance(distance, count), expected)
 

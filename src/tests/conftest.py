@@ -1,4 +1,6 @@
 import pytest
+import pandas as pd
+from dataclasses import asdict
 import src.fluorophores as fl
 import src.transitions as tr
 import src.simulation as si
@@ -32,6 +34,13 @@ def transition_object(request):
 @pytest.fixture()
 def transitionlist(request):
     return [tr.Transition(*param) for param in request.param]
+
+
+@pytest.fixture()
+def transition_pd_series(request):
+    series = pd.Series(asdict(*request.param))
+    series.drop('id', inplace=True)
+    return series
 
 
 @pytest.fixture()

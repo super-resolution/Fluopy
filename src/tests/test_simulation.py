@@ -126,9 +126,10 @@ def test_direct_method_time_bleach(transition_set_object_bleach):
 def test_run(start_at, memmap, expected, transition_set_object):
     transition_set_object.finalize()
     simulation = si.Simulation(transition_set_object)
-    if expected[0] == 'ValueError':
-        with pytest.raises(ValueError):
-            simulation.run(start_at=start_at, size=10, end_time=None, seed=3, use_memmap=memmap)
+    if isinstance(expected[0], str):
+        if expected[0] == 'ValueError':
+            with pytest.raises(ValueError):
+                simulation.run(start_at=start_at, size=10, end_time=None, seed=3, use_memmap=memmap)
     else:
         simulation.run(start_at=start_at, size=10, end_time=None, seed=3, use_memmap=memmap)
         if expected[0] is None:

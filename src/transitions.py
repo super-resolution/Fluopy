@@ -411,6 +411,9 @@ def get_single_states(transitions, transition_df):
     ----------
     transitions : Collection
         Contains transitions of type Transition with non-zero rate.
+    transition_df : pd.DataFrame
+        Dataframe of all given transitions with non-zero rate containing their id as index and their other attributes as
+        columns.
 
     Returns
     -------
@@ -494,8 +497,8 @@ def rate_assignment_standard(transition, transition_rate_list, combined_state_tr
 
     Parameters
     ----------
-    transition : Transition
-        Contains constant and variable attributes of a photophysical transition.
+    transition : Tuple
+        Contains the index and the Transition as a pd.Series.
     transition_rate_list : Collection
         Destination of realizable combined_state_transitions.
     combined_state_transitions : Collection
@@ -537,8 +540,8 @@ def rate_assignment_energy_transfer(transition, transition_rate_list, combined_s
 
     Parameters
     ----------
-    transition : Transition
-        Contains constant and variable attributes of a photophysical transition.
+    transition : Tuple
+        Contains the index and the Transition as a pd.Series.
     transition_rate_list : Collection
         Destination of realizable combined_state_transitions.
     combined_state_transitions : Collection
@@ -592,8 +595,9 @@ def construct_transition_rate_list(transition_df, combined_state_transitions, di
 
     Parameters
     ----------
-    transitions : Collection
-        Contains transitions of type Transition with non-zero rate.
+    transition_df : pd.DataFrame
+        Dataframe of all given transitions with non-zero rate containing their id as index and their other attributes as
+        columns.
     combined_state_transitions : Collection
         Contains combinations of state_combinations of type tuple.
     distance_lookup : dict

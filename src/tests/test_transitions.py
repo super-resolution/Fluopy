@@ -3,6 +3,7 @@ import copy
 import warnings
 import numpy as np
 import pandas as pd
+from dataclasses import asdict
 import src.transitions as tr
 
 
@@ -66,7 +67,11 @@ def test_transition(transition_object, expected):
                            np.array([0, 1, 5])]],
                          indirect=['transitionlist'])
 def test_get_single_states(transitionlist, expected):
-    np.testing.assert_array_equal(tr.get_single_states(transitions=transitionlist), expected)
+    for i, transition in enumerate(transitionlist):
+        transition.id = i
+    transition_df = pd.DataFrame([asdict(transition) for transition in transitionlist])
+    transition_df.set_index('id', inplace=True)
+    np.testing.assert_array_equal(tr.get_single_states(transitions=transitionlist, transition_df=transition_df), expected)
 
 
 def test_transitionset(transition_set_object):
@@ -149,46 +154,48 @@ def test_get_combined_state_transitions():
                                            ((2, 2), (2, 2))]
 
 
-@pytest.mark.parametrize('transition_object,expected',
-                         [[[tr.TransitionType.EXCITATION, 8], [[(0, 0), (0, 1), 'EXC', None, 8, False],
-                                                               [(0, 1), (1, 1), 'EXC', None, 8, False]]],
-                          [[tr.TransitionType.OXIDATION, 7], []]],
-                         indirect=['transition_object'])
-def test_rate_assignment_standard(transition_object, expected):
+@pytest.mark.parametrize('transition_pd_series,id,expected',
+                         [[[tr.Transition(tr.TransitionType.EXCITATION, 8)], 0, [[(0, 0), (0, 1), 'EXC', 0, 8, False],
+                                                               [(0, 1), (1, 1), 'EXC', 0, 8, False]]],
+                          [[tr.Transition(tr.TransitionType.OXIDATION, 7)], 0, []]],
+                         indirect=['transition_pd_series'])
+def test_rate_assignment_standard(transition_pd_series, id, expected):
     combined_state_transitions = [((0, 0), (0, 0)), ((0, 0), (0, 1)), ((0, 1), (1, 1)),
                                   ((0, 0), (1, 1)), ((0, 3), (2, 3))]
-    transition_rate_list = tr.rate_assignment_standard(transition_object, [], combined_state_transitions)
+    transition_rate_list = tr.rate_assignment_standard((id, transition_pd_series), [], combined_state_transitions)
     assert transition_rate_list == expected
 
 
-@pytest.mark.parametrize('transition_object,distance_lookup,expected',
-                         [[[tr.TransitionType.HOMO_FRET, 8, 4], {(0, 1): 5, (1, 0): 5, (0, 2): 4, (2, 0): 4, (1, 2): 7,
+@pytest.mark.parametrize('transition_pd_series,id,distance_lookup,expected',
+                         [[[tr.Transition(tr.TransitionType.HOMO_FRET, 8, 4)], 0, {(0, 1): 5, (1, 0): 5, (0, 2): 4, (2, 0): 4, (1, 2): 7,
                                                                  (2, 1): 7},
-                          [[(0, 0, 1), (1, 0, 0), 'HFRET(4.0)', None, 8, False]]],
-                          [[tr.TransitionType.HOMO_FRET, 8, 4], {(0, 1): 5, (1, 0): 5, (0, 2): 4, (1, 2): 7, (2, 1): 7},
+                          [[(0, 0, 1), (1, 0, 0), 'HFRET(4.0)', 0, 8, False]]],
+                          [[tr.Transition(tr.TransitionType.HOMO_FRET, 8, 4)], 0, {(0, 1): 5, (1, 0): 5, (0, 2): 4, (1, 2): 7, (2, 1): 7},
                            'KeyError'],
-                          [[tr.TransitionType.HOMO_FRET, 8, 2], {(0, 1): 5, (1, 0): 5, (0, 2): 4, (2, 0): 4, (1, 2): 7,
+                          [[tr.Transition(tr.TransitionType.HOMO_FRET, 8, 2)], 0, {(0, 1): 5, (1, 0): 5, (0, 2): 4, (2, 0): 4, (1, 2): 7,
                                                                  (2, 1): 7},
                           []]],
-                         indirect=['transition_object'])
-def test_rate_assignment_energy_transfer(transition_object, distance_lookup, expected):
+                         indirect=['transition_pd_series'])
+def test_rate_assignment_energy_transfer(transition_pd_series, id, distance_lookup, expected):
     combined_state_transitions = [((0, 0, 0), (0, 0, 0)), ((0, 0, 1), (1, 0, 0)), ((0, 1, 0), (1, 0, 0)),
                                   ((2, 0, 1), (1, 0, 0))]
     if expected == 'KeyError':
         with pytest.raises(KeyError):
-            tr.rate_assignment_energy_transfer(transition_object, [], combined_state_transitions, distance_lookup)
+            tr.rate_assignment_energy_transfer((id, transition_pd_series), [], combined_state_transitions, distance_lookup)
     else:
-        transition_rate_list = tr.rate_assignment_energy_transfer(transition_object, [], combined_state_transitions,
+        transition_rate_list = tr.rate_assignment_energy_transfer((id, transition_pd_series), [], combined_state_transitions,
                                                                   distance_lookup)
         assert transition_rate_list == expected
 
 
 def test_construct_transition_rate_list():
     transitions = [tr.Transition(tr.TransitionType.EXCITATION, 8), tr.Transition(tr.TransitionType.HOMO_FRET, 7, 4)]
+    transition_df = pd.DataFrame([asdict(transition) for transition in transitions])
+    transition_df.set_index('id', inplace=True)
     combined_state_transitions = [((0, 0, 0), (0, 0, 0)), ((0, 0, 1), (1, 0, 0)), ((0, 1, 0), (1, 0, 0)),
                                   ((2, 0, 1), (1, 0, 0)), ((0, 2, 0), (0, 2, 1))]
     distance_lookup = {(0, 1): 5, (1, 0): 5, (0, 2): 4, (2, 0): 4, (1, 2): 7, (2, 1): 7}
-    transition_rate_list = tr.construct_transition_rate_list(transitions, combined_state_transitions, distance_lookup)
+    transition_rate_list = tr.construct_transition_rate_list(transition_df, combined_state_transitions, distance_lookup)
     assert transition_rate_list == [[(0, 2, 0), (0, 2, 1), 'EXC', None, 8, False],
                                     [(0, 0, 1), (1, 0, 0), 'HFRET(4.0)', None, 7, False]]
 

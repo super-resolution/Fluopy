@@ -35,9 +35,10 @@ def test_calculate_photon_flux(parameters, expected):
                           [[[1e10, 1e5], None, 1], np.array([1e6, 1e1])],
                           [[1e10, [1, 5], None], np.array([3.8235e-15, 1.91177e-14])]])
 def test_calculate_excitation_rate(parameters, expected):
-    if expected == 'ValueError':
-        with pytest.raises(ValueError):
-            fo.calculate_excitation_rate(*parameters)
+    if isinstance(expected, str):
+        if expected == 'ValueError':
+            with pytest.raises(ValueError):
+                fo.calculate_excitation_rate(*parameters)
     else:
         result = fo.calculate_excitation_rate(*parameters)
         np.testing.assert_allclose(result, expected, rtol=1e-5)
@@ -60,9 +61,10 @@ def test_calculate_emission_rate(parameters, expected):
                           [[0.5, 1e5, 2e5], 'ValueError'],
                           [[1.4, 1e5, 1e5], 'ValueError']])
 def test_calculate_internal_conversion_rate(parameters, expected):
-    if expected == 'ValueError':
-        with pytest.raises(ValueError):
-            fo.calculate_internal_conversion_rate(*parameters)
+    if isinstance(expected, str):
+        if expected == 'ValueError':
+            with pytest.raises(ValueError):
+                fo.calculate_internal_conversion_rate(*parameters)
     else:
         result = fo.calculate_internal_conversion_rate(*parameters)
         np.testing.assert_allclose(result, expected)
