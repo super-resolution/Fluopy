@@ -83,7 +83,7 @@ def construct_graph_transitions(transition_df, numerical=False):
     G = nx.MultiDiGraph()
     edges = []
     for id_source, row in transition_df.iterrows():
-        abbreviation = row['abbreviation']
+        abbreviation1 = row['abbreviation']
         initial_state = row['initial_state']
         if type(initial_state).__name__ == 'SingleState':  # this could (and should) be done with isinstance,
             # but isinstance fails if SingleState is imported from different files. E.g., if for testing the fixture
@@ -93,20 +93,18 @@ def construct_graph_transitions(transition_df, numerical=False):
             # https://stackoverflow.com/questions/53658252/why-do-circular-imports-cause-problems-with-object-identity-using-isinstance
             final_state = row['final_state']
             for id_destination, row in transition_df.iterrows():
+                abbreviation2 = row['abbreviation']
                 if row['initial_state'] == final_state:
                     if numerical:
                         source = id_source
                         destination = id_destination
                     else:
-                        source = abbreviation_source
-                        destination = row['abbreviation']           
+                        source = abbreviation1
+                        destination = abbreviation2        
                     edge = (source, destination, {'w': f'{final_state.name}'})
                     edges.append(edge)
         else:
-            source_1 = initial_state.value[0].name
-            source_2 = initial_state.value[1].name
-            edge = (source_1, source_2 + '(2)', {'w': abbreviation})
-            edges.append(edge)
+            raise ValueError('graph_transitions only available for systems without energy transfer.')
 
     G.add_edges_from(edges)
 

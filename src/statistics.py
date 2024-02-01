@@ -33,6 +33,8 @@ class Prediction:
         Expected relative frequencies of each entry in transitions.transitions.
     state_occupations : 1-D array_like
         Expected probability of occupying each entry in transitions.single_states at any given point in time.
+    energy_transfer : bool
+        Whether the prediction was carried out on energy transfer systems.
     """
     def __init__(self, transitions, accuracy=int(1e9)):
         """
@@ -298,6 +300,8 @@ class Analysis:
         Relative frequencies of each entry in transitions.transitions.
     state_occupations : 1-D array_like
         Probability of occupying each entry in transitions.single_states at any given point in time.
+    energy_transfer : bool
+        Whether the analysis was carried out on energy transfer systems.
     """
     def __init__(self, simulation):
         """
@@ -308,11 +312,14 @@ class Analysis:
         """
         if simulation.transition_series is None:
             raise ValueError('analysis not available if simulation has not been run.')
-
+        
         else:
+            self.energy_transfer = False
             self.simulation = simulation
             self.single_states = simulation.transitions.single_states
             self.transition_df = simulation.transitions.transition_df
+            if (self.transition_df['energy_transfer'] == True).any():
+                self.energy_transfer = True
             self.transitions = simulation.transitions
 
             absorbing_states = []
@@ -455,6 +462,12 @@ class Analysis:
         marker = None
         x_states = np.arange(self.single_states.size)
         x_transitions = np.arange(self.transition_df.index.size)
+        if prediction is not None:
+            if ((not prediction.energy_transfer and self.energy_transfer) or 
+                (prediction.energy_transfer and not self.energy_transfer)):
+                raise AttributeError(f'prediction energy transfers: {prediction.energy_transfer}' +
+                                     f' | analysis energy transfers: {self.energy_transfer}' +
+                                     ' | mismatch!')
         if 'distribution' not in mode:
             if mode == 'transition_occurrences':
                 data = [x_transitions, self.transition_occurrences]
@@ -490,7 +503,7 @@ class Analysis:
                 if prediction is not None:
                     plot_distribution = prediction.lifetime_distributions[indices]
             elif mode == 'transition_time_distributions':
-                labels = [transition for id, transition in self.transition_df['abbreviation'].iteritems() if
+                labels = [transition for id, transition in self.transition_df['abbreviation'].items() if
                           id in include]
                 data = [distribution for id, distribution in enumerate(self.transition_time_distributions) if
                         id in include]
@@ -505,7 +518,7 @@ class Analysis:
 
         return axes
 
-    def plot_all(self, include_lifetimes=None, include_transitions=None, prediction=None):
+    def plot_all(self, include_lifetimes=None, include_transitions=None, prediction=None, scale=0.5):
         """
         Plot all class attributes.
 
@@ -533,8 +546,8 @@ class Analysis:
         else:
             prediction_1 = None
             prediction_2 = None
-        axes = self.plot(mode='state_occurrences', ncols=4, nrows=2, fig_width=20, fig_height=6, scale=0.5,
-                         prediction=prediction_1)
+        axes = self.plot(mode='state_occurrences', ncols=4, nrows=2, fig_width=20, fig_height=6,
+                         prediction=prediction_1, scale=scale)
         _ = self.plot(mode='mean_lifetimes', axes=axes[0, 1], prediction=prediction_2)
         _ = self.plot(mode='lifetime_distributions', axes=axes[0, 2], include=include_lifetimes,
                       prediction=prediction_2)
