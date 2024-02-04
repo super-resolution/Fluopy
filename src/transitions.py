@@ -286,7 +286,7 @@ class TransitionSet:
 
         Returns
         -------
-        TransitionSet
+        filtered : TransitionSet
             Re-initialization of the object with the modified transition collection.
         """
         if remove_list is None:
@@ -301,8 +301,9 @@ class TransitionSet:
                 if transition.abbreviation[:transition.abbreviation.find('(')] not in remove_list:
                     if transition.abbreviation not in remove_list:
                         filtered_transitions.append(transition)
+        filtered = TransitionSet(transitions=filtered_transitions, fluorophore_system=self.fluorophore_system)
 
-        return TransitionSet(transitions=filtered_transitions, fluorophore_system=self.fluorophore_system)
+        return filtered
 
     def adjust_rates(self, change_dict=None):
         """
@@ -315,7 +316,7 @@ class TransitionSet:
 
         Returns
         -------
-        TransitionSet
+        adjusted : TransitionSet
             Re-initialization of the object with the modified transition collection.
         """
         if change_dict is None:
@@ -323,8 +324,9 @@ class TransitionSet:
         for transition in self.transitions:
             if transition.abbreviation in change_dict:
                 transition.rate = change_dict[transition.abbreviation]
+        adjusted = TransitionSet(transitions=self.transitions, fluorophore_system=self.fluorophore_system)
 
-        return TransitionSet(transitions=self.transitions, fluorophore_system=self.fluorophore_system)
+        return adjusted
 
     def finalize(self):
         """
@@ -351,16 +353,14 @@ class TransitionSet:
 
         return self
    
-
-    def reduce(self):
+    def remove_absorbing_states(self):
         """
-        Return another TransitionSet that contains no transitions to absorbing states.
-        If energy transfers are not possible, the system is additionally reduced to one fluorophore.
-        
+        Returns another TransitionSet that contains no absorbing states.
+
         Returns
         -------
-        TransitionSet
-            Modified instance.
+        no_abs : TrasitionSet
+            Re-initialization of the object with the modified transition collection.
         """
         transitions = self.transitions.copy()
         remove_list = []
@@ -369,16 +369,50 @@ class TransitionSet:
             if single_state not in self.transition_df['initial_state'].values:
                 remove_list.append(self.transition_df[self.transition_df['final_state'] == single_state].index)
         transitions = [transition for i, transition in enumerate(transitions) if i not in remove_list]
-        if not (self.transition_df['energy_transfer'] == True).any() and self.fluorophore_system.count > 1:
-            fluorophore_system = fl.FluorophoreSystem(fluorophores=[self.fluorophore_system.fluorophores[0]])
-        else:
+
+        no_abs = TransitionSet(transitions=transitions, fluorophore_system=self.fluorophore_system)
+
+        return no_abs
+
+    def remove_energy_transfers(self):
+        """
+        Return another TransitionSet that contains no transitions that are energy transfers.
+
+        Returns
+        -------
+        no_ets : TransitionSet
+            Re-initialization of the object with the modified transition collection.
+        """
+        transitions = self.transitions.copy()
+        keep_transitions = []
+        for transition in transitions:
+            if not transition.energy_transfer:
+                keep_transitions.append(transition)
+        
+        no_ets = TransitionSet(transitions=keep_transitions, fluorophore_system=self.fluorophore_system)
+
+        return no_ets
+    
+    def reduce(self):
+        """
+        Returns another TransitionSet that consists of only 1 fluorophore.
+        
+        Returns
+        -------
+        reduced : TransitionSet
+            Re-initialization of the object with the modified number of fluorophores.
+        """
+        if (self.transition_df['energy_transfer'] == True).any():
+            raise ValueError('reduce() not available if energy transfers possible.')
+        elif self.fluorophore_system.count == 1:
+            warnings.warn('reduce() has no effect since it is already only 1 fluorophore.')
             fluorophore_system = self.fluorophore_system
-        reduced_set = TransitionSet(transitions=transitions, fluorophore_system=fluorophore_system)
-        reduced_set.finalize()
+        else:
+            fluorophore_system = fl.FluorophoreSystem(fluorophores=[self.fluorophore_system.fluorophores[0]])
 
-        return reduced_set
+        reduced = TransitionSet(transitions=self.transitions, fluorophore_system=fluorophore_system)
 
-
+        return reduced
 
     def plot(self, graph_type='shell', colors=None, scale=1):
         """

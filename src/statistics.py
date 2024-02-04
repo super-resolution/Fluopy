@@ -342,6 +342,7 @@ class Analysis:
 
             self.lifetime_distributions, self.transition_time_distributions = \
                 self.get_lifetimes()
+            
             self.mean_lifetimes = np.array([np.mean(lifetime_distribution) if lifetime_distribution.size > 0 else np.nan
                                             for lifetime_distribution in self.lifetime_distributions])
             self.mean_transition_times = np.array([np.mean(transition_time_distribution)

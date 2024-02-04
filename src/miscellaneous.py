@@ -109,6 +109,20 @@ def add_table(axes, data, labels=None, grid=111, xscale=1, yscale=1, fontsize=12
 
 
 def get_figure(axes):
+    """
+    Get the figure object based on axes, where axes is either an axes object or a 
+    np.ndarray.
+
+    Parameters
+    ----------
+    axes : matplotlib.axes._subplots.AxesSubplots, np.ndarray
+        In the case of axes being np.ndarray, it contains matplotlib.axes._subplots.AxesSubplots
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The figure object that corresponds to axes.
+    """
     if isinstance(axes, np.ndarray):
         flattened = axes.flatten()
         ax = flattened[0]

@@ -143,31 +143,25 @@ class Simulation:
     def apply_absorbing(self, transition_set):
         """
         If there is a single transition that leads to an absorbing state, it can be applied to the different series
-        in retrospect. It is intended to extend 'approximate' to also cover absorbing Markov chains, but it can be
-        used on the 'run' result, too.
+        in retrospect. It is intended to extend 'approximate' to also cover absorbing Markov chains.
         It works using the fundamental matrix of the absorbing Markov chain. 
 
         Parameters
         ----------
         transition_set : src.transitions.TransitionSet
-            Collection of all relevant transitions and related attributes. Allows optional post-init-modification and
-            (subsequent) finalization.
+            The same TransitionSet used for the approximation, but with a transition to an absorbing state available.
         """
         graph = net.construct_graph_transitions(transition_set.transition_df, numerical=True)
-
+        self.transitions = transition_set
         original_transition_matrix = transition_set.transition_matrix.copy()
         for i, single_state in enumerate(transition_set.single_states):
             single_state_obj = tr.SingleState(single_state)
             if single_state_obj not in transition_set.transition_df['initial_state'].values:
                 drop_transition = transition_set.transition_df[transition_set.transition_df['final_state'] == single_state_obj].index.values[0]
-                predecessors = np.array(list(graph.predecessors(drop_transition)))               
-        # Q takes the original transition matrix into account, because within Q the state that leads
-        # to the absorbing state has to take on the probability GIVEN the possibility of the transition
-        # to the absorbing state.
-        Q = np.delete(original_transition_matrix, drop_transition, axis=0)
-        Q = np.delete(Q, drop_transition, axis=1)
-        I_t = np.identity(Q.shape[0])
-        N = np.linalg.inv(I_t - Q)
+                predecessors = np.array(list(graph.predecessors(drop_transition)))
+        Q = get_Q(P=original_transition_matrix, drop_transition=drop_transition)
+        I_t = get_I_t(Q=Q)
+        N = get_N(I_t=I_t, Q=Q)
         starting_transition = self.transition_series[0]
         limiting_transition = np.argmax(N[starting_transition, predecessors])
         count = int(N[starting_transition, predecessors][limiting_transition])
@@ -177,14 +171,13 @@ class Simulation:
             cut_at = transition_occurrences_at[count]
             self.transition_series = self.transition_series[:cut_at + 1]
             self.transition_series = np.append(self.transition_series, final_transition)
-            self.state_series = self.state_series[:cut_at + 2]
-            self.state_series = np.append(self.state_series, transition_set.transition_df['final_state'][drop_transition].value)
+            self.state_series = self.state_series[:, :cut_at + 2]
+            self.state_series = np.append(self.state_series, [[transition_set.transition_df['final_state'][drop_transition].value]], axis=1)
             # approximation - the possibility of an absorbing state should reduce the lifetimes of the involved states
             # this is neglected here because it has a low impact given the low probability of it happening
             self.time_series = self.time_series[:cut_at + 3]
         else:
             warnings.warn('Time series too short for bleaching to statistically have occurred.')
-
 
     def delete_memmaps(self):
         """
@@ -589,3 +582,27 @@ def fill_simple_cycles(prediction, transitions, size, seed):
     time_series[:] = np.cumsum(time_step_series, dtype=np.float64)
 
     return time_series, transition_series
+
+
+def get_Q(P, drop_transition):
+    # Q takes the original transition matrix into account, because within Q the state that leads
+    # to the absorbing state has to take on the probability GIVEN the possibility of the transition
+    # to the absorbing state.
+    Q = np.delete(P, drop_transition, axis=0)
+    Q = np.delete(Q, drop_transition, axis=1)
+
+    return Q
+
+
+def get_I_t(Q):
+
+    I_t = np.identity(Q.shape[0])
+
+    return I_t
+
+
+def get_N(I_t, Q):
+
+    N = np.linalg.inv(I_t - Q)
+
+    return N

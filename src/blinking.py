@@ -220,6 +220,8 @@ def get_off_statistics(simulation, index, event_indices=None):
     off_index = np.where(simulation.state_series[index] == tr.SingleState.OFF.value)[0]
     off2_index = np.where(simulation.state_series[index] == tr.SingleState.OFF2.value)[0]
     off_indices = np.sort(np.concatenate([off_index, off2_index]))
+    if off_indices.size == 0:
+        raise ValueError('no photophysical OFF states found.')
     high_diffs = np.where(np.diff(off_indices) > 1)[0]
     starting_indices = off_indices[high_diffs + 1]
     starting_indices = np.insert(starting_indices, 0, off_indices[0])
@@ -251,6 +253,33 @@ def get_off_statistics(simulation, index, event_indices=None):
         values[mask] = 0
 
     return all_times, values
+
+
+def plot_off_statistics(times, values, **kwargs):
+    """
+    Plot the photophysical OFF/ON of one fluorophore.
+
+    Parameters
+    ----------
+    times : 1-D array_like
+        Contains time points at which ON and OFF intervals start and end.
+    values : 1-D array_like
+        Values that correspond to all_times. 0 if time is associated with OFF, 1 otherwise.
+
+    Returns
+    -------
+    axes : np.ndarray
+        Contains matplotlib.axes._subplots.AxesSubplots.
+    """
+    kwargs.setdefault('type_', 'line')
+    kwargs.setdefault('fontsize', 16)
+    kwargs.setdefault('xlabel', 'time [s]')
+    kwargs.setdefault('yticklabels', {'labels': ['OFF', 'ON']})
+    kwargs.setdefault('yticks', [0, 1])
+    kwargs.setdefault('ylabel', '')
+    axes = fi.universal_figure(data=[times, values], **kwargs)
+
+    return axes
 
 
 def plot_histogram(data, density=True, display_mean=True, as_time=None, sec_per_frame=None, **kwargs):

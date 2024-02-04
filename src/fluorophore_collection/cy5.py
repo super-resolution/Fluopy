@@ -71,7 +71,7 @@ class Cy5(FluorophoreData):
             self.fluorescence_lifetime = 1e-9
             self.isc_st_rate = 8.3e5
             self.isc_ts_rate = 5e3
-            self.photobleach_t1_rate = 0
+            self.photobleach_t1_rate = 1
             self.iso_rate = 2e7
             self.biso_cross_section = 1.7e-17
             self.fret_kappa_sq = 2 / 3
