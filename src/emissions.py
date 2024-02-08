@@ -73,6 +73,8 @@ class Emissions:
     def get_event_indices(self, photon_collection_rate=1, seed=None):
         """
         Alters emission_indices keeping only a relative number (photon_collection_rate) of randomly selected indices.
+        Experimentally, this can represent a combination of photon collection and transmission efficiency by the
+        microscope or quantum efficiency of the EMCCD.
 
         Parameters
         ----------
@@ -145,6 +147,17 @@ class Emissions:
     
 
     def add_noise(self, mean, std):
+        """
+        Add artificial noise to the events. The noise is normal distributed and can represent
+        dark current noise, readout noise (insigificant in the case of EMCCD), background. 
+
+        Parameters
+        ----------
+        mean : float
+            Mean of the normal distributed artificial noise.
+        std : float
+            Standard deviation of the normal distributed artificial noise.
+        """
         size = self.event_time_series.size
         variates = norm(mean, std).rvs(size)
         self.event_time_series = self.event_time_series + variates

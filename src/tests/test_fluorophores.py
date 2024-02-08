@@ -4,6 +4,7 @@ import src.fluorophores as fl
 import src.fluorophore_collection.cy5 as cy5
 
 
+@pytest.mark.filterwarnings("ignore:Fluorophore:UserWarning")
 @pytest.mark.parametrize('fluorophore_object,expected',
                          [[['atto488', [3.5, -4]], [None, 'atto488', np.array([3.5, -4]), None]],
                           [['Cy5', [1, 1], 'test'], [None, 'Cy5', np.array([1, 1]), cy5.Cy5('test')]]],

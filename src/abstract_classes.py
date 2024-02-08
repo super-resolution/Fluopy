@@ -1,3 +1,6 @@
+"""
+Module abstract_classes
+"""
 from abc import ABC
 from dataclasses import dataclass
 

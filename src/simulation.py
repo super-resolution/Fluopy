@@ -3,7 +3,9 @@ Module simulation
 """
 import gc
 import os
+import ray
 import warnings
+import pandas as pd
 import numpy as np
 import src.network as net
 import iteround as it
@@ -585,6 +587,21 @@ def fill_simple_cycles(prediction, transitions, size, seed):
 
 
 def get_Q(P, drop_transition):
+    """
+    Q describes the probability of transitioning from some transient state to another.
+
+    Parameters
+    ----------
+    P : np.ndarray
+        Transition matrix with transient states t and absorbing state r.
+    drop_transition : int
+        Index of absorbing state (i.e., photophysical transition with no return). 
+
+    Returns
+    -------
+    Q : np.ndarray
+        Transition matrix with transient states t.
+    """
     # Q takes the original transition matrix into account, because within Q the state that leads
     # to the absorbing state has to take on the probability GIVEN the possibility of the transition
     # to the absorbing state.
@@ -595,14 +612,75 @@ def get_Q(P, drop_transition):
 
 
 def get_I_t(Q):
+    """
+    I_t is the identity matrix of Q.
 
+    Parameters
+    ----------
+    Q : np.ndarray
+        Transition matrix with transient states t.
+
+    Returns
+    -------
+    I_t : np.ndarray
+        Identity matrix of Q.
+    """
     I_t = np.identity(Q.shape[0])
 
     return I_t
 
 
 def get_N(I_t, Q):
+    """
+    N is the fundamental matrix. At entry (i, j) it contains the expected number
+    of visits to a transient state j starting from transient state i before being 
+    absorbed.
 
+    Parameters
+    ----------
+    I_t : np.ndarray
+        Identity matrix of Q.
+    Q : np.ndarray
+        Transition matrix with transient states t.
+
+    Returns
+    -------
+    N : np.ndarray
+        Fundamental matrix of absorbing Markov chain.
+    """
     N = np.linalg.inv(I_t - Q)
 
     return N
+
+
+@ray.remote
+def process_parallel(simulation, seed, **simulation_param):
+    """
+    Run a simulation. This function can be ran multiple times in parallel.
+    See tutorial - Simulation (parallel).
+
+    Parameters
+    ----------
+    simulation : Simulation
+        Container of simulation-associated attributes and methods.
+    seed : int
+        A seed to initialize the BitGenerator.
+    simulation_param : Other Simulation.run() arguments
+
+    Returns
+    -------
+    time_series : 1-D array_like
+        The simulated time points. At index i, they correspond to state_series[i] and transition_series[i - 1].
+        If end_time was not None, includes end_time at index -1 that does not correspond to any of state_series or
+        transition_series.
+    transition_series : 1-D array_like
+        The simulated transitions. At index i, they correspond to time_series[i + 1].
+    state_series : np.ndarray
+        Contains 1-D array_like for each fluorophore representing its state at index i corresponding to time_series[i].
+    """
+    simulation.run(seed=seed, **simulation_param)  # @ray.remote can also be used as decorator of class, see ray actors
+    time_series = simulation.time_series
+    transition_series = simulation.transition_series
+    state_series = simulation.state_series
+    
+    return time_series, transition_series, state_series

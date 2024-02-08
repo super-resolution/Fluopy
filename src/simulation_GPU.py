@@ -1,4 +1,8 @@
+"""
+Module simulation_GPU
+"""
 import cupy as cp
+import numpy as np
 from torch import tensor, cuda, repeat_interleave
 import src.network as net
 
@@ -110,5 +114,105 @@ def fill_individual_transitions(prediction, transitions, size, seed):
     
     time_series = cp.empty_like(time_step_series, dtype=cp.float64)
     time_series[:] = cp.cumsum(time_step_series, dtype=cp.float64)
+
+    return time_series, transition_series
+
+
+def prep_direct_method_time(transition_matrix):
+
+    transition_matrix_sorted_indices = np.argsort(transition_matrix, axis=1)
+    sorted_transition_matrix = np.take_along_axis(transition_matrix, transition_matrix_sorted_indices, axis=1)
+    cumsum_sorted_trm = np.cumsum(sorted_transition_matrix, axis=1)
+
+    return transition_matrix_sorted_indices, cumsum_sorted_trm
+
+
+def direct_method_time(transition_matrix_sorted_indices, cumsum_sorted_trm, row_sums, start_index=0, size=10,
+                       end_time=10, seed=None):
+    rng = cp.random.default_rng(seed)
+    current_state_index = start_index
+
+    time_series = cp.empty(size + 1, dtype=cp.float64)
+    transition_series = cp.empty(size, dtype=cp.uint32)
+    random_numbers = rng.uniform(low=0, high=1, size=(size, 2))
+
+    time_series[0] = 0
+
+    abso = 0
+    i = 0
+    j = 1
+    while time_series[i] < end_time:
+        current_state_lambda = row_sums[current_state_index]
+
+        if current_state_lambda == 0:
+            abso = 1
+            break
+        transition_time = 1 / current_state_lambda * cp.log(1 / random_numbers[i - (j - 1) * size, 0])
+        sorted_index = cp.searchsorted(cumsum_sorted_trm[current_state_index],
+                                       random_numbers[i - (j - 1) * size, 1])
+        next_transition = transition_matrix_sorted_indices[current_state_index, sorted_index]
+
+        transition_series[i] = next_transition
+        time_series[i+1] = time_series[i] + transition_time
+        current_state_index = next_transition
+
+        i += 1
+        if i == j * size:
+            j += 1
+            random_numbers = rng.uniform(low=0, high=1, size=(size, 2))
+            time_series = cp.resize(time_series, (j*size+1, ))
+            transition_series = cp.resize(transition_series, (j*size,))
+    
+    time_series[i + abso] = end_time
+
+    transition_series = transition_series[:i-1+abso]
+    time_series = time_series[:i+1+abso]
+
+    return time_series, transition_series
+
+
+def direct_method_time_large_array(transition_matrix_sorted_indices, cumsum_sorted_trm, row_sums, start_index=0, size=10,
+                       end_time=10, seed=None, number_fluorophores=1):
+    rng = cp.random.default_rng(seed)
+    current_state_index = start_index
+
+    time_series = cp.empty((number_fluorophores, size + 1), dtype=cp.float64)
+    transition_series = cp.empty((number_fluorophores, size), dtype=cp.uint32)
+    random_numbers = rng.uniform(low=0, high=1, size=(size, number_fluorophores, 2))
+
+    time_series[:, 0] = 0
+
+
+    # fill the fluorophores already at end_time with zeros
+    
+    abso = 0
+    i = 0
+    j = 1
+    while time_series[i] < end_time:
+        current_state_lambda = row_sums[current_state_index]
+
+        if current_state_lambda == 0:
+            abso = 1
+            break
+        transition_time = 1 / current_state_lambda * cp.log(1 / random_numbers[i - (j - 1) * size, 0])
+        sorted_index = cp.searchsorted(cumsum_sorted_trm[current_state_index],
+                                       random_numbers[i - (j - 1) * size, 1])
+        next_transition = transition_matrix_sorted_indices[current_state_index, sorted_index]
+
+        transition_series[i] = next_transition
+        time_series[i+1] = time_series[i] + transition_time
+        current_state_index = next_transition
+
+        i += 1
+        if i == j * size:
+            j += 1
+            random_numbers = rng.uniform(low=0, high=1, size=(size, 2))
+            time_series = cp.resize(time_series, (j*size+1, ))
+            transition_series = cp.resize(transition_series, (j*size,))
+    
+    time_series[i + abso] = end_time
+
+    transition_series = transition_series[:i-1+abso]
+    time_series = time_series[:i+1+abso]
 
     return time_series, transition_series

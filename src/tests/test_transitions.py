@@ -93,6 +93,7 @@ def test_transitionset(transition_set_object):
         tr.TransitionSet(transitions=new_transitions, fluorophore_system=transition_set_object.fluorophore_system)
 
 
+@pytest.mark.filterwarnings("ignore:HOMO_FRET:UserWarning")
 @pytest.mark.parametrize('remove_list,expected',
                          [[[tr.TransitionType.EXCITATION.abbreviation, tr.TransitionType.HOMO_FRET.abbreviation],
                            [tr.TransitionType.FLUORESCENT_EMISSION.abbreviation,

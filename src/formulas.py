@@ -27,7 +27,7 @@ def convert_wavenumber_wavelength_frequency(wavenumber=None, wavelength=None, fr
     frequency : np.ndarray
         In Hz.
     """
-    if sum(1 for _ in filter(None.__ne__, [wavelength, wavenumber, frequency])) != 1:
+    if sum(x is not None for x in [wavelength, wavenumber, frequency]) != 1:
         raise ValueError('One and only one of wavenumber, wavelength and frequency must not be None.')
     if wavenumber is not None:
         wavenumber = np.asarray(wavenumber)
@@ -94,7 +94,7 @@ def calculate_excitation_rate(photon_flux=8e25, extinction_coefficient=None, abs
     excitation_rate : float, np.ndarray
         The excitation rate in 1/s.
     """
-    if sum(1 for _ in filter(None.__ne__, [extinction_coefficient, absorption_cross_section])) != 1:
+    if sum(x is not None for x in [extinction_coefficient, absorption_cross_section]) != 1:
         raise ValueError('One and only one of extinction_coefficient and absorption_cross_section must not be None.')
     if extinction_coefficient is not None:
         absorption_cross_section = np.asarray(extinction_coefficient) * 1e3 * np.log(10) / constants.Avogadro
