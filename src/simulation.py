@@ -684,3 +684,108 @@ def process_parallel(simulation, seed, **simulation_param):
     state_series = simulation.state_series
     
     return time_series, transition_series, state_series
+
+
+def simulate_experiment(transition_matrix, row_sums, emitting_transition_ids, start_index=0, size=1e5,
+                        frames=10, frame_time='5ms', seed=None, store_time_points=False,
+                        photon_collection_rate=1):  
+    """
+    Simulates experimental data (i.e., number of photons per frame). Methodically the direct method of the
+    gillespie algorithm. Stores only the number of photons per frame, making it memory-wise computationally
+    easy.
+
+    Parameters
+    ----------
+    transition_matrix : np.ndarray
+        Contains the normalized rate constants (i.e., point probabilities) for each possible combined_state_transition
+        at the corresponding index pair.
+    row_sums : np.ndarray
+        Contains the sum of each row of non-normalized transition rates, i.e., the sum of rates of all possible
+        combined_state_transitions.
+    emitting_transition_ids : np.ndarray
+        The combined_state_transition indices that emit photons.
+    start_index : int
+        Starting index. The final state of the transition indexed is the starting state configuration.
+    size : int
+        Size of random_numbers drawn at once.
+    frames : int
+        Total number of frames to be simulated.
+    frame_time : str
+        For possible input values, see https://pandas.pydata.org/docs/user_guide/timeseries.html -> Offset aliases.
+    seed : None, int, BitGenerator, Generator
+        A seed to initialize the BitGenerator.
+    store_time_points : bool
+        Whether to also create an array which contains the time points at which photons are detected.
+
+    Returns
+    -------
+    event_time_points : 1-D array_like
+        The time points at which emissions are detected.
+    event_time_series : pd.Series
+        Contains the time points (increasing by a defined time interval) as index and the number of events (i.e.,
+        detected emissions) as values.
+    """
+    transition_matrix_sorted_indices = np.argsort(transition_matrix, axis=1)
+    sorted_transition_matrix = np.take_along_axis(transition_matrix, transition_matrix_sorted_indices, axis=1)
+    cumsum_sorted_trm = np.cumsum(sorted_transition_matrix, axis=1)
+
+    rng = np.random.default_rng(seed)
+    current_state_index = start_index
+    random_numbers = rng.uniform(low=0, high=1, size=(size, 2))
+
+    frame_time = pd.Timedelta(frame_time) / np.timedelta64(1, 's')
+    time_stamps = np.arange(0, frame_time*frames, frame_time)
+    photon_collector = np.zeros(time_stamps.size)
+    j = 1
+    time = 0
+
+    if store_time_points:
+        time_points = []
+    else:
+        event_time_points = None
+
+    for frame in range(frames):
+        photons = 0
+        random_numbers = rng.uniform(low=0, high=1, size=(size, 2))
+        i = 0
+        while time < frame_time:
+            current_state_lambda = row_sums[current_state_index]
+
+            if current_state_lambda == 0:
+                photon_collector[frame] = photons
+                event_time_series = pd.Series(photon_collector, index=time_stamps)
+                warnings.warn('The fluorophore underwent photobleaching.')
+                if store_time_points:
+                    event_time_points = np.array(time_points)
+                return 
+            
+            transition_time = 1 / current_state_lambda * np.log(1 / random_numbers[i - (j-1) * size, 0])
+            time += transition_time
+            if time > frame_time:
+                break
+
+            sorted_index = np.searchsorted(cumsum_sorted_trm[current_state_index],
+                                           random_numbers[i - (j-1) * size, 1])
+
+            next_transition = transition_matrix_sorted_indices[current_state_index, sorted_index]
+            if next_transition in emitting_transition_ids:
+                if random_numbers[i - (j-1) * size, 0] < photon_collection_rate:  # use the time random numbers!
+                    photons += 1
+                if store_time_points:
+                    time_points.append(time)
+
+            current_state_index = next_transition
+            i += 1
+            if i == j * size:
+                j += 1
+                random_numbers = rng.uniform(low=0, high=1, size=(size, 2))             
+        
+        time = 0
+        photon_collector[frame] = photons
+        
+    event_time_series = pd.Series(photon_collector, index=time_stamps)
+    if store_time_points:
+        event_time_points = np.array(time_points)
+        
+    return event_time_points, event_time_series
+    
