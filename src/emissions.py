@@ -3,7 +3,7 @@ Module emissions
 """
 import numpy as np
 import pandas as pd
-from scipy.stats import geom, norm, poisson, gamma
+from scipy.stats import norm, poisson, gamma
 import src.figure as fi
 from src.simulation import simulate_experiment
 import os
@@ -21,7 +21,7 @@ class Emissions:
         Contains the time points (increasing by a defined time interval) as index and the number of events (i.e.,
         detected emissions) as values.
     """
-    def __init__(self, photon_collection_rate, frame_time, emccd_gain, seed):
+    def __init__(self, photon_collection_rate=1, frame_time='5ms', emccd_gain=None, seed=1):
         """
         Parameters
         ----------
@@ -55,9 +55,11 @@ class Emissions:
                                                     photon_collection_rate=self.parameters['photon_collection_rate'], 
                                                     seed=self.parameters['seed'])
         self.event_time_points = simulation.time_series[event_indices + 1]
-        self.event_time_series = self.construct_event_time_series(simulation, resample=self.parameters['frame_time'],
-                                                                  emccd_gain=self.parameters['emccd_gain'], 
-                                                                  seed=self.parameters['seed'])
+        self.construct_event_time_series(simulation, event_time_points=self.event_time_points,
+                                         resample=self.parameters['frame_time'])
+        
+        if self.parameters['emccd_gain'] is not None:
+            self.add_emccd_gain(emccd_gain=self.parameters['emccd_gain'], seed=self.parameters['seed'])
 
     def simulate(self, transitions, start_at=None, size=1e5, frames=10, seed=None, 
                  store_time_points=False):
@@ -93,11 +95,19 @@ class Emissions:
             simulate_experiment(transition_matrix=transitions.transition_matrix, row_sums=transitions.row_sums,
                                 emitting_transition_ids=emitting_transition_ids, start_index=start_index,
                                 size=size, frames=frames, frame_time=self.parameters['frame_time'], seed=seed, 
-                                store_time_points=store_time_points)
+                                store_time_points=store_time_points,
+                                photon_collection_rate=self.parameters['photon_collection_rate'])
+        if self.parameters['emccd_gain'] is not None:
+            self.add_emccd_gain(emccd_gain=self.parameters['emccd_gain'], seed=self.parameters['seed'])
     
     def get_emission_indices(self, simulation):
         """
         Get indices to apply to simulation.transition_series to yield emitting transitions.
+
+        Parameters
+        ----------
+        simulation : src.simulation.Simulation
+            Container of simulation-associated attributes and methods.
 
         Returns
         -------
@@ -118,6 +128,8 @@ class Emissions:
 
         Parameters
         ----------
+        emission_indices : 1-D array_like
+            Indices of emitting transitions to apply to simulation.transition_series.
         photon_collection_rate : float
             Number between 0 and 1. Dictates the fraction of kept indices of emissions.
         seed : None, int, BitGenerator, Generator
@@ -139,27 +151,20 @@ class Emissions:
 
         return event_indices
 
-    def construct_event_time_series(self, simulation, resample='5ms', emccd_gain=None, seed=None):
+    def construct_event_time_series(self, simulation, event_time_points, resample='5ms'):
         """
         Counts events within a time interval (resample).
 
         Parameters
         ----------
+        simulation : src.simulation.Simulation
+            Container of simulation-associated attributes and methods.
+        event_time_points : 1-D array_like
+            The time points at which emissions are detected.
         resample : str
             For possible input values, see https://pandas.pydata.org/docs/user_guide/timeseries.html -> Offset aliases.
-        emccd_gain : None, int
-            The gain of an EMCCD camera.
-        seed : None, int, BitGenerator, Generator
-            A seed to initialize the BitGenerator.
-
-        Returns
-        -------
-        event_time_series : pd.Series
-            Contains the time points (increasing by the defined time interval) as index and the number of events (i.e.,
-            detected emissions) as values.
         """
         event_time_points = np.insert(self.event_time_points, 0, 0)
-        rng = np.random.default_rng(seed)
 
         added_end_time = False
         if event_time_points[-1] != simulation.time_series[-1]:
@@ -167,11 +172,7 @@ class Emissions:
             event_time_points = np.append(event_time_points, simulation.time_series[-1])
 
         time_deltas = pd.to_timedelta(event_time_points, unit='s')
-        if emccd_gain is not None:
-            events = geom.rvs(p=1/emccd_gain, size=event_time_points.shape[0], random_state=rng)
-            events = events.astype(float)
-        else:
-            events = np.ones(shape=event_time_points.shape[0])
+        events = np.ones(shape=event_time_points.shape[0])
         events[0] = 0
 
         if added_end_time:
@@ -183,14 +184,23 @@ class Emissions:
         in_seconds = time_deltas / np.timedelta64(1, 's')
         event_time_series.index = in_seconds
 
-        return event_time_series
-    
+        self.event_time_series = event_time_series    
 
     def add_emccd_gain(self, emccd_gain, seed):
-        rng = np.random.default_rng(seed)
-        self.event_time_series.values[:] = gamma.rvs(a=self.event_time_series.values, 
-                                                     scale=emccd_gain, random_state=rng)
+        """
+        Add the gain of an EMCCD to the detected photons per frame.
 
+        Parameters
+        ----------
+        emccd_gain : float
+            The gain of an EMCCD.
+        seed : None, int, BitGenerator, Generator
+            A seed to initialize the BitGenerator.
+        """
+        rng = np.random.default_rng(seed)
+        nonzero = self.event_time_series.values.nonzero()
+        self.event_time_series.values[nonzero] = gamma.rvs(a=self.event_time_series.values[nonzero], 
+                                                     scale=emccd_gain, random_state=rng)
 
     def add_gaussian_noise(self, mean, std, seed):
         """
@@ -211,7 +221,6 @@ class Emissions:
         variates = norm(mean, std).rvs(size, random_state=rng)
         self.event_time_series = self.event_time_series + variates
 
-
     def add_poisson_noise(self, rate, seed):
         """
         Add artifical noise to the events. The noise is Poisson distributed and can represent
@@ -228,7 +237,6 @@ class Emissions:
         size = self.event_time_series.size
         variates = poisson(rate).rvs(size, random_state=rng)
         self.event_time_series = self.event_time_series + variates
-
 
     def plot(self, mode='time_series', density=True, include_0=False, **kwargs):
         """

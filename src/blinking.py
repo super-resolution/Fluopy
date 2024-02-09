@@ -255,6 +255,35 @@ def get_off_statistics(simulation, index, event_indices=None):
     return all_times, values
 
 
+def get_analytical_off_statistics(off_frames, off_periods):
+    """
+    Intended to be used for visualizing analytical ON and OFF periods in time.
+
+    Parameters
+    ----------
+    off_frames : np.ndarray
+        Contains the first frame of each OFF period.
+    off_periods : np.ndarray
+        Contains the durations of each OFF period (in frames).
+
+    Returns
+    -------
+    on_off_frames : 1-D array_like
+        Starting and ending frames of each ON and OFF period.
+    on_off_values : 1-D array_like
+        Corresponding values of on_off_frames. 1 if ON, 0 if OFF.
+    """
+    off_frames_start_end = np.ravel([off_frames, off_frames+off_periods], order='F')
+    on_off_frames = np.vstack((off_frames_start_end, off_frames_start_end)).ravel('F')
+    on_off_frames = np.insert(on_off_frames, 0, 0)
+    on_off_values = np.ones(int(on_off_frames / 2))
+    on_off_values[1::2] = 0
+    on_off_values = np.vstack((on_off_values, on_off_values)).ravel('F')
+    if on_off_values.size != on_off_frames.size:
+        on_off_values = np.append(on_off_values, 0)
+    
+    return on_off_frames, on_off_values
+
 def plot_off_statistics(times, values, **kwargs):
     """
     Plot the photophysical OFF/ON of one fluorophore.

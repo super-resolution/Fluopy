@@ -98,14 +98,8 @@ def simulation_object_2(transition_set_object):
 
 
 @pytest.fixture()
-def emissions_object_1(simulation_object_1):
-    object = em.Emissions(simulation_object_1)
-    return object
-
-
-@pytest.fixture()
-def emissions_object_2(simulation_object_2):
-    object = em.Emissions(simulation_object_2)
+def emissions_object(request):
+    object = em.Emissions(*request.param)
     return object
 
 

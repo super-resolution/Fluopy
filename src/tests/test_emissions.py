@@ -5,12 +5,13 @@ import src.emissions as em
 import src.simulation as si
 
 
-@pytest.mark.parametrize('dirname,expected',
-                         [['emissions_object_1', 'array_1'],
-                          ['emissions_object_2', 'array_2']])
-def test_get_emissions(dirname, expected, request):
-    emissions_object = request.getfixturevalue(dirname)
-    emission_indices = emissions_object.get_emission_indices()
+@pytest.mark.parametrize('emissions_object,dirname,expected',
+                         [[[], 'simulation_object_1', 'array_1'],
+                          [[], 'simulation_object_2', 'array_2']],
+                          indirect=['emissions_object'])
+def test_get_emissions(emissions_object, dirname, expected, request):
+    simulation_object = request.getfixturevalue(dirname)
+    emission_indices = emissions_object.get_emission_indices(simulation_object)
     if expected == 'array_1':
         expe = np.array([4, 15, 23, 25, 32, 33, 40, 44, 49, 57, 64, 66, 68, 73, 77, 78, 83, 90, 99, 104, 107, 110, 128,
                          131, 141, 150, 155, 162, 167, 172, 175, 176, 179, 186, 190, 196, 201, 202, 206, 211, 215, 223,
@@ -37,17 +38,32 @@ def test_get_emissions(dirname, expected, request):
     np.testing.assert_array_equal(emission_indices, expe)
 
 
-@pytest.mark.parametrize('photon_collection_rate,expected',
-                         [[1, 'array_1'],
-                          [0.4, 'array_2'],
-                          [0, 'array_3'],
-                          [1.2, 'ValueError']])
-def test_get_event_indices(emissions_object_2, photon_collection_rate, expected):
+@pytest.mark.parametrize('emissions_object,photon_collection_rate,expected',
+                         [[[], 1, 'array_1'],
+                          [[], 0.4, 'array_2'],
+                          [[], 0, 'array_3'],
+                          [[], 1.2, 'ValueError']],
+                          indirect=['emissions_object'])
+def test_get_event_indices(emissions_object, photon_collection_rate, expected):
+    emission_indices = np.array([4, 15, 23, 25, 32, 33, 40, 44, 49, 57, 64, 66, 68, 73, 77, 78, 83, 90, 99, 104, 107, 110,
+                                128, 131, 141, 150, 155, 162, 167, 172, 175, 176, 179, 186, 190, 196, 201, 202, 206, 211,
+                                215, 223, 224, 229, 233, 240, 244, 246, 247, 254, 256, 262, 265, 269, 272, 292, 293, 304,
+                                305, 309, 311, 317, 326, 330, 339, 347, 349, 354, 360, 361, 368, 369, 371, 374, 378, 388,
+                                393, 397, 398, 402, 411, 414, 424, 427, 431, 432, 435, 443, 448, 453, 457, 461, 468, 470,
+                                473, 474, 485, 489, 493, 503, 508, 516, 522, 529, 530, 541, 548, 556, 562, 576, 579, 583,
+                                590, 600, 602, 605, 609, 612, 635, 640, 641, 642, 646, 651, 657, 661, 665, 666, 677, 681,
+                                684, 692, 700, 702, 704, 705, 717, 721, 722, 725, 730, 731, 732, 738, 740, 754, 756, 782,
+                                783, 785, 793, 799, 807, 815, 823, 830, 831, 833, 836, 837, 838, 844, 853, 855, 861, 865,
+                                878, 884, 890, 892, 893, 894, 907, 908, 916, 918, 927, 934, 939, 948, 957, 966, 971, 973,
+                                977, 983, 987, 990, 1000, 1008, 1010, 1021, 1025, 1027, 1034, 1035, 1043, 1050, 1051, 1055,
+                                1065, 1068, 1070])
     if expected == 'ValueError':
         with pytest.raises(ValueError):
-            emissions_object_2.get_event_indices(photon_collection_rate=photon_collection_rate, seed=3)
+            emissions_object.get_event_indices(emission_indices=emission_indices,
+                                                 photon_collection_rate=photon_collection_rate, seed=3)
     else:
-        event_indices = emissions_object_2.get_event_indices(photon_collection_rate=photon_collection_rate, seed=3)
+        event_indices = emissions_object.get_event_indices(emission_indices=emission_indices,
+                                                             photon_collection_rate=photon_collection_rate, seed=3)
         if expected == 'array_1':
             expe = np.array([4, 15, 23, 25, 32, 33, 40, 44, 49, 57, 64, 66, 68, 73, 77, 78, 83, 90, 99, 104, 107, 110,
                              128, 131, 141, 150, 155, 162, 167, 172, 175, 176, 179, 186, 190, 196, 201, 202, 206, 211,
@@ -74,25 +90,22 @@ def test_get_event_indices(emissions_object_2, photon_collection_rate, expected)
         np.testing.assert_array_equal(event_indices, expe)
 
 
-@pytest.mark.parametrize('dirname,param,expected',
-                         [['emissions_object_1', ['1s', None, None], 'series_1'],
-                          ['emissions_object_2', ['1s', None, None], 'series_2'],
-                          ['emissions_object_1', ['1s', 10, 3], 'series_3']])
-def test_construct_event_time_series(dirname, param, expected, request):
-    emissions_object = request.getfixturevalue(dirname)
-    event_time_series = emissions_object.construct_event_time_series(*param)
+@pytest.mark.parametrize('emissions_object,dirname,resample,expected',
+                         [[[], 'simulation_object_1', '1s', 'series_1'],
+                          [[], 'simulation_object_2', '1s', 'series_2']],
+                          indirect=['emissions_object'])
+def test_construct_event_time_series(emissions_object, dirname, resample, expected, request):
+    simulation_object = request.getfixturevalue(dirname)
+    event_time_series = emissions_object.construct_event_time_series(simulation_object, event_time_points=3,
+                                                                     resample=resample)
     if expected == 'series_1':
         expe = pd.Series(np.array([8., 10., 7., 5., 11., 12., 6., 7., 10., 8., 12., 8., 10., 5., 12., 11., 5., 5., 6.,
                                    9., 7., 7., 7., 0.]),
                          np.arange(0, 24, 1, dtype=float))
-    elif expected == 'series_2':
+    else:
         expe = pd.Series(np.array([8., 10., 7., 5., 11., 12., 6., 7., 10., 8., 12., 8., 10., 5., 12., 11., 5., 5., 6.,
                                    9., 7., 7., 7., 8., 7., 0.]),
                          np.arange(0, 26, 1, dtype=float))
-    else:
-        expe = pd.Series(np.array([62., 106., 49., 48., 123., 163., 98., 102., 42., 94., 131., 94., 144., 121., 98.,
-                                   122., 58., 38., 77., 78., 64., 60., 130., 0.]),
-                         np.arange(0, 24, 1, dtype=float))
     pd.testing.assert_series_equal(event_time_series, expe)
 
 
