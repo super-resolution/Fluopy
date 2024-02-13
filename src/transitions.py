@@ -167,7 +167,7 @@ class Transition:
 
     Attributes
     ----------
-    id : int
+    identity : int
         The id of the transition. Not None if transition is part of a TransitionSet.
     transition_type : TransitionType
         The photophysical type of the transitions with its constant attributes.
@@ -186,7 +186,7 @@ class Transition:
     distance : None, float
         Not None if the transition is an energy transfer. The distance of the two involved fluorophores.
     """
-    id: int = field(init=False)
+    identity: int = field(init=False)
     transition_type: TransitionType = field()
     abbreviation: str = field(init=False)
     initial_state: SingleState | PairedState = field(init=False)
@@ -202,7 +202,7 @@ class Transition:
         object.__setattr__(self, 'initial_state', self.transition_type.initial_state)
         object.__setattr__(self, 'final_state', self.transition_type.final_state)
         object.__setattr__(self, 'photon', self.transition_type.photon)
-        object.__setattr__(self, 'id', None)
+        object.__setattr__(self, 'identity', None)
         if isinstance(self.initial_state, PairedState):
             if self.distance is None:
                 raise AttributeError('distance has to be defined if transition is energy transfer.')
@@ -251,7 +251,7 @@ class TransitionSet:
         self.fluorophore_system = fluorophore_system
         self.transitions = [transition for transition in transitions if transition.rate != 0]
         for i, transition in enumerate(self.transitions):
-            transition.id = i
+            transition.identity = i
         self.transition_df = pd.DataFrame([asdict(transition) for transition in self.transitions])
         self.transition_df.set_index('id', inplace=True)
         

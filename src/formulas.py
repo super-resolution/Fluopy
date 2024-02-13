@@ -98,8 +98,8 @@ def calculate_excitation_rate(photon_flux=8e25, extinction_coefficient=None, abs
         raise ValueError('One and only one of extinction_coefficient and absorption_cross_section must not be None.')
     if extinction_coefficient is not None:
         absorption_cross_section = np.asarray(extinction_coefficient) * 1e3 * np.log(10) / constants.Avogadro
-    absorption_cross_section = np.asarray(absorption_cross_section) * 1e-4
 
+    absorption_cross_section = np.asarray(absorption_cross_section) * 1e-4
     excitation_rate = np.asarray(photon_flux) * np.asarray(absorption_cross_section)
 
     return excitation_rate

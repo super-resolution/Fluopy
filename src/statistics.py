@@ -3,11 +3,10 @@ Module statistics
 """
 from scipy.stats import expon
 import numpy as np
-import pandas as pd
 import warnings
 import src.figure as fi
 from matplotlib.pyplot import cm
-from src.transitions import SingleState, get_state_combinations, get_combined_state_transitions, construct_transition_rate_list, construct_transition_matrix
+from src.transitions import SingleState
 import src.miscellaneous as mi
 
 
@@ -115,15 +114,16 @@ class Prediction:
         """
         Predict the relative frequencies of occurrences of transitions.transitions.
 
+        Parameters
+        ----------
+        accuracy : int
+            Determines the exponent of matrix power. The higher, the more accurate up to the point floating point
+            precision impairs the result.
+
         Returns
         -------
         stationary_distribution_transitions : 1-D array_like
             Expected relative frequencies of each entry in transitions.transitions.
-        accuracy : int
-            Determines the exponent of matrix power. The higher, the more accurate up to the point floating point
-            precision impairs the result.
-        energy_transfer : bool
-            Whether energy transfers are possible.
         """
         matrix_power = np.linalg.matrix_power(self.transitions.transition_matrix, accuracy)
         stationary_distribution_combined_state_transitions = matrix_power[0]
@@ -149,7 +149,7 @@ class Prediction:
         single_states = self.transitions.single_states
         stationary_distribution_states = np.zeros_like(single_states, dtype=np.float64)
         transitions = self.transitions.transition_df
-        for n, (id, transition) in enumerate(transitions.iterrows()):
+        for n, (identity, transition) in enumerate(transitions.iterrows()):
             final_state = transition['final_state']
             factor = 1
             if transition['energy_transfer']:
@@ -213,17 +213,17 @@ class Prediction:
             axes = plot_bar(data=data, single_states=single_states, df=df, mode=mode, **kwargs)
         else:
             if mode == 'lifetime_distributions':
-                labels = [SingleState(id).name for id in single_states if id in include]
-                indices = [index for index, id in enumerate(single_states) if id in include]
+                labels = [SingleState(identity).name for identity in single_states if identity in include]
+                indices = [index for index, identity in enumerate(single_states) if identity in include]
                 x = np.linspace(0, 1, 1000) if x is None else x
                 data = [[x, distribution.pdf(x)] for i, distribution in enumerate(self.lifetime_distributions) if
                         i in indices]
             elif mode == 'transition_time_distributions':
-                labels = [transition for id, transition in df['abbreviation'].items() if
-                          id in include]
+                labels = [transition for identity, transition in df['abbreviation'].items() if
+                          identity in include]
                 x = np.linspace(0, 1, 1000) if x is None else x
-                data = [[x, distribution.pdf(x)] for id, distribution in enumerate(self.transition_time_distributions)
-                        if id in include]
+                data = [[x, distribution.pdf(x)] for identity, distribution in enumerate(self.transition_time_distributions)
+                        if identity in include]
             else:
                 raise AttributeError(f'mode {mode} unknown.')
             kwargs.setdefault('label', labels)
@@ -497,20 +497,20 @@ class Analysis:
         else:
             plot_distribution = None
             if mode == 'lifetime_distributions':
-                labels = [SingleState(id).name for id in self.single_states if id in include]
-                indices = [index for index, id in enumerate(self.single_states) if id in include]
+                labels = [SingleState(identity).name for identity in self.single_states if identity in include]
+                indices = [index for index, identity in enumerate(self.single_states) if identity in include]
                 data = [distribution for i, distribution in enumerate(self.lifetime_distributions) if
                         i in indices]
                 if prediction is not None:
                     plot_distribution = prediction.lifetime_distributions[indices]
             elif mode == 'transition_time_distributions':
-                labels = [transition for id, transition in self.transition_df['abbreviation'].items() if
-                          id in include]
-                data = [distribution for id, distribution in enumerate(self.transition_time_distributions) if
-                        id in include]
+                labels = [transition for identity, transition in self.transition_df['abbreviation'].items() if
+                          identity in include]
+                data = [distribution for identity, distribution in enumerate(self.transition_time_distributions) if
+                        identity in include]
                 if prediction is not None:
-                    plot_distribution = [distribution for id, distribution in
-                                         enumerate(prediction.transition_time_distributions) if id in include]
+                    plot_distribution = [distribution for identity, distribution in
+                                         enumerate(prediction.transition_time_distributions) if identity in include]
             else:
                 raise AttributeError(f'mode {mode} unknown.')
             kwargs.setdefault('label', labels)
@@ -612,7 +612,7 @@ def plot_bar(data, single_states, df, mode='state_occurrences', **kwargs):
         kwargs.setdefault('xticklabels', dict(labels=df['abbreviation'], rotation=70))
     else:
         kwargs.setdefault('xticks', range(single_states.size))
-        kwargs.setdefault('xticklabels', dict(labels=[SingleState(id).name for id in single_states], rotation=70))
+        kwargs.setdefault('xticklabels', dict(labels=[SingleState(identity).name for identity in single_states], rotation=70))
     if mode == 'state_occurrences':
         kwargs.setdefault('ylabel', 'PR')
         kwargs.setdefault('title', 'occurrences')

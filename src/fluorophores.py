@@ -19,7 +19,7 @@ class Fluorophore:
 
     Attributes
     ----------
-    id : int
+    identity : int
         The id of the fluorophore. Not None if fluorophore is part of a FluorophoreSystem.
     name : str
         Name of the fluorophore.
@@ -30,14 +30,14 @@ class Fluorophore:
     constants : None, FluorophoreData
         Not None if the fluorophore has a defined FluorophoreData dataclass.
     """
-    id: int = field(init=False)
+    identity: int = field(init=False)
     name: str = field()
     position: Collection[float, float] = field()
     parameter_set: str = field(default='set 1')
     constants: Optional[FluorophoreData] = None
 
     def __post_init__(self):
-        object.__setattr__(self, 'id', None)
+        object.__setattr__(self, 'identity', None)
         object.__setattr__(self, 'position', np.asarray(self.position))
         if self.name.lower() == 'cy5':
             object.__setattr__(self, 'constants', Cy5(parameter_set=self.parameter_set))
@@ -67,7 +67,7 @@ class FluorophoreSystem:
 
     def __post_init__(self):
         for i, fluorophore in enumerate(self.fluorophores):
-            fluorophore.id = i
+            fluorophore.identity = i
         object.__setattr__(self, 'distances', get_distances([fluo.position for fluo in self.fluorophores]))
         object.__setattr__(self, 'count', len(self.fluorophores))
 

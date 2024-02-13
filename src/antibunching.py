@@ -95,6 +95,11 @@ def get_emission_indices(simulation):
     """
     Get indices to apply to simulation.transition_series to yield emitting transitions.
 
+    Parameters
+    ----------
+    simulation : src.simulation.Simulation
+        Container of simulation-associated attributes and methods.
+
     Returns
     -------
     emission_indices : 1-D array_like

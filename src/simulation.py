@@ -28,6 +28,8 @@ class Simulation:
         The simulated transitions. At index i, they correspond to time_series[i + 1].
     state_series : np.ndarray
         Contains 1-D array_like for each fluorophore representing its state at index i corresponding to time_series[i].
+    memmap_path : str
+        The path where memmaps are stored.
     """
     def __init__(self, transitions):
         """
@@ -94,8 +96,6 @@ class Simulation:
             self.memmap_path = use_memmap
             self.state_series = np.memmap(os.path.join(use_memmap, 'state_series'), dtype=np.int8, mode='w+',
                                           shape=(len(final_states[0]), self.transition_series.size + 1))
-            self.state_series[:] = np.empty(shape=(len(final_states[0]), self.transition_series.size + 1),
-                                            dtype=np.int8)
         else:
             self.state_series = np.empty(shape=(len(final_states[0]), self.transition_series.size + 1), dtype=np.int8)
         self.state_series[:, 0] = start_at
@@ -128,6 +128,10 @@ class Simulation:
             (strategy = 'cycles'), by default 1e5
         seed : None, int, BitGenerator, Generator
             A seed to initialize the BitGenerator.
+        
+        Returns
+        -------
+        None
         """
         size = int(size)
         if strategy == 'individual':
@@ -152,6 +156,10 @@ class Simulation:
         ----------
         transition_set : src.transitions.TransitionSet
             The same TransitionSet used for the approximation, but with a transition to an absorbing state available.
+        
+        Returns
+        -------
+        None
         """
         graph = net.construct_graph_transitions(transition_set.transition_df, numerical=True)
         self.transitions = transition_set
@@ -202,8 +210,7 @@ class Simulation:
         os.remove(os.path.join(self.memmap_path, 'state_series'))
 
 
-def direct_method_steps(transition_matrix, row_sums, start_index=0, size=10, seed=None,
-                        use_memmap=None):
+def direct_method_steps(transition_matrix, row_sums, start_index=0, size=10, seed=None, use_memmap=None):
     """
     The direct method of the gillespie algorithm (i.e., stochastic simulation algorithm). Here, the propensities are
     equal to the rate constants because the population is always 1. Additionally, the state change vector is redundant
@@ -243,14 +250,11 @@ def direct_method_steps(transition_matrix, row_sums, start_index=0, size=10, see
                                       dtype=np.uint32, mode='w+', shape=(size, ))
         time_series = np.memmap(os.path.join(use_memmap, 'time_series'),
                                 dtype=np.float64, mode='w+', shape=(size+1, ))
-        random_numbers = np.memmap(os.path.join(use_memmap, 'random_numbers'),
-                                   dtype=np.float64, mode='w+', shape=(size, 2))
-        random_numbers[:] = rng.uniform(low=0, high=1, size=(size, 2))
     else:
         time_step_series = np.empty(size + 1, dtype=np.float32)
         transition_series = np.empty(size, dtype=np.uint32)
         time_series = np.empty(size + 1, dtype=np.float64)
-        random_numbers = rng.uniform(low=0, high=1, size=(size, 2))
+    random_numbers = rng.uniform(low=0, high=1, size=(size, 2))  # never a memmap, is initialized on RAM anyways
     time_step_series[0] = 0
 
     # a random index (in this case the first index) at which the final state of a transition equals start_at
@@ -299,18 +303,15 @@ def direct_method_steps(transition_matrix, row_sums, start_index=0, size=10, see
 
     if use_memmap is not None:
         del time_step_series
-        del random_numbers
         gc.collect()
         os.remove(os.path.join(use_memmap, 'time_step_series'))
-        os.remove(os.path.join(use_memmap, 'random_numbers'))
         transition_series.flush()
         time_series.flush()
 
     return time_series, transition_series
 
 
-def direct_method_time(transition_matrix, row_sums, start_index=0, size=10, end_time=10, seed=None,
-                       use_memmap=None):
+def direct_method_time(transition_matrix, row_sums, start_index=0, size=10, end_time=10, seed=None, use_memmap=None):
     """
     The direct method of the gillespie algorithm (i.e., stochastic simulation algorithm). Here, the propensities are
     equal to the rate constants because the population is always 1. Additionally, the state change vector is redundant
@@ -353,15 +354,12 @@ def direct_method_time(transition_matrix, row_sums, start_index=0, size=10, end_
                                       dtype=np.uint32, mode='w+', shape=(size, ))
         time_series = np.memmap(os.path.join(use_memmap, 'time_series'),
                                 dtype=np.float64, mode='w+', shape=(size+1, ))
-        random_numbers = np.memmap(os.path.join(use_memmap, 'random_numbers'),
-                                   dtype=np.float64, mode='w+', shape=(size, 2))
-        random_numbers[:] = rng.uniform(low=0, high=1, size=(size, 2))
     else:
         transition_series = np.empty(size, dtype=np.uint32)
         time_series = np.empty(size + 1, dtype=np.float64)
-        random_numbers = rng.uniform(low=0, high=1, size=(size, 2))
         # time_series size + 1 and not size + 2 because random_numbers (and transition_series) has size
         # transition_series then 'loses' one transition, so its final size will be not higher than size - 1
+    random_numbers = rng.uniform(low=0, high=1, size=(size, 2))  # never a memmap, is initialized on RAM anyways
 
     time_series[0] = 0
     transition_matrix_sorted_indices = np.argsort(transition_matrix, axis=1)
@@ -406,9 +404,6 @@ def direct_method_time(transition_matrix, row_sums, start_index=0, size=10, end_
     time_series[i + abso] = end_time
 
     if use_memmap is not None:
-        del random_numbers
-        gc.collect()
-        os.remove(os.path.join(use_memmap, 'random_numbers'))
         time_series.flush()
         transition_series.flush()
         time_series.base.resize(8*(i+1+abso))  # 8 because it is 64/8 byte per number and resize works with byte
@@ -439,6 +434,8 @@ def fill_individual_transitions(prediction, transitions, size, seed):
     prediction : src.statistics.Prediction
         Container of lifetimes, state and transition occurrences obtained by computation-associated attributes and
         methods.
+    transitions : src.transitions.TransitionSet
+        Collection of all relevant transitions and related attributes.
     size : int
         Maximum number of simulation steps. Due to rounding, actual size might vary.
     seed : None, int, BitGenerator, Generator
@@ -509,6 +506,8 @@ def fill_simple_cycles(prediction, transitions, size, seed):
     prediction : src.statistics.Prediction
         Container of lifetimes, state and transition occurrences obtained by computation-associated attributes and
         methods.
+    transitions : src.transitions.TransitionSet
+        Collection of all relevant transitions and related attributes.
     size : int
         Total number of simulated cycles.
     seed : None, int, BitGenerator, Generator
@@ -761,7 +760,8 @@ def simulate_experiment(transition_matrix, row_sums, emitting_transition_ids, st
             
             transition_time = 1 / current_state_lambda * np.log(1 / random_numbers[i - (j-1) * size, 0])
             time += transition_time
-            if time > frame_time:
+            i += 1
+            if time > frame_time:  # goes to the next frame and stays in current_state
                 break
 
             sorted_index = np.searchsorted(cumsum_sorted_trm[current_state_index],
@@ -772,10 +772,10 @@ def simulate_experiment(transition_matrix, row_sums, emitting_transition_ids, st
                 if random_numbers[i - (j-1) * size, 0] < photon_collection_rate:  # use the time random numbers!
                     photons += 1
                 if store_time_points:
-                    time_points.append(time)
+                    time_points.append(frame * frame_time + time)
 
             current_state_index = next_transition
-            i += 1
+
             if i == j * size:
                 j += 1
                 random_numbers = rng.uniform(low=0, high=1, size=(size, 2))             

@@ -22,6 +22,12 @@ class FCS:
         Time differences (i.e., τ, lag times).
     """
     def __init__(self, emissions):
+        """
+        Parameters
+        ----------
+        emissions : src.emissions.Emissions
+            Container for emission-associated attributes.
+        """
         self.emissions = emissions
         self.autocorrelation = None
         self.tau = None

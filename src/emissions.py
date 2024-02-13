@@ -15,6 +15,8 @@ class Emissions:
 
     Attributes
     ----------
+    parameters : dict
+        Contains the parameters with which the instance was initialized.
     event_time_points : 1-D array_like
         The time points at which emissions are detected.
     event_time_series : pd.Series
@@ -47,6 +49,10 @@ class Emissions:
         ----------
         simulation : src.simulation.Simulation
             Container for simulation-associated attributes.
+
+        Returns
+        -------
+        None
         """
         if simulation.transition_series is None:
             raise ValueError('emissions not available if simulation has not been run.')
@@ -61,8 +67,7 @@ class Emissions:
         if self.parameters['emccd_gain'] is not None:
             self.add_emccd_gain(emccd_gain=self.parameters['emccd_gain'], seed=self.parameters['seed'])
 
-    def simulate(self, transitions, start_at=None, size=1e5, frames=10, seed=None, 
-                 store_time_points=False):
+    def simulate(self, transitions, start_at=None, size=1e5, frames=10, seed=None, store_time_points=False):
         """
         Simulates events per time.
 
@@ -82,6 +87,10 @@ class Emissions:
             A seed to initialize the BitGenerator.
         store_time_points : bool
             Whether to also create an array which contains the time points at which photons are detected.
+        
+        Returns
+        -------
+        None
         """
         if start_at is None:
             start_at = tuple(np.zeros(shape=transitions.fluorophore_system.count, dtype=int))
@@ -163,6 +172,10 @@ class Emissions:
             The time points at which emissions are detected.
         resample : str
             For possible input values, see https://pandas.pydata.org/docs/user_guide/timeseries.html -> Offset aliases.
+        
+        Returns
+        -------
+        None
         """
         event_time_points = np.insert(self.event_time_points, 0, 0)
 
@@ -196,6 +209,10 @@ class Emissions:
             The gain of an EMCCD.
         seed : None, int, BitGenerator, Generator
             A seed to initialize the BitGenerator.
+        
+        Returns
+        -------
+        None
         """
         rng = np.random.default_rng(seed)
         nonzero = self.event_time_series.values.nonzero()
@@ -215,6 +232,10 @@ class Emissions:
             Standard deviation of the normal distributed artificial noise.
         seed : None, int, BitGenerator, Generator
             A seed to initialize the BitGenerator.
+        
+        Returns
+        -------
+        None
         """
         rng = np.random.default_rng(seed)
         size = self.event_time_series.size
@@ -232,6 +253,10 @@ class Emissions:
             Rate of the Poisson distributed artificial noise.
         seed : None, int, BitGenerator, Generator
             A seed to initialize the BitGenerator.
+        
+        Returns
+        -------
+        None
         """
         rng = np.random.default_rng(seed)
         size = self.event_time_series.size

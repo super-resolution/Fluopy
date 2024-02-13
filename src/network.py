@@ -30,7 +30,7 @@ def construct_graph_states(transition_df, numerical=False):
     from src.transitions import SingleState  # avoids circular import
     G = nx.MultiDiGraph()
     edges = []
-    for id, row in transition_df.iterrows():
+    for identity, row in transition_df.iterrows():
         abbreviation = row['abbreviation']
         initial_state = row['initial_state']
         if type(initial_state).__name__ == 'SingleState':  # this could (and should) be done with isinstance,

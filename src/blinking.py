@@ -110,10 +110,9 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0):
     df = df[df.intensity > threshold]
     frames = df.frame.values
     remove_last_on_period = False
-    if frames[-1] + 1 == event_time_series.size:
-        remove_last_on_period = True
     if frames.size != 0:
-
+        if frames[-1] + 1 == event_time_series.size:
+            remove_last_on_period = True
         differences = np.diff(frames)
         off_periods_indices = np.where(differences > 1 + memory)[0]
 
@@ -210,9 +209,9 @@ def get_off_statistics(simulation, index, event_indices=None):
 
     Returns
     -------
-    all_times : 1-D array_like
+    on_off_times : 1-D array_like
         Contains time points at which ON and OFF intervals start and end.
-    values : 1-D array_like
+    on_off_values : 1-D array_like
         Values that correspond to all_times. 0 if time is associated with OFF, 1 otherwise.
     """
     if index + 1 > simulation.state_series.shape[0]:
@@ -232,27 +231,27 @@ def get_off_statistics(simulation, index, event_indices=None):
     on_start = np.insert(on_start, 0, 0)
     on_end = np.copy(off_start)
     merged = np.concatenate((off_start, off_end, on_start, on_end))
-    all_times = np.sort(merged)
-    values = np.ones(int(all_times.size / 2))
-    values[1::2] = 0
-    values = np.vstack((values, values)).ravel('F')
-    if values.size != all_times.size:
-        values = np.append(values, 0)
+    on_off_times = np.sort(merged)
+    on_off_values = np.ones(int(on_off_times.size / 2))
+    on_off_values[1::2] = 0
+    on_off_values = np.vstack((on_off_values, on_off_values)).ravel('F')
+    if on_off_values.size != on_off_times.size:
+        on_off_values = np.append(on_off_values, 0)
 
     if event_indices is not None:
         differences = np.diff(simulation.state_series[index])
         changes_at = np.where(differences != 0)[0]
         events_from_this_fluorophore = event_indices[np.in1d(event_indices, changes_at).nonzero()[0]]
         event_time_points = simulation.time_series[events_from_this_fluorophore+1]
-        event_time_points = event_time_points[event_time_points < all_times[-1]]
-        insertion_indices = np.searchsorted(all_times, event_time_points)
+        event_time_points = event_time_points[event_time_points < on_off_times[-1]]
+        insertion_indices = np.searchsorted(on_off_times, event_time_points)
         uniques = np.unique(insertion_indices)
         add_starting_index = np.concatenate((uniques, uniques - 1))
-        mask = np.ones(values.size, bool)
+        mask = np.ones(on_off_values.size, bool)
         mask[add_starting_index] = False
-        values[mask] = 0
+        on_off_values[mask] = 0
 
-    return all_times, values
+    return on_off_times, on_off_values
 
 
 def get_analytical_off_statistics(off_frames, off_periods):
@@ -276,7 +275,7 @@ def get_analytical_off_statistics(off_frames, off_periods):
     off_frames_start_end = np.ravel([off_frames, off_frames+off_periods], order='F')
     on_off_frames = np.vstack((off_frames_start_end, off_frames_start_end)).ravel('F')
     on_off_frames = np.insert(on_off_frames, 0, 0)
-    on_off_values = np.ones(int(on_off_frames / 2))
+    on_off_values = np.ones(int(on_off_frames.size / 2))
     on_off_values[1::2] = 0
     on_off_values = np.vstack((on_off_values, on_off_values)).ravel('F')
     if on_off_values.size != on_off_frames.size:
@@ -284,15 +283,16 @@ def get_analytical_off_statistics(off_frames, off_periods):
     
     return on_off_frames, on_off_values
 
-def plot_off_statistics(times, values, **kwargs):
+
+def plot_off_statistics(on_off_times, on_off_values, **kwargs):
     """
     Plot the photophysical OFF/ON of one fluorophore.
 
     Parameters
     ----------
-    times : 1-D array_like
+    on_off_times : 1-D array_like
         Contains time points at which ON and OFF intervals start and end.
-    values : 1-D array_like
+    on_off_values : 1-D array_like
         Values that correspond to all_times. 0 if time is associated with OFF, 1 otherwise.
 
     Returns
@@ -306,7 +306,7 @@ def plot_off_statistics(times, values, **kwargs):
     kwargs.setdefault('yticklabels', {'labels': ['OFF', 'ON']})
     kwargs.setdefault('yticks', [0, 1])
     kwargs.setdefault('ylabel', '')
-    axes = fi.universal_figure(data=[times, values], **kwargs)
+    axes = fi.universal_figure(data=[on_off_times, on_off_values], **kwargs)
 
     return axes
 

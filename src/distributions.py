@@ -150,14 +150,11 @@ def hypoexponential_distribution_three_parameters_cdf(a, b, c, x):
     return cdf
 
 
-# The inverse function of the cdf is not computable (not analytically, at least). Hence, the strategy will be to not
-# use inverse transform sampling, but rejection sampling
-
-
 def rejection_sampling(pdf, x_min, x_max, y_min, y_max, batch, size, parameters, seed):
     """
     Technique to sample from a distribution with a known PDF.
     Adapted from https://cosmiccoding.com.au/tutorials/rejection_sampling/.
+    Needed if the inverse function of the CDF is not analytically computable.
 
     Parameters
     ----------
