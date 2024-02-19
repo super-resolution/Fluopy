@@ -58,10 +58,10 @@ class Prediction:
                 self.energy_transfer = True
         else:
             if transitions.fluorophore_system.count > 1:
-                raise ValueError('only 1 fluorophore needed. reduce TransitionSet first.')
+                raise ValueError('only 1 fluorophore needed. reduce_to_1() TransitionSet first.')
         for single_state in transitions.single_states:
             if single_state not in transitions.transition_df['initial_state'].apply(lambda x: x.value).values:  
-                raise ValueError('absorbing state found. reduce TransitionSet first.')
+                raise ValueError('absorbing state found. remove_absorbing_states() TransitionSet first.')
         
         self.transitions = transitions
         self.stationary_distribution_transitions = \
@@ -149,11 +149,11 @@ class Prediction:
         single_states = self.transitions.single_states
         stationary_distribution_states = np.zeros_like(single_states, dtype=np.float64)
         transitions = self.transitions.transition_df
-        for n, (identity, transition) in enumerate(transitions.iterrows()):
+        for n, (_, transition) in enumerate(transitions.iterrows()):
             final_state = transition['final_state']
             factor = 1
             if transition['energy_transfer']:
-                donor_i, acceptor_i = transition['initial_state'].single_state_values
+                _, acceptor_i = transition['initial_state'].single_state_values
                 donor_f, acceptor_f = final_state.single_state_values
                 if acceptor_i == acceptor_f:
                     indices = np.where(single_states == donor_f)[0][0]
@@ -247,7 +247,7 @@ class Prediction:
         include_transitions : Collection
             Ids of transitions.transitions whose transition_time_distribuiton should be displayed.
         scale : float
-        Factor to scale the figure.
+            Factor to scale the figure.
 
         Returns
         -------
@@ -374,7 +374,7 @@ class Analysis:
         """
         lifetime_distributions = [np.array([]) for _ in self.single_states]
         transition_time_distributions = [np.array([]) for _ in self.transition_df.index]
-        for i, state_series_fluorophore in enumerate(self.simulation.state_series):
+        for state_series_fluorophore in self.simulation.state_series:
             differences = np.diff(state_series_fluorophore)
             changes_at = np.where(differences != 0)[0]
             changed = changes_at + 1
@@ -532,6 +532,8 @@ class Analysis:
         prediction : None, Prediction
             Container of lifetimes, state and transition occurrences obtained by computation-associated attributes and
             methods.
+        scale : float
+            Factor to scale the figure.
 
         Returns
         -------
@@ -563,9 +565,22 @@ class Analysis:
         return axes
 
 
-def get_fluorescence_lifetime(simulation):
+def get_fluorescence_lifetimes(simulation):
+    """
+    Get the simulated fluorescence lifetimes (lifetimes of S1).
+
+    Parameters
+    ----------
+    simulation : src.simulation.Simulation
+        Container for simulation-associated attributes.
+        
+    Returns
+    -------
+    lifetimes : 1-D array_like
+        Contains the fluorescence lifetimes.
+    """
     lifetimes = np.array([])
-    for i, state_series_fluorophore in enumerate(simulation.state_series):
+    for state_series_fluorophore in simulation.state_series:
         differences = np.diff(state_series_fluorophore)
         changes_at = np.where(differences != 0)[0]
         changed = changes_at + 1

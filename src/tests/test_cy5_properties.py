@@ -9,7 +9,6 @@ import src.transitions as tr
 def test_derive_transitions(cy5_object, parameters):
 
     transitions = cy5_object.derive_transitions(*parameters)
-    print(transitions)
     expected = [tr.Transition(tr.TransitionType.EXCITATION, 1946561.1940894993),
                 tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 2.7e+08),
                 tr.Transition(tr.TransitionType.INTERSYSTEM_CROSSING_ST, 8.3e5),

@@ -216,7 +216,7 @@ def get_off_statistics(simulation, index, event_indices=None):
     """
     if index + 1 > simulation.state_series.shape[0]:
         raise ValueError(f'index assumes {index + 1} fluorophores but {simulation.state_series.shape[0]} are present.')
-    off_index = np.where(simulation.state_series[index] == tr.SingleState.OFF.value)[0]
+    off_index = np.where(simulation.state_series[index] == tr.SingleState.OFF1.value)[0]
     off2_index = np.where(simulation.state_series[index] == tr.SingleState.OFF2.value)[0]
     off_indices = np.sort(np.concatenate([off_index, off2_index]))
     if off_indices.size == 0:

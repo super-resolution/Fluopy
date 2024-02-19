@@ -20,7 +20,7 @@ class TCSPC:
 
     Attributes
     ----------
-    transitions : src.transitions.TransitionSet
+    transition_set : src.transitions.TransitionSet
         Collection of all relevant transitions and related attributes.
     modified_transition_matrix : np.ndarray
         Contains the normalized rate constants (i.e., point probabilities) for each possible combined_state_transition
@@ -43,16 +43,16 @@ class TCSPC:
     predicted_true_fluorescence_lifetime : float
         The computed true (not observed) fluorescence lifetime.
     """
-    def __init__(self, transitions):
+    def __init__(self, transition_set):
         """
         Parameters
         ----------
-        transitions : src.transitions.TransitionSet
+        transition_set : src.transitions.TransitionSet
             Collection of all relevant transitions and related attributes.
         """
-        if transitions.transition_matrix is None:
-            raise ValueError('tcspc not available if transitions not finalized.')
-        self.transitions = transitions
+        if transition_set.transition_matrix is None:
+            raise ValueError('tcspc not available if transition_set not finalized.')
+        self.transition_set = transition_set
         self.modified_transition_matrix, self.modified_row_sums = self.modify_transition_matrix()
         self.time_series = None
         self.transition_series = None
@@ -76,10 +76,10 @@ class TCSPC:
             Contains the sum of each row of non-normalized transition rates, i.e., the sum of rates of all possible
             combined_state_transitions. Modified (see modify_transition_matrix()).
         """
-        df = self.transitions.combined_state_transitions_df
+        df = self.transition_set.combined_state_transitions_df
         excitations = df[df['abbreviation'] == 'EXC']
-        indices_to_modify = excitations.index.values[self.transitions.fluorophore_system.count:]
-        transition_rate_matrix = self.transitions.transition_matrix * np.expand_dims(self.transitions.row_sums, axis=1)
+        indices_to_modify = excitations.index.values[self.transition_set.fluorophore_system.count:]
+        transition_rate_matrix = self.transition_set.transition_matrix * np.expand_dims(self.transition_set.row_sums, axis=1)
         transition_rate_matrix[:, indices_to_modify] = 0
         modified_row_sums = transition_rate_matrix.sum(axis=1)
         modified_transition_matrix = np.divide(transition_rate_matrix, np.expand_dims(modified_row_sums, axis=1),
@@ -106,8 +106,8 @@ class TCSPC:
         self
         """
         if start_at is None:
-            start_at = tuple(np.zeros(shape=self.transitions.fluorophore_system.count, dtype=int))
-        df = self.transitions.combined_state_transitions_df
+            start_at = tuple(np.zeros(shape=self.transition_set.fluorophore_system.count, dtype=int))
+        df = self.transition_set.combined_state_transitions_df
         start_index = df[df['final_state'] == start_at].index[0]
         self.time_series, self.transition_series = \
             si.direct_method_steps(transition_matrix=self.modified_transition_matrix,
@@ -127,7 +127,7 @@ class TCSPC:
         """
         if self.transition_series is None:
             raise ValueError('get_observed_lifetimes() not available if run() has not been called.')
-        df = self.transitions.combined_state_transitions_df
+        df = self.transition_set.combined_state_transitions_df
         excitation_values = df[df['abbreviation'] == 'EXC'].index.values
         fluorescence_values = df[df['abbreviation'] == 'FLU'].index.values
         excitation_indices = np.in1d(self.transition_series, excitation_values).nonzero()[0]
@@ -192,7 +192,7 @@ class TCSPC:
         None
         """
         self.predicted_true_fluorescence_lifetime, hfret_probability, fluorescence_probability = \
-            get_transition_probabilities(self.transitions.transition_df, self.transitions.fluorophore_system)
+            get_transition_probabilities(self.transition_set.transition_df, self.transition_set.fluorophore_system)
         rng = np.random.default_rng(seed)
         probabilities = []
         distributions = []

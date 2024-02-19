@@ -105,7 +105,7 @@ def get_emission_indices(simulation):
     emission_indices : 1-D array_like
         Indices of emitting transitions to apply to simulation.transition_series.
     """
-    df = simulation.transitions.combined_state_transitions_df
+    df = simulation.transition_set.combined_state_transitions_df
     emitting_transition_ids = df.loc[df['photon'] == True].index.to_numpy()
     emission_indices = np.in1d(simulation.transition_series, emitting_transition_ids).nonzero()[0]
 

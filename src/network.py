@@ -27,10 +27,10 @@ def construct_graph_states(transition_df, numerical=False):
     if transition_df['energy_transfer'].any() and numerical:
         raise ValueError('numerical only available for systems without energy transfer.')
 
-    from src.transitions import SingleState  # avoids circular import
+    # from src.transitions import SingleState  # avoids circular import
     G = nx.MultiDiGraph()
     edges = []
-    for identity, row in transition_df.iterrows():
+    for _, row in transition_df.iterrows():
         abbreviation = row['abbreviation']
         initial_state = row['initial_state']
         if type(initial_state).__name__ == 'SingleState':  # this could (and should) be done with isinstance,
@@ -79,7 +79,7 @@ def construct_graph_transitions(transition_df, numerical=False):
     if transition_df['energy_transfer'].any() and numerical:
         raise ValueError('numerical only available for systems without energy transfer.')
 
-    from src.transitions import SingleState  # avoids circular import
+    # from src.transitions import SingleState  # avoids circular import
     G = nx.MultiDiGraph()
     edges = []
     for id_source, row in transition_df.iterrows():

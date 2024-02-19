@@ -18,7 +18,7 @@ class Simulation:
 
     Attributes
     ----------
-    transitions : src.transitions.TransitionSet
+    transition_set : src.transitions.TransitionSet
         Collection of all relevant transitions and related attributes.
     time_series : 1-D array_like
         The simulated time points. At index i, they correspond to state_series[i] and transition_series[i - 1].
@@ -31,16 +31,16 @@ class Simulation:
     memmap_path : str
         The path where memmaps are stored.
     """
-    def __init__(self, transitions):
+    def __init__(self, transition_set):
         """
         Parameters
         ----------
-        transitions : src.transitions.TransitionSet
+        transition_set : src.transitions.TransitionSet
             Collection of all relevant transitions and related attributes.
         """
-        if transitions.transition_matrix is None:
-            raise ValueError('simulation not available if transitions not finalized.')
-        self.transitions = transitions
+        if transition_set.transition_matrix is None:
+            raise ValueError('simulation not available if transition_set not finalized.')
+        self.transition_set = transition_set
         self.time_series = None
         self.transition_series = None
         self.state_series = None
@@ -56,7 +56,7 @@ class Simulation:
         start_at : None, tuple
             If None, tuple of as many zeros as number of fluorophores.
             Can be any combination (size of number of fluorophores) of possible SingleState values. See
-            transitions.single_states.
+            transition_set.single_states.
         size : int
             If end_time is None, serves as maximum number of simulation steps.
             If end_time is not None, serves as size of random_numbers drawn at once.
@@ -72,25 +72,25 @@ class Simulation:
         None
         """
         if start_at is None:
-            start_at = tuple(np.zeros(shape=self.transitions.fluorophore_system.count, dtype=int))
-        elif len(start_at) != self.transitions.fluorophore_system.count:
+            start_at = tuple(np.zeros(shape=self.transition_set.fluorophore_system.count, dtype=int))
+        elif len(start_at) != self.transition_set.fluorophore_system.count:
             raise ValueError("The number of starting states doesn't match the number of fluorophores.")
         size = int(size)
-        df = self.transitions.combined_state_transitions_df
+        df = self.transition_set.combined_state_transitions_df
         start_index = df[df['final_state'] == start_at].index[0]
         if end_time is None:
             self.time_series, self.transition_series = \
-                direct_method_steps(transition_matrix=self.transitions.transition_matrix,
-                                    row_sums=self.transitions.row_sums,
+                direct_method_steps(transition_matrix=self.transition_set.transition_matrix,
+                                    row_sums=self.transition_set.row_sums,
                                     start_index=start_index, size=size, seed=seed, use_memmap=use_memmap)
         else:
             self.time_series, self.transition_series = \
-                direct_method_time(transition_matrix=self.transitions.transition_matrix,
-                                   row_sums=self.transitions.row_sums,
+                direct_method_time(transition_matrix=self.transition_set.transition_matrix,
+                                   row_sums=self.transition_set.row_sums,
                                    start_index=start_index, size=size, end_time=end_time, seed=seed,
                                    use_memmap=use_memmap)
 
-        final_states = self.transitions.combined_state_transitions_df['final_state']
+        final_states = self.transition_set.combined_state_transitions_df['final_state']
 
         if use_memmap is not None:
             self.memmap_path = use_memmap
@@ -135,14 +135,14 @@ class Simulation:
         """
         size = int(size)
         if strategy == 'individual':
-            self.time_series, self.transition_series = fill_individual_transitions(prediction=prediction, transitions=self.transitions, size=size, seed=seed)
+            self.time_series, self.transition_series = fill_individual_transitions(prediction=prediction, transition_set=self.transition_set, size=size, seed=seed)
         elif strategy == 'cycles':
-            self.time_series, self.transition_series = fill_simple_cycles(prediction=prediction, transitions=self.transitions, size=size, seed=seed)
+            self.time_series, self.transition_series = fill_simple_cycles(prediction=prediction, transition_set=self.transition_set, size=size, seed=seed)
         else:
             raise ValueError('strategy unknown.')
-        final_states = self.transitions.transition_df['final_state'].apply(lambda x: x.value)
+        final_states = self.transition_set.transition_df['final_state'].apply(lambda x: x.value)
         self.state_series = np.empty(shape=(self.transition_series.size + 1, ), dtype=np.int8)
-        self.state_series[0] = (self.transitions.transition_df['initial_state'][self.transition_series[0]]).value   
+        self.state_series[0] = (self.transition_set.transition_df['initial_state'][self.transition_series[0]]).value   
         self.state_series[1:] = final_states[self.transition_series]
         self.state_series = np.expand_dims(self.state_series, axis=0)
 
@@ -162,32 +162,39 @@ class Simulation:
         None
         """
         graph = net.construct_graph_transitions(transition_set.transition_df, numerical=True)
-        self.transitions = transition_set
+        self.transition_set = transition_set
         original_transition_matrix = transition_set.transition_matrix.copy()
+        absorbing_states = 0
         for i, single_state in enumerate(transition_set.single_states):
             single_state_obj = tr.SingleState(single_state)
             if single_state_obj not in transition_set.transition_df['initial_state'].values:
                 drop_transition = transition_set.transition_df[transition_set.transition_df['final_state'] == single_state_obj].index.values[0]
                 predecessors = np.array(list(graph.predecessors(drop_transition)))
-        Q = get_Q(P=original_transition_matrix, drop_transition=drop_transition)
-        I_t = get_I_t(Q=Q)
-        N = get_N(I_t=I_t, Q=Q)
-        starting_transition = self.transition_series[0]
-        limiting_transition = np.argmax(N[starting_transition, predecessors])
-        count = int(N[starting_transition, predecessors][limiting_transition])
-        final_transition = predecessors[limiting_transition]
-        transition_occurrences_at = np.where(self.transition_series == final_transition)[0]
-        if transition_occurrences_at.size > count:
-            cut_at = transition_occurrences_at[count]
-            self.transition_series = self.transition_series[:cut_at + 1]
-            self.transition_series = np.append(self.transition_series, final_transition)
-            self.state_series = self.state_series[:, :cut_at + 2]
-            self.state_series = np.append(self.state_series, [[transition_set.transition_df['final_state'][drop_transition].value]], axis=1)
-            # approximation - the possibility of an absorbing state should reduce the lifetimes of the involved states
-            # this is neglected here because it has a low impact given the low probability of it happening
-            self.time_series = self.time_series[:cut_at + 3]
+                absorbing_states += 1
+        if absorbing_states == 0:
+            raise ValueError('the given transition_set does not include any absorbing state.')
+        elif absorbing_states > 1:
+            raise ValueError('multiple absorbing states found. Not suitable.')
         else:
-            warnings.warn('Time series too short for bleaching to statistically have occurred.')
+            Q = get_Q(P=original_transition_matrix, drop_transition=drop_transition)
+            I_t = get_I_t(Q=Q)
+            N = get_N(I_t=I_t, Q=Q)
+            starting_transition = self.transition_series[0]
+            limiting_transition = np.argmax(N[starting_transition, predecessors])
+            count = int(N[starting_transition, predecessors][limiting_transition])
+            final_transition = predecessors[limiting_transition]
+            transition_occurrences_at = np.where(self.transition_series == final_transition)[0]
+            if transition_occurrences_at.size > count:
+                cut_at = transition_occurrences_at[count]
+                self.transition_series = self.transition_series[:cut_at + 1]
+                self.transition_series = np.append(self.transition_series, final_transition)
+                self.state_series = self.state_series[:, :cut_at + 2]
+                self.state_series = np.append(self.state_series, [[transition_set.transition_df['final_state'][drop_transition].value]], axis=1)
+                # approximation - the possibility of an absorbing state should reduce the lifetimes of the involved states
+                # this is neglected here because it has a low impact given the low probability of it happening
+                self.time_series = self.time_series[:cut_at + 3]
+            else:
+                warnings.warn('Time series too short for bleaching to statistically have occurred.')
 
     def delete_memmaps(self):
         """
@@ -421,7 +428,7 @@ def direct_method_time(transition_matrix, row_sums, start_index=0, size=10, end_
     return time_series, transition_series
 
 
-def fill_individual_transitions(prediction, transitions, size, seed):
+def fill_individual_transitions(prediction, transition_set, size, seed):
     """
     Constructs an approximation of simulated stochastic data based on a predicted stationary distribution of 
     a Markov chain. 
@@ -434,7 +441,7 @@ def fill_individual_transitions(prediction, transitions, size, seed):
     prediction : src.statistics.Prediction
         Container of lifetimes, state and transition occurrences obtained by computation-associated attributes and
         methods.
-    transitions : src.transitions.TransitionSet
+    transition_set : src.transitions.TransitionSet
         Collection of all relevant transitions and related attributes.
     size : int
         Maximum number of simulation steps. Due to rounding, actual size might vary.
@@ -452,9 +459,9 @@ def fill_individual_transitions(prediction, transitions, size, seed):
     transition_occurrences = transition_occurrences.astype(np.int64)
     maximum_transition_index = np.argmax(transition_occurrences)
     
-    starting_transition = transitions.transition_df.index[maximum_transition_index]
+    starting_transition = transition_set.transition_df.index[maximum_transition_index]
     
-    graph = net.construct_graph_transitions(transitions.transition_df, numerical=True)
+    graph = net.construct_graph_transitions(transition_set.transition_df, numerical=True)
     graph_suited, _ = net.check_graph_suitable(G=graph, starting_node=starting_transition)
     if not graph_suited:
         raise ValueError('graph is not suited for the algorithm. Check for loops that do not contain the most occurring state.')
@@ -468,7 +475,7 @@ def fill_individual_transitions(prediction, transitions, size, seed):
         occurrences = transition_indices.size
         rng.shuffle(transition_indices)
         follow_up_transitions = np.array(list(graph.successors(transition)))
-        rates = transitions.transition_df['rate'][follow_up_transitions].to_numpy()
+        rates = transition_set.transition_df['rate'][follow_up_transitions].to_numpy()
         repeats = rates * occurrences / rates.sum()
         rounded_repeats = it.saferound(repeats, places=0, topline=occurrences)  # topline such that each transition will get a followup transition
         rounded_repeats = np.array(rounded_repeats, dtype=np.int64)
@@ -485,7 +492,7 @@ def fill_individual_transitions(prediction, transitions, size, seed):
     time_step_series = np.empty(transition_series.size + 1, dtype=np.float64)
     time_step_series[0] = 0
     for i, transition_time_distribution in enumerate(prediction.transition_time_distributions):
-        indices = np.where(transition_series == transitions.transition_df.index[i])[0]
+        indices = np.where(transition_series == transition_set.transition_df.index[i])[0]
         drawn_lifetimes = transition_time_distribution.rvs(indices.size, random_state=rng)
         time_step_series[indices + 1] = drawn_lifetimes
     
@@ -495,7 +502,7 @@ def fill_individual_transitions(prediction, transitions, size, seed):
     return time_series, transition_series
 
 
-def fill_simple_cycles(prediction, transitions, size, seed):
+def fill_simple_cycles(prediction, transition_set, size, seed):
     """
     Constructs an approximation of simulated stochastic data based on a predicted stationary distribution of 
     a Markov chain. 
@@ -506,7 +513,7 @@ def fill_simple_cycles(prediction, transitions, size, seed):
     prediction : src.statistics.Prediction
         Container of lifetimes, state and transition occurrences obtained by computation-associated attributes and
         methods.
-    transitions : src.transitions.TransitionSet
+    transition_set : src.transitions.TransitionSet
         Collection of all relevant transitions and related attributes.
     size : int
         Total number of simulated cycles.
@@ -525,7 +532,7 @@ def fill_simple_cycles(prediction, transitions, size, seed):
     transition_occurrences = prediction.stationary_distribution_transitions * size
     transition_occurrences = transition_occurrences.astype(np.int64)
     maximum_transition_index = np.argmax(transition_occurrences)
-    starting_transition = transitions.transition_df.index[maximum_transition_index]
+    starting_transition = transition_set.transition_df.index[maximum_transition_index]
     
     graph = net.construct_graph_transitions(prediction.transition_df, numerical=True)
     graph_suited, cycles = net.check_graph_suitable(G=graph, starting_node=starting_transition)
@@ -539,22 +546,17 @@ def fill_simple_cycles(prediction, transitions, size, seed):
             longest_cycle = len(cycle)
         relative_probability_cycle = 1
         for i in range(len(cycle)):
-            if i == len(cycle[1:]):
-                j = 0
-            else:
-                j = i + 1
             current_transition = cycle[i]
-            future_transition = cycle[j]
-            rate = transitions.transition_df['rate'][current_transition]
-            initial_state = transitions.transition_df['initial_state'][current_transition]
-            all_rates = transitions.transition_df['rate'][transitions.transition_df['initial_state'] == initial_state].to_numpy()
+            rate = transition_set.transition_df['rate'][current_transition]
+            initial_state = transition_set.transition_df['initial_state'][current_transition]
+            all_rates = transition_set.transition_df['rate'][transition_set.transition_df['initial_state'] == initial_state].to_numpy()
             relative_probability = rate / all_rates.sum()
             relative_probability_cycle *= relative_probability
 
         relative_probabilities.append(relative_probability_cycle)
     occurrences = (np.array(relative_probabilities) * size).astype(int)
     
-    redundant_value = transitions.transition_df.index.max() + 1
+    redundant_value = transition_set.transition_df.index.max() + 1
     transition_series = np.full((occurrences.sum(), longest_cycle), redundant_value)
 
     all_repeats = []
@@ -575,7 +577,7 @@ def fill_simple_cycles(prediction, transitions, size, seed):
     time_step_series = np.empty(transition_series.size + 1, dtype=np.float64)
     time_step_series[0] = 0
     for i, transition_time_distribution in enumerate(prediction.transition_time_distributions):
-        indices = np.where(transition_series == transitions.transition_df.index[i])[0]
+        indices = np.where(transition_series == transition_set.transition_df.index[i])[0]
         drawn_lifetimes = transition_time_distribution.rvs(indices.size)
         time_step_series[indices + 1] = drawn_lifetimes
     

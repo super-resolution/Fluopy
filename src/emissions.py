@@ -67,18 +67,18 @@ class Emissions:
         if self.parameters['emccd_gain'] is not None:
             self.add_emccd_gain(emccd_gain=self.parameters['emccd_gain'], seed=self.parameters['seed'])
 
-    def simulate(self, transitions, start_at=None, size=1e5, frames=10, seed=None, store_time_points=False):
+    def simulate(self, transition_set, start_at=None, size=1e5, frames=10, seed=None, store_time_points=False):
         """
         Simulates events per time.
 
         Parameters
         ----------
-        transitions : src.transitions.TransitionSet
+        transition_set : src.transitions.TransitionSet
             Collection of all relevant transitions and related attributes.
         start_at : None, tuple
             If None, tuple of as many zeros as number of fluorophores.
             Can be any combination (size of number of fluorophores) of possible SingleState values. See
-            transitions.single_states.
+            transition_set.single_states.
         size : int
             Size of random_numbers drawn at once.
         frames : int
@@ -93,15 +93,15 @@ class Emissions:
         None
         """
         if start_at is None:
-            start_at = tuple(np.zeros(shape=transitions.fluorophore_system.count, dtype=int))
-        elif len(start_at) != transitions.fluorophore_system.count:
+            start_at = tuple(np.zeros(shape=transition_set.fluorophore_system.count, dtype=int))
+        elif len(start_at) != transition_set.fluorophore_system.count:
             raise ValueError("The number of starting states doesn't match the number of fluorophores.")
         size = int(size)
-        df = transitions.combined_state_transitions_df
+        df = transition_set.combined_state_transitions_df
         emitting_transition_ids = df.loc[df['photon'] == True].index.to_numpy()
         start_index = df[df['final_state'] == start_at].index[0]
         self.event_time_points, self.event_time_series = \
-            simulate_experiment(transition_matrix=transitions.transition_matrix, row_sums=transitions.row_sums,
+            simulate_experiment(transition_matrix=transition_set.transition_matrix, row_sums=transition_set.row_sums,
                                 emitting_transition_ids=emitting_transition_ids, start_index=start_index,
                                 size=size, frames=frames, frame_time=self.parameters['frame_time'], seed=seed, 
                                 store_time_points=store_time_points,
@@ -123,7 +123,7 @@ class Emissions:
         emission_indices : 1-D array_like
             Indices of emitting transitions to apply to simulation.transition_series.
         """
-        df = simulation.transitions.combined_state_transitions_df
+        df = simulation.transition_set.combined_state_transitions_df
         emitting_transition_ids = df.loc[df['photon'] == True].index.to_numpy()
         emission_indices = np.in1d(simulation.transition_series, emitting_transition_ids).nonzero()[0]
 

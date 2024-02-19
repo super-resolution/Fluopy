@@ -39,7 +39,7 @@ def transitionlist(request):
 @pytest.fixture()
 def transition_pd_series(request):
     series = pd.Series(asdict(*request.param))
-    series.drop('id', inplace=True)
+    series.drop('identity', inplace=True)
     return series
 
 
@@ -84,32 +84,39 @@ def transition_set_object_bleach():
 @pytest.fixture()
 def simulation_object_1(transition_set_object):
     transition_set_object.finalize()
-    object = si.Simulation(transition_set_object)
-    object.run(start_at=None, size=1000, end_time=None, seed=3, use_memmap=None)
-    return object
+    obj = si.Simulation(transition_set_object)
+    obj.run(start_at=None, size=1000, end_time=None, seed=3, use_memmap=None)
+    return obj
 
 
 @pytest.fixture()
 def simulation_object_2(transition_set_object):
     transition_set_object.finalize()
-    object = si.Simulation(transition_set_object)
-    object.run(start_at=None, size=1000, end_time=25, seed=3, use_memmap=None)
-    return object
+    obj = si.Simulation(transition_set_object)
+    obj.run(start_at=None, size=1000, end_time=25, seed=3, use_memmap=None)
+    return obj
 
 
 @pytest.fixture()
 def emissions_object(request):
-    object = em.Emissions(*request.param)
-    return object
+    obj = em.Emissions(*request.param)
+    return obj
+
+
+@pytest.fixture()
+def emissions_object_1(simulation_object_1):
+    obj = em.Emissions()
+    obj.extract(simulation_object_1)
+    return obj
 
 
 @pytest.fixture()
 def fcs_object(emissions_object_1):
-    object = fcs.FCS(emissions_object_1)
-    return object
+    obj = fcs.FCS(emissions_object_1)
+    return obj
 
 
 @pytest.fixture()
 def blinking_object(emissions_object_1):
-    object = bl.Blinking(emissions_object_1)
-    return object
+    obj = bl.Blinking(emissions_object_1)
+    return obj

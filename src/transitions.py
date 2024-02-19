@@ -22,9 +22,9 @@ class SingleState(Enum):
     S2 = 2
     T1 = 3
     T2 = 4
-    Cis = 5
-    OFF = 6
-    B = 7
+    B = 5
+    Cis = 6
+    OFF1 = 7
     OFF2 = 8
 
 
@@ -39,7 +39,7 @@ class PairedState(Enum):
     S1_T1 = [SingleState.S1, SingleState.T1]
     S1_Cis = [SingleState.S1, SingleState.Cis]
     S0_Cis = [SingleState.S0, SingleState.Cis]
-    S1_OFF = [SingleState.S1, SingleState.OFF]
+    S1_OFF1 = [SingleState.S1, SingleState.OFF1]
     S0_S0 = [SingleState.S0, SingleState.S0]
     S0_T2 = [SingleState.S0, SingleState.T2]
     S1_S1 = [SingleState.S1, SingleState.S1]
@@ -97,20 +97,20 @@ class TransitionType(Enum):
     # general
     EXCITATION = TransitionAttributes('EXC', SingleState.S0, SingleState.S1, False)
     FLUORESCENT_EMISSION = TransitionAttributes('FLU', SingleState.S1, SingleState.S0, True)
+    SINGLET_QUENCHING = TransitionAttributes('SQ', SingleState.S1, SingleState.S0, False)    
     INTERSYSTEM_CROSSING_ST = TransitionAttributes('ISCST', SingleState.S1, SingleState.T1, False)
     INTERSYSTEM_CROSSING_TS = TransitionAttributes('ISCTS', SingleState.T1, SingleState.S0, False)
     INTERNAL_CONVERSION_S = TransitionAttributes('ICS', SingleState.S1, SingleState.S0, False)
-    SINGLET_QUENCHING = TransitionAttributes('SQ', SingleState.S1, SingleState.S0, False)
+    REVERSE_INTERSYSTEM_CROSSING = TransitionAttributes('RISC', SingleState.T2, SingleState.S1, False)
     PHOTOBLEACHING_1 = TransitionAttributes('BLE1', SingleState.T1, SingleState.B, False)
     PHOTOBLEACHING_2 = TransitionAttributes('BLE2', SingleState.T2, SingleState.B, False)
-    REVERSE_INTERSYSTEM_CROSSING = TransitionAttributes('RISC', SingleState.T2, SingleState.S1, False)
 
     # dstorm
     ET_CYCLE_T = TransitionAttributes('ETT', SingleState.T1, SingleState.S0, False)
     ET_CYCLE_S = TransitionAttributes('ETS', SingleState.S1, SingleState.S0, False)
-    REDUCTION_T = TransitionAttributes('REDT', SingleState.T1, SingleState.OFF, False)
-    REDUCTION_S = TransitionAttributes('REDS', SingleState.S1, SingleState.OFF, False)
-    OXIDATION = TransitionAttributes('OXI', SingleState.OFF, SingleState.S0, False)
+    REDUCTION_T = TransitionAttributes('REDT', SingleState.T1, SingleState.OFF1, False)
+    REDUCTION_S = TransitionAttributes('REDS', SingleState.S1, SingleState.OFF1, False)
+    OXIDATION_1 = TransitionAttributes('OXI1', SingleState.OFF1, SingleState.S0, False)
     OXIDATION_2 = TransitionAttributes('OXI2', SingleState.OFF2, SingleState.S0, False)
 
     # cis trans isomerization
@@ -119,17 +119,17 @@ class TransitionType(Enum):
 
     # energy transfers
     HOMO_FRET = TransitionAttributes('HFRET', PairedState.S1_S0, PairedState.S0_S1, False)
-    CIS_FRET_1 = TransitionAttributes('CFRET', PairedState.S1_Cis, PairedState.S0_Cis, False)
+    CIS_FRET_1 = TransitionAttributes('CFRET1', PairedState.S1_Cis, PairedState.S0_Cis, False)
     CIS_FRET_2 = TransitionAttributes('CFRET2', PairedState.S1_Cis, PairedState.S0_S0, False)
-    OFF_FRET = TransitionAttributes('OFRET', PairedState.S1_OFF, PairedState.S0_S0, False)
-    OFF_FRET_2 = TransitionAttributes('OFRET2', PairedState.S1_OFF, PairedState.S0_OFF2, False)
+    OFF_FRET_1 = TransitionAttributes('OFRET1', PairedState.S1_OFF1, PairedState.S0_S0, False)
+    OFF_FRET_2 = TransitionAttributes('OFRET2', PairedState.S1_OFF1, PairedState.S0_OFF2, False)
     S_S_ANNIHILATION = TransitionAttributes('SSA', PairedState.S1_S1, PairedState.S0_S1, False)
     S_T_ANNIHILATION = TransitionAttributes('STA', PairedState.S1_T1, PairedState.S0_T1, False)
 
     # rhodamines
-    H2O_ATTACK_S = TransitionAttributes('H2OS', SingleState.S1, SingleState.OFF, False)
-    BACK_REACTION = TransitionAttributes('BR', SingleState.OFF, SingleState.S0, False)
-    H2O_ATTACK_T = TransitionAttributes('H2OT', SingleState.T1, SingleState.OFF, False)
+    H2O_ATTACK_S = TransitionAttributes('H2OS', SingleState.S1, SingleState.OFF1, False)
+    H2O_ATTACK_T = TransitionAttributes('H2OT', SingleState.T1, SingleState.OFF1, False)
+    BACK_REACTION = TransitionAttributes('BR', SingleState.OFF1, SingleState.S0, False)
 
     @property
     def abbreviation(self):
@@ -221,6 +221,8 @@ class TransitionSet:
 
     Attributes
     ----------
+    fluorophore_system : stc.fluorophores.FluorophoreSystem
+        Container for attributes of multiple, interrelated fluorophores.
     transitions : Collection
         Contains all given transitions of type Transition with non-zero rate.
     transition_df : pd.DataFrame
@@ -253,7 +255,7 @@ class TransitionSet:
         for i, transition in enumerate(self.transitions):
             transition.identity = i
         self.transition_df = pd.DataFrame([asdict(transition) for transition in self.transitions])
-        self.transition_df.set_index('id', inplace=True)
+        self.transition_df.set_index('identity', inplace=True)
         
         ets = self.transition_df[self.transition_df['energy_transfer']].groupby(['transition_type'], sort=False)
 
@@ -328,31 +330,6 @@ class TransitionSet:
 
         return adjusted
 
-    def finalize(self):
-        """
-        Construct combined_state_transitions_df, transition_matrix and row_sums.
-
-        Returns
-        -------
-        self
-        """
-        state_combinations = get_state_combinations(states=self.single_states, repeat=self.fluorophore_system.count)
-        combined_state_transitions = get_combined_state_transitions(state_combinations=state_combinations)
-        combined_state_transitions_with_rates = \
-            construct_transition_rate_list(transition_df=self.transition_df,
-                                           combined_state_transitions=combined_state_transitions,
-                                           distance_lookup=self.fluorophore_system.distances)
-
-        self.combined_state_transitions_df = pd.DataFrame(combined_state_transitions_with_rates,
-                                                          columns=['initial_state', 'final_state', 'abbreviation',
-                                                                   'transition_id', 'rate', 'photon'])
-        self.combined_state_transitions_df.index.name = 'id'
-
-        self.transition_matrix, self.row_sums = \
-            construct_transition_matrix(combined_state_transitions_df=self.combined_state_transitions_df)
-
-        return self
-   
     def remove_absorbing_states(self):
         """
         Returns another TransitionSet that contains no absorbing states.
@@ -364,7 +341,7 @@ class TransitionSet:
         """
         transitions = self.transitions.copy()
         remove_list = []
-        for i, single_state in enumerate(self.single_states):
+        for single_state in self.single_states:
             single_state = SingleState(single_state)
             if single_state not in self.transition_df['initial_state'].values:
                 remove_list.append(self.transition_df[self.transition_df['final_state'] == single_state].index)
@@ -393,7 +370,7 @@ class TransitionSet:
 
         return no_ets
     
-    def reduce(self):
+    def reduce_to_1(self):
         """
         Returns another TransitionSet that consists of only 1 fluorophore.
         
@@ -403,9 +380,9 @@ class TransitionSet:
             Re-initialization of the object with the modified number of fluorophores.
         """
         if (self.transition_df['energy_transfer'] == True).any():
-            raise ValueError('reduce() not available if energy transfers possible.')
+            raise ValueError('reduce_to_1() not available if energy transfers possible.')
         elif self.fluorophore_system.count == 1:
-            warnings.warn('reduce() has no effect since it is already only 1 fluorophore.')
+            warnings.warn('reduce_to_1() has no effect since it is already only 1 fluorophore.')
             fluorophore_system = self.fluorophore_system
         else:
             fluorophore_system = fl.FluorophoreSystem(fluorophores=[self.fluorophore_system.fluorophores[0]])
@@ -414,6 +391,31 @@ class TransitionSet:
 
         return reduced
 
+    def finalize(self):
+        """
+        Construct combined_state_transitions_df, transition_matrix and row_sums.
+
+        Returns
+        -------
+        self
+        """
+        state_combinations = get_state_combinations(states=self.single_states, repeat=self.fluorophore_system.count)
+        combined_state_transitions = get_combined_state_transitions(state_combinations=state_combinations)
+        combined_state_transitions_with_rates = \
+            construct_transition_rate_list(transition_df=self.transition_df,
+                                           combined_state_transitions=combined_state_transitions,
+                                           distance_lookup=self.fluorophore_system.distances)
+
+        self.combined_state_transitions_df = pd.DataFrame(combined_state_transitions_with_rates,
+                                                          columns=['initial_state', 'final_state', 'abbreviation',
+                                                                   'transition_id', 'rate', 'photon'])
+        self.combined_state_transitions_df.index.name = 'id'
+
+        self.transition_matrix, self.row_sums = \
+            construct_transition_matrix(combined_state_transitions_df=self.combined_state_transitions_df)
+
+        return self
+   
     def plot(self, graph_type='shell', colors=None, scale=1):
         """
         Plot photophysical system as network/graph.
@@ -734,3 +736,109 @@ def get_energy_transfer_transitions(transition_type, distances, rates=None, calc
                                                           distance=distance))
 
     return energy_transfer_transitions
+
+
+def derive_transitions(fluorophore_data=None, irradiance=2, wavelength=640, bleaching=False, energy_transfer=True,
+                       distances=None, dstorm=True, **dstorm_parameters):
+    """
+    Derive transitions based on the experimental conditions and the fluorophore to be mimicked.
+
+    Parameters
+    ----------
+    fluorophore_data : FluorophoreData
+        Contains all constant photophysical attributes of fluorophores.
+    irradiance : float
+        Irradiance in kW/cm².
+    wavelength : float
+        Wavelength in nm.
+    bleaching : bool
+        Whether to incooperate bleaching as a possible transition.
+    energy_transfer : bool
+        Whether to incooperate energy transfers as possible transitions.
+    distances : dict
+        Contains tuples of 2 fluorophore ids as keys and their distance as values.
+        Only needed if energy_transfer is True.
+    dstorm : bool
+        Whether to incooperate dstorm photoswitching as possible transitions.
+    dstorm_parameters : fo.calculate_pet_rate arguments (except k_pet)
+
+    Returns
+    -------
+    transitions : Collection
+        Contains transitions of type Transition.
+    """
+    fd = fluorophore_data
+    _, _, frequency = fo.convert_wavenumber_wavelength_frequency(wavelength=wavelength)
+    photon_flux = fo.calculate_photon_flux(irradiance=irradiance, frequency=frequency)
+    relative_extinction = fl.get_relative_extinction(wavelength, fluorophore_data.data_files)
+    effective_extinction = relative_extinction * fd.MAXIMUM_EXTINCTION_COEFFICIENT
+    
+    excitation_rate = fo.calculate_excitation_rate(photon_flux=photon_flux,
+                                                   extinction_coefficient=effective_extinction)
+    excitation = Transition(rate=excitation_rate, transition_type=TransitionType.EXCITATION)
+
+    emission_rate = fo.calculate_emission_rate(quantum_yield=fd.QUANTUM_YIELD,
+                                               fluorescence_lifetime=fd.FLUORESCENCE_LIFETIME)
+    emission = Transition(rate=emission_rate, transition_type=TransitionType.FLUORESCENT_EMISSION)
+
+    isc_st = Transition(rate=fd.ISC_ST_RATE, transition_type=TransitionType.INTERSYSTEM_CROSSING_ST)
+
+    isc_ts = Transition(rate=fd.ISC_TS_RATE, transition_type=TransitionType.INTERSYSTEM_CROSSING_TS)
+
+    isomerization = Transition(rate=fd.ISO_RATE, transition_type=TransitionType.ISOMERIZATION)
+
+    biso_rate = fo.calculate_back_isomerization_rate(photon_flux=photon_flux,
+                                                     absorption_cross_section=fd.BISO_CROSS_SECTION)
+    bisomerization = Transition(rate=biso_rate, transition_type=TransitionType.BACKISOMERIZATION)
+
+    internal_conversion_rate = \
+        fo.calculate_internal_conversion_rate(quantum_yield=fd.QUANTUM_YIELD, emission_rate=emission_rate,
+                                              iso_rate=fd.ISO_RATE, isc_st_rate=fd.ISC_ST_RATE)
+    internal_conversion = Transition(rate=internal_conversion_rate, 
+                                     transition_type=TransitionType.INTERNAL_CONVERSION_S)
+
+    dstorm_transitions = []
+    if dstorm:
+        dstorm_pet_t_rate = fo.calculate_pet_rate(k_pet=fd.DSTORM_PET_T_RATE_MOL, **dstorm_parameters)
+        dstorm_pet_s_rate = fo.calculate_pet_rate(k_pet=fd.DSTORM_PET_S_RATE_MOL, **dstorm_parameters)
+        dstorm_pet_t = Transition(rate=dstorm_pet_t_rate, transition_type=TransitionType.ET_CYCLE_T)
+        dstorm_pet_s = Transition(rate=dstorm_pet_s_rate, transition_type=TransitionType.ET_CYCLE_S)
+        dstorm_red_t_rate = dstorm_pet_t_rate * fd.DSTORM_PET_SUCCESS_RATE
+        dstorm_red_s_rate = dstorm_pet_s_rate * fd.DSTORM_PET_SUCCESS_RATE
+        dstorm_red_t = Transition(rate=dstorm_red_t_rate, transition_type=TransitionType.REDUCTION_T)
+        dstorm_red_s = Transition(rate=dstorm_red_s_rate, transition_type=TransitionType.REDUCTION_S)
+        dstorm_oxi = Transition(rate=fd.DSTORM_TH_EL_RATE_1, transition_type=TransitionType.OXIDATION_1)
+        dstorm_transitions = [dstorm_pet_t, dstorm_pet_s, dstorm_red_t, dstorm_red_s, dstorm_oxi]
+
+    energy_transfers = []
+    if energy_transfer:
+        calculate_homo_fret = {'emission_rate': emission_rate, 'spectral_overlap_integral': fd.J_HOMO_FRET,
+                                'dipole_orientation_factor': fd.FRET_KAPPA_SQ}
+        homo_frets = get_energy_transfer_transitions(transition_type=TransitionType.HOMO_FRET, distances=distances,
+                                                     rates=None, calculate_rates=calculate_homo_fret)
+
+        calculate_cis_fret = {'emission_rate': emission_rate, 'spectral_overlap_integral': fd.J_CIS_FRET,
+                                'dipole_orientation_factor': fd.FRET_KAPPA_SQ}
+        cis_frets = get_energy_transfer_transitions(transition_type=TransitionType.CIS_FRET_1, distances=distances,
+                                                    rates=None, calculate_rates=calculate_cis_fret)
+
+        calculate_triplet_fret = {'emission_rate': emission_rate, 'spectral_overlap_integral': fd.J_TRIPLET_FRET,
+                                    'dipole_orientation_factor': fd.FRET_KAPPA_SQ}
+        triplet_frets = get_energy_transfer_transitions(transition_type=TransitionType.S_T_ANNIHILATION,
+                                                        distances=distances, rates=None,
+                                                        calculate_rates=calculate_triplet_fret)
+
+        calculate_off_fret = {'emission_rate': emission_rate, 'spectral_overlap_integral': fd.J_OFF_FRET,
+                                'dipole_orientation_factor': fd.FRET_KAPPA_SQ}
+        off_frets = get_energy_transfer_transitions(transition_type=TransitionType.OFF_FRET_1, distances=distances,
+                                                    rates=None, calculate_rates=calculate_off_fret)
+        energy_transfers = (homo_frets + cis_frets + triplet_frets + off_frets)
+
+    bleach = []
+    if bleaching:
+        bleach = [Transition(rate=fd.PHOTOBLEACH_T1_RATE, transition_type=TransitionType.PHOTOBLEACHING_1)]
+
+    transitions = ([excitation, emission, isc_st, isc_ts, isomerization, bisomerization, internal_conversion] +
+                    dstorm_transitions + bleach + energy_transfers)
+
+    return transitions

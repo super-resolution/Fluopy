@@ -5,11 +5,12 @@ from dataclasses import dataclass, field
 from collections.abc import Collection
 import numpy as np
 import warnings
+from pathlib import Path
+import os
+import pandas as pd
 from typing import Optional
 import src.figure as fi
-from src.fluorophore_collection.cy5 import Cy5
-from src.fluorophore_collection.examples import Example
-from src.abstract_classes import FluorophoreData
+import src.fluo_data as fd
 
 
 @dataclass
@@ -25,26 +26,25 @@ class Fluorophore:
         Name of the fluorophore.
     position : Collection
         The position of the fluorophore in 2D space.
-    parameter_set : str
-        Parameter set of the fluorophore. Has no effect if the fluorophore only has one set.
     constants : None, FluorophoreData
         Not None if the fluorophore has a defined FluorophoreData dataclass.
     """
     identity: int = field(init=False)
     name: str = field()
     position: Collection[float, float] = field()
-    parameter_set: str = field(default='set 1')
-    constants: Optional[FluorophoreData] = None
+    constants: Optional[fd.FluorophoreData] = None
 
     def __post_init__(self):
         object.__setattr__(self, 'identity', None)
         object.__setattr__(self, 'position', np.asarray(self.position))
-        if self.name.lower() == 'cy5':
-            object.__setattr__(self, 'constants', Cy5(parameter_set=self.parameter_set))
-        elif self.name.lower() == 'example':
-            object.__setattr__(self, 'constants', Example(parameter_set=self.parameter_set))
-        else:
+        fluorophore_dataclasses = [name for name in dir(fd) if isinstance(getattr(fd, name), type)]
+        class_name = [name for name in fluorophore_dataclasses if name.lower() == self.name.lower()]
+        if len(class_name) == 1:
+            object.__setattr__(self, 'constants', getattr(fd, class_name[0])())        
+        elif len(class_name) == 0:
             warnings.warn(f'Fluorophore {self.name} not known. Parameters have to be defined manually.')
+        else:
+            raise ValueError('Multiple fluorophore dataclasses found.')
 
 
 @dataclass
@@ -97,14 +97,19 @@ class FluorophoreSystem:
         transitions : Collection
             Contains transitions of type Transition.
         """
-        if self.fluorophores[0].constants is None:
-            raise ValueError('load_transitions() not available for this kind of fluorophore.')
-        else:
-            transitions = \
-                self.fluorophores[0].constants.derive_transitions(irradiance=irradiance, wavelength=wavelength,
-                                                                  bleaching=bleaching, energy_transfer=energy_transfer,
-                                                                  distances=self.distances, dstorm=dstorm,
-                                                                  **dstorm_parameters)
+        transitions = {}
+        from src.transitions import derive_transitions
+        for fluorophore in self.fluorophores:
+            if fluorophore.constants is None:
+                warnings.warn(f'load_transitions() not available for this kind of fluorophore: {fluorophore.name}.')
+            elif fluorophore.name not in transitions:
+                transitions[fluorophore.name] = \
+                    derive_transitions(fluorophore_data=fluorophore.constants,irradiance=irradiance, wavelength=wavelength,
+                                       bleaching=bleaching, energy_transfer=energy_transfer, distances=self.distances, 
+                                       dstorm=dstorm, **dstorm_parameters)
+            else:
+                continue
+        
         return transitions
 
     def plot(self, quadratic=True, **kwargs):
@@ -138,6 +143,29 @@ class FluorophoreSystem:
             axes[0, 0].set_aspect('equal', adjustable='box')
 
         return axes
+
+
+def get_relative_extinction(wavelength, file_directory):
+    """
+    Get the relative extinction from a file given the wavelength.
+
+    Parameters
+    ----------
+    wavelength : float
+        The wavelength in nm.
+    file_directory : str
+        The name of the tail directory.
+
+    Returns
+    -------
+    relative_extinction : float
+        The relative extinction at the given wavelength.
+    """
+    path_absorption = os.path.join(Path(__file__).parent, 'fluorophore_collection', file_directory, 'rel_absorption.csv')
+    dataframe_absorption = pd.read_csv(filepath_or_buffer=path_absorption, index_col=0)
+    relative_extinction =  dataframe_absorption.loc[int(wavelength), 'relative extinction']
+    
+    return relative_extinction
 
 
 def get_distances(positions):
@@ -238,7 +266,7 @@ def get_positions_from_distance(distance, count, shape='triangle'):
     return positions
 
 
-def construct_fluorophores(name='cy5', distance=10, count=3, shape='triangle', parameter_set='set 1'):
+def construct_fluorophores(name='cy5', distance=10, count=3, shape='triangle'):
     """
     Constructs a collection of fluorophores of up to 4 fluorophores of the same kind.
 
@@ -252,8 +280,6 @@ def construct_fluorophores(name='cy5', distance=10, count=3, shape='triangle', p
         Number of fluorophores.
     shape : str
         One of 'triangle', 'square'. Only needed if count is 3.
-    parameter_set : str
-        Parameter set of the fluorophore. Has no effect if the fluorophore only has one set.
 
     Returns
     -------
@@ -261,6 +287,6 @@ def construct_fluorophores(name='cy5', distance=10, count=3, shape='triangle', p
         Contains fluorophores of type Fluorophore.
     """
     positions = get_positions_from_distance(distance=distance, count=count, shape=shape)
-    fluorophores = [Fluorophore(name=name, position=position, parameter_set=parameter_set) for position in positions]
+    fluorophores = [Fluorophore(name=name, position=position) for position in positions]
 
     return fluorophores
