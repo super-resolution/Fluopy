@@ -1,18 +1,53 @@
 """
 Module custom_plot
 """
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib import rcParams, rcParamsDefault
 
 
-def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_="line", data=(0, 0), color="blue",
-                     ylabel="y", xlabel="x", fontsize=21, legend=False, label=None, legendcolor='black', title=None, xlim=None, ylim=None,
-                     xscale=None, yscale=None, adjust_x=None, adjust_y=None, xticks=None, yticks=None, xticklabels=None,
-                     yticklabels=None, tick_params=None, tick_spacing_x=None, tick_spacing_y=None, tick_style_x=None,
-                     tick_style_y=None, second_axis_x=False, second_axis_y=False, draw_marker=None,
-                     plot_distribution=None, axes=None, **type_specific_kwargs):
+def universal_figure(
+    nrows=1,
+    ncols=1,
+    fig_width=6,
+    fig_height=3,
+    scale=1,
+    type_="line",
+    data=(0, 0),
+    label=None,
+    color="blue",
+    title=None,
+    xlabel="x",
+    ylabel="y",
+    xlim=None,
+    ylim=None,
+    xscale=None,
+    yscale=None,
+    adjust_x=None,
+    adjust_y=None,
+    xticks=None,
+    yticks=None,
+    xticklabels=None,
+    yticklabels=None,
+    tick_params=None,
+    tick_spacing_x=None,
+    tick_spacing_y=None,
+    tick_style_x=None,
+    tick_style_y=None,
+    second_axis_x=False,
+    second_axis_y=False,
+    fontsize=21,
+    legend=False,
+    legendhandles=None,
+    legendcolor="black",
+    draw_marker=None,
+    plot_distribution=None,
+    plot_distribution_label=None,
+    axes=None,
+    **type_specific_kwargs,
+):
     """
     Constructs a figure or modifies axes.
 
@@ -29,25 +64,20 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
     scale : float
         Factor to scale the figure.
     type_ : str
-        Type of the plot. One of "hist", "bar", "line", "multiple_line", "scatter".
+        Type of the plot. One of "hist", "multiple_hist", "bar", "line",
+        "multiple_line", "scatter", "errorbar".
     data : np.ndarray, Collection
         Data to be plotted. Required formation depends on input parameter type_.
-    color : str, list, callable
-        Color.
-    ylabel : str
-        The label text of the y-axis.
-    xlabel : str
-        The label text of the x-axis.
-    fontsize : float
-        Size of font.
-    legend : bool
-        Whether to display a legend.
     label : str, list
         Label to pass to legend.
-    legendcolor : str
-        Color of text in legend.
+    color : str, list, callable
+        Color.
     title : str
         The title of the plot.
+    xlabel : str
+        The label text of the x-axis.
+    ylabel : str
+        The label text of the y-axis.
     xlim : float, Collection
         Left and right limit of the x-axis.
     ylim : float, Collection
@@ -65,9 +95,11 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
     yticks : array-like
         ytick locations.
     xticklabels : dict
-        Keyword 'labels' with labels to place at the given tick locations. Keyword 'rotation' to rotate text.
+        Keyword 'labels' with labels to place at the given tick locations. Keyword
+        'rotation' to rotate text.
     yticklabels : dict
-        Keyword 'labels' with labels to place at the given tick locations. Keyword 'rotation' to rotate text.
+        Keyword 'labels' with labels to place at the given tick locations. Keyword
+        'rotation' to rotate text.
     tick_params : dict
         Parameters to pass to .tick_params().
     tick_spacing_x : float
@@ -82,10 +114,20 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
         Whether to plot a second x-axis.
     second_axis_y : bool
         Whether to plot a second y-axis.
+    fontsize : float
+        Size of font.
+    legend : bool
+        Whether to display a legend.
+    legendhandles : Collection
+        If not None, collection of handles (e.g., matplotlib.patches.Patch).
+    legendcolor : str
+        Color of text in legend.
     draw_marker : Collection
         The data positions, consists of x and y.
-    plot_distribution : Collection
-        Contains distr.rv_continuous_frozen or distr.rv_discrete_frozen or distr.rv_frozen and label.
+    plot_distribution : distr.rv_frozen
+        Additional distribution to be plotted.
+    plot_distribution_label : str
+        Label of plot_distribution.
     axes : np.ndarray
         Contains matplotlib.axes.Axes objects.
     type_specific_kwargs : type_ properties
@@ -97,11 +139,13 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
     """
     # initialize figure
     rcParams["axes.linewidth"] = 2
-    rcParams['figure.dpi'] = rcParamsDefault['figure.dpi'] * scale
-    rcParams['figure.facecolor'] = 'white'
+    rcParams["figure.dpi"] = rcParamsDefault["figure.dpi"] * scale
+    rcParams["figure.facecolor"] = "white"
 
     if axes is None:
-        _, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(fig_width, fig_height))
+        _, axes = plt.subplots(
+            nrows=nrows, ncols=ncols, figsize=(fig_width, fig_height)
+        )
     else:
         axes = axes
 
@@ -122,7 +166,9 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
     if xlim is not None:
         ax.set_xlim(xlim)
     if adjust_x is not None:
-        ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda old_x, _: '{0:g}'.format(old_x * adjust_x)))
+        ax.xaxis.set_major_formatter(
+            ticker.FuncFormatter(lambda old_x, _: "{0:g}".format(old_x * adjust_x))
+        )
     if xscale is not None:
         ax.set_xscale(xscale)
 
@@ -138,7 +184,9 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
     if ylim is not None:
         ax.set_ylim(ylim)
     if adjust_y is not None:
-        ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda old_y, _: '{0:g}'.format(old_y * adjust_y)))
+        ax.yaxis.set_major_formatter(
+            ticker.FuncFormatter(lambda old_y, _: "{0:g}".format(old_y * adjust_y))
+        )
     if yscale is not None:
         ax.set_yscale(yscale)
 
@@ -163,81 +211,139 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
         ax.yaxis.get_offset_text().set_visible(False)
 
     # data incorporation
-    if type_ == "hist":
-        dot = False
-        if 'histtype' in type_specific_kwargs and type_specific_kwargs['histtype'] == 'dot':
-            type_specific_kwargs.pop('histtype', None)
-            dot = True
-        n, bins, patches = ax.hist(x=data, color=color, label=label, **type_specific_kwargs)
+    match type_:
+        case "hist":
+            dot = False
+            if (
+                "histtype" in type_specific_kwargs
+                and type_specific_kwargs["histtype"] == "dot"
+            ):
+                type_specific_kwargs.pop("histtype", None)
+                dot = True
+            n, bins, patches = ax.hist(
+                x=data, color=color, label=label, **type_specific_kwargs
+            )
 
-        if dot:
-            patches.remove()
-            ax.scatter(bins[:-1] + 0.5*(bins[1:] - bins[:-1]), n, marker='o', color=color, label=label, s=4)
-        if plot_distribution is not None:
-            try:
-                plot_distribution[0].pmf(0)  # check if the distribution is discrete
-                if np.min(bins) < 0:
-                    minimum = 0
-                else:
-                    minimum = int(np.min(bins))
-                x = np.linspace(minimum, int(np.max(bins)), int(np.max(bins)) - minimum + 1)
-                ax.plot(x, plot_distribution[0].pmf(x), c='k', label=plot_distribution[1])
-            except AttributeError:
-                x = np.linspace(np.min(bins), np.max(bins), 100)
-                ax.plot(x, plot_distribution[0].pdf(x), c='k', label=plot_distribution[1])
+            if dot:
+                patches.remove()
+                ax.scatter(
+                    bins[:-1] + 0.5 * (bins[1:] - bins[:-1]),
+                    n,
+                    marker="o",
+                    color=color,
+                    label=label,
+                    s=4,
+                )
+            if plot_distribution is not None:
+                try:
+                    plot_distribution.pmf(0)  # check if the distribution is discrete
+                    if np.min(bins) < 0:
+                        minimum = 0
+                    else:
+                        minimum = int(np.min(bins))
+                    x = np.linspace(
+                        minimum, int(np.max(bins)), int(np.max(bins)) - minimum + 1
+                    )
+                    ax.plot(
+                        x,
+                        plot_distribution.pmf(x),
+                        c="k",
+                        label=plot_distribution_label,
+                    )
+                except AttributeError:
+                    x = np.linspace(np.min(bins), np.max(bins), 100)
+                    ax.plot(
+                        x,
+                        plot_distribution.pdf(x),
+                        c="k",
+                        label=plot_distribution_label,
+                    )
 
-    elif type_ == "multiple_hist":
-        for j, dat_ in enumerate(data):
-            if dat_.size != 0:
+        case "multiple_hist":
+            for j, dat_ in enumerate(data):
+                if dat_.size != 0:
+                    if callable(color):
+                        use_color = color(j)
+                    elif isinstance(color, str):
+                        use_color = color
+                    else:
+                        use_color = color[j]
+                    if isinstance(label, str):
+                        use_label = label
+                    else:
+                        use_label = label[j]
+                    _, bins, _ = ax.hist(
+                        x=dat_, color=use_color, label=use_label, **type_specific_kwargs
+                    )
+                    if plot_distribution is not None:
+                        plot_distr = plot_distribution[j]
+                        try:
+                            plot_distr.pmf(0)  # check if the distribution is discrete
+                            if np.min(bins) < 0:
+                                minimum = 0
+                            else:
+                                minimum = int(np.min(bins))
+                            x = np.linspace(
+                                minimum,
+                                int(np.max(bins)),
+                                int(np.max(bins)) - minimum + 1,
+                            )
+                            ax.plot(x, plot_distr.pmf(x), c="k", label="pred")
+                        except AttributeError:
+                            x = np.linspace(np.min(bins), np.max(bins), 100)
+                            ax.plot(x, plot_distr.pdf(x), c="k", label="pred")
+
+        case "bar":
+            if data[1].ndim > 1:
+                for j, dat_ in enumerate(data[1]):
+                    if "width" in type_specific_kwargs:
+                        width = type_specific_kwargs["width"]
+                        dat_x = data[0] + j * width
+                    else:
+                        dat_x = data[0]
+                    ax.bar(
+                        x=dat_x,
+                        height=dat_,
+                        color=color[j],
+                        label=label[j],
+                        **type_specific_kwargs,
+                    )
+            else:
+                ax.bar(
+                    x=data[0],
+                    height=data[1],
+                    color=color,
+                    label=label,
+                    **type_specific_kwargs,
+                )
+        case "line":
+            ax.plot(data[0], data[1], color=color, label=label, **type_specific_kwargs)
+        case "errorbar":
+            ax.errorbar(
+                data[0],
+                data[1],
+                yerr=data[2],
+                color=color,
+                label=label,
+                **type_specific_kwargs,
+            )
+        case "multiple_line":
+            for j, dat_ in enumerate(data):
                 if callable(color):
                     use_color = color(j)
-                elif isinstance(color, str):
+                else:
                     use_color = color
-                else:
-                    use_color = color[j]
-                if isinstance(label, str):
-                    use_label = label
-                else:
-                    use_label = label[j]
-                _, bins, _ = ax.hist(x=dat_, color=use_color, label=use_label, **type_specific_kwargs)
-                if plot_distribution is not None:
-                    plot_distr = plot_distribution[j]
-                    try:
-                        plot_distr.pmf(0)  # check if the distribution is discrete
-                        if np.min(bins) < 0:
-                            minimum = 0
-                        else:
-                            minimum = int(np.min(bins))
-                        x = np.linspace(minimum, int(np.max(bins)), int(np.max(bins)) - minimum + 1)
-                        ax.plot(x, plot_distr.pmf(x), c='k', label='pred')
-                    except AttributeError:
-                        x = np.linspace(np.min(bins), np.max(bins), 100)
-                        ax.plot(x, plot_distr.pdf(x), c='k', label='pred')
-
-    elif type_ == "bar":
-        if data[1].ndim > 1:
-            for j, dat_ in enumerate(data[1]):
-                if 'width' in type_specific_kwargs:
-                    width = type_specific_kwargs['width']
-                    dat_x = data[0] + j*width
-                else:
-                    dat_x = data[0]
-                ax.bar(x=dat_x, height=dat_, color=color[j], label=label[j], **type_specific_kwargs)
-        else:
-            ax.bar(x=data[0], height=data[1], color=color, label=label, **type_specific_kwargs)
-    elif type_ == "line":
-        ax.plot(data[0], data[1], color=color, label=label, **type_specific_kwargs)
-    elif type_ == "errorbar":
-        ax.errorbar(data[0], data[1], yerr=data[2], color=color, label=label, **type_specific_kwargs)
-    elif type_ == "multiple_line":
-        for j, dat_ in enumerate(data):
-            if callable(color):
-                use_color = color(j)
-            else:
-                use_color = color
-            ax.plot(dat_[0], dat_[1], color=use_color, label=label[j], **type_specific_kwargs)
-    elif type_ == "scatter":
-        ax.scatter(data[0], data[1], color=color, label=label, **type_specific_kwargs)
+                ax.plot(
+                    dat_[0],
+                    dat_[1],
+                    color=use_color,
+                    label=label[j],
+                    **type_specific_kwargs,
+                )
+        case "scatter":
+            ax.scatter(
+                data[0], data[1], color=color, label=label, **type_specific_kwargs
+            )
 
     # second x-axis
     if second_axis_x:
@@ -245,21 +351,30 @@ def universal_figure(nrows=1, ncols=1, fig_width=6, fig_height=3, scale=1, type_
         sec_ax = ax.secondary_xaxis("top")
         sec_ax.xaxis.set_major_locator(ticker.FixedLocator(ticks))
         sec_ax.tick_params(axis="x", width=2, direction="in", labeltop=False, length=6)
-        sec_ax.tick_params(which="minor", axis="x", direction="in", width=2, length=4, labeltop=False)
+        sec_ax.tick_params(
+            which="minor", axis="x", direction="in", width=2, length=4, labeltop=False
+        )
 
     # second y-axis
     if second_axis_y:
         ticks = ax.get_yticks()
         sec_ax = ax.secondary_yaxis("right")
         sec_ax.yaxis.set_major_locator(ticker.FixedLocator(ticks))
-        sec_ax.tick_params(axis="y", width=2, direction="in", labelright=False, length=6)
-        sec_ax.tick_params(which="minor", axis="y", direction="in", width=2, length=4, labelright=False)
+        sec_ax.tick_params(
+            axis="y", width=2, direction="in", labelright=False, length=6
+        )
+        sec_ax.tick_params(
+            which="minor", axis="y", direction="in", width=2, length=4, labelright=False
+        )
 
     if draw_marker is not None:
-        ax.scatter(*draw_marker, marker='x', c='k', label='pred')
-    
+        ax.scatter(*draw_marker, marker="x", c="k", label="pred")
+
     if legend:
-        ax.legend(labelcolor=legendcolor)
+        if legendhandles is not None:
+            ax.legend(labelcolor=legendcolor, handles=legendhandles)
+        else:
+            ax.legend(labelcolor=legendcolor)
 
     axes = axes.reshape(nrows, ncols)
 

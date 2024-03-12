@@ -1,111 +1,95 @@
 """
 Module network
 """
-import networkx as nx
+
+import re
 import numpy as np
+import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib import rcParams, rcParamsDefault
 
 
-def construct_graph_states(transition_df, numerical=False):
+def construct_state_graphs(transition_df):
     """
-    Constructs a graph of transitions (edges) and their involved states (nodes).
+    Constructs graphs of states (nodes) and their transitions (edges). Each fluorophore
+    or fluorophore combination gets a separate graph.
 
     Parameters
     ----------
     transition_df : pd.DataFrame
-        Dataframe of transitions containing their id as index and their other attributes as columns
-        (see src.transitions.Transition).
-    numerical : bool
-        Whether the graph has numerical vertices (else alphabetical).
+        Dataframe of all given transitions with non-zero rate containing their id as
+        second level index and their other attributes as columns. Name of fluorophores
+        as first level index.
 
     Returns
     -------
-    G : nx.MultiDiGraph
-        Markov Chain representation by nodes and edges.
+    graphs : list
+        Contains objects of type nx.MultiDiGraph.
     """
-    if transition_df['energy_transfer'].any() and numerical:
-        raise ValueError('numerical only available for systems without energy transfer.')
-
-    # from src.transitions import SingleState  # avoids circular import
-    G = nx.MultiDiGraph()
-    edges = []
-    for _, row in transition_df.iterrows():
-        abbreviation = row['abbreviation']
-        initial_state = row['initial_state']
-        if type(initial_state).__name__ == 'SingleState':  # this could (and should) be done with isinstance,
-            # but isinstance fails if SingleState is imported from different files. E.g., if for testing the fixture
-            # may define it as __main__.SingleState, whereas the import statement within this function defines it as
-            # src.transitions.SingleState.
-            # https://stackoverflow.com/questions/15159854/python-namespace-main-class-not-isinstance-of-package-class
-            # https://stackoverflow.com/questions/53658252/why-do-circular-imports-cause-problems-with-object-identity-using-isinstance
-            final_state = row['final_state']
-            if numerical:
-                source = initial_state.value
-                destination = final_state.value
+    graphs = []
+    grouped = transition_df.groupby(level=0)
+    for fluorophore, f_transitions in grouped:
+        G = nx.MultiDiGraph()
+        edges = []
+        for (_, _), transition in f_transitions.iterrows():
+            abbr = transition["abbreviation"]
+            if not "dist" in fluorophore:
+                source = transition["initial_state"].name
+                destination = transition["final_state"].name
+                edge = (
+                    fluorophore + "_" + source,
+                    fluorophore + "_" + destination,
+                    {"w": abbr, "dist": ""},
+                )
+                edges.append(edge)
             else:
-                source = initial_state.name
-                destination = final_state.name 
-            edge = (source, destination, {'w': abbreviation})
-            edges.append(edge)
-        else:
-            source_1 = initial_state.value[0].name
-            source_2 = initial_state.value[1].name
-            edge = (source_1, source_2 + '(2)', {'w': abbreviation})
-            edges.append(edge)
+                pattern = re.compile(r"D: (\w+), A: (\w+), dist: (\w+)")
+                d, a, dist = pattern.findall(fluorophore)[0]
+                source_1 = transition["initial_state"].value[0].name
+                source_2 = transition["initial_state"].value[1].name
+                edge = (
+                    d + "_" + source_1,
+                    a + "_" + source_2 + "(2)",
+                    {"w": abbr, "dist": f"distance: {dist} nm"},
+                )
+                edges.append(edge)
+        G.add_edges_from(edges)
+        graphs.append(G)
 
-    G.add_edges_from(edges)
-
-    return G
+    return graphs
 
 
-def construct_graph_transitions(transition_df, numerical=False):
+def construct_transition_graph(transition_df):
     """
     Constructs a graph of transitions (nodes) and their involved states (edges).
 
     Parameters
     ----------
     transition_df : pd.DataFrame
-        Dataframe of transitions containing their id as index and their other attributes as columns
-        (see src.transitions.Transition).
-    numerical : bool
-        Whether the graph has numerical vertices (else alphabetical).
+        Dataframe of all given transitions with non-zero rate containing their id as
+        second level index and their other attributes as columns. Name of fluorophores
+        as first level index.
 
     Returns
     -------
     G : nx.MultiDiGraph
-        Markov Chain representation by nodes and edges.
+        Markov chain representation by nodes and edges.
     """
-    if transition_df['energy_transfer'].any() and numerical:
-        raise ValueError('numerical only available for systems without energy transfer.')
-
-    # from src.transitions import SingleState  # avoids circular import
+    if transition_df.index.get_level_values(0).nunique() > 1:
+        raise ValueError(
+            "construct_transition_graph only available for single "
+            "fluorophore systems."
+        )
     G = nx.MultiDiGraph()
     edges = []
-    for id_source, row in transition_df.iterrows():
-        abbreviation1 = row['abbreviation']
-        initial_state = row['initial_state']
-        if type(initial_state).__name__ == 'SingleState':  # this could (and should) be done with isinstance,
-            # but isinstance fails if SingleState is imported from different files. E.g., if for testing the fixture
-            # may define it as __main__.SingleState, whereas the import statement within this function defines it as
-            # src.transitions.SingleState.
-            # https://stackoverflow.com/questions/15159854/python-namespace-main-class-not-isinstance-of-package-class
-            # https://stackoverflow.com/questions/53658252/why-do-circular-imports-cause-problems-with-object-identity-using-isinstance
-            final_state = row['final_state']
-            for id_destination, row in transition_df.iterrows():
-                abbreviation2 = row['abbreviation']
-                if row['initial_state'] == final_state:
-                    if numerical:
-                        source = id_source
-                        destination = id_destination
-                    else:
-                        source = abbreviation1
-                        destination = abbreviation2        
-                    edge = (source, destination, {'w': f'{final_state.name}'})
-                    edges.append(edge)
-        else:
-            raise ValueError('graph_transitions only available for systems without energy transfer.')
-
+    for (_, id_source), row in transition_df.iterrows():
+        final_state = row["final_state"]
+        for (_, id_destination), row in transition_df.iterrows():
+            if row["initial_state"] == final_state:
+                source = id_source
+                destination = id_destination
+                edge = (source, destination, {"w": f"{final_state.name}"})
+                edges.append(edge)
     G.add_edges_from(edges)
 
     return G
@@ -113,16 +97,16 @@ def construct_graph_transitions(transition_df, numerical=False):
 
 def check_graph_suitable(G, starting_node):
     """
-    Checks whether a graph is suitable for the algorithms to simulate a Markov chain using
-    its prediction. The requirements are irreducability and acyclic if the starting node is 
-    not part of the cycles.
+    Checks whether a Markov chain is suitable for an approximation of its development
+    in time. This involves irreducability and being acyclic (excepts cycles that
+    include the starting node).
 
     Parameters
     ----------
     G : nx.MultiDiGraph
         Markov Chain representation by nodes and edges.
     starting_node : int
-        Numeric value representing the starting node (i.e., state). 
+        Numeric value representing the starting node (i.e., state).
 
     Returns
     -------
@@ -136,28 +120,29 @@ def check_graph_suitable(G, starting_node):
     for out_degree in G.out_degree:
         if out_degree == 0:
             graph_suited = False
-    
+
     # check for reversible reactions and loops that do not contain the starting node:
     cycles = list(nx.simple_cycles(G))
     for cycle in cycles:
         if starting_node not in cycle:
             graph_suited = False
-    
+
     return graph_suited, cycles
 
 
 def determine_node_order(G, starting_node):
     """
-    Determine the order of nodes of a graph such that each node that leads to another node has been visited
-    before the other node. Requires the graph to be a DAG (directed acyclic graph). If the starting  node
-    is part of each cycle, it can be removed to convert the graph to DAG. 
+    Determine the order of nodes of a graph such that each node that leads to another
+    node has been visited before the other node. Requires the graph to be a DAG
+    (directed acyclic graph). If the starting  node is part of each cycle, it can be
+    removed to convert the graph to DAG.
 
     Parameters
     ----------
     G : nx.MultiDiGraph
         Markov Chain representation by nodes and edges.
     starting_node : int
-        Numeric value representing the starting node (i.e., state). 
+        Numeric value representing the starting node (i.e., state).
 
     Returns
     -------
@@ -175,10 +160,11 @@ def determine_node_order(G, starting_node):
     return node_order
 
 
-def plot_graph(G, graph_type='shell', colors=None, scale=1):
+def plot_graph(G, graph_type="shell", colors=None, scale=1):
     """
     Plot graph.
-    Adapted from https://stackoverflow.com/questions/22785849/drawing-multiple-edges-between-two-nodes-with-networkx.
+    Adapted from https://stackoverflow.com/questions/22785849/drawing-multiple-edges-
+    between-two-nodes-with-networkx.
 
     Parameters
     ----------
@@ -196,52 +182,76 @@ def plot_graph(G, graph_type='shell', colors=None, scale=1):
     ax : matplotlib.axes._subplots.AxesSubplot
     """
     if colors is None:
-        colors = ['#ADD8E6', '#FFF0C8']
-    rcParams['figure.dpi'] = rcParamsDefault['figure.dpi'] * scale
+        colors = ["#ADD8E6", "#FFF0C8"]
+    rcParams["figure.dpi"] = rcParamsDefault["figure.dpi"] * scale
     _, ax = plt.subplots()
-    if graph_type == 'circular':
+    if graph_type == "circular":
         pos = nx.circular_layout(G)
-    elif graph_type == 'planar':
+    elif graph_type == "planar":
         pos = nx.planar_layout(G)
-    elif graph_type == 'shell':
+    elif graph_type == "shell":
         pos = nx.shell_layout(G)
     else:
         pos = nx.kamada_kawai_layout(G)
 
     labels = {}
     colormap = []
+
     for i, node in enumerate(G):
-        if isinstance(node, str) and '(2)' in node:
+        if isinstance(node, str) and "(2)" in node:
             colormap.append(colors[1])
-            labels[node] = node.replace('(2)', '')
+            labels[node] = node.replace("(2)", "")
         else:
             colormap.append(colors[0])
             labels[node] = node
     nx.draw_networkx_nodes(G=G, pos=pos, ax=ax, node_color=colormap)
     nx.draw_networkx_labels(G=G, pos=pos, ax=ax, labels=labels)
 
-    edge_weights = nx.get_edge_attributes(G, name='w')
+    edge_weights = nx.get_edge_attributes(G, name="w")
     straight_edges = []
     arc_rad = 0
     arc_rad_reversed = 0
-    for new_edge in G.edges:
+    for i, new_edge in enumerate(G.edges):
+        if i == 0:
+            distance = nx.get_edge_attributes(G, name="dist")[new_edge]
+            ax.set_title(distance)
         nothing_found = True
         for old_edge in straight_edges:
             if new_edge[:2] == old_edge[:2]:
                 arc_rad += 0.25
                 nothing_found = False
-                nx.draw_networkx_edges(G=G, pos=pos, ax=ax, edgelist=[new_edge],
-                                       connectionstyle=f'arc3, rad = {arc_rad}')
-                draw_networkx_curved_edge_labels(G=G, pos=pos, ax=ax, edge_labels={new_edge: edge_weights[new_edge]},
-                                                 rad=arc_rad)
+                nx.draw_networkx_edges(
+                    G=G,
+                    pos=pos,
+                    ax=ax,
+                    edgelist=[new_edge],
+                    connectionstyle=f"arc3, rad = {arc_rad}",
+                )
+                draw_networkx_curved_edge_labels(
+                    G=G,
+                    pos=pos,
+                    ax=ax,
+                    edge_labels={new_edge: edge_weights[new_edge]},
+                    rad=arc_rad,
+                )
                 break
             elif list(reversed(new_edge[:2])) == list(old_edge[:2]):
                 arc_rad_reversed += 0.25
                 nothing_found = False
-                nx.draw_networkx_edges(G=G, pos=pos, ax=ax, edgelist=[new_edge],
-                                       connectionstyle=f'arc3, rad = {arc_rad_reversed}')
-                draw_networkx_curved_edge_labels(G=G, pos=pos, ax=ax, edge_labels={new_edge: edge_weights[new_edge]},
-                                                rad=arc_rad_reversed)
+                nx.draw_networkx_edges(
+                    G=G,
+                    pos=pos,
+                    ax=ax,
+                    edgelist=[new_edge],
+                    connectionstyle=f"arc3, rad = {arc_rad_reversed}",
+                )
+                draw_networkx_curved_edge_labels(
+                    G=G,
+                    pos=pos,
+                    ax=ax,
+                    edge_labels={new_edge: edge_weights[new_edge]},
+                    rad=arc_rad_reversed,
+                )
                 break
         if nothing_found:
             arc_rad = 0
@@ -249,7 +259,9 @@ def plot_graph(G, graph_type='shell', colors=None, scale=1):
             straight_edges.append(new_edge)
     nx.draw_networkx_edges(G=G, pos=pos, ax=ax, edgelist=straight_edges)
     straight_edge_labels = {edge: edge_weights[edge] for edge in straight_edges}
-    draw_networkx_curved_edge_labels(G=G, pos=pos, ax=ax, edge_labels=straight_edge_labels, rad=0)
+    draw_networkx_curved_edge_labels(
+        G=G, pos=pos, ax=ax, edge_labels=straight_edge_labels, rad=0
+    )
 
     return ax
 
@@ -257,7 +269,8 @@ def plot_graph(G, graph_type='shell', colors=None, scale=1):
 def draw_networkx_curved_edge_labels(G, pos, ax=None, edge_labels=None, rad=0):
     """
     Draws labels to curved edges.
-    Adapted from https://stackoverflow.com/questions/22785849/drawing-multiple-edges-between-two-nodes-with-networkx.
+    Adapted from https://stackoverflow.com/questions/22785849/drawing-multiple-edges-
+    between-two-nodes-with-networkx.
 
     Parameters
     ----------
@@ -283,17 +296,15 @@ def draw_networkx_curved_edge_labels(G, pos, ax=None, edge_labels=None, rad=0):
         labels = edge_labels
     text_items = {}
     for (n1, n2, _), label in labels.items():
-        (x1, y1) = pos[n1]
-        (x2, y2) = pos[n2]
         pos_1 = ax.transData.transform(np.array(pos[n1]))
         pos_2 = ax.transData.transform(np.array(pos[n2]))
-        linear_mid = 0.5*pos_1 + 0.5*pos_2
+        linear_mid = 0.5 * pos_1 + 0.5 * pos_2
         d_pos = pos_2 - pos_1
-        rotation_matrix = np.array([(0,1), (-1,0)])
-        ctrl_1 = linear_mid + rad*rotation_matrix@d_pos
-        ctrl_mid_1 = 0.5*pos_1 + 0.5*ctrl_1
-        ctrl_mid_2 = 0.5*pos_2 + 0.5*ctrl_1
-        bezier_mid = 0.5*ctrl_mid_1 + 0.5*ctrl_mid_2
+        rotation_matrix = np.array([(0, 1), (-1, 0)])
+        ctrl_1 = linear_mid + rad * rotation_matrix @ d_pos
+        ctrl_mid_1 = 0.5 * pos_1 + 0.5 * ctrl_1
+        ctrl_mid_2 = 0.5 * pos_2 + 0.5 * ctrl_1
+        bezier_mid = 0.5 * ctrl_mid_1 + 0.5 * ctrl_mid_2
         (x, y) = ax.transData.inverted().transform(bezier_mid)
 
         trans_angle = 0.0
@@ -302,9 +313,30 @@ def draw_networkx_curved_edge_labels(G, pos, ax=None, edge_labels=None, rad=0):
         if not isinstance(label, str):
             label = str(label)  # this makes "1" and 1 labeled the same
 
-        t = ax.text(x, y, label, size=10, color='k', family="sans-serif", weight="normal", alpha=None,
-                    horizontalalignment="center", verticalalignment="center", rotation=trans_angle,
-                    transform=ax.transData, bbox=bbox, zorder=1, clip_on=True)
+        t = ax.text(
+            x,
+            y,
+            label,
+            size=10,
+            color="k",
+            family="sans-serif",
+            weight="normal",
+            alpha=None,
+            horizontalalignment="center",
+            verticalalignment="center",
+            rotation=trans_angle,
+            transform=ax.transData,
+            bbox=bbox,
+            zorder=1,
+            clip_on=True,
+        )
         text_items[(n1, n2)] = t
 
-    ax.tick_params(axis="both", which="both", bottom=False, left=False, labelbottom=False, labelleft=False)
+    ax.tick_params(
+        axis="both",
+        which="both",
+        bottom=False,
+        left=False,
+        labelbottom=False,
+        labelleft=False,
+    )

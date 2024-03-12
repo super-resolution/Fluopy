@@ -56,7 +56,7 @@ def test_transition(transition_object, expected):
     else:
         assert transition_object.distance == expected[6]
         assert transition_object.energy_transfer
-        with pytest.raises(AttributeError):
+        with pytest.raises(ValueError):
             tr.Transition(transition_object.transition_type, transition_object.rate)
 
 
@@ -70,7 +70,7 @@ def test_get_single_states(transitionlist, expected):
     for i, transition in enumerate(transitionlist):
         transition.identity = i
     transition_df = pd.DataFrame([asdict(transition) for transition in transitionlist])
-    transition_df.set_index('identity', inplace=True)
+    transition_df = transition_df.set_index('identity')
     np.testing.assert_array_equal(tr.get_single_states(transitions=transitionlist, transition_df=transition_df), expected)
 
 
@@ -192,7 +192,7 @@ def test_rate_assignment_energy_transfer(transition_pd_series, identity, distanc
 def test_construct_transition_rate_list():
     transitions = [tr.Transition(tr.TransitionType.EXCITATION, 8), tr.Transition(tr.TransitionType.HOMO_FRET, 7, 4)]
     transition_df = pd.DataFrame([asdict(transition) for transition in transitions])
-    transition_df.set_index('identity', inplace=True)
+    transition_df = transition_df.set_index('identity')
     combined_state_transitions = [((0, 0, 0), (0, 0, 0)), ((0, 0, 1), (1, 0, 0)), ((0, 1, 0), (1, 0, 0)),
                                   ((2, 0, 1), (1, 0, 0)), ((0, 2, 0), (0, 2, 1))]
     distance_lookup = {(0, 1): 5, (1, 0): 5, (0, 2): 4, (2, 0): 4, (1, 2): 7, (2, 1): 7}
@@ -232,8 +232,8 @@ def test_finalize(transition_set_object):
 
 
 @pytest.mark.parametrize('parameters,expected',
-                         [[['', '', None, None], 'AttributeError'],
-                          [['', '', [], []], 'AttributeError'],
+                         [[['', '', None, None], 'ValueError'],
+                          [['', '', [], []], 'ValueError'],
                           [[tr.TransitionType.HOMO_FRET, {(0, 1): 5, (1, 0): 5, (0, 2): 4, (2, 0): 4, (1, 2): 7,
                                                           (2, 1): 7}, [3, 0, 6], None],
                            [tr.Transition(tr.TransitionType.HOMO_FRET, 6, 4),
@@ -246,8 +246,8 @@ def test_finalize(transition_set_object):
                             tr.Transition(tr.TransitionType.HOMO_FRET, 2.24896e-14, 5),
                             tr.Transition(tr.TransitionType.HOMO_FRET, 2.98685071696317e-15, 7)]]])
 def test_get_energy_transfer_transitions(parameters, expected):
-    if expected == 'AttributeError':
-        with pytest.raises(AttributeError):
+    if expected == 'ValueError':
+        with pytest.raises(ValueError):
             tr.get_energy_transfer_transitions(*parameters)
     else:
         energy_transfer_transitions = tr.get_energy_transfer_transitions(*parameters)

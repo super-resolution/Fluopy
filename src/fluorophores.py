@@ -1,14 +1,12 @@
 """
 Module fluorophores
 """
-from dataclasses import dataclass, field
-from collections.abc import Collection
-import numpy as np
+
 import warnings
-from pathlib import Path
-import os
-import pandas as pd
+import numpy as np
 from typing import Optional
+from collections.abc import Collection
+from dataclasses import dataclass, field
 import src.figure as fi
 import src.fluo_data as fd
 
@@ -21,30 +19,42 @@ class Fluorophore:
     Attributes
     ----------
     identity : int
-        The id of the fluorophore. Not None if fluorophore is part of a FluorophoreSystem.
+        The id of the fluorophore. Not None if fluorophore is part of a
+        FluorophoreSystem.
     name : str
         Name of the fluorophore.
     position : Collection
         The position of the fluorophore in 2D space.
     constants : None, FluorophoreData
-        Not None if the fluorophore has a defined FluorophoreData dataclass.
+        Not None if the fluorophore has a defined FluorophoreData
+        dataclass.
     """
+
     identity: int = field(init=False)
     name: str = field()
     position: Collection[float, float] = field()
     constants: Optional[fd.FluorophoreData] = None
 
     def __post_init__(self):
-        object.__setattr__(self, 'identity', None)
-        object.__setattr__(self, 'position', np.asarray(self.position))
-        fluorophore_dataclasses = [name for name in dir(fd) if isinstance(getattr(fd, name), type)]
-        class_name = [name for name in fluorophore_dataclasses if name.lower() == self.name.lower()]
+        object.__setattr__(self, "identity", None)
+        object.__setattr__(self, "position", np.asarray(self.position))
+        fluorophore_dataclasses = [
+            name for name in dir(fd) if isinstance(getattr(fd, name), type)
+        ]
+        class_name = [
+            name
+            for name in fluorophore_dataclasses
+            if name.lower() == self.name.lower()
+        ]
         if len(class_name) == 1:
-            object.__setattr__(self, 'constants', getattr(fd, class_name[0])())        
+            object.__setattr__(self, "constants", getattr(fd, class_name[0])())
         elif len(class_name) == 0:
-            warnings.warn(f'Fluorophore {self.name} not known. Parameters have to be defined manually.')
+            warnings.warn(
+                f"Fluorophore {self.name} not known. Parameters have to be defined "
+                "manually."
+            )
         else:
-            raise ValueError('Multiple fluorophore dataclasses found.')
+            raise ValueError("Multiple fluorophore dataclasses found.")
 
 
 @dataclass
@@ -61,6 +71,7 @@ class FluorophoreSystem:
     count : int
         The total number of fluorophores given.
     """
+
     fluorophores: Collection[Fluorophore] = field()
     distances: dict = field(init=False)
     count: int = field(init=False)
@@ -68,13 +79,25 @@ class FluorophoreSystem:
     def __post_init__(self):
         for i, fluorophore in enumerate(self.fluorophores):
             fluorophore.identity = i
-        object.__setattr__(self, 'distances', get_distances([fluo.position for fluo in self.fluorophores]))
-        object.__setattr__(self, 'count', len(self.fluorophores))
+        object.__setattr__(
+            self,
+            "distances",
+            get_distances([fluo.position for fluo in self.fluorophores]),
+        )
+        object.__setattr__(self, "count", len(self.fluorophores))
 
-    def load_transitions(self, irradiance=2, wavelength=600, bleaching=False, energy_transfer=True, dstorm=True,
-                         **dstorm_parameters):
+    def load_transitions(
+        self,
+        irradiance=2,
+        wavelength=600,
+        bleaching=False,
+        energy_transfer=True,
+        dstorm=True,
+        **dstorm_parameters,
+    ):
         """
-        Derives transitions based on fluorophore and the experimental conditions to be mimicked.
+        Derives transitions based on fluorophore and the experimental conditions to be 
+        mimicked.
 
         Parameters
         ----------
@@ -94,22 +117,89 @@ class FluorophoreSystem:
 
         Returns
         -------
-        transitions : Collection
-            Contains transitions of type Transition.
+        transitions : dict
+            Contains lists of transitions of type Transition as values and fluorophores 
+            or fluorophore-combinations as keys.
         """
         transitions = {}
-        from src.transitions import derive_transitions
-        for fluorophore in self.fluorophores:
-            if fluorophore.constants is None:
-                warnings.warn(f'load_transitions() not available for this kind of fluorophore: {fluorophore.name}.')
-            elif fluorophore.name not in transitions:
-                transitions[fluorophore.name] = \
-                    derive_transitions(fluorophore_data=fluorophore.constants,irradiance=irradiance, wavelength=wavelength,
-                                       bleaching=bleaching, energy_transfer=energy_transfer, distances=self.distances, 
-                                       dstorm=dstorm, **dstorm_parameters)
+        from src.transitions import (
+            derive_transitions,
+            derive_energy_transfer_transitions,
+        )
+
+        skip_warnings = []
+        et_pairs = {}
+        for (donor, acceptor), distance in self.distances.items():
+            if (
+                f"{self.fluorophores[donor].name}, "
+                f"{self.fluorophores[acceptor].name}, "
+                f"{distance}"
+                not in et_pairs
+            ):
+                et_pairs[
+                    f"{self.fluorophores[donor].name}, "
+                    f"{self.fluorophores[acceptor].name}, "
+                    f"{distance}"
+                ] = [(donor, acceptor)]
             else:
-                continue
-        
+                et_pairs[
+                    f"{self.fluorophores[donor].name}, "
+                    f"{self.fluorophores[acceptor].name}, "
+                    f"{distance}"
+                ] += [(donor, acceptor)]
+
+        for fluorophore in self.fluorophores:
+            fluorophore_ids = [
+                f.identity for f in self.fluorophores if f.name == fluorophore.name
+            ]
+            if fluorophore.constants is None:
+                if fluorophore not in skip_warnings:
+                    skip_warnings.append(fluorophore)
+                    warnings.warn(
+                        "load_transitions() not available for this kind of "
+                        f"fluorophore: {fluorophore.name}."
+                    )
+                else:
+                    continue
+            else:
+                if fluorophore.name not in transitions:
+                    transitions[fluorophore.name] = derive_transitions(
+                        fluorophore_data=fluorophore.constants,
+                        fluorophore_ids=fluorophore_ids,
+                        irradiance=irradiance,
+                        wavelength=wavelength,
+                        bleaching=bleaching,
+                        dstorm=dstorm,
+                        **dstorm_parameters,
+                    )
+                if energy_transfer:
+                    donor = fluorophore
+                    for acceptor in self.fluorophores:
+                        if acceptor.constants is None:
+                            if acceptor not in skip_warnings:
+                                skip_warnings.append(acceptor)
+                                warnings.warn(
+                                    "load_transitions() not available for this kind of "
+                                    f"fluorophore: {acceptor.name}."
+                                )
+                            else:
+                                continue
+                        elif (donor.identity, acceptor.identity) in self.distances:
+                            distance = self.distances[donor.identity, acceptor.identity]
+                            fluorophore_ids = et_pairs[
+                                f"{donor.name}, {acceptor.name}, {distance}"
+                            ]
+
+                            transitions[
+                                f"D: {donor.name}, A: {acceptor.name}, dist: {distance}"
+                            ] = derive_energy_transfer_transitions(
+                                donor_data=donor.constants,
+                                acceptor_data=acceptor.constants,
+                                fluorophore_ids=fluorophore_ids,
+                                dipole_orientation_factor=2 / 3,
+                                distance=distance,
+                            )
+
         return transitions
 
     def plot(self, quadratic=True, **kwargs):
@@ -131,41 +221,18 @@ class FluorophoreSystem:
         labels = []
         for i, fluorophore in enumerate(self.fluorophores):
             positions[:, i] = fluorophore.position
-            labels.append(fluorophore.name)
-        kwargs.setdefault('type_', 'scatter')
-        kwargs.setdefault('xlabel', 'x [nm]')
-        kwargs.setdefault('ylabel', 'y [nm]')
+            labels.append(fluorophore.name + f' ({fluorophore.identity})')
+        kwargs.setdefault("type_", "scatter")
+        kwargs.setdefault("xlabel", "x [nm]")
+        kwargs.setdefault("ylabel", "y [nm]")
         axes = fi.universal_figure(data=positions, **kwargs)
         for i, label in enumerate(labels):
             axes[0, 0].annotate(label, (positions[0, i], positions[1, i]))
         axes[0, 0].margins(0.2, 0.2)
         if quadratic:
-            axes[0, 0].set_aspect('equal', adjustable='box')
+            axes[0, 0].set_aspect("equal", adjustable="box")
 
         return axes
-
-
-def get_relative_extinction(wavelength, file_directory):
-    """
-    Get the relative extinction from a file given the wavelength.
-
-    Parameters
-    ----------
-    wavelength : float
-        The wavelength in nm.
-    file_directory : str
-        The name of the tail directory.
-
-    Returns
-    -------
-    relative_extinction : float
-        The relative extinction at the given wavelength.
-    """
-    path_absorption = os.path.join(Path(__file__).parent, 'fluorophore_collection', file_directory, 'rel_absorption.csv')
-    dataframe_absorption = pd.read_csv(filepath_or_buffer=path_absorption, index_col=0)
-    relative_extinction =  dataframe_absorption.loc[int(wavelength), 'relative extinction']
-    
-    return relative_extinction
 
 
 def get_distances(positions):
@@ -180,7 +247,8 @@ def get_distances(positions):
     Returns
     -------
     distances : dict
-        Contains tuples of ids (order as positions) as keys and their distance as values.
+        Contains tuples of ids (order as positions) as keys and their distance as 
+        values.
     """
     distances = dict()
     positions = np.asarray(positions)
@@ -194,8 +262,9 @@ def get_distances(positions):
 
 def triangle_third_position(position_1=None, position_2=None):
     """
-    Get the third position of an equilateral triangle based on positions of two vertices. There are two solutions to
-    such a position but only one is considered here.
+    Get the third position of an equilateral triangle based on positions of two 
+    vertices. There are two solutions to such a position but only one is considered 
+    here.
 
     Parameters
     ----------
@@ -222,11 +291,11 @@ def triangle_third_position(position_1=None, position_2=None):
     return position_3
 
 
-def get_positions_from_distance(distance, count, shape='triangle'):
+def get_positions_from_distance(distance, count, shape="triangle"):
     """
-    Gets positions of up to 4 fluorophores based on a single distance. If it is 3 fluorophores, they are positioned
-    either in an equilateral triangle or in a square with a missing vertex. If it is 4 fluorophores, they are
-    positioned in a square.
+    Gets positions of up to 4 fluorophores based on a single distance. If it is 3 
+    fluorophores, they are positioned either in an equilateral triangle or in a square 
+    with a missing vertex. If it is 4 fluorophores, they are positioned in a square.
 
     Parameters
     ----------
@@ -249,24 +318,28 @@ def get_positions_from_distance(distance, count, shape='triangle'):
     elif count == 2:
         positions = np.array([position_1, position_2])
     elif count == 3:
-        if shape == 'triangle':
-            position_3 = triangle_third_position(position_1=position_1, position_2=position_2)
-        elif shape == 'square':
+        if shape == "triangle":
+            position_3 = triangle_third_position(
+                position_1=position_1, position_2=position_2
+            )
+        elif shape == "square":
             position_3 = np.array([0, distance])
         else:
-            raise ValueError(f"shape {shape} not known. Can either be 'triangle' or 'square'.")
+            raise ValueError(
+                f"shape {shape} not known. Can either be 'triangle' or 'square'."
+            )
         positions = np.array([position_1, position_2, position_3])
     elif count == 4:
         position_3 = np.array([0, distance])
         position_4 = np.array([distance, distance])
         positions = np.array([position_1, position_2, position_3, position_4])
     else:
-        raise AttributeError('count has to be one of 1, 2, 3 or 4.')
+        raise ValueError("count has to be one of 1, 2, 3 or 4.")
 
     return positions
 
 
-def construct_fluorophores(name='cy5', distance=10, count=3, shape='triangle'):
+def construct_fluorophores(name="cy5", distance=10, count=3, shape="triangle"):
     """
     Constructs a collection of fluorophores of up to 4 fluorophores of the same kind.
 

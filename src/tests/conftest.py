@@ -7,7 +7,7 @@ import src.simulation as si
 import src.emissions as em
 import src.fcs as fcs
 import src.blinking as bl
-import src.fluorophore_collection.cy5 as cy5
+from src.fluo_data import Cy5 as cy5
 
 
 @pytest.fixture()
@@ -39,7 +39,7 @@ def transitionlist(request):
 @pytest.fixture()
 def transition_pd_series(request):
     series = pd.Series(asdict(*request.param))
-    series.drop('identity', inplace=True)
+    series = series.drop('identity')
     return series
 
 

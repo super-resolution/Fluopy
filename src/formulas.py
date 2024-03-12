@@ -1,11 +1,14 @@
 """
 Module formulas
 """
+
 import numpy as np
 from scipy import constants
 
 
-def convert_wavenumber_wavelength_frequency(wavenumber=None, wavelength=None, frequency=None):
+def convert_wavenumber_wavelength_frequency(
+    wavenumber=None, wavelength=None, frequency=None
+):
     """
     Convert either wavenumber, wavelength or frequency into the other two.
 
@@ -28,15 +31,17 @@ def convert_wavenumber_wavelength_frequency(wavenumber=None, wavelength=None, fr
         In Hz.
     """
     if sum(x is not None for x in [wavelength, wavenumber, frequency]) != 1:
-        raise ValueError('One and only one of wavenumber, wavelength and frequency must not be None.')
+        raise ValueError(
+            "One and only one of wavenumber, wavelength and frequency must not be None."
+        )
     if wavenumber is not None:
         wavenumber = np.asarray(wavenumber)
-        wavelength = np.asarray(1/(wavenumber * 1e2) * 1e9)
+        wavelength = np.asarray(1 / (wavenumber * 1e2) * 1e9)
         frequency = np.asarray(wavenumber * 1e2 * constants.c)
 
     elif wavelength is not None:
         wavelength = np.asarray(wavelength)
-        wavenumber = np.asarray(1/(wavelength * 1e-9) * 1e-2)
+        wavenumber = np.asarray(1 / (wavelength * 1e-9) * 1e-2)
         frequency = np.asarray(constants.c / (wavelength * 1e-9))
 
     elif frequency is not None:
@@ -74,9 +79,12 @@ def calculate_photon_flux(irradiance=2, frequency=4.5e14):
     return photon_flux
 
 
-def calculate_excitation_rate(photon_flux=8e25, extinction_coefficient=None, absorption_cross_section=None):
+def calculate_excitation_rate(
+    photon_flux=8e25, extinction_coefficient=None, absorption_cross_section=None
+):
     """
-    Returns the excitation rate for a given irradiance and an extinction coefficient or an absorption cross section.
+    Returns the excitation rate for a given irradiance and an extinction coefficient or 
+    an absorption cross section.
 
     Parameters
     ----------
@@ -86,18 +94,26 @@ def calculate_excitation_rate(photon_flux=8e25, extinction_coefficient=None, abs
         Extinction coefficient of fluorophore at wavelength in 1/(cm M).
     absorption_cross_section : float, 1-D array_like
         Absorption cross section of fluorophore at wavelength in cm².
-        The scattering cross section is assumed to be negligible, hence the absorption cross section equals the
-        excitation cross section.
+        The scattering cross section is assumed to be negligible, hence the absorption 
+        cross section equals the excitation cross section.
 
     Returns
     -------
     excitation_rate : float, np.ndarray
         The excitation rate in 1/s.
     """
-    if sum(x is not None for x in [extinction_coefficient, absorption_cross_section]) != 1:
-        raise ValueError('One and only one of extinction_coefficient and absorption_cross_section must not be None.')
+    if (
+        sum(x is not None for x in [extinction_coefficient, absorption_cross_section])
+        != 1
+    ):
+        raise ValueError(
+            "One and only one of extinction_coefficient and absorption_cross_section "
+            "must not be None."
+        )
     if extinction_coefficient is not None:
-        absorption_cross_section = np.asarray(extinction_coefficient) * 1e3 * np.log(10) / constants.Avogadro
+        absorption_cross_section = (
+            np.asarray(extinction_coefficient) * 1e3 * np.log(10) / constants.Avogadro
+        )
 
     absorption_cross_section = np.asarray(absorption_cross_section) * 1e-4
     excitation_rate = np.asarray(photon_flux) * np.asarray(absorption_cross_section)
@@ -107,7 +123,8 @@ def calculate_excitation_rate(photon_flux=8e25, extinction_coefficient=None, abs
 
 def calculate_emission_rate(quantum_yield=0.5, fluorescence_lifetime=1e-9):
     """
-    Returns the rate of fluorescent emission based on the quantum yield and the fluorescence lifetime.
+    Returns the rate of fluorescent emission based on the quantum yield and the 
+    fluorescence lifetime.
 
     Parameters
     ----------
@@ -126,11 +143,15 @@ def calculate_emission_rate(quantum_yield=0.5, fluorescence_lifetime=1e-9):
     return emis_rate
 
 
-def calculate_internal_conversion_rate(quantum_yield=0.5, emission_rate=5e8, *other_outgoing_rates_args,
-                                       **other_outgoing_rates_kwargs):
+def calculate_internal_conversion_rate(
+    quantum_yield=0.5,
+    emission_rate=5e8,
+    *other_outgoing_rates_args,
+    **other_outgoing_rates_kwargs
+):
     """
-    Calculates the rate of internal conversion from the first excited state to the vibrationally excited but
-    electronic ground state.
+    Calculates the rate of internal conversion from the first excited state to the 
+    vibrationally excited but electronic ground state.
 
     Parameters
     ----------
@@ -139,9 +160,11 @@ def calculate_internal_conversion_rate(quantum_yield=0.5, emission_rate=5e8, *ot
     emission_rate : float, 1-D array_like
         The rate of emission in 1/s.
     other_outgoing_rates_args : floats
-        Rates of all other transitions (except fluorescence emission) that leave the first excited state in 1/s.
+        Rates of all other transitions (except fluorescence emission) that leave the 
+        first excited state in 1/s.
     other_outgoing_rates_kwargs : floats
-        Rates of all other transitions (except fluorescence emission) that leave the first excited state in 1/s.
+        Rates of all other transitions (except fluorescence emission) that leave the 
+        first excited state in 1/s.
 
     Returns
     -------
@@ -150,21 +173,26 @@ def calculate_internal_conversion_rate(quantum_yield=0.5, emission_rate=5e8, *ot
     """
     quantum_yield = np.asarray(quantum_yield)
     if np.any(quantum_yield < 0) or np.any(quantum_yield > 1):
-        raise ValueError('Quantum yield has to be between 0 and 1.')
-    internal_conversion_rate = np.asarray(emission_rate)/quantum_yield - np.asarray(emission_rate)
+        raise ValueError("Quantum yield has to be between 0 and 1.")
+    internal_conversion_rate = np.asarray(emission_rate) / quantum_yield - np.asarray(
+        emission_rate
+    )
     for outgoing_rate in other_outgoing_rates_args:
         internal_conversion_rate -= outgoing_rate
     for _, outgoing_rate in other_outgoing_rates_kwargs.items():
         internal_conversion_rate -= outgoing_rate
     if np.any(internal_conversion_rate < 0):
-        raise ValueError('emission rate is too low to produce the given quantum yield while competing with other given '
-                         'transitions.')
+        raise ValueError(
+            "emission rate is too low to produce the given quantum yield while "
+            "competing with other given transitions."
+        )
     return internal_conversion_rate
 
 
 def calculate_back_isomerization_rate(photon_flux=8e25, absorption_cross_section=1e-17):
     """
-    Returns the back-isomerization rate for a given irradiance and an absorption cross section of the molecule/isomer.
+    Returns the back-isomerization rate for a given irradiance and an absorption cross 
+    section of the molecule/isomer.
 
     Parameters
     ----------
@@ -202,13 +230,13 @@ def henderson_hasselbalch_equation(ph, pka, concentration):
     base_concentration : float
         Concentration of the base in mM.
     """
-    base_to_acid = 10**(ph - pka)
+    base_to_acid = 10 ** (ph - pka)
     base_concentration = base_to_acid * concentration / (base_to_acid + 1)
 
     return base_concentration
 
 
-def calculate_pet_rate(reducing_agent='mea', concentration=143, k_pet=1, ph=8):
+def calculate_pet_rate(reducing_agent="mea", concentration=143, k_pet=1, ph=8):
     """
     Returns the dSTORM reduction rate for a given reducing agent and its concentration.
 
@@ -228,15 +256,19 @@ def calculate_pet_rate(reducing_agent='mea', concentration=143, k_pet=1, ph=8):
     reduction_rate : float
         The reduction rate in 1/s.
     """
-    # the factor 1/7 (or 7) comes from protocols stating to either use 100 µl 100 mM MEA or 10 µl 143 mM beta-ME
-    if reducing_agent == 'betaME':
+    # the factor 1/7 (or 7) comes from protocols stating to either use 100 µl 100 mM 
+    # MEA or 10 µl 143 mM beta-ME
+    if reducing_agent == "betaME":
         pka = 9.6
-    elif reducing_agent == 'mea':
+    elif reducing_agent == "mea":
         pka = 9.5
     else:
         raise ValueError('reducing_agent has to be one of "betaME", "mea".')
 
-    concentration = henderson_hasselbalch_equation(ph=ph, pka=pka, concentration=concentration) * 1e-3
+    concentration = (
+        henderson_hasselbalch_equation(ph=ph, pka=pka, concentration=concentration)
+        * 1e-3
+    )
     reduction_rate = k_pet * concentration
 
     return reduction_rate
@@ -244,8 +276,9 @@ def calculate_pet_rate(reducing_agent='mea', concentration=143, k_pet=1, ph=8):
 
 def calculate_spectral_overlap_integral(donor=None, acceptor=None, wavelengths=None):
     """
-    Calculates the spectral overlap integral defined as the integral of the multiplication of the donor emission
-    spectrum normalized to an area of 1, the acceptor molar extinction coefficient as a function of wavelength and the
+    Calculates the spectral overlap integral defined as the integral of the 
+    multiplication of the donor emission spectrum normalized to an area of 1, the 
+    acceptor molar extinction coefficient as a function of wavelength and the 
     wavelength to the power of 4.
 
     Parameters
@@ -255,7 +288,8 @@ def calculate_spectral_overlap_integral(donor=None, acceptor=None, wavelengths=N
     acceptor : 1-D array_like
         Contains the acceptors molar extinction coefficients in 1/(M cm).
     wavelengths : 1-D array_like
-        The wavelength values in nm, that correspond to the respective donor and acceptor values.
+        The wavelength values in nm, that correspond to the respective donor and 
+        acceptor values.
 
     Returns
     -------
@@ -266,7 +300,7 @@ def calculate_spectral_overlap_integral(donor=None, acceptor=None, wavelengths=N
     acceptor = np.asarray(acceptor)
     wavelengths = np.asarray(wavelengths)
     if donor.size != acceptor.size or donor.size != wavelengths.size:
-        raise AttributeError('donor, acceptor and wavelengths have to be of the same size.')
+        raise ValueError("donor, acceptor and wavelengths have to be of the same size.")
 
     donor = donor / np.trapz(donor)  # normalize spectrum to area of 1
     not_integrated = donor * acceptor * wavelengths**4
@@ -275,8 +309,13 @@ def calculate_spectral_overlap_integral(donor=None, acceptor=None, wavelengths=N
     return spectral_overlap_integral
 
 
-def calculate_fret_rate(distance=10, emission_rate=5e8, spectral_overlap_integral=1e16, dipole_orientation_factor=2/3,
-                        refractive_index=1):
+def calculate_fret_rate(
+    distance=10,
+    emission_rate=5e8,
+    spectral_overlap_integral=1e16,
+    dipole_orientation_factor=2 / 3,
+    refractive_index=1,
+):
     """
     Calculates the Förster resonance energy transfer rate.
 
@@ -298,8 +337,15 @@ def calculate_fret_rate(distance=10, emission_rate=5e8, spectral_overlap_integra
     fret_rate : float
         In 1/s.
     """
-    fret_rate = 8.785*1e-11 * ((dipole_orientation_factor * emission_rate) /
-                               (refractive_index**4 * distance**6)) * spectral_overlap_integral
+    fret_rate = (
+        8.785
+        * 1e-11
+        * (
+            (dipole_orientation_factor * emission_rate)
+            / (refractive_index**4 * distance**6)
+        )
+        * spectral_overlap_integral
+    )
 
     return fret_rate
 
@@ -321,7 +367,7 @@ def calculate_fret_efficiency(fret_rate=1e8, fluorescence_lifetime=1e-9):
         The FRET efficiency (dimensionless). Between 0 and 1.
     """
     tau_1 = fluorescence_lifetime
-    tau_2 = 1 / (1/fluorescence_lifetime + fret_rate)
+    tau_2 = 1 / (1 / fluorescence_lifetime + fret_rate)
     efficiency = 1 - tau_2 / tau_1
 
     return efficiency

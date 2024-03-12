@@ -1,6 +1,7 @@
 """
 Module distributions
 """
+
 import numpy as np
 from scipy.special import i1
 from scipy.stats import rv_discrete
@@ -8,13 +9,14 @@ from scipy.stats import rv_discrete
 
 def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100):
     """
-    The high gain amplification noise distribution as proposed in https://doi.org/10.1117/12.2004621 with the
-    adjustment of not considering 0 as a possible variable's value. The support is limited to a maximum x of around
+    The high gain amplification noise distribution as proposed in 
+    https://doi.org/10.1117/12.2004621 with the adjustment of not considering 0 as a 
+    possible variable's value. The support is limited to a maximum x of around
     125000 * gain / v.
-    Applies if gain is added to poisson distributed photon counts. This is the case, if the interarrival time is
-    exponentially distributed or can be approximated with an exponential distribution.
-    Resembles a high gain approximation, indicating a better fit for higher gains. Indeed, low gains of 1 to 10 should
-    be avoided.
+    Applies if gain is added to poisson distributed photon counts. This is the case, if 
+    the interarrival time is exponentially distributed or can be approximated with an 
+    exponential distribution. Resembles a high gain approximation, indicating a better 
+    fit for higher gains. Indeed, low gains of 1 to 10 should be avoided.
 
     Parameters
     ----------
@@ -23,7 +25,8 @@ def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100
     x_max : int
         Maximum support value.
     v : float
-        The mean of the non-amplified (nearly) poissonian photon count distribution. Has to include 0 counts.
+        The mean of the non-amplified (nearly) poissonian photon count distribution. 
+        Has to include 0 counts.
     gain : float
         The gain applied to the photon counts.
 
@@ -34,14 +37,20 @@ def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100
     """
     # the value z of iv cannot be larger than ~714:
     if x_max > 120000 * gain / v:
-        raise ValueError('x_max is too large (> 120,000 * gain / v).')
+        raise ValueError("x_max is too large (> 120,000 * gain / v).")
     x = np.arange(start=x_min, stop=x_max)
 
     x = x.astype(float)
 
-    probabilities = 1 / x * np.exp(-(x/gain + v)) * np.sqrt(v * x/gain) * i1(2*np.sqrt(v * x/gain))
+    probabilities = (
+        1
+        / x
+        * np.exp(-(x / gain + v))
+        * np.sqrt(v * x / gain)
+        * i1(2 * np.sqrt(v * x / gain))
+    )
     probabilities = probabilities / np.sum(probabilities)
-    distribution = rv_discrete(name='high_gain_distr', values=(x, probabilities))
+    distribution = rv_discrete(name="high_gain_distr", values=(x, probabilities))
 
     return distribution
 
@@ -65,7 +74,7 @@ def hypoexponential_distribution_two_parameters_pdf(a, b, x):
         Probability densities.
     """
     x = np.asarray(x)
-    pdf = a*b / (a-b) * (np.exp(-b * x) - np.exp(-a * x))
+    pdf = a * b / (a - b) * (np.exp(-b * x) - np.exp(-a * x))
 
     return pdf
 
@@ -117,8 +126,11 @@ def hypoexponential_distribution_three_parameters_pdf(a, b, c, x):
     """
     x = np.asarray(x)
     z = a * b * c
-    pdf = np.exp(-c * x) * z / ((a - c) * (b - c)) + np.exp(-a * x) * z / ((-a + b) * (-a + c)) + \
-        np.exp(-b * x) * z / ((a - b) * (-b + c))
+    pdf = (
+        np.exp(-c * x) * z / ((a - c) * (b - c))
+        + np.exp(-a * x) * z / ((-a + b) * (-a + c))
+        + np.exp(-b * x) * z / ((a - b) * (-b + c))
+    )
 
     return pdf
 
@@ -144,8 +156,12 @@ def hypoexponential_distribution_three_parameters_cdf(a, b, c, x):
         Probabilities of samples less than or equal to x.
     """
     x = np.asarray(x)
-    cdf = 1 - np.exp(-c * x) * a * b / ((a - c) * (b - c)) - np.exp(-a * x) * b * c / ((-a + b) * (-a + c)) - \
-        np.exp(-b * x) * a * c / ((a - b) * (-b + c))
+    cdf = (
+        1
+        - np.exp(-c * x) * a * b / ((a - c) * (b - c))
+        - np.exp(-a * x) * b * c / ((-a + b) * (-a + c))
+        - np.exp(-b * x) * a * c / ((a - b) * (-b + c))
+    )
 
     return cdf
 

@@ -1,12 +1,17 @@
+"""
+Module fluo_data
+"""
+
 from dataclasses import dataclass
 
 
 @dataclass
-class FluorophoreData():
+class FluorophoreData:
     """
     Contains all constant photophysical attributes of fluorophores.
     Closely related to TransitionType.
     """
+
     # spectra
     data_files: str = None
 
@@ -20,7 +25,7 @@ class FluorophoreData():
     RISC_RATE: float = 0
     PHOTOBLEACH_T1_RATE: float = 0
     PHOTOBLEACH_T2_RATE: float = 0
-    
+
     # dstorm
     DSTORM_PET_T_RATE_MOL: float = 0
     DSTORM_PET_S_RATE_MOL: float = 0
@@ -31,13 +36,6 @@ class FluorophoreData():
     # cis trans isomerization
     ISO_RATE: float = 0
     BISO_CROSS_SECTION: float = 0
-
-    # energy transfers
-    FRET_KAPPA_SQ: float = 0  # dipole orientation factor
-    J_HOMO_FRET: float = 0
-    J_CIS_FRET: float = 0
-    J_TRIPLET_FRET: float = 0
-    J_OFF_FRET: float = 0
 
     # rhodamines
     H2O_ATTACK_S: float = 0
@@ -50,7 +48,8 @@ class Cy5(FluorophoreData):
     """
     Contains constant attributes of the fluorophore Cy5.
     """
-    data_files: str = 'cy5_data'
+
+    data_files: str = "cy5_data"
 
     MAXIMUM_EXTINCTION_COEFFICIENT: float = 2.5e5
     QUANTUM_YIELD: float = 0.27
@@ -60,7 +59,7 @@ class Cy5(FluorophoreData):
     RISC_RATE: float = 0
     PHOTOBLEACH_T1_RATE: float = 1
     PHOTOBLEACH_T2_RATE: float = 0
-    
+
     DSTORM_PET_T_RATE_MOL: float = 1e8
     DSTORM_PET_S_RATE_MOL: float = 1e9
     DSTORM_PET_SUCCESS_RATE: float = 1e-3
@@ -70,19 +69,14 @@ class Cy5(FluorophoreData):
     ISO_RATE: float = 2e7
     BISO_CROSS_SECTION: float = 1.7e-17
 
-    FRET_KAPPA_SQ: float = 2/3
-    J_HOMO_FRET: float = 1.55e16
-    J_CIS_FRET: float = 3e16
-    J_TRIPLET_FRET: float = 9e15
-    J_OFF_FRET: float = 1e15
-
 
 @dataclass
 class Atto643(FluorophoreData):
     """
     Contains constant attributes of the fluorophore Atto643.
     """
-    data_files: str = 'atto643_data'
+
+    data_files: str = "atto643_data"
 
     MAXIMUM_EXTINCTION_COEFFICIENT: float = 1.5e5
     QUANTUM_YIELD: float = 0.6
