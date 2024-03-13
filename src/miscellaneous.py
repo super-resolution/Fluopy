@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from dataclasses import is_dataclass, fields
+import reprlib
 
 
 def delete_subplots(axes, keep_number=None, del_positions=None):
@@ -152,14 +153,31 @@ def print_class(class_instance, class_name):
     """
     print(f"Attributes of {class_name}:")
     print("." * 65)
+    aRepr = reprlib.Repr()
+    aRepr.maxlevel = 6
+    aRepr.maxtuple = 6
+    aRepr.maxlist = 6
+    aRepr.maxarray = 5
+    aRepr.maxdict = 4
+    aRepr.maxset = 6
+    aRepr.maxfrozenset = 6
+    aRepr.maxdeque = 6
+    aRepr.maxstring = 30
+    aRepr.maxlong = 40
+    aRepr.maxother = 100
 
     if is_dataclass(class_instance):
         for field in fields(class_instance):
             field_value = getattr(class_instance, field.name)
-            print(field.name, "=", field_value)
+            print(field.name, "=", aRepr.repr(field_value))
             print("_" * 65)
     else:
         for attr_name, attr_value in vars(class_instance).items():
-            print(attr_name, "=", attr_value)
+            if isinstance(attr_value, pd.DataFrame) or isinstance(
+                attr_value, pd.Series
+            ):
+                print(attr_name + "[:6]", "=", attr_value.iloc[:6])
+            else:
+                print(attr_name, "=", aRepr.repr(attr_value))
             print("_" * 65)
     print("\n")
