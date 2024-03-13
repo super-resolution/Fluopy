@@ -31,4 +31,7 @@ Parameters needed for accurate simulation:
 
 > [!NOTE]
 > Both, the Markov chain topology and the photophysical context use the terms states and transitions. However, due to computational advantage (explicit information), the photophysical transitions represent the Markovian states.
->
+
+*Code structure*
+
+![code structure](https://github.com/super-resolution/Photoswitching/blob/main/images/code_structure.png)
