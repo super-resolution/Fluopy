@@ -84,6 +84,9 @@ class FluorophoreSystem:
             "distances",
             get_distances([fluo.position for fluo in self.fluorophores]),
         )
+        if 0 in self.distances.values():
+            raise ValueError('at least two fluorophores share the same position. Also '
+                             'check for duplicates.')
         object.__setattr__(self, "count", len(self.fluorophores))
 
     def load_transitions(

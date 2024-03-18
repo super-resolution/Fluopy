@@ -223,7 +223,8 @@ class Transition:
         Whether the transition emits a photon.
     fluorophore_ids : list
         Contains the identities of relevant fluorophores.
-        If energy transfer, tuples of fluorophore pairs.
+        If energy transfer, tuples of fluorophore pairs, where the first is the donor
+        and the second is the acceptor.
     """
 
     identity: int = field(init=False)
@@ -242,6 +243,16 @@ class Transition:
         object.__setattr__(self, "final_state", self.transition_type.final_state)
         object.__setattr__(self, "photon", self.transition_type.photon)
         object.__setattr__(self, "identity", None)
+        for fluorophore_id in self.fluorophore_ids:
+            if isinstance(self.initial_state, PairedState):
+                if not isinstance(fluorophore_id, tuple) or len(fluorophore_id) != 2:
+                    raise ValueError(f'{self.abbreviation} is energy transfer, '
+                                        'fluorophore_ids have to be tuples of fluorophore '
+                                        'pairs.')
+            else:
+                if not isinstance(fluorophore_id, int):
+                    raise ValueError(f'{self.abbreviation} is not an energy transfer, '
+                                     'fluorophore_ids has to be a list of ints.')
 
 
 class TransitionSet:
@@ -297,7 +308,7 @@ class TransitionSet:
                     raise ValueError(
                         "energy transfers have to be defined in transitions with the "
                         "key 'D: {name of donor}, A: {name of acceptor}, dist: "
-                        "{distance between them}'"
+                        "{distance between them}'."
                     )
                 if "dist" in fluorophore_comb:
                     pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
@@ -308,19 +319,19 @@ class TransitionSet:
                             raise ValueError(
                                 f"{d} indicated to be at identity {d_t}, "
                                 f"{self.fluorophore_system.fluorophores[d_t].name} "
-                                "found"
+                                "found."
                             )
                         elif self.fluorophore_system.fluorophores[a_t].name != a:
                             raise ValueError(
                                 f"{a} indicated to be at identity {a_t}, "
                                 f"{self.fluorophore_system.fluorophores[a_t].name} "
-                                "found"
+                                "found."
                             )
                         if str(self.fluorophore_system.distances[(d_t, a_t)]) != dist:
                             raise ValueError(
                                 f"{dist} nm indicated, "
                                 f"{self.fluorophore_system.distances[(d_t, a_t)]} nm "
-                                "found"
+                                "found."
                             )
                 else:
                     for j in transition.fluorophore_ids:
@@ -329,7 +340,8 @@ class TransitionSet:
                             != fluorophore_comb
                         ):
                             raise ValueError(
-                                f"{fluorophore_comb} not found in FluorophoreSystem"
+                                f"{fluorophore_comb} indicated to be at identity {j}, "
+                                f"{self.fluorophore_system.fluorophores[j].name} found."
                             )
                 if transition.rate != 0:
                     transition.identity = i
@@ -589,10 +601,11 @@ def get_state_combinations(single_states, fluorophores):
 
     Parameters
     ----------
-    states : np.ndarray
-        States to be combined.
-    repeat : int
-        Number of repetitions.
+    states : dict
+        Contains the values of all relevant SingleStates as values. Name of
+        fluorophores as keys.
+    fluorophores : Collection
+        Contains all given fluorophores of type Fluorophore.
 
     Returns
     -------
@@ -624,7 +637,7 @@ def get_combined_state_transitions(state_combinations):
 
 
 def rate_assignment_standard(
-    transition, transition_id, transition_rate_list, combined_state_transitions, indices
+    transition, transition_id, transition_rate_list, combined_state_transitions
 ):
     """
     Adds a realizable combined_state_transition that is no energy transfer as a list to
@@ -635,17 +648,14 @@ def rate_assignment_standard(
 
     Parameters
     ----------
-    transition : Transition
-        The Transition to be assigned to combined_state_transitions.
+    transition : pd.Series
+        The transition to be assigned to combined_state_transitions.
     transition_id : int
         The identity of Transition.
     transition_rate_list : Collection
         Destination of realizable combined_state_transitions.
     combined_state_transitions : Collection
         Contains combinations of state_combinations of type tuple.
-    indices : list
-        All identities of a fluorophore within a FluorophoreSystem the transition
-        applies to.
 
     Returns
     -------
@@ -656,7 +666,7 @@ def rate_assignment_standard(
     destination = transition["final_state"].value
 
     for current_state, future_state in combined_state_transitions:
-        for index in indices:
+        for index in transition["fluorophore_ids"]:
             if source == current_state[index]:
                 if destination == future_state[index]:
                     future_state_part = future_state[:index] + future_state[index + 1 :]
@@ -681,7 +691,7 @@ def rate_assignment_standard(
 
 
 def rate_assignment_energy_transfer(
-    transition, transition_id, transition_rate_list, combined_state_transitions, indices
+    transition, transition_id, transition_rate_list, combined_state_transitions
 ):
     """
     Adds a realizable combined_state_transition that is also an energy transfer as a
@@ -693,17 +703,14 @@ def rate_assignment_energy_transfer(
 
     Parameters
     ----------
-    transition : Transition
-        The Transition to be assigned to combined_state_transitions.
+    transition : pd.Series
+        The transition to be assigned to combined_state_transitions.
     transition_id : int
         The identity of Transition.
     transition_rate_list : Collection
         Destination of realizable combined_state_transitions.
     combined_state_transitions : Collection
         Contains combinations of state_combinations of type tuple.
-    indices : list
-        Contains the identities of all fluorophore pairs the transition applies to as
-        tuples.
 
     Returns
     -------
@@ -716,7 +723,7 @@ def rate_assignment_energy_transfer(
     ].single_state_values
 
     for current_state, future_state in combined_state_transitions:
-        for donor, acceptor in indices:
+        for donor, acceptor in transition["fluorophore_ids"]:
             if (
                 source_donor == current_state[donor]
                 and source_acceptor == current_state[acceptor]
@@ -777,7 +784,6 @@ def construct_transition_rate_list(transition_df, combined_state_transitions):
                 transition_id=identity,
                 transition_rate_list=transition_rate_list,
                 combined_state_transitions=combined_state_transitions,
-                indices=transition.fluorophore_ids,
             )
         else:
             transition_rate_list = rate_assignment_energy_transfer(
@@ -785,7 +791,6 @@ def construct_transition_rate_list(transition_df, combined_state_transitions):
                 transition_id=identity,
                 transition_rate_list=transition_rate_list,
                 combined_state_transitions=combined_state_transitions,
-                indices=transition.fluorophore_ids,
             )
 
     return transition_rate_list
@@ -845,7 +850,8 @@ def derive_energy_transfer_transitions(
 ):
     """
     Derive energy transfer transitions based on the experimental conditions and the
-    fluorophore-combinations to be mimicked.
+    fluorophore-combinations to be mimicked. The type of energy transfer is determined 
+    via the data file names. 
 
     Parameters
     ----------
@@ -881,7 +887,7 @@ def derive_energy_transfer_transitions(
     )
 
     minimum, maximum = 200, 1000
-    wavelengths_of_interest = np.arange(minimum, maximum, 1, dtype=float)
+    wavelengths_of_interest = np.arange(minimum, maximum + 1, 1, dtype=float)
     emissions = interpolate_data(
         minimum_wavelength=minimum, maximum_wavelength=maximum, data=donor_emission
     )
@@ -1115,7 +1121,7 @@ def interpolate_data(minimum_wavelength, maximum_wavelength, data):
     wavelengths = data["Wavelength"]
     add_lower = np.zeros(shape=min(wavelengths) - minimum_wavelength)
     add_upper = np.zeros(shape=maximum_wavelength - max(wavelengths))
-    wavelengths_stepwise = np.arange(min(wavelengths), max(wavelengths))
+    wavelengths_stepwise = np.arange(min(wavelengths), max(wavelengths) + 1)
     interpolated = itp.CubicSpline(wavelengths, data["y"])(wavelengths_stepwise)
     interpolated = np.where(interpolated < 0, 0, interpolated)
     interpolated = np.concatenate((add_lower, interpolated, add_upper))

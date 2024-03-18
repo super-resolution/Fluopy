@@ -151,8 +151,6 @@ def print_class(class_instance, class_name):
     class_name : str
         Name of the class.
     """
-    print(f"Attributes of {class_name}:")
-    print("." * 65)
     aRepr = reprlib.Repr()
     aRepr.maxlevel = 6
     aRepr.maxtuple = 6
@@ -165,6 +163,9 @@ def print_class(class_instance, class_name):
     aRepr.maxstring = 30
     aRepr.maxlong = 40
     aRepr.maxother = 100
+    
+    print(f"Attributes of {class_name}:")
+    print("." * 65)
 
     if is_dataclass(class_instance):
         for field in fields(class_instance):

@@ -53,7 +53,7 @@ class ExperimentalData:
             Contains the time points as index and the number of events as values.
         """
         frame_time = pd.Timedelta(frame_time) / np.timedelta64(1, 's')
-        time_stamps = np.arange(0, frame_time*self.data['frame'].max(), frame_time)
+        time_stamps = np.linspace(0, frame_time*self.data['frame'].max(), self.data['frame'].max())
         current_data = self.data[self.data['cluster_id'] == index]
         event_time_series = pd.Series(np.zeros(self.data['frame'].max()), index=time_stamps)
         event_time_series.values[current_data['frame']] = current_data['intensity']

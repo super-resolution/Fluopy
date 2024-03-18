@@ -1,6 +1,4 @@
 import pytest
-import copy
-import warnings
 import numpy as np
 import pandas as pd
 from dataclasses import asdict
@@ -13,9 +11,11 @@ def test_singlestate():
     assert tr.SingleState.S2.value == 2
     assert tr.SingleState.T1.value == 3
     assert tr.SingleState.T2.value == 4
-    assert tr.SingleState.Cis.value == 5
-    assert tr.SingleState.OFF.value == 6
-    assert tr.SingleState.B.value == 7
+    assert tr.SingleState.B.value == 5
+    assert tr.SingleState.Cis.value == 6
+    assert tr.SingleState.OFF1.value == 7
+    assert tr.SingleState.OFF2.value == 8
+    assert len(tr.SingleState) == 9
 
 
 def test_pairedstate():
@@ -23,232 +23,610 @@ def test_pairedstate():
     assert tr.PairedState.S1_S0.single_state_values == (1, 0)
     assert tr.PairedState.S1_S0.acceptor == tr.SingleState.S0
     assert tr.PairedState.S1_S0.donor == tr.SingleState.S1
+    assert len(tr.PairedState) == 11
 
 
 def test_transitiontype():
-    assert tr.TransitionType.EXCITATION.abbreviation == 'EXC'
+    assert tr.TransitionType.EXCITATION.abbreviation == "EXC"
+    assert (
+        tr.TransitionType.EXCITATION.value.abbreviation
+        == tr.TransitionType.EXCITATION.abbreviation
+    )
     assert tr.TransitionType.EXCITATION.initial_state == tr.SingleState.S0
+    assert (
+        tr.TransitionType.EXCITATION.value.initial_state
+        == tr.TransitionType.EXCITATION.initial_state
+    )
     assert tr.TransitionType.EXCITATION.final_state == tr.SingleState.S1
+    assert (
+        tr.TransitionType.EXCITATION.value.final_state
+        == tr.TransitionType.EXCITATION.final_state
+    )
     assert tr.TransitionType.EXCITATION.photon is False
+    assert (
+        tr.TransitionType.EXCITATION.value.photon == tr.TransitionType.EXCITATION.photon
+    )
+    for transition_type in tr.TransitionType:
+        assert len(transition_type.value.__dict__) == 4
 
 
-@pytest.mark.parametrize('transition_object,expected',
-                         [[[tr.TransitionType.EXCITATION, 5],
-                           [tr.TransitionType.EXCITATION, 5, tr.TransitionType.EXCITATION.abbreviation,
-                            tr.TransitionType.EXCITATION.initial_state, tr.TransitionType.EXCITATION.final_state,
-                            tr.TransitionType.EXCITATION.photon, None]],
-                          [[tr.TransitionType.HOMO_FRET, 6.1, 2.7509],
-                           [tr.TransitionType.HOMO_FRET, 6.1, tr.TransitionType.HOMO_FRET.abbreviation + '(2.8)',
-                            tr.TransitionType.HOMO_FRET.initial_state, tr.TransitionType.HOMO_FRET.final_state,
-                            tr.TransitionType.HOMO_FRET.photon, 2.751]]],
-                         indirect=['transition_object'])
-def test_transition(transition_object, expected):
-    assert transition_object.transition_type == expected[0]
-    assert transition_object.rate == expected[1]
-    assert transition_object.abbreviation == expected[2]
-    assert transition_object.initial_state == expected[3]
-    assert transition_object.final_state == expected[4]
-    assert transition_object.photon == expected[5]
-    assert transition_object.identity is None
-    if expected[6] is None:
-        assert transition_object.distance is None
-        assert not transition_object.energy_transfer
+@pytest.mark.parametrize(
+    "transition_type, fluorophore_ids, expected",
+    [
+        [tr.TransitionType.EXCITATION, [1, 2], ""],
+        [tr.TransitionType.EXCITATION, [(1, 2)], "ValueError1"],
+        [tr.TransitionType.FRET, [(1, 2)], ""],
+        [tr.TransitionType.FRET, [1, 2], "ValueError2"],
+    ],
+)
+def test_transition(transition_type, fluorophore_ids, expected):
+    if expected == "ValueError1":
+        with pytest.raises(
+            ValueError,
+            match="EXC is not an energy transfer, fluorophore_ids has to be a list of "
+            "ints.",
+        ):
+            transition = tr.Transition(
+                transition_type=transition_type, rate=1, fluorophore_ids=fluorophore_ids
+            )
+    elif expected == "ValueError2":
+        with pytest.raises(
+            ValueError,
+            match="FRET is energy transfer, fluorophore_ids have to be tuples of "
+            "fluorophore pairs.",
+        ):
+            transition = tr.Transition(
+                transition_type=transition_type, rate=1, fluorophore_ids=fluorophore_ids
+            )
     else:
-        assert transition_object.distance == expected[6]
-        assert transition_object.energy_transfer
-        with pytest.raises(ValueError):
-            tr.Transition(transition_object.transition_type, transition_object.rate)
+        transition = tr.Transition(
+            transition_type=transition_type, rate=1, fluorophore_ids=fluorophore_ids
+        )
+        assert transition.identity is None
+        assert transition.transition_type == transition_type
+        assert transition.abbreviation == transition_type.abbreviation
+        assert transition.initial_state == transition_type.initial_state
+        assert transition.final_state == transition_type.final_state
+        assert transition.rate == 1
+        assert transition.photon == transition_type.photon
+        assert transition.fluorophore_ids == fluorophore_ids
 
 
-@pytest.mark.parametrize('transitionlist,expected',
-                         [[[[tr.TransitionType.EXCITATION, 5], [tr.TransitionType.HOMO_FRET, 6.1, 2.75]],
-                           np.array([0, 1])],
-                          [[[tr.TransitionType.EXCITATION, 5], [tr.TransitionType.ISOMERIZATION, 2]],
-                           np.array([0, 1, 5])]],
-                         indirect=['transitionlist'])
-def test_get_single_states(transitionlist, expected):
-    for i, transition in enumerate(transitionlist):
-        transition.identity = i
-    transition_df = pd.DataFrame([asdict(transition) for transition in transitionlist])
-    transition_df = transition_df.set_index('identity')
-    np.testing.assert_array_equal(tr.get_single_states(transitions=transitionlist, transition_df=transition_df), expected)
+@pytest.mark.parametrize(
+    "transition_type, fluorophore_ids, fluo_comb, expected",
+    [
+        [tr.TransitionType.FRET, [(0, 1)], "cy5-cy5", "ValueError1"],
+        [tr.TransitionType.FRET, [(2, 1)], "D: cy5, A: cy5, dist: 1.0", "ValueError2"],
+        [tr.TransitionType.FRET, [(1, 2)], "D: cy5, A: cy5, dist: 1.0", "ValueError3"],
+        [tr.TransitionType.FRET, [(1, 0)], "D: cy5, A: cy5, dist: 2.0", "ValueError4"],
+        [tr.TransitionType.EXCITATION, [1], "atto643", "ValueError5"],
+    ],
+)
+def test_transition_set_errors(
+    transition_type, fluorophore_ids, fluo_comb, expected, request
+):
+    transitions = {
+        fluo_comb: [
+            tr.Transition(
+                transition_type=transition_type, rate=1, fluorophore_ids=fluorophore_ids
+            )
+        ]
+    }
+    fluorophore_system = request.getfixturevalue("flu_sys_2xcy5_1xatto643")
+    if expected == "ValueError1":
+        with pytest.raises(
+            ValueError,
+            match="energy transfers have to be defined in transitions with the "
+            "key 'D: {name of donor}, A: {name of acceptor}, dist: "
+            "{distance between them}'",
+        ):
+            transition_set = tr.TransitionSet(
+                transitions=transitions, fluorophore_system=fluorophore_system
+            )
+    elif expected == "ValueError2":
+        with pytest.raises(
+            ValueError, match="cy5 indicated to be at identity 2, atto643 found."
+        ):
+            transition_set = tr.TransitionSet(
+                transitions=transitions, fluorophore_system=fluorophore_system
+            )
+    elif expected == "ValueError3":
+        # looks similar to ValueError2 but tests different Error
+        with pytest.raises(
+            ValueError, match="cy5 indicated to be at identity 2, atto643 found."
+        ):
+            transition_set = tr.TransitionSet(
+                transitions=transitions, fluorophore_system=fluorophore_system
+            )
+    elif expected == "ValueError4":
+        with pytest.raises(ValueError, match="2.0 nm indicated, 1.0 nm found."):
+            transition_set = tr.TransitionSet(
+                transitions=transitions, fluorophore_system=fluorophore_system
+            )
+    elif expected == "ValueError5":
+        with pytest.raises(
+            ValueError, match="atto643 indicated to be at identity 1, cy5 found."
+        ):
+            transition_set = tr.TransitionSet(
+                transitions=transitions, fluorophore_system=fluorophore_system
+            )
 
 
-def test_transitionset(transition_set_object):
-    new_transitions = transition_set_object.transitions
-    old_transitions = copy.deepcopy(transition_set_object.transitions)
-    for i, transition in enumerate(transition_set_object.transitions):
-        assert transition.identity == i
-        assert transition.rate != 0
-        if transition.distance == 7:
-            transition.distance = 6
-    np.testing.assert_array_equal(transition_set_object.single_states, np.array([0, 1]))
-    assert transition_set_object.combined_state_transitions_df is None
-    assert transition_set_object.transition_matrix is None
-    assert transition_set_object.row_sums is None
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        tr.TransitionSet(transitions=old_transitions, fluorophore_system=transition_set_object.fluorophore_system)
-    with pytest.warns(UserWarning):
-        tr.TransitionSet(transitions=new_transitions, fluorophore_system=transition_set_object.fluorophore_system)
+# get_single_states is tested indirectly within test_transition_set
+def test_transition_set(request):
+    zero_rate_transition = tr.Transition(
+        transition_type=tr.TransitionType.INTERNAL_CONVERSION_S,
+        rate=0,
+        fluorophore_ids=[0, 1],
+    )
+    transitions = {
+        "cy5": [
+            tr.Transition(
+                transition_type=tr.TransitionType.EXCITATION,
+                rate=1,
+                fluorophore_ids=[0, 1],
+            ),
+            tr.Transition(
+                transition_type=tr.TransitionType.FLUORESCENT_EMISSION,
+                rate=1e-1,
+                fluorophore_ids=[0, 1],
+            ),
+            zero_rate_transition,
+            tr.Transition(
+                transition_type=tr.TransitionType.INTERSYSTEM_CROSSING_ST,
+                rate=1,
+                fluorophore_ids=[0, 1],
+            ),
+        ],
+        "D: cy5, A: cy5, dist: 1.0": [
+            tr.Transition(
+                transition_type=tr.TransitionType.FRET,
+                rate=1,
+                fluorophore_ids=[(0, 1), (1, 0)],
+            )
+        ],
+        "D: cy5, A: atto643, dist: 2.0": [
+            tr.Transition(
+                transition_type=tr.TransitionType.FRET, rate=1, fluorophore_ids=[(0, 2)]
+            )
+        ],
+        "atto643": [
+            tr.Transition(
+                transition_type=tr.TransitionType.EXCITATION,
+                rate=1,
+                fluorophore_ids=[2],
+            ),
+            tr.Transition(
+                transition_type=tr.TransitionType.FLUORESCENT_EMISSION,
+                rate=1e-1,
+                fluorophore_ids=[2],
+            ),
+        ],
+    }
+    fluorophore_system = request.getfixturevalue("flu_sys_2xcy5_1xatto643")
+    transition_set = tr.TransitionSet(
+        transitions=transitions, fluorophore_system=fluorophore_system
+    )
+    i = 0
+    for transition_collection in transition_set.transitions.values():
+        for transition in transition_collection:
+            assert transition.identity == i
+            i += 1
+            assert transition.abbreviation != "IC"
+    assert transition_set.fluorophore_system == fluorophore_system
+    assert transition_set.transitions == transitions
+    assert list(transition_set.transition_df.columns) == [
+        "transition_type",
+        "abbreviation",
+        "initial_state",
+        "final_state",
+        "rate",
+        "photon",
+        "fluorophore_ids",
+        "absorbing",
+    ]
+    assert (
+        transition_set.transition_df.loc[
+            transition_set.transition_df["absorbing"], "abbreviation"
+        ]
+    ).tolist() == ["ISCST"]
+    test_single_states = {"cy5": np.array([0, 1, 3]), "atto643": np.array([0, 1])}
+    for key in transition_set.single_states:
+        assert key in test_single_states
+        assert np.array_equal(
+            transition_set.single_states[key], test_single_states[key]
+        )
+    assert transition_set.combined_state_transitions_df is None
+    assert transition_set.transition_matrix is None
+    assert transition_set.row_sums is None
 
 
-@pytest.mark.filterwarnings("ignore:HOMO_FRET:UserWarning")
-@pytest.mark.parametrize('remove_list,expected',
-                         [[[tr.TransitionType.EXCITATION.abbreviation, tr.TransitionType.HOMO_FRET.abbreviation],
-                           [tr.TransitionType.FLUORESCENT_EMISSION.abbreviation,
-                            tr.TransitionType.INTERNAL_CONVERSION_S.abbreviation,
-                            tr.TransitionType.INTERSYSTEM_CROSSING_ST.abbreviation]],
-                          [[tr.TransitionType.HOMO_FRET.abbreviation + '(7.0)'],
-                           [tr.TransitionType.EXCITATION.abbreviation,
-                            tr.TransitionType.FLUORESCENT_EMISSION.abbreviation,
-                            tr.TransitionType.INTERNAL_CONVERSION_S.abbreviation,
-                            tr.TransitionType.INTERSYSTEM_CROSSING_ST.abbreviation,
-                            tr.TransitionType.HOMO_FRET.abbreviation + '(9.9)']]])
-def test_filter_by_abbreviation(transition_set_object, remove_list, expected):
-    transition_set = transition_set_object.filter_by_abbreviation(remove_list)
-    for transition in transition_set.transitions:
-        assert transition.abbreviation in expected
+def test_transition_set_filter_by_identity(tr_set_bl_et):
+    assert (
+        tr_set_bl_et.transition_df.index.get_level_values(1).tolist()
+        == (np.arange(0, 28, 1, dtype=int)).tolist()
+    )
+    assert (
+        "D: cy5, A: atto643, dist: 2.0"
+        in tr_set_bl_et.transition_df.index.get_level_values(0).tolist()
+    )
+    tr_set_bl_et_filtered = tr_set_bl_et.filter_by_identity(remove_list=[4, 12])
+    assert (
+        tr_set_bl_et_filtered.transition_df.index.get_level_values(1).tolist()
+        == (np.arange(0, 26, 1, dtype=int)).tolist()
+    )
+    assert (
+        "D: cy5, A: atto643, dist: 2.0"
+        not in tr_set_bl_et_filtered.transition_df.index.get_level_values(0).tolist()
+    )
 
 
-@pytest.mark.parametrize('change_dict,expected',
-                         [[{'FLU': 2}, [5, 2, 1, 9, 9]],
-                          [{'FLU': 0}, [5, 1, 9, 9]],
-                          [{'HFRET(9.9)': 2.2}, [5, 4, 1, 9, 2.2]]])
-def test_adjust_rates(transition_set_object, change_dict, expected):
-    transition_set = transition_set_object.adjust_rates(change_dict)
-    for transition, expected_rate in zip(transition_set.transitions, expected):
-        assert transition.rate == expected_rate
+def test_transition_set_adjust_rates(tr_set_bl_et):
+    assert tr_set_bl_et.transition_df["rate"].tolist()[:13] == [
+        5815700.439305622,
+        270000000.0,
+        830000.0,
+        5000.0,
+        20000000.0,
+        109542.37650972935,
+        709169999.9999999,
+        1.0,
+        475492271541138.25,
+        14864542290031.842,
+        243273014812955.22,
+        140152804282410.12,
+        2065118533634.439,
+    ]
+    tr_set_bl_et_adjusted = tr_set_bl_et.adjust_rates(change_dict={4: 1, 12: 3.2})
+    assert tr_set_bl_et_adjusted.transition_df["rate"].tolist()[:13] == [
+        5815700.439305622,
+        270000000.0,
+        830000.0,
+        5000.0,
+        1.0,
+        109542.37650972935,
+        709169999.9999999,
+        1.0,
+        475492271541138.25,
+        14864542290031.842,
+        243273014812955.22,
+        140152804282410.12,
+        3.2,
+    ]
 
 
-@pytest.mark.parametrize('parameters,expected',
-                         [[[[0, 1, 2], 2], [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2)]],
-                          [[[0, 1, 2], 1], [(0,), (1,), (2,)]]])
-def test_get_state_combinations(parameters, expected):
-    state_combinations = tr.get_state_combinations(*parameters)
+def test_transition_set_remove_absorbing_states(tr_set_bl_et):
+    assert tr_set_bl_et.transition_df["absorbing"].any()
+    tr_set_et = tr_set_bl_et.remove_absorbing_states()
+    assert not tr_set_et.transition_df["absorbing"].any()
+
+
+def test_transition_set_remove_energy_transfers(tr_set_bl_et):
+    assert any(
+        "dist" in s
+        for s in tr_set_bl_et.transition_df.index.get_level_values(0).tolist()
+    )
+    tr_set_bl = tr_set_bl_et.remove_energy_transfers()
+    assert not any(
+        "dist" in s for s in tr_set_bl.transition_df.index.get_level_values(0).tolist()
+    )
+
+
+@pytest.mark.parametrize(
+    "single_states, dirnames, expected",
+    [
+        [
+            {"cy5": [0, 1, 2]},
+            ["flu_obj_cy5_1", "flu_obj_cy5_2"],
+            [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2)],
+        ],
+        [
+            {"cy5": [0, 1, 2], "atto643": [0, 1, 2]},
+            ["flu_obj_cy5_1", "flu_obj_atto643"],
+            [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2)],
+        ],
+        [{"cy5": [0, 1, 2]}, ["flu_obj_cy5_1"], [(0,), (1,), (2,)]],
+    ],
+)
+def test_get_state_combinations(single_states, dirnames, request, expected):
+    fluorophores = [request.getfixturevalue(dirname) for dirname in dirnames]
+
+    state_combinations = tr.get_state_combinations(
+        single_states=single_states, fluorophores=fluorophores
+    )
     assert state_combinations == expected
 
 
 def test_get_combined_state_transitions():
-    state_combinations = [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2)]
-    combined_state_transitions = tr.get_combined_state_transitions(state_combinations)
-    assert combined_state_transitions == [((0, 0), (0, 0)), ((0, 0), (0, 1)), ((0, 0), (0, 2)), ((0, 0), (1, 0)),
-                                           ((0, 0), (1, 1)), ((0, 0), (1, 2)), ((0, 0), (2, 0)), ((0, 0), (2, 1)),
-                                           ((0, 0), (2, 2)), ((0, 1), (0, 0)), ((0, 1), (0, 1)), ((0, 1), (0, 2)),
-                                           ((0, 1), (1, 0)), ((0, 1), (1, 1)), ((0, 1), (1, 2)), ((0, 1), (2, 0)),
-                                           ((0, 1), (2, 1)), ((0, 1), (2, 2)), ((0, 2), (0, 0)), ((0, 2), (0, 1)),
-                                           ((0, 2), (0, 2)), ((0, 2), (1, 0)), ((0, 2), (1, 1)), ((0, 2), (1, 2)),
-                                           ((0, 2), (2, 0)), ((0, 2), (2, 1)), ((0, 2), (2, 2)), ((1, 0), (0, 0)),
-                                           ((1, 0), (0, 1)), ((1, 0), (0, 2)), ((1, 0), (1, 0)), ((1, 0), (1, 1)),
-                                           ((1, 0), (1, 2)), ((1, 0), (2, 0)), ((1, 0), (2, 1)), ((1, 0), (2, 2)),
-                                           ((1, 1), (0, 0)), ((1, 1), (0, 1)), ((1, 1), (0, 2)), ((1, 1), (1, 0)),
-                                           ((1, 1), (1, 1)), ((1, 1), (1, 2)), ((1, 1), (2, 0)), ((1, 1), (2, 1)),
-                                           ((1, 1), (2, 2)), ((1, 2), (0, 0)), ((1, 2), (0, 1)), ((1, 2), (0, 2)),
-                                           ((1, 2), (1, 0)), ((1, 2), (1, 1)), ((1, 2), (1, 2)), ((1, 2), (2, 0)),
-                                           ((1, 2), (2, 1)), ((1, 2), (2, 2)), ((2, 0), (0, 0)), ((2, 0), (0, 1)),
-                                           ((2, 0), (0, 2)), ((2, 0), (1, 0)), ((2, 0), (1, 1)), ((2, 0), (1, 2)),
-                                           ((2, 0), (2, 0)), ((2, 0), (2, 1)), ((2, 0), (2, 2)), ((2, 1), (0, 0)),
-                                           ((2, 1), (0, 1)), ((2, 1), (0, 2)), ((2, 1), (1, 0)), ((2, 1), (1, 1)),
-                                           ((2, 1), (1, 2)), ((2, 1), (2, 0)), ((2, 1), (2, 1)), ((2, 1), (2, 2)),
-                                           ((2, 2), (0, 0)), ((2, 2), (0, 1)), ((2, 2), (0, 2)), ((2, 2), (1, 0)),
-                                           ((2, 2), (1, 1)), ((2, 2), (1, 2)), ((2, 2), (2, 0)), ((2, 2), (2, 1)),
-                                           ((2, 2), (2, 2))]
+    combined_state_transitions = tr.get_combined_state_transitions(
+        state_combinations=[(0, 0), (0, 1), (1, 2)]
+    )
+    assert combined_state_transitions == [
+        ((0, 0), (0, 0)),
+        ((0, 0), (0, 1)),
+        ((0, 0), (1, 2)),
+        ((0, 1), (0, 0)),
+        ((0, 1), (0, 1)),
+        ((0, 1), (1, 2)),
+        ((1, 2), (0, 0)),
+        ((1, 2), (0, 1)),
+        ((1, 2), (1, 2)),
+    ]
 
 
-@pytest.mark.parametrize('transition_pd_series,identity,expected',
-                         [[[tr.Transition(tr.TransitionType.EXCITATION, 8)], 0, [[(0, 0), (0, 1), 'EXC', 0, 8, False],
-                                                               [(0, 1), (1, 1), 'EXC', 0, 8, False]]],
-                          [[tr.Transition(tr.TransitionType.OXIDATION, 7)], 0, []]],
-                         indirect=['transition_pd_series'])
-def test_rate_assignment_standard(transition_pd_series, identity, expected):
-    combined_state_transitions = [((0, 0), (0, 0)), ((0, 0), (0, 1)), ((0, 1), (1, 1)),
-                                  ((0, 0), (1, 1)), ((0, 3), (2, 3))]
-    transition_rate_list = tr.rate_assignment_standard((identity, transition_pd_series), [], combined_state_transitions)
+def test_rate_assignment_standard():
+    combined_state_transitions = [
+        ((0, 0, 0), (1, 1, 1)),
+        ((0, 0, 0), (0, 0, 1)),
+        ((0, 0, 0), (1, 1, 0)),
+        ((0, 0, 0), (0, 1, 0)),
+        ((0, 1, 0), (1, 1, 0)),
+        ((0, 1, 0), (1, 0, 0)),
+        ((0, 4, 5), (1, 4, 5)),
+    ]
+    transition = pd.Series(
+        asdict(
+            tr.Transition(
+                transition_type=tr.TransitionType.EXCITATION,
+                rate=1,
+                fluorophore_ids=[0, 1],
+            )
+        )
+    )
+    transition_rate_list = tr.rate_assignment_standard(
+        transition=transition,
+        transition_id=0,
+        transition_rate_list=[],
+        combined_state_transitions=combined_state_transitions,
+    )
+    expected = [
+        [(0, 0, 0), (0, 1, 0), "EXC", 0, 1, False],
+        [(0, 1, 0), (1, 1, 0), "EXC", 0, 1, False],
+        [(0, 4, 5), (1, 4, 5), "EXC", 0, 1, False],
+    ]
     assert transition_rate_list == expected
 
 
-@pytest.mark.parametrize('transition_pd_series,identity,distance_lookup,expected',
-                         [[[tr.Transition(tr.TransitionType.HOMO_FRET, 8, 4)], 0, {(0, 1): 5, (1, 0): 5, (0, 2): 4, (2, 0): 4, (1, 2): 7,
-                                                                 (2, 1): 7},
-                          [[(0, 0, 1), (1, 0, 0), 'HFRET(4.0)', 0, 8, False]]],
-                          [[tr.Transition(tr.TransitionType.HOMO_FRET, 8, 4)], 0, {(0, 1): 5, (1, 0): 5, (0, 2): 4, (1, 2): 7, (2, 1): 7},
-                           'KeyError'],
-                          [[tr.Transition(tr.TransitionType.HOMO_FRET, 8, 2)], 0, {(0, 1): 5, (1, 0): 5, (0, 2): 4, (2, 0): 4, (1, 2): 7,
-                                                                 (2, 1): 7},
-                          []]],
-                         indirect=['transition_pd_series'])
-def test_rate_assignment_energy_transfer(transition_pd_series, identity, distance_lookup, expected):
-    combined_state_transitions = [((0, 0, 0), (0, 0, 0)), ((0, 0, 1), (1, 0, 0)), ((0, 1, 0), (1, 0, 0)),
-                                  ((2, 0, 1), (1, 0, 0))]
-    if expected == 'KeyError':
-        with pytest.raises(KeyError):
-            tr.rate_assignment_energy_transfer((identity, transition_pd_series), [], combined_state_transitions, distance_lookup)
-    else:
-        transition_rate_list = tr.rate_assignment_energy_transfer((identity, transition_pd_series), [], combined_state_transitions,
-                                                                  distance_lookup)
-        assert transition_rate_list == expected
+def test_rate_assignment_energy_transfer():
+    combined_state_transitions = [
+        ((0, 0, 0), (1, 1, 1)),
+        ((0, 1, 0), (0, 0, 1)),
+        ((0, 1, 0), (1, 0, 0)),
+        ((1, 0, 0), (0, 1, 0)),
+        ((0, 1, 0), (1, 1, 0)),
+        ((0, 1, 0), (1, 0, 1)),
+        ((0, 1, 5), (1, 0, 5)),
+    ]
+    transition = pd.Series(
+        asdict(
+            tr.Transition(
+                transition_type=tr.TransitionType.FRET,
+                rate=1,
+                fluorophore_ids=[(0, 1), (1, 0)],
+            )
+        )
+    )
+    transition_rate_list = tr.rate_assignment_energy_transfer(
+        transition=transition,
+        transition_id=0,
+        transition_rate_list=[],
+        combined_state_transitions=combined_state_transitions,
+    )
+    expected = [
+        [(0, 1, 0), (1, 0, 0), "FRET", 0, 1, False],
+        [(1, 0, 0), (0, 1, 0), "FRET", 0, 1, False],
+        [(0, 1, 5), (1, 0, 5), "FRET", 0, 1, False],
+    ]
+    assert transition_rate_list == expected
 
 
 def test_construct_transition_rate_list():
-    transitions = [tr.Transition(tr.TransitionType.EXCITATION, 8), tr.Transition(tr.TransitionType.HOMO_FRET, 7, 4)]
-    transition_df = pd.DataFrame([asdict(transition) for transition in transitions])
-    transition_df = transition_df.set_index('identity')
-    combined_state_transitions = [((0, 0, 0), (0, 0, 0)), ((0, 0, 1), (1, 0, 0)), ((0, 1, 0), (1, 0, 0)),
-                                  ((2, 0, 1), (1, 0, 0)), ((0, 2, 0), (0, 2, 1))]
-    distance_lookup = {(0, 1): 5, (1, 0): 5, (0, 2): 4, (2, 0): 4, (1, 2): 7, (2, 1): 7}
-    transition_rate_list = tr.construct_transition_rate_list(transition_df, combined_state_transitions, distance_lookup)
-    assert transition_rate_list == [[(0, 2, 0), (0, 2, 1), 'EXC', None, 8, False],
-                                    [(0, 0, 1), (1, 0, 0), 'HFRET(4.0)', None, 7, False]]
+    transition_1 = pd.Series(
+        asdict(
+            tr.Transition(
+                transition_type=tr.TransitionType.EXCITATION,
+                rate=1,
+                fluorophore_ids=[0, 1],
+            )
+        )
+    )
+    transition_2 = pd.Series(
+        asdict(
+            tr.Transition(
+                transition_type=tr.TransitionType.FRET,
+                rate=1,
+                fluorophore_ids=[(0, 1), (1, 0)],
+            )
+        )
+    )
+    transition_df = pd.concat([transition_1, transition_2], axis=1).transpose()
+    transition_df.index = pd.MultiIndex.from_tuples(
+        [("cy5", 0), ("D: cy5, A: cy5, dist: 1.0", 1)]
+    )
+    combined_state_transitions = [
+        ((0, 0, 0), (1, 1, 1)),
+        ((0, 1, 0), (0, 0, 1)),
+        ((0, 1, 0), (1, 0, 0)),
+        ((1, 0, 0), (0, 1, 0)),
+        ((0, 1, 0), (1, 1, 0)),
+        ((0, 1, 0), (1, 0, 1)),
+        ((0, 1, 5), (1, 0, 5)),
+        ((0, 0, 0), (0, 0, 1)),
+        ((0, 0, 0), (1, 1, 0)),
+        ((0, 0, 0), (0, 1, 0)),
+        ((0, 4, 5), (1, 4, 5)),
+    ]
+    transition_rate_list = tr.construct_transition_rate_list(
+        transition_df=transition_df,
+        combined_state_transitions=combined_state_transitions,
+    )
+    expected = [
+        [(0, 1, 0), (1, 1, 0), "EXC", 0, 1, False],
+        [(0, 0, 0), (0, 1, 0), "EXC", 0, 1, False],
+        [(0, 4, 5), (1, 4, 5), "EXC", 0, 1, False],
+        [(0, 1, 0), (1, 0, 0), "FRET", 1, 1, False],
+        [(1, 0, 0), (0, 1, 0), "FRET", 1, 1, False],
+        [(0, 1, 5), (1, 0, 5), "FRET", 1, 1, False],
+    ]
+    assert transition_rate_list == expected
 
 
 def test_construct_transition_matrix():
-    transition_rate_list = [[(0, 2, 0), (0, 2, 1), 'EXC', None, 8, False],
-                            [(0, 0, 1), (1, 0, 0), 'HFRET(4.0)', None, 7, False],
-                            [(1, 0, 0), (2, 0, 0), 'ISC_ST', None, 5, False],
-                            [(2, 0, 0), (0, 0, 0), 'ISC_TS', None, 1, False],
-                            [(0, 2, 1), (0, 2, 0), 'FLU', None, 10, True],
-                            [(0, 2, 1), (0, 2, 2), 'ISC_ST', None, 8, False]]
-    combined_state_transitions_df = pd.DataFrame(transition_rate_list, columns=['initial_state', 'final_state',
-                                                                                'abbreviation', 'transition_id', 'rate',
-                                                                                'photon'])
-    combined_state_transitions_df.index.name = 'id'
-    transition_matrix, row_sums = tr.construct_transition_matrix(combined_state_transitions_df)
-    expected_tm = np.array([[0, 0, 0, 0, 10/18, 8/18],
-                            [0, 0, 1, 0, 0, 0],
-                            [0, 0, 0, 1, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [1, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0]])
-    expected_row_sums = np.array([18, 5, 1, 0, 8, 0])
-    np.testing.assert_allclose(transition_matrix, expected_tm)
-    np.testing.assert_allclose(row_sums, expected_row_sums)
+    combined_state_transitions_df = pd.DataFrame(
+        {
+            "initial_state": [(0, 0), (0, 1), (0, 1)],
+            "final_state": [(0, 1), (1, 0), (0, 0)],
+            "abbreviation": ["EXC", "FRET", "FLU"],
+            "transition_id": [0, 1, 2],
+            "rate": [1, 1e4, 2],
+            "photon": [False, False, True],
+        }
+    )
+    transition_matrix, row_sums = tr.construct_transition_matrix(
+        combined_state_transitions_df=combined_state_transitions_df
+    )
+    expected_transition_matrix = np.array(
+        [
+            [0.0000e00, 9.9980e-01, 1.9996e-04],
+            [0.0000e00, 0.0000e00, 0.0000e00],
+            [1.0000e00, 0.0000e00, 0.0000e00],
+        ]
+    )
+
+    expected_row_sums = np.array([10002, 0, 1])
+    np.testing.assert_allclose(transition_matrix, expected_transition_matrix, rtol=1e-6)
+    np.testing.assert_allclose(row_sums, expected_row_sums, rtol=1e-5)
 
 
-def test_finalize(transition_set_object):
-    transition_set_object.finalize()
-    assert transition_set_object.combined_state_transitions_df is not None
-    assert transition_set_object.transition_matrix is not None
-    assert transition_set_object.row_sums is not None
+def test_transition_set_finalize(tr_set_bl_et):
+    assert tr_set_bl_et.combined_state_transitions_df.columns.tolist() == [
+        "initial_state",
+        "final_state",
+        "abbreviation",
+        "transition_id",
+        "rate",
+        "photon",
+    ]
+    assert tr_set_bl_et.combined_state_transitions_df.shape == (534, 6)
+    assert tr_set_bl_et.transition_matrix.shape == (534, 534)
+    assert tr_set_bl_et.row_sums.shape == (534,)
 
 
-@pytest.mark.parametrize('parameters,expected',
-                         [[['', '', None, None], 'ValueError'],
-                          [['', '', [], []], 'ValueError'],
-                          [[tr.TransitionType.HOMO_FRET, {(0, 1): 5, (1, 0): 5, (0, 2): 4, (2, 0): 4, (1, 2): 7,
-                                                          (2, 1): 7}, [3, 0, 6], None],
-                           [tr.Transition(tr.TransitionType.HOMO_FRET, 6, 4),
-                            tr.Transition(tr.TransitionType.HOMO_FRET, 3, 5),
-                            tr.Transition(tr.TransitionType.HOMO_FRET, 0, 7)]],
-                           [[tr.TransitionType.HOMO_FRET, {(0, 1): 5, (1, 0): 5, (0, 2): 4, (2, 0): 4, (1, 2): 7,
-                                                          (2, 1): 7}, None,
-                            {'emission_rate': 5, 'spectral_overlap_integral': 2, 'dipole_orientation_factor': 0.4}],
-                           [tr.Transition(tr.TransitionType.HOMO_FRET, 8.5791015625e-14, 4),
-                            tr.Transition(tr.TransitionType.HOMO_FRET, 2.24896e-14, 5),
-                            tr.Transition(tr.TransitionType.HOMO_FRET, 2.98685071696317e-15, 7)]]])
-def test_get_energy_transfer_transitions(parameters, expected):
-    if expected == 'ValueError':
-        with pytest.raises(ValueError):
-            tr.get_energy_transfer_transitions(*parameters)
+@pytest.mark.parametrize(
+    "dirnames, distance, expected",
+    [
+        [["flu_obj_cy5_1", "flu_obj_cy5_1"], 1, 4],
+        [["flu_obj_cy5_1", "flu_obj_atto643"], 1, 1],
+    ],
+)
+def test_derive_energy_transfer_transitions(dirnames, request, distance, expected):
+    donor_data = request.getfixturevalue(dirnames[0]).constants
+    acceptor_data = request.getfixturevalue(dirnames[1]).constants
+    transitions = tr.derive_energy_transfer_transitions(
+        donor_data=donor_data,
+        acceptor_data=acceptor_data,
+        fluorophore_ids=[(1, 2)],
+        dipole_orientation_factor=2 / 3,
+        distance=distance,
+    )
+
+    assert len(transitions) == expected
+
+
+@pytest.mark.parametrize(
+    "irradiance, bleaching, dstorm",
+    [[0, False, False], [1, False, False], [1, True, True]],
+)
+def test_derive_transitions(irradiance, bleaching, dstorm, request):
+    fluorophore_data = request.getfixturevalue("flu_obj_cy5_1").constants
+    transitions = tr.derive_transitions(
+        fluorophore_data=fluorophore_data,
+        fluorophore_ids=[1],
+        irradiance=irradiance,
+        wavelength=640,
+        bleaching=bleaching,
+        dstorm=dstorm,
+    )
+    dstorm_checker = ["ETT", "ETS", "REDT", "REDS", "OXI1"]
+    if not dstorm:
+        for transition in transitions:
+            assert transition.abbreviation not in dstorm_checker
     else:
-        energy_transfer_transitions = tr.get_energy_transfer_transitions(*parameters)
-        assert energy_transfer_transitions == expected
+        for transition in transitions:
+            if transition.abbreviation in dstorm_checker:
+                dstorm_checker.remove(transition.abbreviation)
+        assert len(dstorm_checker) == 0
+    if not bleaching:
+        for transition in transitions:
+            assert transition.abbreviation not in ["BLE1"]
+    else:
+        assert any(transition.abbreviation == "BLE1" for transition in transitions)
+    if irradiance == 0:
+        for transition in transitions:
+            if transition.abbreviation == "EXC":
+                assert transition.rate == 0
+    else:
+        for transition in transitions:
+            if transition.abbreviation == "EXC":
+                assert transition.rate != 0
+
+
+def test_interpolate_data():
+    data = pd.DataFrame({"Wavelength": [617, 619, 620, 621], "y": [0.5, 0.6, 0.7, 0.6]})
+    interpolated = tr.interpolate_data(
+        minimum_wavelength=610, maximum_wavelength=621, data=data
+    )
+    np.testing.assert_array_equal(
+        interpolated,
+        np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.475, 0.6, 0.7, 0.6]),
+    )
+
+
+@pytest.mark.parametrize(
+    "wavelength, file_directory, expected",
+    [[510, "cy5_data", 0.0105], [650, "cy5_data", 0.9686], [640.3, "cy5_data", 0.9442]],
+)
+def test_get_relative_extinction(wavelength, file_directory, expected):
+    relative_extinction = tr.get_relative_extinction(
+        wavelength=wavelength, file_directory=file_directory
+    )
+    assert relative_extinction == expected
+
+
+# import copy
+# import warnings
+
+
+# with warnings.catch_warnings():
+#     warnings.simplefilter("error")
+#     tr.TransitionSet(transitions=old_transitions, fluorophore_system=transition_set_object.fluorophore_system)
+# with pytest.warns(UserWarning):
+#     tr.TransitionSet(transitions=new_transitions, fluorophore_system=transition_set_object.fluorophore_system)
+
+
+# @pytest.mark.filterwarnings("ignore:HOMO_FRET:UserWarning")
+# @pytest.mark.parametrize('remove_list,expected',
+#                          [[[tr.TransitionType.EXCITATION.abbreviation, tr.TransitionType.HOMO_FRET.abbreviation],
+#                            [tr.TransitionType.FLUORESCENT_EMISSION.abbreviation,
+#                             tr.TransitionType.INTERNAL_CONVERSION_S.abbreviation,
+#                             tr.TransitionType.INTERSYSTEM_CROSSING_ST.abbreviation]],
+#                           [[tr.TransitionType.HOMO_FRET.abbreviation + '(7.0)'],
+#                            [tr.TransitionType.EXCITATION.abbreviation,
+#                             tr.TransitionType.FLUORESCENT_EMISSION.abbreviation,
+#                             tr.TransitionType.INTERNAL_CONVERSION_S.abbreviation,
+#                             tr.TransitionType.INTERSYSTEM_CROSSING_ST.abbreviation,
+#                             tr.TransitionType.HOMO_FRET.abbreviation + '(9.9)']]])
+# def test_filter_by_abbreviation(transition_set_object, remove_list, expected):
+#     transition_set = transition_set_object.filter_by_abbreviation(remove_list)
+#     for transition in transition_set.transitions:
+#         assert transition.abbreviation in expected
+
+
+# @pytest.mark.parametrize('change_dict,expected',
+#                          [[{'FLU': 2}, [5, 2, 1, 9, 9]],
+#                           [{'FLU': 0}, [5, 1, 9, 9]],
+#                           [{'HFRET(9.9)': 2.2}, [5, 4, 1, 9, 2.2]]])
+# def test_adjust_rates(transition_set_object, change_dict, expected):
+#     transition_set = transition_set_object.adjust_rates(change_dict)
+#     for transition, expected_rate in zip(transition_set.transitions, expected):
+#         assert transition.rate == expected_rate

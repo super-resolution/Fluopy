@@ -337,6 +337,8 @@ def calculate_fret_rate(
     fret_rate : float
         In 1/s.
     """
+    if distance <= 0:
+        raise ValueError("distance has to be greater than 0.")
     fret_rate = (
         8.785
         * 1e-11
