@@ -1,4 +1,4 @@
-# Photoswitching
+# Overview
 Continuous time markov chains (CTMC) are used to model the emission behavior of fluorophores. \
 The number of fluorophores is limited (e.g., 4) and they are in fixed positions. 
 > [!NOTE]
@@ -31,4 +31,16 @@ Parameters needed for accurate simulation:
 
 > [!NOTE]
 > Both, the Markov chain topology and the photophysical context use the terms states and transitions. However, due to computational advantage (explicit information), the photophysical transitions represent the Markovian states.
->
+
+*Code structure*
+
+![code structure](https://github.com/super-resolution/Photoswitching/blob/main/images/code_structure.png)
+
+# Customization
+The package provides spectroscopic data for some fluorophores. If the fluorophore of interest is not among them, add data files to src\fluorophore_collection (note the file names, see derive_energy_transfer_transitions) and create a fluorophore dataclass in fluo_data.py. \
+If needed transitions are not available, the following steps have to be taken: 
+- the rate constant has to be defined in fluo_data.FluorophoreData and in the specific fluorophore dataclass
+  - if the rate depends on other factors, define a function in formulas.py and call it within transitions.py\derive_transitions()
+- the involved photophysical states have to be available in transitions.py\SingleState, if not - add them
+  - if the transition is an energy transfer, the involved initial and final state combination has to available in transitions.py\PairedState
+- the transition has to be defined in transitions.py\TransitionType
