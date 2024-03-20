@@ -3,6 +3,7 @@ import src.fluorophores as fl
 import src.transitions as tr
 import src.prediction as pr
 import src.simulation as si
+import src.emissions as em
 
 @pytest.fixture()
 def flu_obj_cy5_1():
@@ -108,6 +109,15 @@ def tr_set_1f(flu_sys_cy5):
     return tset
 
 @pytest.fixture()
+def tr_set_large(flu_sys_cy5):
+    transitions = flu_sys_cy5.load_transitions(irradiance=2, wavelength=640,
+                                                bleaching=True, energy_transfer=False,
+                                                dstorm=True)
+    tset = tr.TransitionSet(transitions=transitions, fluorophore_system=flu_sys_cy5)
+    tset.finalize()
+    return tset
+
+@pytest.fixture()
 def pred_tr_set_1f(tr_set_1f):
     pred = pr.Prediction(transition_set=tr_set_1f)
     return pred
@@ -135,6 +145,24 @@ def sim_tr_set_2f_diff(tr_set_2f_diff):
     sim.run(size=1000, seed=1)
     return sim
 
+@pytest.fixture()
+def em_tr_set_1f_bl(sim_tr_set_1f_bl):
+    emis = em.Emissions(frame_time='5ms', bandpass=None, seed=1)
+    emis.extract(simulation=sim_tr_set_1f_bl)
+    return emis
+
+@pytest.fixture()
+def em_tr_set_et_2f_diff(sim_tr_set_et_2f_diff):
+    emis = em.Emissions(frame_time='5ms', bandpass=None, seed=1)
+    emis.extract(simulation=sim_tr_set_et_2f_diff)
+    return emis
+
+@pytest.fixture()
+def em_large(tr_set_large):
+    emis = em.Emissions(frame_time='100ms', bandpass=None, seed=1)
+    emis.simulate(transition_set=tr_set_large, size=1e5, frames=100, store_time_points=False, seed=25500)
+    return emis
+
 ########################################################################################
 
 # import copy
@@ -147,55 +175,3 @@ def sim_tr_set_2f_diff(tr_set_2f_diff):
 # with pytest.warns(UserWarning):
 #     tr.TransitionSet(transitions=new_transitions, fluorophore_system=transition_set_object.fluorophore_system)
 
-
-# import pytest
-# import pandas as pd
-# from dataclasses import asdict
-# import src.fluorophores as fl
-# import src.transitions as tr
-# import src.simulation as si
-# import src.emissions as em
-# import src.fcs as fcs
-# import src.blinking as bl
-# from src.fluo_data import Cy5 as cy5
-
-
-# @pytest.fixture()
-# def simulation_object_1(transition_set_object):
-#     transition_set_object.finalize()
-#     obj = si.Simulation(transition_set_object)
-#     obj.run(start_at=None, size=1000, end_time=None, seed=3, use_memmap=None)
-#     return obj
-
-
-# @pytest.fixture()
-# def simulation_object_2(transition_set_object):
-#     transition_set_object.finalize()
-#     obj = si.Simulation(transition_set_object)
-#     obj.run(start_at=None, size=1000, end_time=25, seed=3, use_memmap=None)
-#     return obj
-
-
-# @pytest.fixture()
-# def emissions_object(request):
-#     obj = em.Emissions(*request.param)
-#     return obj
-
-
-# @pytest.fixture()
-# def emissions_object_1(simulation_object_1):
-#     obj = em.Emissions()
-#     obj.extract(simulation_object_1)
-#     return obj
-
-
-# @pytest.fixture()
-# def fcs_object(emissions_object_1):
-#     obj = fcs.FCS(emissions_object_1)
-#     return obj
-
-
-# @pytest.fixture()
-# def blinking_object(emissions_object_1):
-#     obj = bl.Blinking(emissions_object_1)
-#     return obj

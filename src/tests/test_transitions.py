@@ -241,16 +241,16 @@ def test_transition_set(request):
     assert transition_set.row_sums is None
 
 
-def test_transition_set_filter_by_identity(tr_set_bl_et):
+def test_transition_set_filter_by_identity(tr_set_bl_et_3f):
     assert (
-        tr_set_bl_et.transition_df.index.get_level_values(1).tolist()
+        tr_set_bl_et_3f.transition_df.index.get_level_values(1).tolist()
         == (np.arange(0, 28, 1, dtype=int)).tolist()
     )
     assert (
         "D: cy5, A: atto643, dist: 2.0"
-        in tr_set_bl_et.transition_df.index.get_level_values(0).tolist()
+        in tr_set_bl_et_3f.transition_df.index.get_level_values(0).tolist()
     )
-    tr_set_bl_et_filtered = tr_set_bl_et.filter_by_identity(remove_list=[4, 12])
+    tr_set_bl_et_filtered = tr_set_bl_et_3f.filter_by_identity(remove_list=[4, 12])
     assert (
         tr_set_bl_et_filtered.transition_df.index.get_level_values(1).tolist()
         == (np.arange(0, 26, 1, dtype=int)).tolist()
@@ -261,8 +261,8 @@ def test_transition_set_filter_by_identity(tr_set_bl_et):
     )
 
 
-def test_transition_set_adjust_rates(tr_set_bl_et):
-    assert tr_set_bl_et.transition_df["rate"].tolist()[:13] == [
+def test_transition_set_adjust_rates(tr_set_bl_et_3f):
+    assert tr_set_bl_et_3f.transition_df["rate"].tolist()[:13] == [
         5815700.439305622,
         270000000.0,
         830000.0,
@@ -277,7 +277,7 @@ def test_transition_set_adjust_rates(tr_set_bl_et):
         140152804282410.12,
         2065118533634.439,
     ]
-    tr_set_bl_et_adjusted = tr_set_bl_et.adjust_rates(change_dict={4: 1, 12: 3.2})
+    tr_set_bl_et_adjusted = tr_set_bl_et_3f.adjust_rates(change_dict={4: 1, 12: 3.2})
     assert tr_set_bl_et_adjusted.transition_df["rate"].tolist()[:13] == [
         5815700.439305622,
         270000000.0,
@@ -295,18 +295,18 @@ def test_transition_set_adjust_rates(tr_set_bl_et):
     ]
 
 
-def test_transition_set_remove_absorbing_states(tr_set_bl_et):
-    assert tr_set_bl_et.transition_df["absorbing"].any()
-    tr_set_et = tr_set_bl_et.remove_absorbing_states()
+def test_transition_set_remove_absorbing_states(tr_set_bl_et_3f):
+    assert tr_set_bl_et_3f.transition_df["absorbing"].any()
+    tr_set_et = tr_set_bl_et_3f.remove_absorbing_states()
     assert not tr_set_et.transition_df["absorbing"].any()
 
 
-def test_transition_set_remove_energy_transfers(tr_set_bl_et):
+def test_transition_set_remove_energy_transfers(tr_set_bl_et_3f):
     assert any(
         "dist" in s
-        for s in tr_set_bl_et.transition_df.index.get_level_values(0).tolist()
+        for s in tr_set_bl_et_3f.transition_df.index.get_level_values(0).tolist()
     )
-    tr_set_bl = tr_set_bl_et.remove_energy_transfers()
+    tr_set_bl = tr_set_bl_et_3f.remove_energy_transfers()
     assert not any(
         "dist" in s for s in tr_set_bl.transition_df.index.get_level_values(0).tolist()
     )
@@ -498,8 +498,8 @@ def test_construct_transition_matrix():
     np.testing.assert_allclose(row_sums, expected_row_sums, rtol=1e-5)
 
 
-def test_transition_set_finalize(tr_set_bl_et):
-    assert tr_set_bl_et.combined_state_transitions_df.columns.tolist() == [
+def test_transition_set_finalize(tr_set_bl_et_3f):
+    assert tr_set_bl_et_3f.combined_state_transitions_df.columns.tolist() == [
         "initial_state",
         "final_state",
         "abbreviation",
@@ -507,9 +507,9 @@ def test_transition_set_finalize(tr_set_bl_et):
         "rate",
         "photon",
     ]
-    assert tr_set_bl_et.combined_state_transitions_df.shape == (534, 6)
-    assert tr_set_bl_et.transition_matrix.shape == (534, 534)
-    assert tr_set_bl_et.row_sums.shape == (534,)
+    assert tr_set_bl_et_3f.combined_state_transitions_df.shape == (534, 6)
+    assert tr_set_bl_et_3f.transition_matrix.shape == (534, 534)
+    assert tr_set_bl_et_3f.row_sums.shape == (534,)
 
 
 @pytest.mark.parametrize(

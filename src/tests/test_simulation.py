@@ -210,7 +210,7 @@ def test_simulation_run(
     tr_set_1f,
 ):
     if use_memmap is not None:
-        memmap_path = os.path.join(os.path.dirname(__file__), "temp_memmaps")
+        memmap_path = os.path.join(os.path.dirname(__file__), "temp_data")
     else:
         memmap_path = None
 

@@ -1,146 +1,425 @@
+import os
+from pathlib import Path
 import pytest
-import numpy as np
 import pandas as pd
+import numpy as np
 import src.emissions as em
-import src.simulation as si
+import src.fluorophores as fl
 
 
-@pytest.mark.parametrize('emissions_object,dirname,expected',
-                         [[[], 'simulation_object_1', 'array_1'],
-                          [[], 'simulation_object_2', 'array_2']],
-                          indirect=['emissions_object'])
-def test_get_emissions(emissions_object, dirname, expected, request):
-    simulation_object = request.getfixturevalue(dirname)
-    emission_indices = emissions_object.get_emission_indices(simulation_object)
-    if expected == 'array_1':
-        expe = np.array([4, 15, 23, 25, 32, 33, 40, 44, 49, 57, 64, 66, 68, 73, 77, 78, 83, 90, 99, 104, 107, 110, 128,
-                         131, 141, 150, 155, 162, 167, 172, 175, 176, 179, 186, 190, 196, 201, 202, 206, 211, 215, 223,
-                         224, 229, 233, 240, 244, 246, 247, 254, 256, 262, 265, 269, 272, 292, 293, 304, 305, 309, 311,
-                         317, 326, 330, 339, 347, 349, 354, 360, 361, 368, 369, 371, 374, 378, 388, 393, 397, 398, 402,
-                         411, 414, 424, 427, 431, 432, 435, 443, 448, 453, 457, 461, 468, 470, 473, 474, 485, 489, 493,
-                         503, 508, 516, 522, 529, 530, 541, 548, 556, 562, 576, 579, 583, 590, 600, 602, 605, 609, 612,
-                         635, 640, 641, 642, 646, 651, 657, 661, 665, 666, 677, 681, 684, 692, 700, 702, 704, 705, 717,
-                         721, 722, 725, 730, 731, 732, 738, 740, 754, 756, 782, 783, 785, 793, 799, 807, 815, 823, 830,
-                         831, 833, 836, 837, 838, 844, 853, 855, 861, 865, 878, 884, 890, 892, 893, 894, 907, 908, 916,
-                         918, 927, 934, 939, 948, 957, 966, 971, 973, 977, 983, 987, 990])
+@pytest.mark.parametrize(
+    "bandpass, expected",
+    [
+        [(650, 700), 0.685702066268812],
+        [(100, 750), "ValueError1"],
+        [(200, 1001), "ValueError2"],
+        [(450, 400), "ValueError3"],
+        [(200, 1000), 1.0],
+    ],
+)
+def test_get_p_filter(bandpass, expected):
+    data_dir = os.path.join(Path(__file__).parent.parent, "fluorophore_collection")
+    fluorophore = fl.Fluorophore(name="cy5", position=[0, 0])
+    if expected == "ValueError1":
+        with pytest.raises(
+            ValueError,
+            match="The lower bandpass limit has to be between 200 and 1000 nm.",
+        ):
+            em.get_p_filter(
+                data_dir=data_dir, fluorophore=fluorophore, bandpass=bandpass
+            )
+    elif expected == "ValueError2":
+        with pytest.raises(
+            ValueError,
+            match="The upper bandpass limit has to be between 200 and 1000 nm.",
+        ):
+            em.get_p_filter(
+                data_dir=data_dir, fluorophore=fluorophore, bandpass=bandpass
+            )
+    elif expected == "ValueError3":
+        with pytest.raises(
+            ValueError,
+            match="The lower bandpass limit has to be smaller than the upper limit.",
+        ):
+            em.get_p_filter(
+                data_dir=data_dir, fluorophore=fluorophore, bandpass=bandpass
+            )
     else:
-        expe = np.array([4, 15, 23, 25, 32, 33, 40, 44, 49, 57, 64, 66, 68, 73, 77, 78, 83, 90, 99, 104, 107, 110, 128,
-                         131, 141, 150, 155, 162, 167, 172, 175, 176, 179, 186, 190, 196, 201, 202, 206, 211, 215, 223,
-                         224, 229, 233, 240, 244, 246, 247, 254, 256, 262, 265, 269, 272, 292, 293, 304, 305, 309, 311,
-                         317, 326, 330, 339, 347, 349, 354, 360, 361, 368, 369, 371, 374, 378, 388, 393, 397, 398, 402,
-                         411, 414, 424, 427, 431, 432, 435, 443, 448, 453, 457, 461, 468, 470, 473, 474, 485, 489, 493,
-                         503, 508, 516, 522, 529, 530, 541, 548, 556, 562, 576, 579, 583, 590, 600, 602, 605, 609, 612,
-                         635, 640, 641, 642, 646, 651, 657, 661, 665, 666, 677, 681, 684, 692, 700, 702, 704, 705, 717,
-                         721, 722, 725, 730, 731, 732, 738, 740, 754, 756, 782, 783, 785, 793, 799, 807, 815, 823, 830,
-                         831, 833, 836, 837, 838, 844, 853, 855, 861, 865, 878, 884, 890, 892, 893, 894, 907, 908, 916,
-                         918, 927, 934, 939, 948, 957, 966, 971, 973, 977, 983, 987, 990, 1000, 1008, 1010, 1021, 1025,
-                         1027, 1034, 1035, 1043, 1050, 1051, 1055, 1065, 1068, 1070])
-    np.testing.assert_array_equal(emission_indices, expe)
+        p_passed = em.get_p_filter(
+            data_dir=data_dir, fluorophore=fluorophore, bandpass=bandpass
+        )
+        assert p_passed == expected
 
 
-@pytest.mark.parametrize('emissions_object,photon_collection_rate,expected',
-                         [[[], 1, 'array_1'],
-                          [[], 0.4, 'array_2'],
-                          [[], 0, 'array_3'],
-                          [[], 1.2, 'ValueError']],
-                          indirect=['emissions_object'])
-def test_get_event_indices(emissions_object, photon_collection_rate, expected):
-    emission_indices = np.array([4, 15, 23, 25, 32, 33, 40, 44, 49, 57, 64, 66, 68, 73, 77, 78, 83, 90, 99, 104, 107, 110,
-                                128, 131, 141, 150, 155, 162, 167, 172, 175, 176, 179, 186, 190, 196, 201, 202, 206, 211,
-                                215, 223, 224, 229, 233, 240, 244, 246, 247, 254, 256, 262, 265, 269, 272, 292, 293, 304,
-                                305, 309, 311, 317, 326, 330, 339, 347, 349, 354, 360, 361, 368, 369, 371, 374, 378, 388,
-                                393, 397, 398, 402, 411, 414, 424, 427, 431, 432, 435, 443, 448, 453, 457, 461, 468, 470,
-                                473, 474, 485, 489, 493, 503, 508, 516, 522, 529, 530, 541, 548, 556, 562, 576, 579, 583,
-                                590, 600, 602, 605, 609, 612, 635, 640, 641, 642, 646, 651, 657, 661, 665, 666, 677, 681,
-                                684, 692, 700, 702, 704, 705, 717, 721, 722, 725, 730, 731, 732, 738, 740, 754, 756, 782,
-                                783, 785, 793, 799, 807, 815, 823, 830, 831, 833, 836, 837, 838, 844, 853, 855, 861, 865,
-                                878, 884, 890, 892, 893, 894, 907, 908, 916, 918, 927, 934, 939, 948, 957, 966, 971, 973,
-                                977, 983, 987, 990, 1000, 1008, 1010, 1021, 1025, 1027, 1034, 1035, 1043, 1050, 1051, 1055,
-                                1065, 1068, 1070])
-    if expected == 'ValueError':
-        with pytest.raises(ValueError):
-            emissions_object.get_event_indices(emission_indices=emission_indices,
-                                                 photon_collection_rate=photon_collection_rate, seed=3)
+def test_emissions():
+    frame_time = "5ms"
+    bandpass = None
+    seed = 1
+    emis = em.Emissions(frame_time=frame_time, bandpass=bandpass, seed=seed)
+    assert emis.parameters["frame_time"] == frame_time
+    assert emis.parameters["bandpass"] == bandpass
+    assert emis.parameters["seed"] == seed
+    assert emis.event_time_points is None
+    assert emis.event_time_series is None
+
+
+# test_emissions_extract also tests for...
+# ...get_emission_indices()
+# ...construct_event_time_series()
+@pytest.mark.parametrize(
+    "dirname, frame_time, bandpass, expected",
+    [
+        ["sim_tr_set_1f_bl", "10us", (650, 680), 83],
+        ["sim_tr_set_et_2f_diff", "5ms", None, 2],
+    ],
+)
+def test_emissions_extract(dirname, request, frame_time, bandpass, expected):
+    emis = em.Emissions(frame_time=frame_time, bandpass=bandpass, seed=1)
+    simulation = request.getfixturevalue(dirname)
+    emis.extract(simulation=simulation)
+    assert emis.event_time_points.size == expected
+    if frame_time == "10us":
+        exp_event_time_series = pd.Series(
+            # fmt: off
+            np.array(
+                [
+                    11, 4, 5, 9, 9, 7, 10, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 4, 3, 5, 7,
+                ],
+                dtype=np.int64,
+            ),
+            # fmt: on
+            index=np.linspace(0, 0.00044, 45),
+        )
     else:
-        event_indices = emissions_object.get_event_indices(emission_indices=emission_indices,
-                                                             photon_collection_rate=photon_collection_rate, seed=3)
-        if expected == 'array_1':
-            expe = np.array([4, 15, 23, 25, 32, 33, 40, 44, 49, 57, 64, 66, 68, 73, 77, 78, 83, 90, 99, 104, 107, 110,
-                             128, 131, 141, 150, 155, 162, 167, 172, 175, 176, 179, 186, 190, 196, 201, 202, 206, 211,
-                             215, 223, 224, 229, 233, 240, 244, 246, 247, 254, 256, 262, 265, 269, 272, 292, 293, 304,
-                             305, 309, 311, 317, 326, 330, 339, 347, 349, 354, 360, 361, 368, 369, 371, 374, 378, 388,
-                             393, 397, 398, 402, 411, 414, 424, 427, 431, 432, 435, 443, 448, 453, 457, 461, 468, 470,
-                             473, 474, 485, 489, 493, 503, 508, 516, 522, 529, 530, 541, 548, 556, 562, 576, 579, 583,
-                             590, 600, 602, 605, 609, 612, 635, 640, 641, 642, 646, 651, 657, 661, 665, 666, 677, 681,
-                             684, 692, 700, 702, 704, 705, 717, 721, 722, 725, 730, 731, 732, 738, 740, 754, 756, 782,
-                             783, 785, 793, 799, 807, 815, 823, 830, 831, 833, 836, 837, 838, 844, 853, 855, 861, 865,
-                             878, 884, 890, 892, 893, 894, 907, 908, 916, 918, 927, 934, 939, 948, 957, 966, 971, 973,
-                             977, 983, 987, 990, 1000, 1008, 1010, 1021, 1025, 1027, 1034, 1035, 1043, 1050, 1051, 1055,
-                             1065, 1068, 1070])
-        elif expected == 'array_2':
-            expe = np.array([15, 23, 40, 64, 68, 77, 83, 110, 128, 131, 141, 155, 172, 186, 190, 223, 224, 229, 246,
-                             247, 254, 256, 265, 304, 309, 311, 317, 339, 360, 378, 402, 411, 427, 435, 457, 461, 470,
-                             473, 474, 493, 508, 529, 556, 579,583, 590, 600, 605, 641, 646, 651, 657, 661, 666, 681,
-                             700, 717, 721, 731, 732, 738, 740, 754, 756, 783, 907, 908, 916, 927, 973, 977, 983, 990,
-                             1000, 1008, 1021, 1027,1034, 1035, 1055, 1068])
-        elif expected == 'array_3':
-            expe = np.array([])
-        else:
-            expe = None
-        np.testing.assert_array_equal(event_indices, expe)
+        exp_event_time_series = pd.Series([expected], index=[0.0])
+    pd.testing.assert_series_equal(emis.event_time_series, exp_event_time_series)
 
 
-@pytest.mark.parametrize('emissions_object,dirname,resample,expected',
-                         [[[], 'simulation_object_1', '1s', 'series_1'],
-                          [[], 'simulation_object_2', '1s', 'series_2']],
-                          indirect=['emissions_object'])
-def test_construct_event_time_series(emissions_object, dirname, resample, expected, request):
-    simulation_object = request.getfixturevalue(dirname)
-    event_time_series = emissions_object.construct_event_time_series(simulation_object, event_time_points=3,
-                                                                     resample=resample)
-    if expected == 'series_1':
-        expe = pd.Series(np.array([8., 10., 7., 5., 11., 12., 6., 7., 10., 8., 12., 8., 10., 5., 12., 11., 5., 5., 6.,
-                                   9., 7., 7., 7., 0.]),
-                         np.arange(0, 24, 1, dtype=float))
+def test_emissions_simulate(tr_set_1f_bl):
+    emis = em.Emissions(frame_time="100us", bandpass=(650, 700), seed=1)
+    emis.simulate(
+        transition_set=tr_set_1f_bl,
+        start_at=None,
+        size=1e3,
+        frames=10,
+        store_time_points=True,
+        seed=1,
+    )
+    assert emis.event_time_points.size == 306
+    exp_event_time_series = pd.Series(
+        np.array([80, 0, 0, 0, 9, 80, 79, 47, 11, 0], dtype=np.int64),
+        index=np.linspace(0, 0.0009, 10),
+    )
+    pd.testing.assert_series_equal(emis.event_time_series, exp_event_time_series)
+
+
+@pytest.mark.parametrize(
+    "p, expected",
+    [[0.7, ""], [1.0, "no change"], [1.1, "ValueError"], [-0.1, "ValueError"]],
+)
+def test_emissions_add_photon_collection_objective(p, em_large, expected):
+    # fmt: off
+    exp_values_prev = np.array(
+        [
+            49135, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 49692, 7458, 0, 0, 0, 0, 0, 0, 66619, 75942,
+            35871, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ], 
+        dtype=np.int64)
+    # fmt: on
+    exp_index = np.linspace(0, 9.9, 100)
+    exp_event_time_series_prev = pd.Series(exp_values_prev, index=exp_index)
+    pd.testing.assert_series_equal(
+        em_large.event_time_series, exp_event_time_series_prev
+    )
+
+    if expected == "ValueError":
+        with pytest.raises(ValueError, match="rate has to be between 0 and 1."):
+            em_large.add_photon_collection_objective(p=p, seed=10)
+    elif expected == "no change":
+        em_large.add_photon_collection_objective(p=p, seed=10)
+        pd.testing.assert_series_equal(
+            em_large.event_time_series, exp_event_time_series_prev
+        )
     else:
-        expe = pd.Series(np.array([8., 10., 7., 5., 11., 12., 6., 7., 10., 8., 12., 8., 10., 5., 12., 11., 5., 5., 6.,
-                                   9., 7., 7., 7., 8., 7., 0.]),
-                         np.arange(0, 26, 1, dtype=float))
-    pd.testing.assert_series_equal(event_time_series, expe)
+        em_large.add_photon_collection_objective(p=p, seed=10)
+        # fmt: off
+        exp_values = np.array(
+            [
+                34176, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                34842, 5175, 0, 0, 0, 0, 0, 0, 46614, 53267, 25163, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ],
+            dtype=np.int64)
+        # fmt: on
+
+        exp_event_time_series = pd.Series(exp_values, index=exp_index)
+        pd.testing.assert_series_equal(
+            em_large.event_time_series, exp_event_time_series
+        )
 
 
-def test_save_and_load(emissions_object_1, tmpdir):
-    emissions_object_1.save(path=tmpdir, name_extension='_test_extension')
-    emissions = em.Emissions.load(path=tmpdir, name_extension='_test_extension')
-    assert type(emissions.event_time_points) is np.ndarray
-    assert type(emissions.event_time_series) is np.ndarray
+@pytest.mark.parametrize(
+    "p, expected",
+    [[0.7, ""], [1.0, "no change"], [1.1, "ValueError"], [-0.1, "ValueError"]],
+)
+def test_emissions_add_quantum_efficiency(em_large, p, expected):
+    # fmt: off
+    exp_values_prev = np.array(
+        [
+            49135, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 49692, 7458, 0, 0, 0, 0, 0, 0, 66619, 75942,
+            35871, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ], 
+        dtype=np.int64)
+    # fmt: on
+    exp_index = np.linspace(0, 9.9, 100)
+    exp_event_time_series_prev = pd.Series(exp_values_prev, index=exp_index)
+    pd.testing.assert_series_equal(
+        em_large.event_time_series, exp_event_time_series_prev
+    )
+
+    if expected == "ValueError":
+        with pytest.raises(ValueError, match="rate has to be between 0 and 1."):
+            em_large.add_quantum_efficiency(p=p, seed=1)
+    elif expected == "no change":
+        em_large.add_quantum_efficiency(p=p, seed=1)
+        pd.testing.assert_series_equal(
+            em_large.event_time_series, exp_event_time_series_prev
+        )
+    else:
+        em_large.add_quantum_efficiency(p=p, seed=1)
+        # fmt: off
+        exp_values = np.array(
+            [
+                34454, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                34953, 5221, 0, 0, 0, 0, 0, 0, 46702, 52968, 25294, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ], 
+            dtype=np.int64)
+        # fmt: on
+
+        exp_event_time_series = pd.Series(exp_values, index=exp_index)
+        pd.testing.assert_series_equal(
+            em_large.event_time_series, exp_event_time_series
+        )
 
 
-# def test_emissions(transition_set_object, simulation_object_2):
-#     emissions = em.Emissions(simulation_object_2)
-#     expected = np.array([0.1990339, 0.5294121, 0.62521917, 0.6412445, 0.73234755, 0.73523074, 0.9345945, 0.9816371,
-#                          1.0319282, 1.201033, 1.3144175, 1.3503032, 1.371066, 1.4936011, 1.5903683, 1.5903724,
-#                          1.7704792, 1.8953583, 2.103171, 2.2493472, 2.3489947, 2.3817856, 2.7003481, 2.8074734,
-#                          2.982361, 3.1222281, 3.3555894, 3.6437345, 3.835743, 3.9965298, 4.0441213, 4.0966415,
-#                          4.1217313, 4.210958, 4.3830657, 4.4382186, 4.5450387, 4.5482774, 4.62889, 4.7654834, 4.956177,
-#                          5.078353, 5.0989537, 5.223132, 5.3460665, 5.532321, 5.5647, 5.624556, 5.630419, 5.772692,
-#                          5.7785754, 5.89896, 5.957243, 6.138509, 6.1473966, 6.6302066, 6.6426177, 6.856734, 6.866321,
-#                          7.076284, 7.146226, 7.239808, 7.504011, 7.6210594, 7.8719196, 7.996285, 8.054581, 8.164689,
-#                          8.395855, 8.419188, 8.579862, 8.588768, 8.597544, 8.662468, 8.736298, 8.988261, 9.086144,
-#                          9.14201, 9.163551, 9.222637, 9.33611, 9.37958, 9.791539, 9.948418, 10.089125, 10.096957,
-#                          10.132916, 10.323146, 10.384338, 10.480198, 10.51997, 10.614946, 10.78599, 10.817246,
-#                          10.865779, 10.888885, 11.032589, 11.057343, 11.150907, 11.347375, 11.506766, 11.660899,
-#                          11.774241, 11.958723, 12.004983, 12.171074, 12.223033, 12.317399, 12.370161, 12.535323,
-#                          12.623955, 12.680775, 12.815844, 12.9677, 13.019139, 13.070574, 13.137915, 13.204941,
-#                          13.753713, 14.055465, 14.067017, 14.079325, 14.122735, 14.177426, 14.330561, 14.368519,
-#                          14.397006, 14.410642, 14.584703, 14.713447, 14.7938795, 15.090547, 15.205101, 15.24136,
-#                          15.326647, 15.355949, 15.736648, 15.821521, 15.871127, 15.930171, 15.989448, 15.9931755,
-#                          16.00736, 16.11199, 16.147167, 16.757578, 16.770649, 17.499968, 17.536383, 17.556099,
-#                          17.724596, 17.866665, 18.085098, 18.223282, 18.546934, 18.789736, 18.896921, 18.95645,
-#                          19.028318, 19.030607, 19.08658, 19.23028, 19.535389, 19.551764, 19.712553, 19.75542, 19.990475,
-#                          20.093409, 20.221102, 20.26699, 20.295298, 20.344757, 20.856314, 20.870476, 21.026688,
-#                          21.078873, 21.37736, 21.43235, 21.482338, 21.70748, 21.873978, 22.031576, 22.293661, 22.322401,
-#                          22.388075, 22.577368, 22.771355, 22.78641, 23.143393, 23.249456, 23.289452, 23.509264,
-#                          23.539438, 23.602854, 23.79815, 23.813534, 24.031725, 24.282919, 24.307673, 24.553507,
-#                          24.758564, 24.78692, 24.848213])
-#     np.testing.assert_allclose(emissions.event_time_points, expected, rtol=1e-3)
+def test_emissions_add_emccd_gain(em_large):
+    # fmt: off
+    exp_values_prev = np.array(
+        [
+            49135, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 49692, 7458, 0, 0, 0, 0, 0, 0, 66619, 75942,
+            35871, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ], 
+        dtype=np.int64)
+    # fmt: on
+    exp_index = np.linspace(0, 9.9, 100)
+    exp_event_time_series_prev = pd.Series(exp_values_prev, index=exp_index)
+    pd.testing.assert_series_equal(
+        em_large.event_time_series, exp_event_time_series_prev
+    )
+    em_large.add_emccd_gain(emccd_gain=10, seed=1)
+    # fmt: off
+    exp_values = np.array(
+        [
+            492113, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 497653, 75361, 0, 0, 0, 0, 0, 0, 664801,
+            760421, 358760, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ],
+        dtype=np.int64)
+    # fmt: on
+    exp_event_time_series = pd.Series(exp_values, index=exp_index)
+    pd.testing.assert_series_equal(em_large.event_time_series, exp_event_time_series)
+
+
+def test_emissions_add_gaussian_noise(em_large):
+    # fmt: off
+    exp_values_prev = np.array(
+        [
+            49135, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 49692, 7458, 0, 0, 0, 0, 0, 0, 66619, 75942,
+            35871, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ], 
+        dtype=np.int64)
+    # fmt: on
+    exp_index = np.linspace(0, 9.9, 100)
+    exp_event_time_series_prev = pd.Series(exp_values_prev, index=exp_index)
+    pd.testing.assert_series_equal(
+        em_large.event_time_series, exp_event_time_series_prev
+    )
+    em_large.add_gaussian_noise(mean=10, std=5, seed=1)
+    exp_values = np.array(
+        [
+            49146.72792096032,
+            14.108090717505792,
+            11.652185380916936,
+            3.484213841978195,
+            14.526779333365589,
+            12.231872861820056,
+            7.315233823198574,
+            12.905590520981765,
+            11.822861980930378,
+            11.47066248327763,
+            10.142111206578983,
+            12.733564933062235,
+            6.317729564991666,
+            9.185450260034736,
+            7.589403436600109,
+            12.994231063173139,
+            10.198610537408294,
+            8.537716245174558,
+            6.090457688215789,
+            8.714038796905646,
+            10.040710902591718,
+            8.621985473503148,
+            49708.47031907199,
+            7473.033621576529,
+            -3.555812394829843,
+            0.5549337701616359,
+            9.126139539724191,
+            7.889047942118232,
+            11.068214987493056,
+            11.086609655112818,
+            66639.58919377526,
+            75946.43989618654,
+            35879.11197496436,
+            20.21385803746165,
+            13.233514981009234,
+            13.315316861881309,
+            7.429968141562686,
+            1.7596241457217374,
+            10.837323721113705,
+            10.545070439107738,
+            3.8632397287771294,
+            6.583866691097189,
+            9.639781601363863,
+            5.2762418846961125,
+            9.508650160738913,
+            10.477415137347272,
+            10.177931185277428,
+            7.468541708428426,
+            12.968740358929114,
+            14.455834771411642,
+            11.604241522832819,
+            5.908848863048465,
+            13.658261418927204,
+            7.492799907664738,
+            14.395803091439927,
+            4.641062915612779,
+            14.572336015643906,
+            9.899682726922597,
+            3.756255548327923,
+            8.430502640165761,
+            10.270511393857719,
+            11.363956695822269,
+            5.089059375295111,
+            4.463134764174034,
+            10.997922664235404,
+            7.66625191560099,
+            11.177528058651125,
+            13.797597612391897,
+            1.756063168245257,
+            11.271940582588087,
+            16.123234837678663,
+            8.512365778147634,
+            5.94592708381215,
+            13.761219135897964,
+            11.267232581040707,
+            14.479415353887802,
+            8.273921449743602,
+            2.5909086313889436,
+            9.449946176443746,
+            7.770859234943839,
+            13.87661911023787,
+            10.96816424188577,
+            1.8457538378244944,
+            4.024184599484001,
+            14.418945182936277,
+            13.398825087089232,
+            6.798783170457556,
+            9.994756017163597,
+            12.22786776888093,
+            12.342021679236389,
+            14.381210980571751,
+            11.28242813610781,
+            9.52585830515751,
+            8.705759676060772,
+            15.278714002666256,
+            -1.2542713753926886,
+            9.306723374543314,
+            10.1650005199203,
+            2.8732551956490617,
+            11.664068065690234,
+        ]
+    )
+    exp_event_time_series = pd.Series(exp_values, index=exp_index)
+    pd.testing.assert_series_equal(em_large.event_time_series, exp_event_time_series)
+
+
+def test_emissions_add_poisson_noise(em_large):
+    # fmt: off
+    exp_values_prev = np.array(
+        [
+            49135, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 49692, 7458, 0, 0, 0, 0, 0, 0, 66619, 75942,
+            35871, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ], 
+        dtype=np.int64)
+    # fmt: on
+    exp_index = np.linspace(0, 9.9, 100)
+    exp_event_time_series_prev = pd.Series(exp_values_prev, index=exp_index)
+    pd.testing.assert_series_equal(
+        em_large.event_time_series, exp_event_time_series_prev
+    )
+    em_large.add_poisson_noise(rate=10, seed=1)
+    # fmt: off
+    exp_values = np.array(
+        [
+            49143, 13, 10, 13, 8,
+            8, 6, 7, 12, 10, 10, 11, 10, 11, 11, 14, 10, 7, 7, 14, 8, 11, 49706,
+            7465, 6, 15, 11, 12, 13, 14, 66632, 75951, 35883, 9, 8, 5, 9, 11, 14,
+            13, 10, 7, 7, 12, 9, 12, 11, 12, 9, 5, 8, 8, 12, 4, 7, 10, 8, 10, 18, 8,
+            6, 7, 11, 10, 13, 11, 9, 20, 12, 14, 13, 9, 9, 6, 11, 13, 11, 13, 10,
+            10, 12, 6, 6, 8, 3, 7, 17, 16, 5, 5, 7, 8, 12, 11, 9, 6, 7, 10, 8, 13
+        ],
+        np.int64)
+    # fmt: on
+    exp_event_time_series = pd.Series(exp_values, index=exp_index)
+    pd.testing.assert_series_equal(em_large.event_time_series, exp_event_time_series)
+
+
+def test_save_and_load(em_tr_set_1f_bl):
+    path = os.path.join(os.path.dirname(__file__), "temp_data")
+    em_tr_set_1f_bl.save(path=path, name_extension="_test_extension")
+    assert os.path.isfile(os.path.join(path, "event_time_series_test_extension.npy"))
+    assert os.path.isfile(os.path.join(path, "event_time_points_test_extension.npy"))
+    emis = em.Emissions.load(path=path, name_extension="_test_extension")
+    assert type(emis.event_time_points) is np.ndarray
+    assert type(emis.event_time_series) is np.ndarray
+    os.remove(os.path.join(path, "event_time_series_test_extension.npy"))
+    os.remove(os.path.join(path, "event_time_points_test_extension.npy"))
+    assert not os.path.isfile(
+        os.path.join(path, "event_time_series_test_extension.npy")
+    )
+    assert not os.path.isfile(
+        os.path.join(path, "event_time_points_test_extension.npy")
+    )

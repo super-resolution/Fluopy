@@ -3,8 +3,8 @@ import networkx as nx
 import src.network as net
 
 
-def test_construct_state_graphs(tr_set_bl_et):
-    graphs = net.construct_state_graphs(tr_set_bl_et.transition_df)
+def test_construct_state_graphs(tr_set_bl_et_3f):
+    graphs = net.construct_state_graphs(tr_set_bl_et_3f.transition_df)
     states = [
         ["atto643_S1", "cy5_Cis(2)", "cy5_OFF1(2)", "cy5_S0(2)", "cy5_T1(2)"],
         ["atto643_S1", "cy5_Cis(2)", "cy5_OFF1(2)", "cy5_S0(2)", "cy5_T1(2)"],
@@ -101,13 +101,13 @@ def test_construct_state_graphs(tr_set_bl_et):
         assert list(graph.edges.data()) == edges_data[i]
 
 
-def test_construct_transition_graph(tr_set_bl_et, tr_set_1f_bl):
+def test_construct_transition_graph(tr_set_bl_et_3f, tr_set_1f_bl):
     with pytest.raises(
         ValueError,
         match="construct_transition_graph only available for single fluorophore "
         "systems.",
     ):
-        net.construct_transition_graph(tr_set_bl_et.transition_df)
+        net.construct_transition_graph(tr_set_bl_et_3f.transition_df)
 
     graph = net.construct_transition_graph(tr_set_1f_bl.transition_df)
     assert isinstance(graph, nx.MultiDiGraph)

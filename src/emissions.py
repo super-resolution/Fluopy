@@ -147,7 +147,6 @@ class Emissions:
                 identity: 1 for identity in emitting_transition_ids_
             }
         start_index = df[df["final_state"] == start_at].index[0]
-        print(emitting_transition_ids)
         self.event_time_points, self.event_time_series = simulate_experiment(
             transition_matrix=transition_set.transition_matrix,
             row_sums=transition_set.row_sums,
@@ -552,7 +551,13 @@ def get_p_filter(data_dir, fluorophore, bandpass):
         The probability of a photon passing the bandpass filter.
     """
     from src.transitions import interpolate_data
-
+    if bandpass[0] < 200 or bandpass[0] > 1000:
+        raise ValueError("The lower bandpass limit has to be between 200 and 1000 nm.")
+    if bandpass[1] < 200 or bandpass[1] > 1000:
+        raise ValueError("The upper bandpass limit has to be between 200 and 1000 nm.")
+    if bandpass[0] >= bandpass[1]:
+        raise ValueError("The lower bandpass limit has to be smaller than the upper limit.")
+    
     emission_data = pd.read_csv(
         os.path.join(data_dir, fluorophore.constants.data_files, "emission.csv")
     )
