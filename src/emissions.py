@@ -147,7 +147,7 @@ class Emissions:
                 identity: 1 for identity in emitting_transition_ids_
             }
         start_index = df[df["final_state"] == start_at].index[0]
-
+        print(emitting_transition_ids)
         self.event_time_points, self.event_time_series = simulate_experiment(
             transition_matrix=transition_set.transition_matrix,
             row_sums=transition_set.row_sums,

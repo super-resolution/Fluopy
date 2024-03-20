@@ -150,7 +150,7 @@ class Simulation:
         """
         if self.transition_set is not prediction.transition_set:
             raise ValueError(
-                "prediction is based on different transition_set than " "simulation."
+                "prediction is based on different transition_set than simulation."
             )
         if self.transition_set.fluorophore_system.count != 1:
             raise ValueError(
@@ -659,7 +659,6 @@ def simulate_experiment(
     frame_time = pd.Timedelta(frame_time) / np.timedelta64(1, "s")
     time_stamps = np.arange(0, frame_time * frames, frame_time)
     photon_collector = np.zeros(time_stamps.size)
-    j = 1
     time = 0
 
     if store_time_points:
@@ -671,6 +670,7 @@ def simulate_experiment(
         photons = 0
         random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
         i = 0
+        j = 1
         while time < frame_time:
             current_state_lambda = row_sums[current_state_index]
 
@@ -688,7 +688,6 @@ def simulate_experiment(
                 * np.log(1 / random_numbers[i - (j - 1) * size, 0])
             )
             time += transition_time
-            i += 1
             if time > frame_time:  # goes to the next frame and stays in current_state
                 break
 
@@ -710,7 +709,7 @@ def simulate_experiment(
                         time_points.append(frame * frame_time + time)
 
             current_state_index = next_transition
-
+            i += 1
             if i == j * size:
                 j += 1
                 random_numbers = rng.uniform(low=0, high=1, size=(size, 3))

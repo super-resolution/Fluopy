@@ -109,12 +109,13 @@ class Analysis:
                 self.simulation.transition_set.fluorophore_system.fluorophores[i]
             )
             last_state = state_series[-1]
-            if last_state in absorbing_states[fluorophore.name]:
-                absorbing = True
-                print(
-                    f"fluorophore {i} has reached the Markovian absorbing state "
-                    f"{SingleState(last_state)}"
-                )
+            if fluorophore.name in absorbing_states:
+                if last_state in absorbing_states[fluorophore.name]:
+                    absorbing = True
+                    print(
+                        f"fluorophore {i} has reached the Markovian absorbing state "
+                        f"{SingleState(last_state)}"
+                    )
 
         return absorbing
 
@@ -344,7 +345,7 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 raise ValueError(
-                    "prediction is based on different TransitionSet than " "simulation"
+                    "prediction is based on different TransitionSet than simulation."
                 )
             draw_marker = [np.arange(df.shape[0]), prediction.frequency_transitions]
 
@@ -395,7 +396,7 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 raise ValueError(
-                    "prediction is based on different TransitionSet than " "simulation"
+                    "prediction is based on different TransitionSet than simulation."
                 )
             draw_marker = [
                 np.arange(xticks),
@@ -457,7 +458,7 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 raise ValueError(
-                    "prediction is based on different TransitionSet than " "simulation"
+                    "prediction is based on different TransitionSet than simulation."
                 )
             if prediction.energy_transfer:
                 raise ValueError(
@@ -578,7 +579,7 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 raise ValueError(
-                    "prediction is based on different TransitionSet than " "simulation"
+                    "prediction is based on different TransitionSet than simulation."
                 )
             if prediction.energy_transfer:
                 raise ValueError(
@@ -638,7 +639,7 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 raise ValueError(
-                    "prediction is based on different TransitionSet than " "simulation"
+                    "prediction is based on different TransitionSet than simulation."
                 )
             if prediction.energy_transfer:
                 raise ValueError(
@@ -696,7 +697,7 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 raise ValueError(
-                    "prediction is based on different TransitionSet than " "simulation"
+                    "prediction is based on different TransitionSet than simulation."
                 )
             if prediction.energy_transfer:
                 raise ValueError(

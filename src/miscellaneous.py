@@ -2,11 +2,11 @@
 Module miscellaneous
 """
 
+import reprlib
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from dataclasses import is_dataclass, fields
-import reprlib
 
 
 def delete_subplots(axes, keep_number=None, del_positions=None):

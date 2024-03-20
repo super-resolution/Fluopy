@@ -1,6 +1,8 @@
 import pytest
 import src.fluorophores as fl
 import src.transitions as tr
+import src.prediction as pr
+import src.simulation as si
 
 @pytest.fixture()
 def flu_obj_cy5_1():
@@ -19,6 +21,10 @@ def flu_obj_unknown():
     return fl.Fluorophore(name='aa', position=[0, 3])
 
 @pytest.fixture()
+def flu_sys_cy5(flu_obj_cy5_1):
+    return fl.FluorophoreSystem(fluorophores=[flu_obj_cy5_1])
+
+@pytest.fixture()
 def flu_sys_unk(flu_obj_unknown):
     return fl.FluorophoreSystem(fluorophores=[flu_obj_unknown])
 
@@ -31,13 +37,116 @@ def flu_sys_2xcy5_1xatto643(flu_obj_cy5_1, flu_obj_cy5_2, flu_obj_atto643):
     return fl.FluorophoreSystem(fluorophores=[flu_obj_cy5_1, flu_obj_cy5_2, flu_obj_atto643])
 
 @pytest.fixture()
-def tr_set_bl_et(flu_sys_2xcy5_1xatto643):
+def flu_sys_2xcy5(flu_obj_cy5_1, flu_obj_cy5_2):
+    return fl.FluorophoreSystem(fluorophores=[flu_obj_cy5_1, flu_obj_cy5_2])
+
+@pytest.fixture()
+def flu_sys_1xcy5_1xatto643(flu_obj_cy5_1, flu_obj_atto643):
+    return fl.FluorophoreSystem(fluorophores=[flu_obj_cy5_1, flu_obj_atto643])
+
+@pytest.fixture()
+def tr_set_bl_et_3f(flu_sys_2xcy5_1xatto643):
     transitions = flu_sys_2xcy5_1xatto643.load_transitions(irradiance=2, wavelength=640, 
                                                            bleaching=True, energy_transfer=True,
                                                            dstorm=False)
     tset = tr.TransitionSet(transitions=transitions, fluorophore_system=flu_sys_2xcy5_1xatto643)
     tset.finalize()
     return tset
+
+@pytest.fixture()
+def tr_set_bl_et_2f_diff(flu_sys_1xcy5_1xatto643):
+    transitions = flu_sys_1xcy5_1xatto643.load_transitions(irradiance=2, wavelength=640, 
+                                                           bleaching=True, energy_transfer=True,
+                                                           dstorm=False)
+    tset = tr.TransitionSet(transitions=transitions, fluorophore_system=flu_sys_1xcy5_1xatto643)
+    tset.finalize()
+    return tset
+
+@pytest.fixture()
+def tr_set_bl_et_2f_same(flu_sys_2xcy5):
+    transitions = flu_sys_2xcy5.load_transitions(irradiance=2, wavelength=640,
+                                                bleaching=True, energy_transfer=True,
+                                                dstorm=False)
+    tset = tr.TransitionSet(transitions=transitions, fluorophore_system=flu_sys_2xcy5)
+    tset.finalize()
+    return tset
+
+@pytest.fixture()
+def tr_set_et_2f_diff(flu_sys_1xcy5_1xatto643):
+    transitions = flu_sys_1xcy5_1xatto643.load_transitions(irradiance=2, wavelength=640,
+                                                bleaching=False, energy_transfer=True,
+                                                dstorm=False)
+    tset = tr.TransitionSet(transitions=transitions, fluorophore_system=flu_sys_1xcy5_1xatto643)
+    tset.finalize()
+    return tset
+
+@pytest.fixture()
+def tr_set_2f_diff(flu_sys_1xcy5_1xatto643):
+    transitions = flu_sys_1xcy5_1xatto643.load_transitions(irradiance=2, wavelength=640,
+                                                bleaching=False, energy_transfer=False,
+                                                dstorm=False)
+    tset = tr.TransitionSet(transitions=transitions, fluorophore_system=flu_sys_1xcy5_1xatto643)
+    tset.finalize()
+    return tset
+
+@pytest.fixture()
+def tr_set_1f_bl(flu_sys_cy5):
+    transitions = flu_sys_cy5.load_transitions(irradiance=2, wavelength=640,
+                                                bleaching=True, energy_transfer=False,
+                                                dstorm=False)
+    tset = tr.TransitionSet(transitions=transitions, fluorophore_system=flu_sys_cy5)
+    tset.finalize()
+    return tset
+
+@pytest.fixture()
+def tr_set_1f(flu_sys_cy5):
+    transitions = flu_sys_cy5.load_transitions(irradiance=2, wavelength=640,
+                                                bleaching=False, energy_transfer=False,
+                                                dstorm=False)
+    tset = tr.TransitionSet(transitions=transitions, fluorophore_system=flu_sys_cy5)
+    tset.finalize()
+    return tset
+
+@pytest.fixture()
+def pred_tr_set_1f(tr_set_1f):
+    pred = pr.Prediction(transition_set=tr_set_1f)
+    return pred
+
+@pytest.fixture()
+def pred_tr_set_1f_bl(tr_set_1f_bl):
+    pred = pr.Prediction(transition_set=tr_set_1f_bl)
+    return pred
+
+@pytest.fixture()
+def sim_tr_set_1f_bl(tr_set_1f_bl):
+    sim = si.Simulation(transition_set=tr_set_1f_bl)
+    sim.run(size=1000, seed=1)
+    return sim
+
+@pytest.fixture()
+def sim_tr_set_et_2f_diff(tr_set_et_2f_diff):
+    sim = si.Simulation(transition_set=tr_set_et_2f_diff)
+    sim.run(size=1000, end_time=5e-7, seed=1)
+    return sim
+
+@pytest.fixture()
+def sim_tr_set_2f_diff(tr_set_2f_diff):
+    sim = si.Simulation(transition_set=tr_set_2f_diff)
+    sim.run(size=1000, seed=1)
+    return sim
+
+########################################################################################
+
+# import copy
+# import warnings
+
+
+# with warnings.catch_warnings():
+#     warnings.simplefilter("error")
+#     tr.TransitionSet(transitions=old_transitions, fluorophore_system=transition_set_object.fluorophore_system)
+# with pytest.warns(UserWarning):
+#     tr.TransitionSet(transitions=new_transitions, fluorophore_system=transition_set_object.fluorophore_system)
+
 
 # import pytest
 # import pandas as pd
@@ -49,51 +158,6 @@ def tr_set_bl_et(flu_sys_2xcy5_1xatto643):
 # import src.fcs as fcs
 # import src.blinking as bl
 # from src.fluo_data import Cy5 as cy5
-
-
-# @pytest.fixture()
-# def transition_pd_series(request):
-#     series = pd.Series(asdict(*request.param))
-#     series = series.drop('identity')
-#     return series
-
-
-# @pytest.fixture()
-# def transition_set_object():
-#     fluorophore_1 = fl.Fluorophore(name='Cy5', position=[1, 1])
-#     fluorophore_2 = fl.Fluorophore(name='Cy5', position=[1, 8])
-#     fluorophore_3 = fl.Fluorophore(name='Cy5', position=[8, 1])
-#     fluorophore_4 = fl.Fluorophore(name='Cy5', position=[8, 8])
-#     fluorophore_system = fl.FluorophoreSystem(fluorophores=[fluorophore_1, fluorophore_2, fluorophore_3, fluorophore_4])
-
-#     excitation = tr.Transition(transition_type=tr.TransitionType.EXCITATION, rate=5)
-#     emission = tr.Transition(transition_type=tr.TransitionType.FLUORESCENT_EMISSION, rate=4)
-#     ics = tr.Transition(transition_type=tr.TransitionType.INTERNAL_CONVERSION_S, rate=1)
-#     isc = tr.Transition(transition_type=tr.TransitionType.INTERSYSTEM_CROSSING_ST, rate=0)
-#     homo_fret_1 = tr.Transition(transition_type=tr.TransitionType.HOMO_FRET, rate=9, distance=7)
-#     homo_fret_2 = tr.Transition(transition_type=tr.TransitionType.HOMO_FRET, rate=9, distance=9.899)
-
-#     transitions = [excitation, emission, ics, isc, homo_fret_1, homo_fret_2]
-
-#     return tr.TransitionSet(transitions=transitions, fluorophore_system=fluorophore_system)
-
-
-# @pytest.fixture()
-# def transition_set_object_bleach():
-#     fluorophore_1 = fl.Fluorophore(name='Cy5', position=[1, 1])
-#     fluorophore_2 = fl.Fluorophore(name='Cy5', position=[1, 8])
-#     fluorophore_system = fl.FluorophoreSystem(fluorophores=[fluorophore_1, fluorophore_2])
-
-#     excitation = tr.Transition(transition_type=tr.TransitionType.EXCITATION, rate=5)
-#     emission = tr.Transition(transition_type=tr.TransitionType.FLUORESCENT_EMISSION, rate=4)
-#     ics = tr.Transition(transition_type=tr.TransitionType.INTERNAL_CONVERSION_S, rate=1)
-#     iscst = tr.Transition(transition_type=tr.TransitionType.INTERSYSTEM_CROSSING_ST, rate=2)
-#     iscts = tr.Transition(transition_type=tr.TransitionType.INTERSYSTEM_CROSSING_TS, rate=5)
-#     bleach = tr.Transition(transition_type=tr.TransitionType.PHOTOBLEACHING_1, rate=4)
-
-#     transitions = [excitation, emission, ics, iscst, iscts, bleach]
-
-#     return tr.TransitionSet(transitions=transitions, fluorophore_system=fluorophore_system)
 
 
 # @pytest.fixture()

@@ -117,7 +117,7 @@ def check_graph_suitable(G, starting_node):
     """
     graph_suited = True
     # check for absorbing states:
-    for out_degree in G.out_degree:
+    for node, out_degree in G.out_degree:
         if out_degree == 0:
             graph_suited = False
 
@@ -134,7 +134,7 @@ def determine_node_order(G, starting_node):
     """
     Determine the order of nodes of a graph such that each node that leads to another
     node has been visited before the other node. Requires the graph to be a DAG
-    (directed acyclic graph). If the starting  node is part of each cycle, it can be
+    (directed acyclic graph). If the starting node is part of each cycle, it can be
     removed to convert the graph to DAG.
 
     Parameters
