@@ -141,11 +141,6 @@ def test_construct_transition_graph(tr_set_bl_et_3f, tr_set_1f_bl):
 
 
 def test_check_graph_suitable():
-    G = nx.MultiDiGraph([(2, 3), (3, 4), (4, 2), (2, 1)])
-    graph_suited, cycles = net.check_graph_suitable(G, starting_node=2)
-    assert not graph_suited
-    assert cycles == [[2, 3, 4]]
-
     G = nx.MultiDiGraph([(2, 3), (3, 4), (4, 2), (2, 1), (1, 2)])
     graph_suited, cycles = net.check_graph_suitable(G, starting_node=1)
     assert not graph_suited

@@ -159,16 +159,16 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0):
             # the mask is False where only 1 frame is on
             if off_periods_zero[0] == 0:
                 on_mask_init[0] = False
-            # interrupt_by_one_frame cannot store the information if the first frame is 
+            # interrupt_by_one_frame cannot store the information if the first frame is
             # on and followed by off frames
 
             cumsum = np.cumsum(off_periods_zero)
-            # cumulative sum of off_periods_zero; if 0 (off period) the value stays the 
+            # cumulative sum of off_periods_zero; if 0 (off period) the value stays the
             # same
             uniques, counts = np.unique(cumsum, return_counts=True)
             duplices = uniques[np.where(counts > 1)]
             duplices[1:] -= duplices[:-1]
-            # get the values of cumsum which appear several times indicating an off 
+            # get the values of cumsum which appear several times indicating an off
             # period the last step is to back calculate the cumulative sum
 
             on_periods = np.ones(off_periods_indices.shape, dtype=int)
@@ -176,8 +176,8 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0):
             if duplices.size != 0:
                 if duplices[0] == 0:
                     duplices = duplices[1:]
-            # if, in the beginning, more than one off period are consecutively 
-            # interrupted by only one frame, the cumsum will give several 0 (meaning 
+            # if, in the beginning, more than one off period are consecutively
+            # interrupted by only one frame, the cumsum will give several 0 (meaning
             # that 0 will be one of duplices) even though these on periods should stay 1
             on_periods[on_mask_init] = duplices + 1
             # change the values which are not 1 to their true values
@@ -186,7 +186,7 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0):
             # the index of the last off period
             if not remove_last_on_period:
                 last_on_period = np.sum(off_periods_zero[max_index_off + 1 :]) + 1
-                # the last on period is the sum of differences starting after the last 
+                # the last on period is the sum of differences starting after the last
                 # off period
                 on_periods = np.append(on_periods, last_on_period)
                 # add the last on period
@@ -215,12 +215,13 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0):
     return on_periods, off_periods, on_periods_frames, off_periods_frames
 
 
-def get_off_statistics(simulation, index, event_indices=None):
+def get_off_statistics(simulation, index):
     """
     Determines ON and OFF intervals of a single fluorophore, where the OFF interval is
     defined as the fluorophore's time spend in off state, whilst the ON interval is the
-    times in between. This differs from blinking, since it may not consider whether a
-    photon is detected during the ON time and it only considers one fluorophore.
+    times in between. This differs from blinking, since it does not consider whether a
+    photon is detected during the ON time (hence, all OFF are of photophysical nature) 
+    and it only considers one fluorophore.
 
     Parameters
     ----------
@@ -228,16 +229,13 @@ def get_off_statistics(simulation, index, event_indices=None):
         Container of simulation-associated attributes and methods.
     index : int
         Determines the fluorophore to be looked at.
-    event_indices : None, 1-D array_like
-        If not None, take into consideration if the ON interval actually yields a
-        detected photon.
 
     Returns
     -------
     on_off_times : 1-D array_like
         Contains time points at which ON and OFF intervals start and end.
     on_off_values : 1-D array_like
-        Values that correspond to all_times. 0 if time is associated with OFF, 1
+        Values that correspond to on_off_times. 0 if time is associated with OFF, 1
         otherwise.
     """
     if index + 1 > simulation.state_series.shape[0]:
@@ -269,25 +267,10 @@ def get_off_statistics(simulation, index, event_indices=None):
     if on_off_values.size != on_off_times.size:
         on_off_values = np.append(on_off_values, 0)
 
-    if event_indices is not None:
-        differences = np.diff(simulation.state_series[index])
-        changes_at = np.where(differences != 0)[0]
-        events_from_this_fluorophore = event_indices[
-            np.in1d(event_indices, changes_at).nonzero()[0]
-        ]
-        event_time_points = simulation.time_series[events_from_this_fluorophore + 1]
-        event_time_points = event_time_points[event_time_points < on_off_times[-1]]
-        insertion_indices = np.searchsorted(on_off_times, event_time_points)
-        uniques = np.unique(insertion_indices)
-        add_starting_index = np.concatenate((uniques, uniques - 1))
-        mask = np.ones(on_off_values.size, bool)
-        mask[add_starting_index] = False
-        on_off_values[mask] = 0
-
     return on_off_times, on_off_values
 
 
-def get_analytical_off_statistics(off_frames, off_periods):
+def get_analytical_off_statistics(off_frames, off_periods, frame_time):
     """
     Intended to be used for visualizing analytical ON and OFF periods in time.
 
@@ -297,11 +280,14 @@ def get_analytical_off_statistics(off_frames, off_periods):
         Contains the first frame of each OFF period.
     off_periods : np.ndarray
         Contains the durations of each OFF period (in frames).
+    frame_time : str
+        For possible input values, see
+        https://pandas.pydata.org/docs/user_guide/timeseries.html -> Offset aliases.
 
     Returns
     -------
-    on_off_frames : 1-D array_like
-        Starting and ending frames of each ON and OFF period.
+    on_off_times : 1-D array_like
+        Contains time points at which ON and OFF intervals start and end.
     on_off_values : 1-D array_like
         Corresponding values of on_off_frames. 1 if ON, 0 if OFF.
     """
@@ -314,7 +300,11 @@ def get_analytical_off_statistics(off_frames, off_periods):
     if on_off_values.size != on_off_frames.size:
         on_off_values = np.append(on_off_values, 0)
 
-    return on_off_frames, on_off_values
+    on_off_times = on_off_frames * (
+        pd.to_timedelta(frame_time) / np.timedelta64(1, "s")
+    )
+
+    return on_off_times, on_off_values
 
 
 def plot_off_statistics(on_off_times, on_off_values, **kwargs):

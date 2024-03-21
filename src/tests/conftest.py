@@ -146,6 +146,12 @@ def sim_tr_set_2f_diff(tr_set_2f_diff):
     return sim
 
 @pytest.fixture()
+def sim_dstorm(tr_set_large):
+    sim = si.Simulation(transition_set=tr_set_large)
+    sim.run(size=1e6, seed=1)
+    return sim
+
+@pytest.fixture()
 def em_tr_set_1f_bl(sim_tr_set_1f_bl):
     emis = em.Emissions(frame_time='5ms', bandpass=None, seed=1)
     emis.extract(simulation=sim_tr_set_1f_bl)
@@ -161,6 +167,12 @@ def em_tr_set_et_2f_diff(sim_tr_set_et_2f_diff):
 def em_large(tr_set_large):
     emis = em.Emissions(frame_time='100ms', bandpass=None, seed=1)
     emis.simulate(transition_set=tr_set_large, size=1e5, frames=100, store_time_points=False, seed=25500)
+    return emis
+
+@pytest.fixture()
+def em_very_large(tr_set_large):
+    emis = em.Emissions(frame_time='1ms', bandpass=None, seed=1)
+    emis.simulate(transition_set=tr_set_large, size=1e5, frames=10000, store_time_points=True, seed=25500)
     return emis
 
 ########################################################################################

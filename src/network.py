@@ -98,8 +98,7 @@ def construct_transition_graph(transition_df):
 def check_graph_suitable(G, starting_node):
     """
     Checks whether a Markov chain is suitable for an approximation of its development
-    in time. This involves irreducability and being acyclic (excepts cycles that
-    include the starting node).
+    in time. This means being acyclic (except cycles that include the starting node).
 
     Parameters
     ----------
@@ -115,13 +114,8 @@ def check_graph_suitable(G, starting_node):
     cycles : list
         Contains each simple cycle of G.
     """
-    graph_suited = True
-    # check for absorbing states:
-    for node, out_degree in G.out_degree:
-        if out_degree == 0:
-            graph_suited = False
-
     # check for reversible reactions and loops that do not contain the starting node:
+    graph_suited = True
     cycles = list(nx.simple_cycles(G))
     for cycle in cycles:
         if starting_node not in cycle:

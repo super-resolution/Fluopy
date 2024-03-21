@@ -62,7 +62,7 @@ class Emissions:
         if simulation.transition_series is None:
             raise ValueError("emissions not available if simulation has not been run.")
         emission_indices = self.get_emission_indices(
-            simulation,
+            simulation=simulation,
             bandpass=self.parameters["bandpass"],
             seed=self.parameters["seed"],
         )
@@ -359,6 +359,7 @@ class Emissions:
         size = self.event_time_series.size
         variates = norm(mean, std).rvs(size, random_state=rng)
         self.event_time_series = self.event_time_series + variates
+        self.event_time_series = self.event_time_series.astype(int)
 
     def add_poisson_noise(self, rate, seed=None):
         """
@@ -380,6 +381,17 @@ class Emissions:
         size = self.event_time_series.size
         variates = poisson(rate).rvs(size, random_state=rng)
         self.event_time_series = self.event_time_series + variates
+    
+    def apply_threshold(self, threshold):
+        """
+        Apply a threshold to the events. All events below the threshold are set to 0.
+
+        Parameters
+        ----------
+        threshold : int
+            The minimum value of events to be considered.
+        """
+        self.event_time_series[self.event_time_series < threshold] = 0
 
     def plot_cumulative_events(self, **kwargs):
         """
