@@ -103,7 +103,7 @@ class FCS:
         """
         if self.emissions.event_time_series is None:
             raise ValueError("event_time_series is None.")
-        event_time_series = self.emissions.event_time_series
+        event_time_series = self.emissions.event_time_series.astype(float)
         deltat = event_time_series.index[1]
         if normalize and log:
             autocorrelation = mp.autocorrelate(

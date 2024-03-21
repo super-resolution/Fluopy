@@ -358,8 +358,8 @@ class Emissions:
         rng = np.random.default_rng(seed)
         size = self.event_time_series.size
         variates = norm(mean, std).rvs(size, random_state=rng)
+        variates = variates.astype(int)
         self.event_time_series = self.event_time_series + variates
-        self.event_time_series = self.event_time_series.astype(int)
 
     def add_poisson_noise(self, rate, seed=None):
         """

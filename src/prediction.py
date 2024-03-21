@@ -6,8 +6,8 @@ import re
 import warnings
 import numpy as np
 from scipy.stats import expon
+import matplotlib as mpl
 from matplotlib.pyplot import cm
-import matplotlib.patches as mpatches
 import src.figure as fi
 
 
@@ -364,7 +364,12 @@ class Prediction:
         kwargs.setdefault("edgecolor", "black")
         kwargs.setdefault("xticks", range(df.shape[0]))
         kwargs.setdefault("xticklabels", dict(labels=df["abbreviation"], rotation=70))
-        colormap = cm.get_cmap("Spectral", df.index.get_level_values(0).nunique())
+        colormap = mpl.colors.ListedColormap(
+            [
+                mpl.colormaps["Spectral"](value)
+                for value in np.linspace(0, 1, df.index.get_level_values(0).nunique())
+            ]
+        )
         kwargs.setdefault(
             "color",
             [
@@ -379,7 +384,7 @@ class Prediction:
         kwargs.setdefault(
             "legendhandles",
             [
-                mpatches.Patch(color=colormap(i), label=name)
+                mpl.patches.Patch(color=colormap(i), label=name)
                 for i, name in enumerate(df.index.get_level_values(0).unique())
             ],
         )
@@ -399,11 +404,16 @@ class Prediction:
         from src.transitions import SingleState
 
         single_states = self.transition_set.single_states
-        colormap = cm.get_cmap("Spectral", len(single_states))
+        colormap = mpl.colors.ListedColormap(
+            [
+                mpl.colormaps["Spectral"](value)
+                for value in np.linspace(0, 1, len(single_states))
+            ]
+        )
         colors, patches, xticks, data_merged, labels = [], [], 0, [], []
         for i, (fluorophore, states) in enumerate(single_states.items()):
             colors.extend([colormap(i) for _ in range(states.size)])
-            patches.append(mpatches.Patch(color=colormap(i), label=fluorophore))
+            patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
             xticks += states.size
             data_merged.append(self.frequency_states[fluorophore])
             labels.extend([SingleState(identity).name for identity in states])
@@ -445,7 +455,12 @@ class Prediction:
         kwargs.setdefault("edgecolor", "black")
         kwargs.setdefault("xticks", range(df.shape[0]))
         kwargs.setdefault("xticklabels", dict(labels=df["abbreviation"], rotation=70))
-        colormap = cm.get_cmap("Spectral", df.index.get_level_values(0).nunique())
+        colormap = mpl.colors.ListedColormap(
+            [
+                mpl.colormaps["Spectral"](value)
+                for value in np.linspace(0, 1, df.index.get_level_values(0).nunique())
+            ]
+        )
         kwargs.setdefault(
             "color",
             [
@@ -460,7 +475,7 @@ class Prediction:
         kwargs.setdefault(
             "legendhandles",
             [
-                mpatches.Patch(color=colormap(i), label=name)
+                mpl.patches.Patch(color=colormap(i), label=name)
                 for i, name in enumerate(df.index.get_level_values(0).unique())
             ],
         )
@@ -484,11 +499,16 @@ class Prediction:
         from src.transitions import SingleState
 
         single_states = self.transition_set.single_states
-        colormap = cm.get_cmap("Spectral", len(single_states))
+        colormap = mpl.colors.ListedColormap(
+            [
+                mpl.colormaps["Spectral"](value)
+                for value in np.linspace(0, 1, len(single_states))
+            ]
+        )
         colors, patches, xticks, data_merged, labels = [], [], 0, [], []
         for i, (fluorophore, states) in enumerate(single_states.items()):
             colors.extend([colormap(i) for _ in range(states.size)])
-            patches.append(mpatches.Patch(color=colormap(i), label=fluorophore))
+            patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
             xticks += states.size
             data_merged.append(self.mean_lifetimes[fluorophore])
             labels.extend([SingleState(identity).name for identity in states])
@@ -526,11 +546,16 @@ class Prediction:
         from src.transitions import SingleState
 
         single_states = self.transition_set.single_states
-        colormap = cm.get_cmap("Spectral", len(single_states))
+        colormap = mpl.colors.ListedColormap(
+            [
+                mpl.colormaps["Spectral"](value)
+                for value in np.linspace(0, 1, len(single_states))
+            ]
+        )
         colors, patches, xticks, data_merged, labels = [], [], 0, [], []
         for i, (fluorophore, states) in enumerate(single_states.items()):
             colors.extend([colormap(i) for _ in range(states.size)])
-            patches.append(mpatches.Patch(color=colormap(i), label=fluorophore))
+            patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
             xticks += states.size
             data_merged.append(self.state_occupations[fluorophore])
             labels.extend([SingleState(identity).name for identity in states])

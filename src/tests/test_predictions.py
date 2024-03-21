@@ -71,6 +71,8 @@ def test_prediction_2(tr_set_bl_et_2f_diff):
 
 
 # test with 2 different fluorophores, energy transfer, bleaching
+@pytest.mark.filterwarnings("ignore:Absorbing:UserWarning")
+@pytest.mark.filterwarnings("ignore:prediction:UserWarning")
 def test_prediction_3(tr_set_bl_et_2f_diff):
     prediction = pr.Prediction(transition_set=tr_set_bl_et_2f_diff)
     assert prediction.energy_transfer
@@ -127,6 +129,8 @@ def test_prediction_3(tr_set_bl_et_2f_diff):
 
 
 # test with 2 same fluorophores, energy transfer, bleaching
+@pytest.mark.filterwarnings("ignore:Absorbing:UserWarning")
+@pytest.mark.filterwarnings("ignore:prediction:UserWarning")
 def test_prediction_4(tr_set_bl_et_2f_same):
     prediction = pr.Prediction(transition_set=tr_set_bl_et_2f_same)
     assert prediction.energy_transfer
@@ -172,6 +176,7 @@ def test_prediction_4(tr_set_bl_et_2f_same):
 
 
 # test with 2 different fluorophores, energy transfer, no bleaching
+@pytest.mark.filterwarnings("ignore:prediction:UserWarning")
 def test_prediction_5(tr_set_et_2f_diff):
     prediction = pr.Prediction(transition_set=tr_set_et_2f_diff)
     assert prediction.energy_transfer
@@ -291,6 +296,7 @@ def test_prediction_6(tr_set_2f_diff):
 
 
 # test with 1 fluorophore, with bleaching
+@pytest.mark.filterwarnings("ignore:Absorbing:UserWarning")
 def test_prediction_7(tr_set_1f_bl):
     prediction = pr.Prediction(transition_set=tr_set_1f_bl)
     assert not prediction.energy_transfer

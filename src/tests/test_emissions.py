@@ -368,7 +368,7 @@ def test_emissions_add_gaussian_noise(em_large):
             2.8732551956490617,
             11.664068065690234,
         ],
-        dtype=np.int32
+        dtype=np.int64
     )
     exp_event_time_series = pd.Series(exp_values, index=exp_index)
     pd.testing.assert_series_equal(em_large.event_time_series, exp_event_time_series)
