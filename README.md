@@ -8,7 +8,7 @@ The package offers:
 - very detailed simulation (information about all transitions and states)
 - different simulation options depending on concerns
   - detailed: ✔️ information ❌ time and memory
-  - frames: ✔️ fast ❌ only emission data
+  - frames: ✔️ low memory ❌ time, only emission data
   - approx: ✔️ information, time ❌ statistically incorrect
   - parallel: ✔️ via Ray ✔️ via GPU
 - virtually all transitions possible
