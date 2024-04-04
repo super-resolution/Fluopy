@@ -141,11 +141,10 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0):
             off_periods = np.array([], dtype=int)
             if not remove_last_on_period:
                 on_periods = np.array([frames[-1] - frames[0] + 1])
-                on_periods_frames = np.array(frames[0])
+                on_periods_frames = np.array([frames[0]])
             else:
                 on_periods = np.array([])
                 on_periods_frames = np.array([])
-
         else:
             off_periods_zero = np.where(differences > 1 + memory, 0, differences)
             # if off period, convert to 0
@@ -206,6 +205,7 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0):
                 on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
                 on_periods_frames = np.insert(on_periods_frames, 0, 0)
             on_periods_frames = on_periods_frames[: on_periods.size]
+
     else:
         on_periods = np.array([])
         off_periods = np.array([])
@@ -270,7 +270,7 @@ def get_off_statistics(simulation, index):
     return on_off_times, on_off_values
 
 
-def get_analytical_off_statistics(off_frames, off_periods, frame_time):
+def get_analytical_off_statistics(off_frames, off_periods, on_frames, frame_time):
     """
     Intended to be used for visualizing analytical ON and OFF periods in time.
 
@@ -280,6 +280,8 @@ def get_analytical_off_statistics(off_frames, off_periods, frame_time):
         Contains the first frame of each OFF period.
     off_periods : np.ndarray
         Contains the durations of each OFF period (in frames).
+    on_frames : np.ndarray
+        Contains the first frame of each ON period.
     frame_time : str
         For possible input values, see
         https://pandas.pydata.org/docs/user_guide/timeseries.html -> Offset aliases.
@@ -291,6 +293,10 @@ def get_analytical_off_statistics(off_frames, off_periods, frame_time):
     on_off_values : 1-D array_like
         Corresponding values of on_off_frames. 1 if ON, 0 if OFF.
     """
+    if on_frames.size != 0:
+        if on_frames[0] != 0:
+            off_frames = np.insert(off_frames, 0, 0)
+            off_periods = np.insert(off_periods, 0, on_frames[0])
     off_frames_start_end = np.ravel([off_frames, off_frames + off_periods], order="F")
     on_off_frames = np.vstack((off_frames_start_end, off_frames_start_end)).ravel("F")
     on_off_frames = np.insert(on_off_frames, 0, 0)

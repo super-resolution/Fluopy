@@ -137,9 +137,11 @@ def test_get_off_statistics(sim_dstorm):
 def test_get_analytical_off_statistics():
     off_frames = np.array([2, 5, 10])
     off_periods = np.array([1, 2, 10])
+    on_frames = np.array([0, 4, 7])
     frame_time = "5ms"
     on_off_times, on_off_values = bl.get_analytical_off_statistics(
-        off_frames=off_frames, off_periods=off_periods, frame_time=frame_time
+        off_frames=off_frames, off_periods=off_periods, on_frames=on_frames, 
+        frame_time=frame_time
     )
     exp_on_off_times = np.array(
         [
