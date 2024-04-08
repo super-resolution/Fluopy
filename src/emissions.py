@@ -381,7 +381,7 @@ class Emissions:
         size = self.event_time_series.size
         variates = poisson(rate).rvs(size, random_state=rng)
         self.event_time_series = self.event_time_series + variates
-    
+
     def apply_threshold(self, threshold):
         """
         Apply a threshold to the events. All events below the threshold are set to 0.
@@ -563,13 +563,16 @@ def get_p_filter(data_dir, fluorophore, bandpass):
         The probability of a photon passing the bandpass filter.
     """
     from src.transitions import interpolate_data
+
     if bandpass[0] < 200 or bandpass[0] > 1000:
         raise ValueError("The lower bandpass limit has to be between 200 and 1000 nm.")
     if bandpass[1] < 200 or bandpass[1] > 1000:
         raise ValueError("The upper bandpass limit has to be between 200 and 1000 nm.")
     if bandpass[0] >= bandpass[1]:
-        raise ValueError("The lower bandpass limit has to be smaller than the upper limit.")
-    
+        raise ValueError(
+            "The lower bandpass limit has to be smaller than the upper limit."
+        )
+
     emission_data = pd.read_csv(
         os.path.join(data_dir, fluorophore.constants.data_files, "emission.csv")
     )

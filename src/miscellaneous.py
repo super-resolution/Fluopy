@@ -163,7 +163,7 @@ def print_class(class_instance, class_name):
     aRepr.maxstring = 30
     aRepr.maxlong = 40
     aRepr.maxother = 100
-    
+
     print(f"Attributes of {class_name}:")
     print("." * 65)
 

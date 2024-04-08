@@ -115,9 +115,7 @@ def test_get_blinking_statistics(
 
 
 def test_get_off_statistics(sim_dstorm):
-    on_off_times, on_off_values = bl.get_off_statistics(
-        simulation=sim_dstorm, index=0
-    )
+    on_off_times, on_off_values = bl.get_off_statistics(simulation=sim_dstorm, index=0)
     exp_on_off_values = np.array([1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0])
     exp_on_off_times = np.array(
         [
@@ -140,8 +138,10 @@ def test_get_analytical_off_statistics():
     on_frames = np.array([0, 4, 7])
     frame_time = "5ms"
     on_off_times, on_off_values = bl.get_analytical_off_statistics(
-        off_frames=off_frames, off_periods=off_periods, on_frames=on_frames, 
-        frame_time=frame_time
+        off_frames=off_frames,
+        off_periods=off_periods,
+        on_frames=on_frames,
+        frame_time=frame_time,
     )
     exp_on_off_times = np.array(
         [

@@ -246,13 +246,17 @@ class Transition:
         for fluorophore_id in self.fluorophore_ids:
             if isinstance(self.initial_state, PairedState):
                 if not isinstance(fluorophore_id, tuple) or len(fluorophore_id) != 2:
-                    raise ValueError(f'{self.abbreviation} is energy transfer, '
-                                        'fluorophore_ids have to be tuples of fluorophore '
-                                        'pairs.')
+                    raise ValueError(
+                        f"{self.abbreviation} is energy transfer, "
+                        "fluorophore_ids have to be tuples of fluorophore "
+                        "pairs."
+                    )
             else:
                 if not isinstance(fluorophore_id, int):
-                    raise ValueError(f'{self.abbreviation} is not an energy transfer, '
-                                     'fluorophore_ids has to be a list of ints.')
+                    raise ValueError(
+                        f"{self.abbreviation} is not an energy transfer, "
+                        "fluorophore_ids has to be a list of ints."
+                    )
 
 
 class TransitionSet:
@@ -348,13 +352,14 @@ class TransitionSet:
                     i += 1
                     keep_transitions.append(transition)
                     df_constructor.append(asdict(transition))
-            transitions[fluorophore_comb] = keep_transitions
-            transition_df = pd.DataFrame(df_constructor)
-            transition_df = transition_df.set_index("identity")
-            transition_df = pd.concat(
-                {fluorophore_comb: transition_df}, names=["Fluorophore"]
-            )
-            self.transition_df = pd.concat([self.transition_df, transition_df])
+            if keep_transitions:
+                transitions[fluorophore_comb] = keep_transitions
+                transition_df = pd.DataFrame(df_constructor)
+                transition_df = transition_df.set_index("identity")
+                transition_df = pd.concat(
+                    {fluorophore_comb: transition_df}, names=["Fluorophore"]
+                )
+                self.transition_df = pd.concat([self.transition_df, transition_df])
         self.transitions = transitions
 
         self.single_states = get_single_states(self.transitions, self.transition_df)
@@ -850,8 +855,8 @@ def derive_energy_transfer_transitions(
 ):
     """
     Derive energy transfer transitions based on the experimental conditions and the
-    fluorophore-combinations to be mimicked. The type of energy transfer is determined 
-    via the data file names. 
+    fluorophore-combinations to be mimicked. The type of energy transfer is determined
+    via the data file names.
 
     Parameters
     ----------

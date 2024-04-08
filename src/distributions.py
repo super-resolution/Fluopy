@@ -9,13 +9,13 @@ from scipy.stats import rv_discrete
 
 def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100):
     """
-    The high gain amplification noise distribution as proposed in 
-    https://doi.org/10.1117/12.2004621 with the adjustment of not considering 0 as a 
+    The high gain amplification noise distribution as proposed in
+    https://doi.org/10.1117/12.2004621 with the adjustment of not considering 0 as a
     possible variable's value. The support is limited to a maximum x of around
     125000 * gain / v.
-    Applies if gain is added to poisson distributed photon counts. This is the case, if 
-    the interarrival time is exponentially distributed or can be approximated with an 
-    exponential distribution. Resembles a high gain approximation, indicating a better 
+    Applies if gain is added to poisson distributed photon counts. This is the case, if
+    the interarrival time is exponentially distributed or can be approximated with an
+    exponential distribution. Resembles a high gain approximation, indicating a better
     fit for higher gains. Indeed, low gains of 1 to 10 should be avoided.
 
     Parameters
@@ -25,7 +25,7 @@ def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100
     x_max : int
         Maximum support value.
     v : float
-        The mean of the non-amplified (nearly) poissonian photon count distribution. 
+        The mean of the non-amplified (nearly) poissonian photon count distribution.
         Has to include 0 counts.
     gain : float
         The gain applied to the photon counts.

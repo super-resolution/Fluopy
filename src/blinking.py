@@ -220,7 +220,7 @@ def get_off_statistics(simulation, index):
     Determines ON and OFF intervals of a single fluorophore, where the OFF interval is
     defined as the fluorophore's time spend in off state, whilst the ON interval is the
     times in between. This differs from blinking, since it does not consider whether a
-    photon is detected during the ON time (hence, all OFF are of photophysical nature) 
+    photon is detected during the ON time (hence, all OFF are of photophysical nature)
     and it only considers one fluorophore.
 
     Parameters

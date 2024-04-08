@@ -8,17 +8,17 @@ import src.emissions as em
 
 @pytest.fixture()
 def flu_obj_cy5_1():
-    return fl.Fluorophore(name="cy5", position=[0, 0])
+    return fl.Fluorophore(name="testfluo_1", position=[0, 0])
 
 
 @pytest.fixture()
 def flu_obj_cy5_2():
-    return fl.Fluorophore(name="cy5", position=[0, 1])
+    return fl.Fluorophore(name="testfluo_1", position=[0, 1])
 
 
 @pytest.fixture()
 def flu_obj_atto643():
-    return fl.Fluorophore(name="atto643", position=[0, 2])
+    return fl.Fluorophore(name="testfluo_2", position=[0, 2])
 
 
 @pytest.fixture()

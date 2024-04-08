@@ -95,11 +95,26 @@ def test_transition(transition_type, fluorophore_ids, expected):
 @pytest.mark.parametrize(
     "transition_type, fluorophore_ids, fluo_comb, expected",
     [
-        [tr.TransitionType.FRET, [(0, 1)], "cy5-cy5", "ValueError1"],
-        [tr.TransitionType.FRET, [(2, 1)], "D: cy5, A: cy5, dist: 1.0", "ValueError2"],
-        [tr.TransitionType.FRET, [(1, 2)], "D: cy5, A: cy5, dist: 1.0", "ValueError3"],
-        [tr.TransitionType.FRET, [(1, 0)], "D: cy5, A: cy5, dist: 2.0", "ValueError4"],
-        [tr.TransitionType.EXCITATION, [1], "atto643", "ValueError5"],
+        [tr.TransitionType.FRET, [(0, 1)], "testfluo_1-testfluo_1", "ValueError1"],
+        [
+            tr.TransitionType.FRET,
+            [(2, 1)],
+            "D: testfluo_1, A: testfluo_1, dist: 1.0",
+            "ValueError2",
+        ],
+        [
+            tr.TransitionType.FRET,
+            [(1, 2)],
+            "D: testfluo_1, A: testfluo_1, dist: 1.0",
+            "ValueError3",
+        ],
+        [
+            tr.TransitionType.FRET,
+            [(1, 0)],
+            "D: testfluo_1, A: testfluo_1, dist: 2.0",
+            "ValueError4",
+        ],
+        [tr.TransitionType.EXCITATION, [1], "testfluo_2", "ValueError5"],
     ],
 )
 def test_transition_set_errors(
@@ -125,7 +140,8 @@ def test_transition_set_errors(
             )
     elif expected == "ValueError2":
         with pytest.raises(
-            ValueError, match="cy5 indicated to be at identity 2, atto643 found."
+            ValueError,
+            match="testfluo_1 indicated to be at identity 2, testfluo_2 found.",
         ):
             transition_set = tr.TransitionSet(
                 transitions=transitions, fluorophore_system=fluorophore_system
@@ -133,7 +149,8 @@ def test_transition_set_errors(
     elif expected == "ValueError3":
         # looks similar to ValueError2 but tests different Error
         with pytest.raises(
-            ValueError, match="cy5 indicated to be at identity 2, atto643 found."
+            ValueError,
+            match="testfluo_1 indicated to be at identity 2, testfluo_2 found.",
         ):
             transition_set = tr.TransitionSet(
                 transitions=transitions, fluorophore_system=fluorophore_system
@@ -145,7 +162,8 @@ def test_transition_set_errors(
             )
     elif expected == "ValueError5":
         with pytest.raises(
-            ValueError, match="atto643 indicated to be at identity 1, cy5 found."
+            ValueError,
+            match="testfluo_2 indicated to be at identity 1, testfluo_1 found.",
         ):
             transition_set = tr.TransitionSet(
                 transitions=transitions, fluorophore_system=fluorophore_system
@@ -160,7 +178,7 @@ def test_transition_set(request):
         fluorophore_ids=[0, 1],
     )
     transitions = {
-        "cy5": [
+        "testfluo_1": [
             tr.Transition(
                 transition_type=tr.TransitionType.EXCITATION,
                 rate=1,
@@ -178,19 +196,19 @@ def test_transition_set(request):
                 fluorophore_ids=[0, 1],
             ),
         ],
-        "D: cy5, A: cy5, dist: 1.0": [
+        "D: testfluo_1, A: testfluo_1, dist: 1.0": [
             tr.Transition(
                 transition_type=tr.TransitionType.FRET,
                 rate=1,
                 fluorophore_ids=[(0, 1), (1, 0)],
             )
         ],
-        "D: cy5, A: atto643, dist: 2.0": [
+        "D: testfluo_1, A: testfluo_2, dist: 2.0": [
             tr.Transition(
                 transition_type=tr.TransitionType.FRET, rate=1, fluorophore_ids=[(0, 2)]
             )
         ],
-        "atto643": [
+        "testfluo_2": [
             tr.Transition(
                 transition_type=tr.TransitionType.EXCITATION,
                 rate=1,
@@ -230,7 +248,10 @@ def test_transition_set(request):
             transition_set.transition_df["absorbing"], "abbreviation"
         ]
     ).tolist() == ["ISCST"]
-    test_single_states = {"cy5": np.array([0, 1, 3]), "atto643": np.array([0, 1])}
+    test_single_states = {
+        "testfluo_1": np.array([0, 1, 3]),
+        "testfluo_2": np.array([0, 1]),
+    }
     for key in transition_set.single_states:
         assert key in test_single_states
         assert np.array_equal(
@@ -247,7 +268,7 @@ def test_transition_set_filter_by_identity(tr_set_bl_et_3f):
         == (np.arange(0, 28, 1, dtype=int)).tolist()
     )
     assert (
-        "D: cy5, A: atto643, dist: 2.0"
+        "D: testfluo_1, A: testfluo_2, dist: 2.0"
         in tr_set_bl_et_3f.transition_df.index.get_level_values(0).tolist()
     )
     tr_set_bl_et_filtered = tr_set_bl_et_3f.filter_by_identity(remove_list=[4, 12])
@@ -256,7 +277,7 @@ def test_transition_set_filter_by_identity(tr_set_bl_et_3f):
         == (np.arange(0, 26, 1, dtype=int)).tolist()
     )
     assert (
-        "D: cy5, A: atto643, dist: 2.0"
+        "D: testfluo_1, A: testfluo_2, dist: 2.0"
         not in tr_set_bl_et_filtered.transition_df.index.get_level_values(0).tolist()
     )
 
@@ -316,16 +337,16 @@ def test_transition_set_remove_energy_transfers(tr_set_bl_et_3f):
     "single_states, dirnames, expected",
     [
         [
-            {"cy5": [0, 1, 2]},
+            {"testfluo_1": [0, 1, 2]},
             ["flu_obj_cy5_1", "flu_obj_cy5_2"],
             [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2)],
         ],
         [
-            {"cy5": [0, 1, 2], "atto643": [0, 1, 2]},
+            {"testfluo_1": [0, 1, 2], "testfluo_2": [0, 1, 2]},
             ["flu_obj_cy5_1", "flu_obj_atto643"],
             [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2)],
         ],
-        [{"cy5": [0, 1, 2]}, ["flu_obj_cy5_1"], [(0,), (1,), (2,)]],
+        [{"testfluo_1": [0, 1, 2]}, ["flu_obj_cy5_1"], [(0,), (1,), (2,)]],
     ],
 )
 def test_get_state_combinations(single_states, dirnames, request, expected):
@@ -441,7 +462,7 @@ def test_construct_transition_rate_list():
     )
     transition_df = pd.concat([transition_1, transition_2], axis=1).transpose()
     transition_df.index = pd.MultiIndex.from_tuples(
-        [("cy5", 0), ("D: cy5, A: cy5, dist: 1.0", 1)]
+        [("testfluo_1", 0), ("D: testfluo_1, A: testfluo_1, dist: 1.0", 1)]
     )
     combined_state_transitions = [
         ((0, 0, 0), (1, 1, 1)),

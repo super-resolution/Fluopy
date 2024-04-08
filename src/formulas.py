@@ -83,7 +83,7 @@ def calculate_excitation_rate(
     photon_flux=8e25, extinction_coefficient=None, absorption_cross_section=None
 ):
     """
-    Returns the excitation rate for a given irradiance and an extinction coefficient or 
+    Returns the excitation rate for a given irradiance and an extinction coefficient or
     an absorption cross section.
 
     Parameters
@@ -94,7 +94,7 @@ def calculate_excitation_rate(
         Extinction coefficient of fluorophore at wavelength in 1/(cm M).
     absorption_cross_section : float, 1-D array_like
         Absorption cross section of fluorophore at wavelength in cm².
-        The scattering cross section is assumed to be negligible, hence the absorption 
+        The scattering cross section is assumed to be negligible, hence the absorption
         cross section equals the excitation cross section.
 
     Returns
@@ -123,7 +123,7 @@ def calculate_excitation_rate(
 
 def calculate_emission_rate(quantum_yield=0.5, fluorescence_lifetime=1e-9):
     """
-    Returns the rate of fluorescent emission based on the quantum yield and the 
+    Returns the rate of fluorescent emission based on the quantum yield and the
     fluorescence lifetime.
 
     Parameters
@@ -150,7 +150,7 @@ def calculate_internal_conversion_rate(
     **other_outgoing_rates_kwargs
 ):
     """
-    Calculates the rate of internal conversion from the first excited state to the 
+    Calculates the rate of internal conversion from the first excited state to the
     vibrationally excited but electronic ground state.
 
     Parameters
@@ -160,10 +160,10 @@ def calculate_internal_conversion_rate(
     emission_rate : float, 1-D array_like
         The rate of emission in 1/s.
     other_outgoing_rates_args : floats
-        Rates of all other transitions (except fluorescence emission) that leave the 
+        Rates of all other transitions (except fluorescence emission) that leave the
         first excited state in 1/s.
     other_outgoing_rates_kwargs : floats
-        Rates of all other transitions (except fluorescence emission) that leave the 
+        Rates of all other transitions (except fluorescence emission) that leave the
         first excited state in 1/s.
 
     Returns
@@ -191,7 +191,7 @@ def calculate_internal_conversion_rate(
 
 def calculate_back_isomerization_rate(photon_flux=8e25, absorption_cross_section=1e-17):
     """
-    Returns the back-isomerization rate for a given irradiance and an absorption cross 
+    Returns the back-isomerization rate for a given irradiance and an absorption cross
     section of the molecule/isomer.
 
     Parameters
@@ -256,7 +256,7 @@ def calculate_pet_rate(reducing_agent="mea", concentration=143, k_pet=1, ph=8):
     reduction_rate : float
         The reduction rate in 1/s.
     """
-    # the factor 1/7 (or 7) comes from protocols stating to either use 100 µl 100 mM 
+    # the factor 1/7 (or 7) comes from protocols stating to either use 100 µl 100 mM
     # MEA or 10 µl 143 mM beta-ME
     if reducing_agent == "betaME":
         pka = 9.6
@@ -276,9 +276,9 @@ def calculate_pet_rate(reducing_agent="mea", concentration=143, k_pet=1, ph=8):
 
 def calculate_spectral_overlap_integral(donor=None, acceptor=None, wavelengths=None):
     """
-    Calculates the spectral overlap integral defined as the integral of the 
-    multiplication of the donor emission spectrum normalized to an area of 1, the 
-    acceptor molar extinction coefficient as a function of wavelength and the 
+    Calculates the spectral overlap integral defined as the integral of the
+    multiplication of the donor emission spectrum normalized to an area of 1, the
+    acceptor molar extinction coefficient as a function of wavelength and the
     wavelength to the power of 4.
 
     Parameters
@@ -288,7 +288,7 @@ def calculate_spectral_overlap_integral(donor=None, acceptor=None, wavelengths=N
     acceptor : 1-D array_like
         Contains the acceptors molar extinction coefficients in 1/(M cm).
     wavelengths : 1-D array_like
-        The wavelength values in nm, that correspond to the respective donor and 
+        The wavelength values in nm, that correspond to the respective donor and
         acceptor values.
 
     Returns

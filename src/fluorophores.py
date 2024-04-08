@@ -85,8 +85,10 @@ class FluorophoreSystem:
             get_distances([fluo.position for fluo in self.fluorophores]),
         )
         if 0 in self.distances.values():
-            raise ValueError('at least two fluorophores share the same position. Also '
-                             'check for duplicates.')
+            raise ValueError(
+                "at least two fluorophores share the same position. Also "
+                "check for duplicates."
+            )
         object.__setattr__(self, "count", len(self.fluorophores))
 
     def load_transitions(
@@ -99,7 +101,7 @@ class FluorophoreSystem:
         **dstorm_parameters,
     ):
         """
-        Derives transitions based on fluorophore and the experimental conditions to be 
+        Derives transitions based on fluorophore and the experimental conditions to be
         mimicked.
 
         Parameters
@@ -121,7 +123,7 @@ class FluorophoreSystem:
         Returns
         -------
         transitions : dict
-            Contains lists of transitions of type Transition as values and fluorophores 
+            Contains lists of transitions of type Transition as values and fluorophores
             or fluorophore-combinations as keys.
         """
         transitions = {}
@@ -136,8 +138,7 @@ class FluorophoreSystem:
             if (
                 f"{self.fluorophores[donor].name}, "
                 f"{self.fluorophores[acceptor].name}, "
-                f"{distance}"
-                not in et_pairs
+                f"{distance}" not in et_pairs
             ):
                 et_pairs[
                     f"{self.fluorophores[donor].name}, "
@@ -224,7 +225,7 @@ class FluorophoreSystem:
         labels = []
         for i, fluorophore in enumerate(self.fluorophores):
             positions[:, i] = fluorophore.position
-            labels.append(fluorophore.name + f' ({fluorophore.identity})')
+            labels.append(fluorophore.name + f" ({fluorophore.identity})")
         kwargs.setdefault("type_", "scatter")
         kwargs.setdefault("xlabel", "x [nm]")
         kwargs.setdefault("ylabel", "y [nm]")
@@ -250,7 +251,7 @@ def get_distances(positions):
     Returns
     -------
     distances : dict
-        Contains tuples of ids (order as positions) as keys and their distance as 
+        Contains tuples of ids (order as positions) as keys and their distance as
         values.
     """
     distances = dict()
@@ -265,8 +266,8 @@ def get_distances(positions):
 
 def triangle_third_position(position_1=None, position_2=None):
     """
-    Get the third position of an equilateral triangle based on positions of two 
-    vertices. There are two solutions to such a position but only one is considered 
+    Get the third position of an equilateral triangle based on positions of two
+    vertices. There are two solutions to such a position but only one is considered
     here.
 
     Parameters
@@ -296,8 +297,8 @@ def triangle_third_position(position_1=None, position_2=None):
 
 def get_positions_from_distance(distance, count, shape="triangle"):
     """
-    Gets positions of up to 4 fluorophores based on a single distance. If it is 3 
-    fluorophores, they are positioned either in an equilateral triangle or in a square 
+    Gets positions of up to 4 fluorophores based on a single distance. If it is 3
+    fluorophores, they are positioned either in an equilateral triangle or in a square
     with a missing vertex. If it is 4 fluorophores, they are positioned in a square.
 
     Parameters

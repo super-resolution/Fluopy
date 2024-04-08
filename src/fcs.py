@@ -81,18 +81,18 @@ class FCS:
 
     def autocorrelate_time_series(self, log=True, m=4, normalize=True):
         """
-        Autocorrelation of emissions.event_time_series. The minimum lag time is equal 
+        Autocorrelation of emissions.event_time_series. The minimum lag time is equal
         to resample value of series.
 
         Parameters
         ----------
         log : bool
-            Whether to compute the autocorrelation on a logarithmic scale. As time 
-            steps increase, correlation signals are getting noisier, fluctuating around 
+            Whether to compute the autocorrelation on a logarithmic scale. As time
+            steps increase, correlation signals are getting noisier, fluctuating around
             0. Hence, log should usually be True.
         m : int
-            Defines the number of points on each log level. E.g., m=4 leads to 
-            |1, 2, 3, 4| |2, 4, 6, 8| |4, 8, 12, 16| ..., hence 
+            Defines the number of points on each log level. E.g., m=4 leads to
+            |1, 2, 3, 4| |2, 4, 6, 8| |4, 8, 12, 16| ..., hence
             |1, 2, 3, 4, 6, 8, 12, 16, ...|. Only used if log ist True.
         normalize : bool
             Whether to normalize the autocorrelation.
@@ -127,7 +127,7 @@ class FCS:
             autocorrelation = np.divide(
                 autocorrelation, np.arange(autocorrelation.size, 0, -1)
             )
-            # averaging - in multipletau, this is included in normalize=True (denoted 
+            # averaging - in multipletau, this is included in normalize=True (denoted
             # as M-k in documentation)
             autocorrelation = (
                 autocorrelation / mean**2
@@ -139,7 +139,7 @@ class FCS:
             autocorrelation = np.correlate(
                 event_time_series.values, event_time_series.values, mode="full"
             )
-            # note that this version is the autocorrelation in the sense of signal 
+            # note that this version is the autocorrelation in the sense of signal
             # processing and differs from the statistical definition of autocorrelation.
             autocorrelation = autocorrelation[autocorrelation.size // 2 :][1:1000]
             self.tau = event_time_series.index.values[1:1000]
@@ -251,8 +251,8 @@ def fit_triplet_cis(tau, k_isc, k_T, k_01, k_10, k_iso, k_biso_eff):
     k_01 : float
         Rate constant of excitation.
     k_10 : float
-        Inverse of fluorescence lifetime considering all rates from S1 (not just IC and 
-        FL). Note: in the PAPER it is not clear which one they mean but the fit is 
+        Inverse of fluorescence lifetime considering all rates from S1 (not just IC and
+        FL). Note: in the PAPER it is not clear which one they mean but the fit is
         significantly better if using this version.
     k_iso : float
         Rate constant of isomerization from trans to cis.

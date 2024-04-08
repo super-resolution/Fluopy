@@ -653,9 +653,9 @@ class Prediction:
         kwargs.setdefault("ylabel", "PD")
         kwargs.setdefault(
             "title",
-            rf'''$\tau$ of {fluorophore} 
+            rf"""$\tau$ of {fluorophore} 
             {self.transition_set.transition_df.loc[(fluorophore, transition_id), 
-                                                   "abbreviation"]}''',
+                                                   "abbreviation"]}""",
         )
         kwargs.setdefault("yscale", "log")
         kwargs.setdefault("xlabel", "time to transition [s]")
