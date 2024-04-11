@@ -21,6 +21,7 @@ def universal_figure(
     title=None,
     xlabel="x",
     ylabel="y",
+    ylabelcolor='black',
     xlim=None,
     ylim=None,
     xscale=None,
@@ -78,6 +79,8 @@ def universal_figure(
         The label text of the x-axis.
     ylabel : str
         The label text of the y-axis.
+    ylabelcolor : str
+        The color of the y-axis label.
     xlim : float, Collection
         Left and right limit of the x-axis.
     ylim : float, Collection
@@ -157,7 +160,7 @@ def universal_figure(
 
     ax = axes[0]
     # texts
-    ax.set_ylabel(ylabel, fontsize=fontsize)
+    ax.set_ylabel(ylabel, fontsize=fontsize, color=ylabelcolor)
     ax.set_xlabel(xlabel, fontsize=fontsize)
     if title is not None:
         ax.set_title(title, fontsize=fontsize)
@@ -292,7 +295,8 @@ def universal_figure(
                         except AttributeError:
                             x = np.linspace(np.min(bins), np.max(bins), 100)
                             ax.plot(x, plot_distr.pdf(x), c="k", label="pred")
-
+        case '2d_hist':
+            h, xedges, yedges, _ = ax.hist2d(data[0], data[1], **type_specific_kwargs)
         case "bar":
             if data[1].ndim > 1:
                 for j, dat_ in enumerate(data[1]):

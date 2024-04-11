@@ -19,7 +19,7 @@ import src.fluorophores as fl
 )
 def test_get_p_filter(bandpass, expected):
     data_dir = os.path.join(Path(__file__).parent.parent, "fluorophore_collection")
-    fluorophore = fl.Fluorophore(name="cy5", position=[0, 0])
+    fluorophore = fl.Fluorophore(name="testfluo_1", position=[0, 0])
     if expected == "ValueError1":
         with pytest.raises(
             ValueError,

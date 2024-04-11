@@ -44,9 +44,71 @@ class FluorophoreData:
 
 
 @dataclass
-class Cy5(FluorophoreData):
+class Cy5_Widengren(FluorophoreData):
     """
-    Contains constant attributes of the fluorophore Cy5.
+    Contains constant attributes of the fluorophore Cy5 as defined in Characterization 
+    of photoinduced isomerization and back-isomerization of the cyanine dye Cy5 by FCS 
+    (Widengren, Schwille).
+    """
+
+    data_files: str = "cy5_data"
+
+    MAXIMUM_EXTINCTION_COEFFICIENT: float = 2.5e5
+    QUANTUM_YIELD: float = 0.27
+    FLUORESCENCE_LIFETIME: float = 1e-9
+    ISC_ST_RATE: float = 8.3e5
+    ISC_TS_RATE: float = 5e5
+    RISC_RATE: float = 0
+    PHOTOBLEACH_T1_RATE: float = 4e4
+    PHOTOBLEACH_T2_RATE: float = 0
+
+    DSTORM_PET_T_RATE_MOL: float = 1e8
+    DSTORM_PET_S_RATE_MOL: float = 1e9
+    DSTORM_PET_SUCCESS_RATE: float = 1e-3
+    DSTORM_TH_EL_RATE_1: float = 2e-2
+    DSTORM_TH_EL_RATE_2: float = 0
+
+    ISO_RATE: float = 2e7
+    BISO_CROSS_SECTION: float = 1.7e-17
+
+
+@dataclass
+class Cy5_Widengren_DNA(FluorophoreData):
+    """
+    Contains constant attributes of the fluorophore Cy5 as defined in Characterization
+    of photoinduced isomerization and back-isomerization of the cyanine dye Cy5 by FCS
+    (Widengren, Schwille).
+    Here, Cy5 is bound to DNA. 
+    The ratios of 632 nm (DNA to noDNA) are applied to 647 nm.
+    """
+
+    data_files: str = "cy5_data"
+
+    MAXIMUM_EXTINCTION_COEFFICIENT: float = 2.5e5
+    QUANTUM_YIELD: float = 0.27
+    FLUORESCENCE_LIFETIME: float = 1e-9
+    ISC_ST_RATE: float = 4e5
+    ISC_TS_RATE: float = 1e5
+    RISC_RATE: float = 0
+    PHOTOBLEACH_T1_RATE: float = 4e4
+    PHOTOBLEACH_T2_RATE: float = 0
+
+    DSTORM_PET_T_RATE_MOL: float = 1e8
+    DSTORM_PET_S_RATE_MOL: float = 1e9
+    DSTORM_PET_SUCCESS_RATE: float = 1e-3
+    DSTORM_TH_EL_RATE_1: float = 2e-2
+    DSTORM_TH_EL_RATE_2: float = 0
+
+    ISO_RATE: float = 4e6
+    BISO_CROSS_SECTION: float = 0.6e-17
+
+
+@dataclass
+class Cy5_Gidi(FluorophoreData):
+    """
+    Contains constant attributes of the fluorophore Cy5 as defined in Unifying 
+    Mechanism for Thiol-Induced Photoswitching and Photostability of Cyanine Dyes (Gidi 
+    et al.).
     """
 
     data_files: str = "cy5_data"
