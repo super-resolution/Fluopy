@@ -243,7 +243,7 @@ def calculate_pet_rate(reducing_agent="mea", concentration=143, k_pet=1, ph=8):
     Parameters
     ----------
     reducing_agent : str
-        One of 'mea', 'betaME'.
+        One of 'mea' (mercaptoethylamine), 'betaME' (mercaptoethanol).
     concentration : float
         Concentration of the reducing agent in mM.
     k_pet : float
@@ -253,25 +253,25 @@ def calculate_pet_rate(reducing_agent="mea", concentration=143, k_pet=1, ph=8):
 
     Returns
     -------
-    reduction_rate : float
-        The reduction rate in 1/s.
+    pet_rate : float
+        The PeT rate in 1/s.
     """
-    # the factor 1/7 (or 7) comes from protocols stating to either use 100 µl 100 mM
-    # MEA or 10 µl 143 mM beta-ME
     if reducing_agent == "betaME":
         pka = 9.6
     elif reducing_agent == "mea":
+        pka = 8.6
+    elif reducing_agent == "test":
         pka = 9.5
     else:
         raise ValueError('reducing_agent has to be one of "betaME", "mea".')
-
+    
     concentration = (
         henderson_hasselbalch_equation(ph=ph, pka=pka, concentration=concentration)
         * 1e-3
     )
-    reduction_rate = k_pet * concentration
+    pet_rate = k_pet * concentration
 
-    return reduction_rate
+    return pet_rate
 
 
 def calculate_spectral_overlap_integral(donor=None, acceptor=None, wavelengths=None):

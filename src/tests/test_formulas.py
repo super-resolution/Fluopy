@@ -152,7 +152,7 @@ def test_henderson_hasselbalch_equation(ph, pka, concentration, expected):
     "reducing_agent, concentration, k_pet, ph, expected",
     [
         ["ßme", 100, 1, 8, "ValueError"],
-        ["mea", 100, 1, 8, 0.003065],
+        ["test", 100, 1, 8, 0.003065],
         ["betaME", 100, 1, 8, 0.00245],
     ],
 )

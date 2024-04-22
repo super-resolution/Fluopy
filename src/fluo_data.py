@@ -49,6 +49,7 @@ class Cy5_Widengren(FluorophoreData):
     Contains constant attributes of the fluorophore Cy5 as defined in Characterization 
     of photoinduced isomerization and back-isomerization of the cyanine dye Cy5 by FCS 
     (Widengren, Schwille).
+    The buffer is air-saturated.
     """
 
     data_files: str = "cy5_data"
@@ -59,7 +60,7 @@ class Cy5_Widengren(FluorophoreData):
     ISC_ST_RATE: float = 8.3e5
     ISC_TS_RATE: float = 5e5
     RISC_RATE: float = 0
-    PHOTOBLEACH_T1_RATE: float = 4e4
+    PHOTOBLEACH_T1_RATE: float = 2.5e3
     PHOTOBLEACH_T2_RATE: float = 0
 
     DSTORM_PET_T_RATE_MOL: float = 1e8
@@ -78,6 +79,7 @@ class Cy5_Widengren_DNA(FluorophoreData):
     Contains constant attributes of the fluorophore Cy5 as defined in Characterization
     of photoinduced isomerization and back-isomerization of the cyanine dye Cy5 by FCS
     (Widengren, Schwille).
+    The buffer is air-saturated.
     Here, Cy5 is bound to DNA. 
     The ratios of 632 nm (DNA to noDNA) are applied to 647 nm.
     """
@@ -90,7 +92,7 @@ class Cy5_Widengren_DNA(FluorophoreData):
     ISC_ST_RATE: float = 4e5
     ISC_TS_RATE: float = 1e5
     RISC_RATE: float = 0
-    PHOTOBLEACH_T1_RATE: float = 4e4
+    PHOTOBLEACH_T1_RATE: float = 5e2  # since ISC_TS_RATE is 1/5 of the original
     PHOTOBLEACH_T2_RATE: float = 0
 
     DSTORM_PET_T_RATE_MOL: float = 1e8
@@ -109,6 +111,7 @@ class Cy5_Gidi(FluorophoreData):
     Contains constant attributes of the fluorophore Cy5 as defined in Unifying 
     Mechanism for Thiol-Induced Photoswitching and Photostability of Cyanine Dyes (Gidi 
     et al.).
+    The buffer is oxygen-depleted.
     """
 
     data_files: str = "cy5_data"
@@ -119,7 +122,7 @@ class Cy5_Gidi(FluorophoreData):
     ISC_ST_RATE: float = 8.3e5
     ISC_TS_RATE: float = 5e3
     RISC_RATE: float = 0
-    PHOTOBLEACH_T1_RATE: float = 1
+    PHOTOBLEACH_T1_RATE: float = 1e1  # estimation
     PHOTOBLEACH_T2_RATE: float = 0
 
     DSTORM_PET_T_RATE_MOL: float = 1e8
