@@ -73,10 +73,18 @@ class Blinking:
             data = self.on_periods
             kwargs.setdefault("title", "ON periods")
             axes = plot_histogram(data=data, sec_per_frame=sec_per_frame, **kwargs)
+        elif mode == "on_boxplot":
+            data = self.on_periods
+            kwargs.setdefault("title", "ON periods")
+            axes = plot_boxplot(data=data, sec_per_frame=sec_per_frame, **kwargs)
         elif mode == "off_histogram":
             data = self.off_periods
             kwargs.setdefault("title", "OFF periods")
             axes = plot_histogram(data=data, sec_per_frame=sec_per_frame, **kwargs)
+        elif mode == "off_boxplot":
+            data = self.off_periods
+            kwargs.setdefault("title", "OFF periods")
+            axes = plot_boxplot(data=data, sec_per_frame=sec_per_frame, **kwargs)
         elif mode == "on_frame_series":
             data = np.array([np.arange(0, self.on_periods.size), self.on_periods])
             kwargs.setdefault("title", "ON periods")
@@ -398,6 +406,42 @@ def plot_histogram(
         )
 
     return axes
+
+
+def plot_boxplot(data, as_time=None, sec_per_frame=None, **kwargs):
+    """
+    Plot boxplot of ON or OFF periods.
+
+    Parameters
+    ----------
+    data : 1-D array_like
+    as_time : None, str
+        If not None, display the y-axis as time in unit as_time.
+    sec_per_frame : float
+        Duration of a frame in seconds.
+
+    Returns
+    -------
+    axes : np.ndarray
+        Contains matplotlib.axes._subplots.AxesSubplots.
+    """
+    kwargs.setdefault("type_", "boxplot")
+    kwargs.setdefault("fontsize", 16)
+    if as_time is not None:
+        kwargs.setdefault("ylabel", f"time [{as_time}]")
+        if as_time == "ms":
+            data = data * sec_per_frame * 1000
+        elif as_time == "s":
+            data = data * sec_per_frame
+        else:
+            raise ValueError("given unit not implemented.")
+    else:
+        kwargs.setdefault("ylabel", "consecutive frames")
+
+    axes = fi.universal_figure(data=data, **kwargs)
+
+    return axes
+
 
 
 def plot_frame_series(data, **kwargs):

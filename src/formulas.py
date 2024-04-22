@@ -373,3 +373,27 @@ def calculate_fret_efficiency(fret_rate=1e8, fluorescence_lifetime=1e-9):
     efficiency = 1 - tau_2 / tau_1
 
     return efficiency
+
+
+def calculate_photon_collection_rate(NA=1.45, n1=1.51):
+    """
+    Calculates the photon collection rate based on the numerical aperture of the 
+    objective.
+
+    Parameters
+    ----------
+    NA : float
+        Numerical aperture of the objective.
+    n1 : float
+        Refractive index of the medium.
+    
+    Returns
+    -------
+    photon_collection_rate : float
+        The photon collection rate.
+    """
+    half_angle = np.arcsin(NA/n1)
+    cone = 2 * np.pi * (1 - np.cos(half_angle))
+    photon_collection_rate = cone / (4 * np.pi)
+
+    return photon_collection_rate

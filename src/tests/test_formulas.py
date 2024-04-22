@@ -210,3 +210,8 @@ def test_calculate_fret_rate():
 def test_calculate_fret_efficiency():
     result = fo.calculate_fret_efficiency(fret_rate=1e8, fluorescence_lifetime=1e-8)
     np.testing.assert_allclose(result, 0.5)
+
+
+def test_calcualte_photon_collection_rate():
+    result = fo.calculate_photon_collection_rate(NA=1.45, n1=1.51)
+    np.testing.assert_allclose(result, 0.3604549)

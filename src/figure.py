@@ -348,6 +348,8 @@ def universal_figure(
             ax.scatter(
                 data[0], data[1], color=color, label=label, **type_specific_kwargs
             )
+        case "boxplot":
+            ax.boxplot(data, labels=label, **type_specific_kwargs)
 
     # second x-axis
     if second_axis_x:
