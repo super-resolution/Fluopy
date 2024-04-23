@@ -286,7 +286,7 @@ class Emissions:
         None
         """
         if p > 1 or p < 0:
-            raise ValueError("rate has to be between 0 and 1.")
+            raise ValueError("p has to be between 0 and 1.")
         rng = np.random.default_rng(seed)
         nonzero = self.event_time_series.values.nonzero()
         self.event_time_series.values[nonzero] = binom.rvs(
@@ -309,12 +309,37 @@ class Emissions:
         None
         """
         if p > 1 or p < 0:
-            raise ValueError("rate has to be between 0 and 1.")
+            raise ValueError("p has to be between 0 and 1.")
         rng = np.random.default_rng(seed)
         nonzero = self.event_time_series.values.nonzero()
         self.event_time_series.values[nonzero] = binom.rvs(
             n=self.event_time_series.values[nonzero], p=p, random_state=rng
         )
+    
+
+    def add_transmittance(self, p, seed=None):
+        """
+        Adds the effect of transmittance of a component of the optical path.
+
+        Parameters
+        ----------
+        p : float
+            Between 0 and 1. Transmittance of the component.
+        seed : None, int, BitGenerator, Generator
+            A seed to initialize the BitGenerator.
+        
+        Returns
+        -------
+        None
+        """
+        if p > 1 or p < 0:
+            raise ValueError("p has to be between 0 and 1.")
+        rng = np.random.default_rng(seed)
+        nonzero = self.event_time_series.values.nonzero()
+        self.event_time_series.values[nonzero] = binom.rvs(
+            n=self.event_time_series.values[nonzero], p=p, random_state=rng
+        )
+        
 
     def add_emccd_gain(self, emccd_gain, seed=None):
         """

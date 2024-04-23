@@ -137,7 +137,7 @@ def test_emissions_add_photon_collection_objective(p, em_large, expected):
     )
 
     if expected == "ValueError":
-        with pytest.raises(ValueError, match="rate has to be between 0 and 1."):
+        with pytest.raises(ValueError, match="p has to be between 0 and 1."):
             em_large.add_photon_collection_objective(p=p, seed=10)
     elif expected == "no change":
         em_large.add_photon_collection_objective(p=p, seed=10)
@@ -187,7 +187,7 @@ def test_emissions_add_quantum_efficiency(em_large, p, expected):
     )
 
     if expected == "ValueError":
-        with pytest.raises(ValueError, match="rate has to be between 0 and 1."):
+        with pytest.raises(ValueError, match="p has to be between 0 and 1."):
             em_large.add_quantum_efficiency(p=p, seed=1)
     elif expected == "no change":
         em_large.add_quantum_efficiency(p=p, seed=1)
@@ -196,6 +196,56 @@ def test_emissions_add_quantum_efficiency(em_large, p, expected):
         )
     else:
         em_large.add_quantum_efficiency(p=p, seed=1)
+        # fmt: off
+        exp_values = np.array(
+            [
+                34454, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                34953, 5221, 0, 0, 0, 0, 0, 0, 46702, 52968, 25294, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ], 
+            dtype=np.int64)
+        # fmt: on
+
+        exp_event_time_series = pd.Series(exp_values, index=exp_index)
+        pd.testing.assert_series_equal(
+            em_large.event_time_series, exp_event_time_series
+        )
+
+
+@pytest.mark.parametrize(
+    "p, expected",
+    [[0.7, ""], [1.0, "no change"], [1.1, "ValueError"], [-0.1, "ValueError"]],
+)
+def test_emissions_add_transmittance(em_large, p, expected):
+    # fmt: off
+    exp_values_prev = np.array(
+        [
+            49135, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 49692, 7458, 0, 0, 0, 0, 0, 0, 66619, 75942,
+            35871, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ], 
+        dtype=np.int64)
+    # fmt: on
+    exp_index = np.linspace(0, 9.9, 100)
+    exp_event_time_series_prev = pd.Series(exp_values_prev, index=exp_index)
+    pd.testing.assert_series_equal(
+        em_large.event_time_series, exp_event_time_series_prev
+    )
+
+    if expected == "ValueError":
+        with pytest.raises(ValueError, match="p has to be between 0 and 1."):
+            em_large.add_transmittance(p=p, seed=1)
+    elif expected == "no change":
+        em_large.add_transmittance(p=p, seed=1)
+        pd.testing.assert_series_equal(
+            em_large.event_time_series, exp_event_time_series_prev
+        )
+    else:
+        em_large.add_transmittance(p=p, seed=1)
         # fmt: off
         exp_values = np.array(
             [
