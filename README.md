@@ -1,6 +1,7 @@
 # Overview
 Continuous time markov chains (CTMC) are used to model the emission behavior of fluorophores. \
-The number of fluorophores is limited (e.g., 4) and they are in fixed positions. 
+The number of fluorophores is limited (e.g., 4) due to exponentially scaling memory usage of the transition matrix. \
+The fluorophores are in fixed positions. 
 > [!NOTE]
 > This resembles e.g., a protein dimer labeled with two different fluorophores. Even though the protein is likely mobile, the relative positions of the fluorophores are expected to be constant. Rotational movement or restrictions of such can be handled with the dipole orientation factor &kappa;².
 
