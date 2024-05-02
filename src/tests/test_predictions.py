@@ -72,40 +72,37 @@ def test_prediction_2(tr_set_bl_et_2f_diff):
 
 # test with 2 different fluorophores, energy transfer, bleaching
 def test_prediction_3(tr_set_bl_et_2f_diff):
-    with pytest.warns(
-        UserWarning,
-        match="absorbing states have a lifetime of inf and a frequency / occupation "
-        "of 0. Absorbing transitions have a frequency of 0.",
-    ), pytest.warns(
-        UserWarning,
-        match="prediction accuracy of energy transfers more difficult to tune. Only "
-        "frequencies available, lifetimes and occupations not available.",
-    ):
+    with pytest.warns(UserWarning) as record:
         prediction = pr.Prediction(transition_set=tr_set_bl_et_2f_diff)
+        assert str(record[0].message) == (
+            "prediction accuracy of energy transfers more difficult to tune. Only "
+            "frequencies available, lifetimes and occupations not available."
+        )
+        assert str(record[1].message) == (
+            "absorbing states have a lifetime of inf and a frequency / occupation "
+            "of 0. Absorbing transitions have a frequency of 0."
+        )
     assert prediction.energy_transfer
     assert prediction.absorbing_chain
     assert prediction.transition_set == tr_set_bl_et_2f_diff
     exp_freq_trans = np.array(
         [
-            4.41275847e-04,
-            1.43523081e-04,
-            4.41200581e-07,
-            4.41112358e-07,
-            1.06313393e-05,
-            1.02300755e-06,
-            3.76971344e-04,
-            0.00000000e00,
-            9.99025693e-01,
-            3.32027241e-03,
-            1.75444395e-03,
-            8.77221974e-06,
-            8.77213202e-06,
-            1.16085708e-03,
-            0.00000000e00,
-            9.55375119e-06,
-            0.00000000e00,
-            9.93440461e-01,
-            2.96867195e-04,
+            5.649337e-04,
+            1.771750e-04,
+            5.446492e-07,
+            5.445403e-07,
+            1.312408e-05,
+            1.312408e-05,
+            4.653601e-04,
+            0.000000e00,
+            9.987652e-01,
+            3.698573e-03,
+            2.164720e-03,
+            1.082360e-05,
+            1.082349e-05,
+            1.432323e-03,
+            0.000000e00,
+            9.926827e-01,
         ]
     )
 
@@ -114,17 +111,9 @@ def test_prediction_3(tr_set_bl_et_2f_diff):
     )
     exp_freq_states = {
         "testfluo_1": np.array(
-            [
-                5.01420752e-01,
-                4.98573694e-01,
-                2.21325129e-07,
-                5.33313563e-06,
-                0.00000000e00,
-            ]
+            [5.015457e-01, 4.984475e-01, 2.733246e-07, 6.586135e-06, 0.000000e00]
         ),
-        "testfluo_2": np.array(
-            [4.98578362e-01, 5.01417250e-01, 4.38824762e-06, 0.00000000e00]
-        ),
+        "testfluo_2": np.array([4.984530e-01, 5.015415e-01, 5.415143e-06, 0.000000e00]),
     }
     for fluorophore, freq in prediction.frequency_states.items():
         np.testing.assert_allclose(freq, exp_freq_states[fluorophore], rtol=1e-5)
@@ -137,33 +126,30 @@ def test_prediction_3(tr_set_bl_et_2f_diff):
 
 # test with 2 same fluorophores, energy transfer, bleaching
 def test_prediction_4(tr_set_bl_et_2f_same):
-    with pytest.warns(
-        UserWarning,
-        match="absorbing states have a lifetime of inf and a frequency / occupation "
-        "of 0. Absorbing transitions have a frequency of 0.",
-    ), pytest.warns(
-        UserWarning,
-        match="prediction accuracy of energy transfers more difficult to tune. Only "
-        "frequencies available, lifetimes and occupations not available.",
-    ):
+    with pytest.warns(UserWarning) as record:
         prediction = pr.Prediction(transition_set=tr_set_bl_et_2f_same)
+        assert str(record[0].message) == (
+            "prediction accuracy of energy transfers more difficult to tune. Only "
+            "frequencies available, lifetimes and occupations not available."
+        )
+        assert str(record[1].message) == (
+            "absorbing states have a lifetime of inf and a frequency / occupation "
+            "of 0. Absorbing transitions have a frequency of 0."
+        )
     assert prediction.energy_transfer
     assert prediction.absorbing_chain
     assert prediction.transition_set == tr_set_bl_et_2f_same
     exp_freq_trans = np.array(
         [
-            1.23406002e-05,
-            2.23259775e-06,
-            6.86317086e-09,
-            6.86179850e-09,
-            1.65377611e-07,
-            8.42092092e-08,
-            5.86404202e-06,
-            0.00000000e00,
-            8.11684019e-08,
-            0.00000000e00,
-            9.99975228e-01,
-            3.99055126e-06,
+            2.444193e-05,
+            6.599322e-06,
+            2.028681e-08,
+            2.028275e-08,
+            4.888387e-07,
+            4.888387e-07,
+            1.733349e-05,
+            0.000000e00,
+            9.999506e-01,
         ]
     )
     np.testing.assert_allclose(
@@ -171,13 +157,7 @@ def test_prediction_4(tr_set_bl_et_2f_same):
     )
     exp_freq_states = {
         "testfluo_1": np.array(
-            [
-                4.99998896e-01,
-                5.00000932e-01,
-                6.86318428e-09,
-                1.65377934e-07,
-                0.00000000e00,
-            ]
+            [6.666610e-01, 3.333387e-01, 1.352476e-08, 3.258978e-07, 0.000000e00]
         )
     }
     for fluorophore, freq in prediction.frequency_states.items():
@@ -202,23 +182,20 @@ def test_prediction_5(tr_set_et_2f_diff):
     assert prediction.transition_set == tr_set_et_2f_diff
     exp_freq_trans = np.array(
         [
-            4.13489962e-04,
-            1.36022271e-04,
-            4.18142536e-07,
-            4.18142536e-07,
-            1.00757238e-05,
-            4.66850026e-07,
-            3.57270051e-04,
-            9.99081839e-01,
-            5.52299775e-04,
-            9.22975697e-05,
-            4.61487849e-07,
-            4.61487849e-07,
-            6.10702253e-05,
-            9.60707618e-06,
-            0.00000000e00,
-            9.98985218e-01,
-            2.98584082e-04,
+            4.313134e-04,
+            1.411042e-04,
+            4.337649e-07,
+            4.337649e-07,
+            1.045217e-05,
+            1.045217e-05,
+            3.706181e-04,
+            9.990352e-01,
+            8.309057e-04,
+            4.438048e-04,
+            2.219024e-06,
+            2.219024e-06,
+            2.936509e-04,
+            9.984272e-01,
         ]
     )
     np.testing.assert_allclose(
@@ -226,9 +203,9 @@ def test_prediction_5(tr_set_et_2f_diff):
     )
     exp_freq_states = {
         "testfluo_1": np.array(
-            [5.00044127e-01, 4.99950623e-01, 2.09176397e-07, 5.04039512e-06]
+            [5.001722e-01, 4.998223e-01, 2.170531e-07, 5.230196e-06]
         ),
-        "testfluo_2": np.array([4.99953138e-01, 5.00046631e-01, 2.30849903e-07]),
+        "testfluo_2": np.array([4.998246e-01, 5.001743e-01, 1.110048e-06]),
     }
     for fluorophore, freq in prediction.frequency_states.items():
         np.testing.assert_allclose(freq, exp_freq_states[fluorophore], rtol=1e-5)

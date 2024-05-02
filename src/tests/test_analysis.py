@@ -120,23 +120,20 @@ def test_analysis_2(sim_tr_set_et_2f_diff):
     assert analysis.simulation == sim_tr_set_et_2f_diff
     exp_freq_trans = np.array(
         [
-            5.13742615e-04,
-            2.56871307e-04,
-            0.00000000e00,
-            0.00000000e00,
-            0.00000000e00,
-            0.00000000e00,
-            2.56871307e-04,
-            9.98972515e-01,
-            5.13742615e-04,
-            2.56871307e-04,
-            0.00000000e00,
-            0.00000000e00,
-            2.56871307e-04,
-            0.00000000e00,
-            0.00000000e00,
-            9.98972515e-01,
-            0.00000000e00,
+            5.137426e-4,
+            2.568713e-4,
+            0.000000e0,
+            0.000000e0,
+            0.000000e0,
+            0.000000e0,
+            2.568713e-4,
+            9.989725e-1,
+            5.137426e-4,
+            2.568713e-4,
+            0.000000e0,
+            0.000000e0,
+            2.568713e-4,
+            9.989725e-1,
         ]
     )
     np.testing.assert_array_almost_equal(analysis.frequency_transitions, exp_freq_trans)
@@ -153,23 +150,20 @@ def test_analysis_2(sim_tr_set_et_2f_diff):
             assert isinstance(distr, np.ndarray)
     exp_mean_trans_times = np.array(
         [
-            8.44633037e-08,
-            3.77837140e-13,
+            8.446330e-08,
+            3.778371e-13,
             np.nan,
             np.nan,
             np.nan,
             np.nan,
-            2.31502719e-14,
-            4.77233002e-13,
-            1.38043676e-07,
-            5.00012950e-13,
+            2.315027e-14,
+            4.772330e-13,
+            1.380437e-07,
+            4.950885e-13,
             np.nan,
             np.nan,
-            1.01811275e-14,
-            np.nan,
-            np.nan,
-            4.68247704e-13,
-            np.nan,
+            1.008086e-14,
+            4.636361e-13,
         ]
     )
     np.testing.assert_array_almost_equal(
@@ -185,7 +179,7 @@ def test_analysis_2(sim_tr_set_et_2f_diff):
         )
     exp_state_occ = {
         "testfluo_1": np.array([0.99586379, 0.00413621, 0.0, 0.0]),
-        "testfluo_2": np.array([0.9959414, 0.0040586, 0.0]),
+        "testfluo_2": np.array([0.995981, 0.004019, 0.0]),
     }
     for fluorophore, state_occ in analysis.state_occupations.items():
         np.testing.assert_array_almost_equal(state_occ, exp_state_occ[fluorophore])

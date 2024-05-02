@@ -587,7 +587,6 @@ def get_p_filter(data_dir, fluorophore, bandpass):
     p_passed : float
         The probability of a photon passing the bandpass filter.
     """
-    from src.transitions import interpolate_data
 
     if bandpass[0] < 200 or bandpass[0] > 1000:
         raise ValueError("The lower bandpass limit has to be between 200 and 1000 nm.")
@@ -601,12 +600,10 @@ def get_p_filter(data_dir, fluorophore, bandpass):
     emission_data = pd.read_csv(
         os.path.join(data_dir, fluorophore.constants.data_files, "emission.csv")
     )
-    minimum_wavelength, maximum_wavelength = 200, 1000
-    emissions = interpolate_data(
-        minimum_wavelength=minimum_wavelength,
-        maximum_wavelength=maximum_wavelength,
-        data=emission_data,
-    )
+
+    minimum_wavelength = 200
+
+    emissions = emission_data['y']
     bandpass_low = bandpass[0] - minimum_wavelength
     bandpass_high = bandpass_low + (bandpass[1] - bandpass[0])
     rel_emission = emissions[bandpass_low:bandpass_high] / emissions.sum()

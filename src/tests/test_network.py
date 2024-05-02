@@ -6,29 +6,11 @@ import src.network as net
 def test_construct_state_graphs(tr_set_bl_et_3f):
     graphs = net.construct_state_graphs(tr_set_bl_et_3f.transition_df)
     states = [
-        [
-            "testfluo_1_S1",
-            "testfluo_1_Cis(2)",
-            "testfluo_1_OFF1(2)",
-            "testfluo_1_S0(2)",
-            "testfluo_1_T1(2)",
-        ],
+        ["testfluo_1_S1", "testfluo_1_S0(2)"],
         ["testfluo_1_S1", "testfluo_2_S0(2)"],
         ["testfluo_1_S1", "testfluo_2_S0(2)"],
-        [
-            "testfluo_2_S1",
-            "testfluo_1_Cis(2)",
-            "testfluo_1_OFF1(2)",
-            "testfluo_1_S0(2)",
-            "testfluo_1_T1(2)",
-        ],
-        [
-            "testfluo_2_S1",
-            "testfluo_1_Cis(2)",
-            "testfluo_1_OFF1(2)",
-            "testfluo_1_S0(2)",
-            "testfluo_1_T1(2)",
-        ],
+        ["testfluo_2_S1", "testfluo_1_S0(2)"],
+        ["testfluo_2_S1", "testfluo_1_S0(2)"],
         [
             "testfluo_1_S0",
             "testfluo_1_S1",
@@ -39,26 +21,11 @@ def test_construct_state_graphs(tr_set_bl_et_3f):
         ["testfluo_2_S0", "testfluo_2_S1", "testfluo_2_T1", "testfluo_2_B"],
     ]
     edges = [
-        [
-            ("testfluo_1_S1", "testfluo_1_Cis(2)", 0),
-            ("testfluo_1_S1", "testfluo_1_OFF1(2)", 0),
-            ("testfluo_1_S1", "testfluo_1_S0(2)", 0),
-            ("testfluo_1_S1", "testfluo_1_T1(2)", 0),
-        ],
+        [("testfluo_1_S1", "testfluo_1_S0(2)", 0)],
         [("testfluo_1_S1", "testfluo_2_S0(2)", 0)],
         [("testfluo_1_S1", "testfluo_2_S0(2)", 0)],
-        [
-            ("testfluo_2_S1", "testfluo_1_Cis(2)", 0),
-            ("testfluo_2_S1", "testfluo_1_OFF1(2)", 0),
-            ("testfluo_2_S1", "testfluo_1_S0(2)", 0),
-            ("testfluo_2_S1", "testfluo_1_T1(2)", 0),
-        ],
-        [
-            ("testfluo_2_S1", "testfluo_1_Cis(2)", 0),
-            ("testfluo_2_S1", "testfluo_1_OFF1(2)", 0),
-            ("testfluo_2_S1", "testfluo_1_S0(2)", 0),
-            ("testfluo_2_S1", "testfluo_1_T1(2)", 0),
-        ],
+        [("testfluo_2_S1", "testfluo_1_S0(2)", 0)],
+        [("testfluo_2_S1", "testfluo_1_S0(2)", 0)],
         [
             ("testfluo_1_S0", "testfluo_1_S1", 0),
             ("testfluo_1_S1", "testfluo_1_S0", 0),
@@ -82,24 +49,9 @@ def test_construct_state_graphs(tr_set_bl_et_3f):
         [
             (
                 "testfluo_1_S1",
-                "testfluo_1_Cis(2)",
-                {"w": "CFRET2", "dist": "distance: 1 nm"},
-            ),
-            (
-                "testfluo_1_S1",
-                "testfluo_1_OFF1(2)",
-                {"w": "OFRET1", "dist": "distance: 1 nm"},
-            ),
-            (
-                "testfluo_1_S1",
                 "testfluo_1_S0(2)",
                 {"w": "FRET", "dist": "distance: 1 nm"},
-            ),
-            (
-                "testfluo_1_S1",
-                "testfluo_1_T1(2)",
-                {"w": "STA", "dist": "distance: 1 nm"},
-            ),
+            )
         ],
         [
             (
@@ -118,46 +70,16 @@ def test_construct_state_graphs(tr_set_bl_et_3f):
         [
             (
                 "testfluo_2_S1",
-                "testfluo_1_Cis(2)",
-                {"w": "CFRET2", "dist": "distance: 1 nm"},
-            ),
-            (
-                "testfluo_2_S1",
-                "testfluo_1_OFF1(2)",
-                {"w": "OFRET1", "dist": "distance: 1 nm"},
-            ),
-            (
-                "testfluo_2_S1",
                 "testfluo_1_S0(2)",
                 {"w": "FRET", "dist": "distance: 1 nm"},
-            ),
-            (
-                "testfluo_2_S1",
-                "testfluo_1_T1(2)",
-                {"w": "STA", "dist": "distance: 1 nm"},
-            ),
+            )
         ],
         [
             (
                 "testfluo_2_S1",
-                "testfluo_1_Cis(2)",
-                {"w": "CFRET2", "dist": "distance: 2 nm"},
-            ),
-            (
-                "testfluo_2_S1",
-                "testfluo_1_OFF1(2)",
-                {"w": "OFRET1", "dist": "distance: 2 nm"},
-            ),
-            (
-                "testfluo_2_S1",
                 "testfluo_1_S0(2)",
                 {"w": "FRET", "dist": "distance: 2 nm"},
-            ),
-            (
-                "testfluo_2_S1",
-                "testfluo_1_T1(2)",
-                {"w": "STA", "dist": "distance: 2 nm"},
-            ),
+            )
         ],
         [
             ("testfluo_1_S0", "testfluo_1_S1", {"w": "EXC", "dist": ""}),
@@ -178,6 +100,7 @@ def test_construct_state_graphs(tr_set_bl_et_3f):
             ("testfluo_2_T1", "testfluo_2_B", {"w": "BLE1", "dist": ""}),
         ],
     ]
+
     for i, graph in enumerate(graphs):
         assert isinstance(graph, nx.MultiDiGraph)
         assert list(graph.nodes) == states[i]

@@ -30,6 +30,7 @@ class SingleState(Enum):
     Cis = 6
     OFF1 = 7
     OFF2 = 8
+    Rad = 9
 
 
 class PairedState(Enum):
@@ -136,6 +137,9 @@ class TransitionType(Enum):
     REDUCTION_S = TransitionAttributes("REDS", SingleState.S1, SingleState.OFF1, False)
     OXIDATION_1 = TransitionAttributes("OXI1", SingleState.OFF1, SingleState.S0, False)
     OXIDATION_2 = TransitionAttributes("OXI2", SingleState.OFF2, SingleState.S0, False)
+    RAD_ESCAPE = TransitionAttributes("RE", SingleState.T1, SingleState.Rad, False)
+    RAD_RELAX = TransitionAttributes("RR", SingleState.Rad, SingleState.S0, False)
+
 
     # cis trans isomerization
     ISOMERIZATION = TransitionAttributes("ISO", SingleState.S1, SingleState.Cis, False)
@@ -890,19 +894,15 @@ def derive_energy_transfer_transitions(
         quantum_yield=donor_data.QUANTUM_YIELD,
         fluorescence_lifetime=donor_data.FLUORESCENCE_LIFETIME,
     )
-
     minimum, maximum = 200, 1000
     wavelengths_of_interest = np.arange(minimum, maximum + 1, 1, dtype=float)
-    emissions = interpolate_data(
-        minimum_wavelength=minimum, maximum_wavelength=maximum, data=donor_emission
-    )
 
     which_et = {
-        "s0": TransitionType.FRET,
-        "t1": TransitionType.S_T_ANNIHILATION,
-        "s1": TransitionType.S_S_ANNIHILATION,
-        "cis": TransitionType.CIS_FRET_2,
-        "off": TransitionType.OFF_FRET_1,
+        "s0": [(TransitionType.FRET, 1)],
+        "t1": [(TransitionType.S_T_ANNIHILATION, 1)],
+        "s1": [(TransitionType.S_S_ANNIHILATION, 1)],
+        "cis": [(TransitionType.CIS_FRET_1, 0.2), (TransitionType.CIS_FRET_2, 0.8)],
+        "off": [(TransitionType.OFF_FRET_1, 1)],
     }
 
     transitions = []
@@ -910,11 +910,10 @@ def derive_energy_transfer_transitions(
         acceptor_abs = pd.read_csv(
             os.path.join(data_dir, acceptor_data.data_files, acceptor_abs_file)
         )
-        absorptions = interpolate_data(
-            minimum_wavelength=minimum, maximum_wavelength=maximum, data=acceptor_abs
-        )
+
         J = fo.calculate_spectral_overlap_integral(
-            donor=emissions, acceptor=absorptions, wavelengths=wavelengths_of_interest
+            donor=donor_emission['y'], acceptor=acceptor_abs['y'], 
+            wavelengths=wavelengths_of_interest
         )
         rate = fo.calculate_fret_rate(
             distance=distance,
@@ -924,12 +923,13 @@ def derive_energy_transfer_transitions(
             refractive_index=1,
         )
         acceptor_state = acceptor_abs_file.split("_")[1].split(".")[0]
-        transition = Transition(
-            rate=rate,
-            transition_type=which_et[acceptor_state],
-            fluorophore_ids=fluorophore_ids,
-        )
-        transitions.append(transition)
+        for transition_type, factor in which_et[acceptor_state]:
+            transition = Transition(
+                rate=rate * factor,
+                transition_type=transition_type,
+                fluorophore_ids=fluorophore_ids,
+            )
+            transitions.append(transition)
 
     return transitions
 
@@ -971,13 +971,21 @@ def derive_transitions(
     fd = fluorophore_data
     _, _, frequency = fo.convert_wavenumber_wavelength_frequency(wavelength=wavelength)
     photon_flux = fo.calculate_photon_flux(irradiance=irradiance, frequency=frequency)
-    relative_extinction = get_relative_extinction(
-        wavelength, fluorophore_data.data_files
+    path_absorption = os.path.join(
+        Path(__file__).parent,
+        "fluorophore_collection",
+        fd.data_files,
+        "absorption_s0.csv",
     )
-    effective_extinction = relative_extinction * fd.MAXIMUM_EXTINCTION_COEFFICIENT
+    
+    dataframe_absorption = pd.read_csv(filepath_or_buffer=path_absorption, index_col=0)
+
+    extinction_coefficient = dataframe_absorption.loc[
+        int(wavelength), "y"
+    ]
 
     excitation_rate = fo.calculate_excitation_rate(
-        photon_flux=photon_flux, extinction_coefficient=effective_extinction
+        photon_flux=photon_flux, extinction_coefficient=extinction_coefficient
     )
     excitation = Transition(
         rate=excitation_rate,
@@ -1132,33 +1140,3 @@ def interpolate_data(minimum_wavelength, maximum_wavelength, data):
     interpolated = np.concatenate((add_lower, interpolated, add_upper))
 
     return interpolated
-
-
-def get_relative_extinction(wavelength, file_directory):
-    """
-    Get the relative extinction from a file given the wavelength.
-
-    Parameters
-    ----------
-    wavelength : float
-        The wavelength in nm.
-    file_directory : str
-        The name of the tail directory.
-
-    Returns
-    -------
-    relative_extinction : float
-        The relative extinction at the given wavelength.
-    """
-    path_absorption = os.path.join(
-        Path(__file__).parent,
-        "fluorophore_collection",
-        file_directory,
-        "rel_absorption.csv",
-    )
-    dataframe_absorption = pd.read_csv(filepath_or_buffer=path_absorption, index_col=0)
-    relative_extinction = dataframe_absorption.loc[
-        int(wavelength), "relative extinction"
-    ]
-
-    return relative_extinction

@@ -16,7 +16,6 @@ class FluorophoreData:
     data_files: str = None
 
     # general
-    MAXIMUM_EXTINCTION_COEFFICIENT: float = 0
     QUANTUM_YIELD: float = 0
     FLUORESCENCE_LIFETIME: float = 0
     S1_QUENCH_RATE: float = 0
@@ -54,7 +53,6 @@ class Cy5_Widengren(FluorophoreData):
 
     data_files: str = "cy5_data"
 
-    MAXIMUM_EXTINCTION_COEFFICIENT: float = 2.5e5
     QUANTUM_YIELD: float = 0.27
     FLUORESCENCE_LIFETIME: float = 1e-9
     ISC_ST_RATE: float = 8.3e5
@@ -86,7 +84,6 @@ class Cy5_Widengren_DNA(FluorophoreData):
 
     data_files: str = "cy5_data"
 
-    MAXIMUM_EXTINCTION_COEFFICIENT: float = 2.5e5
     QUANTUM_YIELD: float = 0.27
     FLUORESCENCE_LIFETIME: float = 1e-9
     ISC_ST_RATE: float = 4e5
@@ -106,7 +103,7 @@ class Cy5_Widengren_DNA(FluorophoreData):
 
 
 @dataclass
-class Cy5_Gidi(FluorophoreData):
+class Cy5_Gidi_DNA(FluorophoreData):
     """
     Contains constant attributes of the fluorophore Cy5 as defined in Unifying 
     Mechanism for Thiol-Induced Photoswitching and Photostability of Cyanine Dyes (Gidi 
@@ -116,7 +113,6 @@ class Cy5_Gidi(FluorophoreData):
 
     data_files: str = "cy5_data"
 
-    MAXIMUM_EXTINCTION_COEFFICIENT: float = 2.5e5
     QUANTUM_YIELD: float = 0.27
     FLUORESCENCE_LIFETIME: float = 1e-9
     ISC_ST_RATE: float = 8.3e5
@@ -131,8 +127,8 @@ class Cy5_Gidi(FluorophoreData):
     DSTORM_TH_EL_RATE_1: float = 2e-2
     DSTORM_TH_EL_RATE_2: float = 0
 
-    ISO_RATE: float = 2e7
-    BISO_CROSS_SECTION: float = 1.7e-17
+    ISO_RATE: float = 4e6
+    BISO_CROSS_SECTION: float = 0.6e-17
 
 
 @dataclass
@@ -143,7 +139,6 @@ class Atto643(FluorophoreData):
 
     data_files: str = "atto643_data"
 
-    MAXIMUM_EXTINCTION_COEFFICIENT: float = 1.5e5
     QUANTUM_YIELD: float = 0.6
     FLUORESCENCE_LIFETIME: float = 3e-9
     S1_QUENCH_RATE: float = 0  # TBU
@@ -166,9 +161,8 @@ class TestFluo_1(FluorophoreData):
 
     __test__ = False
 
-    data_files: str = "cy5_data"
+    data_files: str = "testing_data_1"
 
-    MAXIMUM_EXTINCTION_COEFFICIENT: float = 2.5e5
     QUANTUM_YIELD: float = 0.27
     FLUORESCENCE_LIFETIME: float = 1e-9
     ISC_ST_RATE: float = 8.3e5
@@ -195,9 +189,8 @@ class TestFluo_2(FluorophoreData):
 
     __test__ = False
 
-    data_files: str = "atto643_data"
+    data_files: str = "testing_data_2"
 
-    MAXIMUM_EXTINCTION_COEFFICIENT: float = 1.5e5
     QUANTUM_YIELD: float = 0.6
     FLUORESCENCE_LIFETIME: float = 3e-9
     S1_QUENCH_RATE: float = 0  # TBU

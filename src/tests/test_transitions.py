@@ -15,7 +15,8 @@ def test_singlestate():
     assert tr.SingleState.Cis.value == 6
     assert tr.SingleState.OFF1.value == 7
     assert tr.SingleState.OFF2.value == 8
-    assert len(tr.SingleState) == 9
+    assert tr.SingleState.Rad.value == 9
+    assert len(tr.SingleState) == 10
 
 
 def test_pairedstate():
@@ -265,16 +266,17 @@ def test_transition_set(request):
 def test_transition_set_filter_by_identity(tr_set_bl_et_3f):
     assert (
         tr_set_bl_et_3f.transition_df.index.get_level_values(1).tolist()
-        == (np.arange(0, 28, 1, dtype=int)).tolist()
+        == (np.arange(0, 19, 1, dtype=int)).tolist()
     )
     assert (
         "D: testfluo_1, A: testfluo_2, dist: 2.0"
         in tr_set_bl_et_3f.transition_df.index.get_level_values(0).tolist()
     )
-    tr_set_bl_et_filtered = tr_set_bl_et_3f.filter_by_identity(remove_list=[4, 12])
+    print(tr_set_bl_et_3f.transition_df)
+    tr_set_bl_et_filtered = tr_set_bl_et_3f.filter_by_identity(remove_list=[4, 9])
     assert (
         tr_set_bl_et_filtered.transition_df.index.get_level_values(1).tolist()
-        == (np.arange(0, 26, 1, dtype=int)).tolist()
+        == (np.arange(0, 17, 1, dtype=int)).tolist()
     )
     assert (
         "D: testfluo_1, A: testfluo_2, dist: 2.0"
@@ -292,11 +294,11 @@ def test_transition_set_adjust_rates(tr_set_bl_et_3f):
         109542.37650972935,
         709169999.9999999,
         1.0,
-        475492271541138.25,
-        14864542290031.842,
-        243273014812955.22,
-        140152804282410.12,
+        248130286338181.22,
         2065118533634.439,
+        132167586152604.1,
+        3577376.4193483423,
+        200000000.0,
     ]
     tr_set_bl_et_adjusted = tr_set_bl_et_3f.adjust_rates(change_dict={4: 1, 12: 3.2})
     assert tr_set_bl_et_adjusted.transition_df["rate"].tolist()[:13] == [
@@ -308,10 +310,10 @@ def test_transition_set_adjust_rates(tr_set_bl_et_3f):
         109542.37650972935,
         709169999.9999999,
         1.0,
-        475492271541138.25,
-        14864542290031.842,
-        243273014812955.22,
-        140152804282410.12,
+        248130286338181.22,
+        2065118533634.439,
+        132167586152604.1,
+        3577376.4193483423,
         3.2,
     ]
 
@@ -528,15 +530,15 @@ def test_transition_set_finalize(tr_set_bl_et_3f):
         "rate",
         "photon",
     ]
-    assert tr_set_bl_et_3f.combined_state_transitions_df.shape == (534, 6)
-    assert tr_set_bl_et_3f.transition_matrix.shape == (534, 534)
-    assert tr_set_bl_et_3f.row_sums.shape == (534,)
+    assert tr_set_bl_et_3f.combined_state_transitions_df.shape == (498, 6)
+    assert tr_set_bl_et_3f.transition_matrix.shape == (498, 498)
+    assert tr_set_bl_et_3f.row_sums.shape == (498,)
 
 
 @pytest.mark.parametrize(
     "dirnames, distance, expected",
     [
-        [["flu_obj_cy5_1", "flu_obj_cy5_1"], 1, 4],
+        [["flu_obj_cy5_1", "flu_obj_cy5_1"], 1, 1],
         [["flu_obj_cy5_1", "flu_obj_atto643"], 1, 1],
     ],
 )
@@ -601,14 +603,3 @@ def test_interpolate_data():
         interpolated,
         np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.475, 0.6, 0.7, 0.6]),
     )
-
-
-@pytest.mark.parametrize(
-    "wavelength, file_directory, expected",
-    [[510, "cy5_data", 0.0105], [650, "cy5_data", 0.9686], [640.3, "cy5_data", 0.9442]],
-)
-def test_get_relative_extinction(wavelength, file_directory, expected):
-    relative_extinction = tr.get_relative_extinction(
-        wavelength=wavelength, file_directory=file_directory
-    )
-    assert relative_extinction == expected
