@@ -143,8 +143,11 @@ class TransitionType(Enum):
 
     # cis trans isomerization
     ISOMERIZATION = TransitionAttributes("ISO", SingleState.S1, SingleState.Cis, False)
-    BACKISOMERIZATION = TransitionAttributes(
-        "BISO", SingleState.Cis, SingleState.S0, False
+    PHOTO_BISO = TransitionAttributes(
+        "PBISO", SingleState.Cis, SingleState.S0, False
+    )
+    THERM_BISO = TransitionAttributes(
+        "TBISO", SingleState.Cis, SingleState.S0, False
     )
 
     # energy transfers
@@ -901,7 +904,8 @@ def derive_energy_transfer_transitions(
         "s0": [(TransitionType.FRET, 1)],
         "t1": [(TransitionType.S_T_ANNIHILATION, 1)],
         "s1": [(TransitionType.S_S_ANNIHILATION, 1)],
-        "cis": [(TransitionType.CIS_FRET_1, 0.2), (TransitionType.CIS_FRET_2, 0.8)],
+        "cis": [(TransitionType.CIS_FRET_1, 1-acceptor_data.BISO_EFFICIENCY), 
+                (TransitionType.CIS_FRET_2, acceptor_data.BISO_EFFICIENCY)],
         "off": [(TransitionType.OFF_FRET_1, 1)],
     }
 
@@ -1023,9 +1027,14 @@ def derive_transitions(
     biso_rate = fo.calculate_back_isomerization_rate(
         photon_flux=photon_flux, absorption_cross_section=fd.BISO_CROSS_SECTION
     )
-    bisomerization = Transition(
+    photo_bisomerization = Transition(
         rate=biso_rate,
-        transition_type=TransitionType.BACKISOMERIZATION,
+        transition_type=TransitionType.PHOTO_BISO,
+        fluorophore_ids=fluorophore_ids,
+    )
+    thermal_bisomerization = Transition(
+        rate=fd.BISO_THERMAL_RATE,
+        transition_type=TransitionType.THERM_BISO,
         fluorophore_ids=fluorophore_ids,
     )
 
@@ -1101,7 +1110,8 @@ def derive_transitions(
             isc_st,
             isc_ts,
             isomerization,
-            bisomerization,
+            photo_bisomerization,
+            thermal_bisomerization,
             internal_conversion,
         ]
         + dstorm_transitions

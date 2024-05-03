@@ -35,6 +35,8 @@ class FluorophoreData:
     # cis trans isomerization
     ISO_RATE: float = 0
     BISO_CROSS_SECTION: float = 0
+    BISO_THERMAL_RATE: float = 0
+    BISO_EFFICIENCY: float = 0
 
     # rhodamines
     H2O_ATTACK_S: float = 0
@@ -69,6 +71,8 @@ class Cy5_Widengren(FluorophoreData):
 
     ISO_RATE: float = 2e7
     BISO_CROSS_SECTION: float = 1.7e-17
+    BISO_THERMAL_RATE: float = 5e3
+    BISO_EFFICIENCY: float = 0.03
 
 
 @dataclass
@@ -100,6 +104,8 @@ class Cy5_Widengren_DNA(FluorophoreData):
 
     ISO_RATE: float = 4e6
     BISO_CROSS_SECTION: float = 0.6e-17
+    BISO_THERMAL_RATE: float = 5e3
+    BISO_EFFICIENCY: float = 0.2
 
 
 @dataclass
@@ -129,6 +135,8 @@ class Cy5_Gidi_DNA(FluorophoreData):
 
     ISO_RATE: float = 4e6
     BISO_CROSS_SECTION: float = 0.6e-17
+    BISO_THERMAL_RATE: float = 5e3
+    BISO_EFFICIENCY: float = 0.2
 
 
 @dataclass
