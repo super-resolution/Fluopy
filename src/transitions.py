@@ -1085,12 +1085,24 @@ def derive_transitions(
             transition_type=TransitionType.OXIDATION_1,
             fluorophore_ids=fluorophore_ids,
         )
+        rad_escape = Transition(
+            rate=fd.RAD_ESCAPE_RATE,
+            transition_type=TransitionType.RAD_ESCAPE,
+            fluorophore_ids=fluorophore_ids,
+        )
+        rad_relax = Transition(
+            rate=fd.RAD_RELAX_RATE,
+            transition_type=TransitionType.RAD_RELAX,
+            fluorophore_ids=fluorophore_ids,
+        )
         dstorm_transitions = [
             dstorm_pet_t,
             dstorm_pet_s,
             dstorm_red_t,
             dstorm_red_s,
             dstorm_oxi,
+            rad_escape,
+            rad_relax,
         ]
 
     bleach = []
