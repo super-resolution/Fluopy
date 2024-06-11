@@ -79,6 +79,7 @@ class Emissions:
         size=1e5,
         frames=10,
         store_time_points=False,
+        return_fl_lifetimes=False,
         seed=None,
     ):
         """
@@ -99,12 +100,15 @@ class Emissions:
         store_time_points : bool
             Whether to also create an array which contains the time points at which
             photons are detected.
+        return_fl_lifetimes : bool
+            Whether to return the fluorescence lifetimes.
         seed : None, int, BitGenerator, Generator
             A seed to initialize the BitGenerator.
 
         Returns
         -------
-        None
+        fl_lifetimes : 1-D array_like, optional
+            Contains the fluorescence lifetimes of each fluorophore.
         """
         if start_at is None:
             start_at = tuple(
@@ -147,17 +151,23 @@ class Emissions:
                 identity: 1 for identity in emitting_transition_ids_
             }
         start_index = df[df["final_state"] == start_at].index[0]
-        self.event_time_points, self.event_time_series = simulate_experiment(
-            transition_matrix=transition_set.transition_matrix,
-            row_sums=transition_set.row_sums,
-            emitting_transition_ids=emitting_transition_ids,
-            start_index=start_index,
-            size=size,
-            frames=frames,
-            frame_time=self.parameters["frame_time"],
-            store_time_points=store_time_points,
-            seed=seed,
+        self.event_time_points, self.event_time_series, fl_lifetimes = (
+            simulate_experiment(
+                transition_matrix=transition_set.transition_matrix,
+                row_sums=transition_set.row_sums,
+                emitting_transition_ids=emitting_transition_ids,
+                start_index=start_index,
+                size=size,
+                frames=frames,
+                frame_time=self.parameters["frame_time"],
+                store_time_points=store_time_points,
+                return_fl_lifetimes=return_fl_lifetimes,
+                seed=seed,
+            )
         )
+
+        if return_fl_lifetimes:
+            return fl_lifetimes
 
     def get_emission_indices(self, simulation, bandpass, seed):
         """
@@ -315,7 +325,6 @@ class Emissions:
         self.event_time_series.values[nonzero] = binom.rvs(
             n=self.event_time_series.values[nonzero], p=p, random_state=rng
         )
-    
 
     def add_transmittance(self, p, seed=None):
         """
@@ -327,7 +336,7 @@ class Emissions:
             Between 0 and 1. Transmittance of the component.
         seed : None, int, BitGenerator, Generator
             A seed to initialize the BitGenerator.
-        
+
         Returns
         -------
         None
@@ -339,7 +348,6 @@ class Emissions:
         self.event_time_series.values[nonzero] = binom.rvs(
             n=self.event_time_series.values[nonzero], p=p, random_state=rng
         )
-        
 
     def add_emccd_gain(self, emccd_gain, seed=None):
         """
@@ -483,9 +491,9 @@ class Emissions:
             kwargs.setdefault("weights", np.ones_like(data) / data.size)
 
         axes = fi.universal_figure(data=data, **kwargs)
-        
-        mean_color = 'black'
-        if 'ylabelcolor' in kwargs:
+
+        mean_color = "black"
+        if "ylabelcolor" in kwargs:
             mean_color = kwargs["ylabelcolor"]
         if display_mean:
             mean = np.mean(data)
@@ -607,7 +615,7 @@ def get_p_filter(data_dir, fluorophore, bandpass):
 
     minimum_wavelength = 200
 
-    emissions = emission_data['y']
+    emissions = emission_data["y"]
     bandpass_low = bandpass[0] - minimum_wavelength
     bandpass_high = bandpass_low + (bandpass[1] - bandpass[0])
     rel_emission = emissions[bandpass_low:bandpass_high] / emissions.sum()

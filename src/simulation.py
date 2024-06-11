@@ -604,6 +604,7 @@ def simulate_experiment(
     frames=10,
     frame_time="5ms",
     store_time_points=False,
+    return_fl_lifetimes=False,
     seed=None,
 ):
     """
@@ -635,6 +636,8 @@ def simulate_experiment(
     store_time_points : bool
         Whether to also create an array which contains the time points at which photons
         are detected.
+    return_fl_lifetimes : bool
+        Whether to return the fluorescence lifetimes.
     seed : None, int, BitGenerator, Generator
         A seed to initialize the BitGenerator.
 
@@ -645,6 +648,8 @@ def simulate_experiment(
     event_time_series : pd.Series
         Contains the time points (increasing by a defined time interval) as index and
         the number of events (i.e., detected emissions) as values.
+    fl_lifetimes : 1-D array_like, None
+        Contains the fluorescence lifetimes of detected emissions.
     """
 
     transition_matrix_sorted_indices = np.argsort(transition_matrix, axis=1)
@@ -660,6 +665,10 @@ def simulate_experiment(
     time_stamps = np.arange(0, frame_time * frames, frame_time)
     photon_collector = np.zeros(time_stamps.size)
     time = 0
+
+    fl_lifetimes = None
+    if return_fl_lifetimes:
+        fl_lifetimes = []
 
     if store_time_points:
         time_points = []
@@ -680,6 +689,8 @@ def simulate_experiment(
                 warnings.warn("The fluorophore underwent photobleaching.")
                 if store_time_points:
                     event_time_points = np.array(time_points)
+                if return_fl_lifetimes:
+                    fl_lifetimes = np.array(fl_lifetimes)
                 return
 
             transition_time = (
@@ -707,6 +718,8 @@ def simulate_experiment(
                     photons += 1
                     if store_time_points:
                         time_points.append(frame * frame_time + time)
+                    if return_fl_lifetimes:
+                        fl_lifetimes.append(transition_time)
 
             current_state_index = next_transition
             i += 1
@@ -720,5 +733,7 @@ def simulate_experiment(
     event_time_series = pd.Series(photon_collector, index=time_stamps, dtype=np.int64)
     if store_time_points:
         event_time_points = np.array(time_points)
+    if return_fl_lifetimes:
+        fl_lifetimes = np.array(fl_lifetimes)
 
-    return event_time_points, event_time_series
+    return event_time_points, event_time_series, fl_lifetimes

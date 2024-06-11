@@ -98,15 +98,17 @@ def test_emissions_extract(dirname, request, frame_time, bandpass, expected):
 
 def test_emissions_simulate(tr_set_1f_bl):
     emis = em.Emissions(frame_time="100us", bandpass=(650, 700), seed=1)
-    emis.simulate(
+    fl_lifetimes = emis.simulate(
         transition_set=tr_set_1f_bl,
         start_at=None,
         size=1e3,
         frames=10,
         store_time_points=True,
+        return_fl_lifetimes=True,
         seed=1,
     )
     assert emis.event_time_points.size == 306
+    assert fl_lifetimes.size == 306
     exp_event_time_series = pd.Series(
         np.array([80, 0, 0, 0, 9, 80, 79, 47, 11, 0], dtype=np.int64),
         index=np.linspace(0, 0.0009, 10),

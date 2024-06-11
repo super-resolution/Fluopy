@@ -464,7 +464,7 @@ def plot_frame_series(data, **kwargs):
         Contains matplotlib.axes._subplots.AxesSubplots.
     """
     kwargs.setdefault("type_", "line")
-    kwargs.setdefault("xlabel", "frame number")
+    kwargs.setdefault("xlabel", "identity")
     kwargs.setdefault("ylabel", "consecutive frames")
 
     axes = fi.universal_figure(data=data, **kwargs)

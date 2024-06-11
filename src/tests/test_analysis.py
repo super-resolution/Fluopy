@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 import src.analysis as an
+import src.transitions as tr
 
 
 # test_analysis_# includes testing of...
@@ -252,3 +253,26 @@ def test_analysis_3(sim_tr_set_2f_diff):
     }
     for fluorophore, state_occ in analysis.state_occupations.items():
         np.testing.assert_array_almost_equal(state_occ, exp_state_occ[fluorophore])
+
+
+def test_get_fluorescence_lifetimes(sim_tr_set_1f_bl, sim_tr_set_2f_diff):
+    assert tr.SingleState.S1.value == 1  # if it fails, check 
+    # analysis.get_fluorescence_lifetimes
+    analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
+    fluorescence_lifetimes = analysis.get_fluorescence_lifetimes()
+    np.testing.assert_array_almost_equal(fluorescence_lifetimes[:12], np.array([
+        1.93683425e-09, 1.89101373e-10, 2.83008866e-10, 1.19337973e-09,
+        1.59230928e-09, 7.23212712e-10, 6.13916751e-10, 6.61515620e-10,
+        4.89384977e-10, 7.77973574e-10, 5.22660359e-10, 6.71603162e-10]))
+    with pytest.raises(
+        ValueError,
+        match="fluorophore wrong_name not found in lifetime_distributions."
+    ):
+        analysis.get_fluorescence_lifetimes(fluorophore='wrong_name')
+    analysis = an.Analysis(simulation=sim_tr_set_2f_diff)
+    with pytest.raises(
+        ValueError,
+        match="if multiple fluorophores are present, fluorophore must be specified.",
+    ):
+        analysis.get_fluorescence_lifetimes()
+    analysis.get_fluorescence_lifetimes('testfluo_1')

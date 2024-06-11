@@ -297,6 +297,38 @@ class Analysis:
             state_occupations[fluorophore] /= state_occupations[fluorophore].sum()
 
         return mean_lifetimes, state_occupations
+    
+    def get_fluorescence_lifetimes(self, fluorophore=None):
+        """
+        Get the fluorescence lifetime of the specified fluorophore.
+
+        Parameters
+        ----------
+        fluorophore : str, optional
+            The name of the fluorophore whose fluorescence lifetime is to be returned.
+        
+        Returns
+        -------
+        fluorescence_lifetimes : np.ndarray
+            The fluorescence lifetimes of the specified fluorophore.
+        """
+        s1_index = 1  # hardcoded but covered by tests
+        if fluorophore is not None:
+            if fluorophore not in self.lifetime_distributions:
+                raise ValueError(
+                    f"fluorophore {fluorophore} not found in lifetime_distributions."
+                )
+        if len(self.lifetime_distributions) == 1:
+            fluorophore = list(self.lifetime_distributions.keys())[0]
+        else:
+            if fluorophore is None:
+                raise ValueError(
+                    "if multiple fluorophores are present, fluorophore must be "
+                    "specified."
+                )
+        fluorescence_lifetimes = self.lifetime_distributions[fluorophore][s1_index]
+        
+        return fluorescence_lifetimes
 
     def plot_frequency_transitions(self, prediction=None, **kwargs):
         """
