@@ -297,22 +297,23 @@ class Analysis:
             state_occupations[fluorophore] /= state_occupations[fluorophore].sum()
 
         return mean_lifetimes, state_occupations
-    
+
     def get_fluorescence_lifetimes(self, fluorophore=None):
         """
-        Get the fluorescence lifetime of the specified fluorophore.
+        Get the fluorescence lifetime (i.e., S1 lifetime) of the specified fluorophore.
 
         Parameters
         ----------
         fluorophore : str, optional
             The name of the fluorophore whose fluorescence lifetime is to be returned.
-        
+
         Returns
         -------
         fluorescence_lifetimes : np.ndarray
             The fluorescence lifetimes of the specified fluorophore.
         """
-        s1_index = 1  # hardcoded but covered by tests
+        s1_value = 1  # hardcoded but covered by tests
+
         if fluorophore is not None:
             if fluorophore not in self.lifetime_distributions:
                 raise ValueError(
@@ -326,9 +327,57 @@ class Analysis:
                     "if multiple fluorophores are present, fluorophore must be "
                     "specified."
                 )
+        s1_index = np.where(
+            self.simulation.transition_set.single_states[fluorophore] == s1_value
+        )[0][0]
+
         fluorescence_lifetimes = self.lifetime_distributions[fluorophore][s1_index]
-        
+
         return fluorescence_lifetimes
+
+    def get_emitting_transition_lifetimes(self, fluorophore=None):
+        """
+        Get the lifetimes of the emitting transitions (i.e., S1 deexcitation via photon
+        emission) of the specified fluorophore.
+
+        Parameters
+        ----------
+        fluorophore : str, optional
+            The name of the fluorophore whose fluorescence lifetime is to be returned.
+
+        Returns
+        -------
+        exp_fluorescence_lifetimes : np.ndarray
+            The fluorescence lifetimes (photon emssion) of the specified fluorophore.
+        """
+        fluorophores = (
+            self.simulation.transition_set.transition_df.index.get_level_values(
+                0
+            ).unique()
+        )
+        print(fluorophores)
+        if fluorophore is not None:
+            if fluorophore not in fluorophores:
+                raise ValueError(
+                    f"fluorophore {fluorophore} not found in transition dataframe."
+                )
+        if len(fluorophores) == 1:
+            fluorophore = fluorophores[0]
+        else:
+            if fluorophore is None:
+                raise ValueError(
+                    "if multiple fluorophores are present, fluorophore must be "
+                    "specified."
+                )
+        sub_df = self.simulation.transition_set.transition_df.loc[fluorophore]
+        emitting_transitions_f = sub_df[sub_df["photon"]].index.to_numpy()
+        exp_fluorescence_lifetimes = [
+            self.transition_time_distributions[emitting_transition_f]
+            for emitting_transition_f in emitting_transitions_f
+        ]
+        exp_fluorescence_lifetimes = np.concatenate(exp_fluorescence_lifetimes)
+
+        return exp_fluorescence_lifetimes
 
     def plot_frequency_transitions(self, prediction=None, **kwargs):
         """

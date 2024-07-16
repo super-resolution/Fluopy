@@ -54,7 +54,7 @@ class Cy5_DNA(FluorophoreData):
     data_files: str = "cy5_data"
 
     QUANTUM_YIELD: float = 0.27
-    FLUORESCENCE_LIFETIME: float = 1e-9
+    FLUORESCENCE_LIFETIME: float = 1.7e-9
     ISC_ST_RATE: float = 8.3e5
     ISC_TS_RATE: float = 5e3
     RISC_RATE: float = 0

@@ -9,6 +9,7 @@ import src.miscellaneous as mi
 import src.formulas as fo
 import matplotlib.pyplot as plt
 import src.analysis as an
+import src.fcs as fcs_package
 
 
 def moving_average(a, n=3):
@@ -24,7 +25,8 @@ def mean_without_zeros(subseries):
     return nonzero_values.mean()
 
 
-def simulate_data(number_of_simulations, memory, threshold, transition_set):
+def simulate_data(number_of_simulations, memory, threshold, transition_set, 
+                  long_sim=False):
     nrows = number_of_simulations*6
     axes = fi.universal_figure(nrows=nrows, ncols=2, fig_height=nrows*5, fig_width=12, scale=0.6)
     rng = np.random.default_rng(10)
@@ -36,27 +38,37 @@ def simulate_data(number_of_simulations, memory, threshold, transition_set):
     inten_means = []
     inten_num = []
     colors = plt.cm.viridis(range(number_of_simulations))
-    axes2 = fi.universal_figure(nrows=5, ncols=2, fig_height=16, fig_width=12, scale=0.6)
+    axes2 = fi.universal_figure(nrows=6, ncols=2, fig_height=20, fig_width=12, scale=0.6)
     figure2 = mi.get_figure(axes2)
+    all_events_summed = pd.Series(np.zeros(300001), np.linspace(0, 300, 300001))
 
     for i in range(number_of_simulations):
-        simulation = si.Simulation(transition_set=transition_set)
-        simulation.run(size=1e7, end_time=300, seed=rng)
-        emis = em.Emissions(frame_time='1ms', bandpass=[665, 731], seed=100)
-        analysis = an.Analysis(simulation)
-        fluorescence_lifetimes = analysis.get_fluorescence_lifetimes()
+        if long_sim:
+            emis = em.Emissions(frame_time='1ms', bandpass=[665, 731], seed=rng)
+            fluorescence_lifetimes = emis.simulate(
+                transition_set=transition_set, seed=rng, store_time_points=True, 
+                frames=300001, return_fl_lifetimes=True)
+        else:
+            simulation = si.Simulation(transition_set=transition_set)
+            simulation.run(size=1e7, end_time=300, seed=rng)
+            emis = em.Emissions(frame_time='1ms', bandpass=[665, 731], seed=rng)
+            analysis = an.Analysis(simulation)
+            fluorescence_lifetimes = analysis.get_fluorescence_lifetimes()
+            emis.extract(simulation)
+
         avrg_lifetimes = moving_average(fluorescence_lifetimes, n=5000)
         deciles = np.array_split(fluorescence_lifetimes, 10)
         decile_means = [np.mean(decile) for decile in deciles]
-        emis.extract(simulation)
         photon_collection_rate = fo.calculate_photon_collection_rate(NA=1.45, n1=1.51)
-        emis.add_photon_collection_objective(p=photon_collection_rate, seed=100) 
-        emis.add_transmittance(p=0.9, seed=100)  # mirror 90/100
-        emis.add_transmittance(p=0.95, seed=100) # lens 1
-        emis.add_transmittance(p=0.95, seed=100) # lens 2
-        emis.add_quantum_efficiency(p=0.8, seed=100)
-        emis.add_poisson_noise(rate=0.6, seed=100)
+        emis.add_photon_collection_objective(p=photon_collection_rate, seed=rng) 
+        emis.add_transmittance(p=0.9, seed=rng)  # mirror 90/100
+        emis.add_transmittance(p=0.99, seed=rng) # lens 1
+        emis.add_transmittance(p=0.99, seed=rng) # lens 2
+        emis.add_quantum_efficiency(p=0.85, seed=rng)
+        emis.add_poisson_noise(rate=0.6, seed=rng)
         emis.apply_threshold(threshold=threshold)
+
+        all_events_summed = all_events_summed + emis.event_time_series.values
 
         emis.plot_time_series(axes=axes[i*6+0, 0])
         emis.plot_histogram(bins=30, axes=axes[i*6+0, 1], display_mean=True)
@@ -88,7 +100,7 @@ def simulate_data(number_of_simulations, memory, threshold, transition_set):
         fi.universal_figure(type_='line', data=[np.linspace(0, avrg_lifetimes.size, 10), decile_means], axes=axes[i*6+5, 0], 
                             color='red', label='decile', legend=True,
                             xlabel='identity', ylabel='lifetime (s)')
-        axes[i*6+5,1].axis('off')
+        axes[i*6+5, 1].axis('off')
 
         sec_per_frame = (
             emis.event_time_series.index[1]
@@ -111,7 +123,8 @@ def simulate_data(number_of_simulations, memory, threshold, transition_set):
                             bins=30, axes=axes2[4, 1], color=colors[i], alpha=0.2, 
                             density=True, title='intensities', xlabel='intensity', 
                             ylabel='PD')
-        
+    
+    rel_all_events = all_events_summed.cumsum() / all_events_summed.sum()
 
     figure = mi.get_figure(axes)
     figure.tight_layout()
@@ -130,13 +143,14 @@ def simulate_data(number_of_simulations, memory, threshold, transition_set):
                     transform=axes2[1, 0].transAxes, bbox=dict(facecolor='white', edgecolor='black'))
     fi.universal_figure(type_='boxplot', data=on_periods, axes=axes2[2, 0], yscale='log',
                         xlabel='files', ylabel='on period (ms)')
+    axes2[1, 1].axis('off')
     axes2[2, 0].text(s='µ = {:.2e} ms'.format(np.mean(np.concatenate(on_periods))), x=0.8, y=0.9,
                     transform=axes2[2, 0].transAxes, bbox=dict(facecolor='white', edgecolor='black'))
     fi.universal_figure(type_='line', data=[np.arange(0, len(inten_means)), inten_means], axes=axes2[3, 0],
                         title='intensities', xlabel='files', ylabel='mean')
     axes2[3, 0].text(s='µ = {:.2e}'.format(np.mean(inten_means)), x=0.8, y=0.9,
                     transform=axes2[3, 0].transAxes, bbox=dict(facecolor='white', edgecolor='black'))
-    axes2[3, 0].set_ylim(0, )
+    axes2[3, 0].set_ylim(0, 100)
     fi.universal_figure(type_='line', data=[np.arange(0, len(inten_num)), inten_num], axes=axes2[3, 1],
                         title='intensities', xlabel='files', ylabel='count')
     axes2[3, 1].text(s='µ = {:.2e}'.format(np.mean(inten_num)), x=0.8, y=0.9,
@@ -152,4 +166,8 @@ def simulate_data(number_of_simulations, memory, threshold, transition_set):
                         title='on periods', xlabel='files', ylabel='count')
     axes2[2, 1].text(s='µ = {:.2e}'.format(np.mean(on_periods_num)), x=0.8, y=0.9,
                     transform=axes2[2, 1].transAxes, bbox=dict(facecolor='white', edgecolor='black'))
+    
+    fi.universal_figure(data=[all_events_summed.index, rel_all_events], axes=axes2[5, 0], 
+                        title='cumulative sum of events', ylabel='% emission', xlabel='time (s)')
+    axes2[5, 1].axis('off')
     figure2.tight_layout()
