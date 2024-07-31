@@ -102,13 +102,13 @@ def test_approximation(pred_tr_set_1f):
 
 
 @pytest.mark.parametrize(
-    "store_time_points, emitting_transition_ids, return_fl_lifetimes, expected",
-    [[False, {1: 1}, False, None], [True, {1: 0.9}, True, ""]],
+    "store_time_points, emitting_transition_ids, expected",
+    [[False, {1: 1}, None], [True, {1: 0.9}, ""]],
 )
 def test_simulate_experiment(
-    tr_set_1f, store_time_points, emitting_transition_ids, return_fl_lifetimes, expected
+    tr_set_1f, store_time_points, emitting_transition_ids, expected
 ):
-    event_time_points, event_time_series, fl_lifetimes = si.simulate_experiment(
+    event_time_points, event_time_series = si.simulate_experiment(
         transition_matrix=tr_set_1f.transition_matrix,
         row_sums=tr_set_1f.row_sums,
         emitting_transition_ids=emitting_transition_ids,
@@ -117,12 +117,10 @@ def test_simulate_experiment(
         frames=10,
         frame_time="1ms",
         store_time_points=store_time_points,
-        return_fl_lifetimes=return_fl_lifetimes,
         seed=1,
     )
     if expected is None:
         assert event_time_points is None
-        assert fl_lifetimes is None
         exp_event_time_series = pd.Series(
             np.array([388, 697, 456, 87, 436, 558, 372, 481, 491, 690], dtype=np.int64),
             index=np.array(
@@ -138,8 +136,6 @@ def test_simulate_experiment(
             ),
         )
         assert event_time_points.size == event_time_series.values.sum()
-        assert fl_lifetimes.mean() == 1.0153216270718441e-09
-        assert fl_lifetimes.size == event_time_series.values.sum()
         pd.testing.assert_series_equal(event_time_series, exp_event_time_series)
 
 

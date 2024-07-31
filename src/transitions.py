@@ -296,7 +296,7 @@ class TransitionSet:
         of rates of all possbile combined_state_transitions.
     """
 
-    def __init__(self, transitions, fluorophore_system):
+    def __init__(self, transitions, fluorophore_system, keep_zero_rates=False):
         """
         Parameters
         ----------
@@ -305,6 +305,8 @@ class TransitionSet:
             or fluorophore-combinations as keys.
         fluorophore_system : src.fluorophores.FluorophoreSystem
             Container for attributes of multiple, interrelated fluorophores.
+        keep_zero_rates : bool
+            Whether to keep transitions with rate 0.
         """
         self.fluorophore_system = fluorophore_system
         self.transition_df = pd.DataFrame()
@@ -354,7 +356,13 @@ class TransitionSet:
                                 f"{fluorophore_comb} indicated to be at identity {j}, "
                                 f"{self.fluorophore_system.fluorophores[j].name} found."
                             )
-                if transition.rate != 0:
+                if not keep_zero_rates:
+                    if transition.rate != 0:
+                        transition.identity = i
+                        i += 1
+                        keep_transitions.append(transition)
+                        df_constructor.append(asdict(transition))
+                else:
                     transition.identity = i
                     i += 1
                     keep_transitions.append(transition)
@@ -858,7 +866,8 @@ def construct_transition_matrix(combined_state_transitions_df):
 
 
 def derive_energy_transfer_transitions(
-    donor_data, acceptor_data, fluorophore_ids, dipole_orientation_factor, distance
+    donor_data, acceptor_data, fluorophore_ids, dipole_orientation_factor, distance,
+    refractive_index,
 ):
     """
     Derive energy transfer transitions based on the experimental conditions and the
@@ -878,6 +887,8 @@ def derive_energy_transfer_transitions(
         The dipole orientation factor of the fluorophore pair.
     distance : float
         The distance between the fluorophores of the fluorophore pair.
+    refractive_index : float
+        The refractive index of the medium.
 
     Returns
     -------
@@ -924,7 +935,7 @@ def derive_energy_transfer_transitions(
             emission_rate=emission_rate,
             spectral_overlap_integral=J,
             dipole_orientation_factor=dipole_orientation_factor,
-            refractive_index=1,
+            refractive_index=refractive_index,
         )
         acceptor_state = acceptor_abs_file.split("_")[1].split(".")[0]
         for transition_type, factor in which_et[acceptor_state]:

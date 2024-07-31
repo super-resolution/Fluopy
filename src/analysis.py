@@ -350,12 +350,9 @@ class Analysis:
         exp_fluorescence_lifetimes : np.ndarray
             The fluorescence lifetimes (photon emssion) of the specified fluorophore.
         """
-        fluorophores = (
-            self.simulation.transition_set.transition_df.index.get_level_values(
-                0
-            ).unique()
-        )
-        print(fluorophores)
+        fluorophores = []
+        for key, _ in self.simulation.transition_set.single_states.items():
+            fluorophores.append(key)
         if fluorophore is not None:
             if fluorophore not in fluorophores:
                 raise ValueError(

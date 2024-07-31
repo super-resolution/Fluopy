@@ -79,8 +79,11 @@ class Emissions:
         size=1e5,
         frames=10,
         store_time_points=False,
-        return_fl_lifetimes=False,
         seed=None,
+        triplet_1=None,
+        triplet_2=None,
+        triplet_3=None,
+        triplet_4=None,
     ):
         """
         Simulates events per time.
@@ -100,15 +103,12 @@ class Emissions:
         store_time_points : bool
             Whether to also create an array which contains the time points at which
             photons are detected.
-        return_fl_lifetimes : bool
-            Whether to return the fluorescence lifetimes.
         seed : None, int, BitGenerator, Generator
             A seed to initialize the BitGenerator.
 
         Returns
         -------
-        fl_lifetimes : 1-D array_like, optional
-            Contains the fluorescence lifetimes of each fluorophore.
+        None
         """
         if start_at is None:
             start_at = tuple(
@@ -151,7 +151,7 @@ class Emissions:
                 identity: 1 for identity in emitting_transition_ids_
             }
         start_index = df[df["final_state"] == start_at].index[0]
-        self.event_time_points, self.event_time_series, fl_lifetimes = (
+        self.event_time_points, self.event_time_series, durations = (
             simulate_experiment(
                 transition_matrix=transition_set.transition_matrix,
                 row_sums=transition_set.row_sums,
@@ -161,13 +161,17 @@ class Emissions:
                 frames=frames,
                 frame_time=self.parameters["frame_time"],
                 store_time_points=store_time_points,
-                return_fl_lifetimes=return_fl_lifetimes,
                 seed=seed,
+                triplet_1=triplet_1,
+                triplet_2=triplet_2,
+                triplet_3=triplet_3,
+                triplet_4=triplet_4,
             )
         )
+        print(f'{np.mean(durations):.2e}')
+        print(len(durations))
+        return durations
 
-        if return_fl_lifetimes:
-            return fl_lifetimes
 
     def get_emission_indices(self, simulation, bandpass, seed):
         """

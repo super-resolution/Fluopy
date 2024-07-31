@@ -98,7 +98,8 @@ class FluorophoreSystem:
         bleaching=False,
         energy_transfer=True,
         dstorm=True,
-        **dstorm_parameters,
+        energy_transfer_parameters=None,
+        dstorm_parameters=None,
     ):
         """
         Derives transitions based on fluorophore and the experimental conditions to be
@@ -116,7 +117,10 @@ class FluorophoreSystem:
             Whether to incooperate energy transfers as possible transitions.
         dstorm : bool
             Whether to incooperate dstorm photoswitching as possible transitions.
-        dstorm_parameters : dict
+        energy_transfer_parameters : dict, optional
+            May contain the following keys: dipole_orientation_factor, refractive_index.
+            Only needed if energy_transfer is True.
+        dstorm_parameters : dict, optional
             May contain the following keys: reducing_agent, concentration, k_pet, ph.
             Only needed if dstorm is True.
 
@@ -151,6 +155,17 @@ class FluorophoreSystem:
                     f"{self.fluorophores[acceptor].name}, "
                     f"{distance}"
                 ] += [(donor, acceptor)]
+
+        if energy_transfer_parameters is None:
+            energy_transfer_parameters = {}
+        energy_transfer_parameters.setdefault("dipole_orientation_factor", 2 / 3)
+        energy_transfer_parameters.setdefault("refractive_index", 1.33)
+
+        if dstorm_parameters is None:
+            dstorm_parameters = {}
+        dstorm_parameters.setdefault("reducing_agent", "mea")
+        dstorm_parameters.setdefault("concentration", 143)
+        dstorm_parameters.setdefault("ph", 7.5)
 
         for fluorophore in self.fluorophores:
             fluorophore_ids = [
@@ -200,8 +215,8 @@ class FluorophoreSystem:
                                 donor_data=donor.constants,
                                 acceptor_data=acceptor.constants,
                                 fluorophore_ids=fluorophore_ids,
-                                dipole_orientation_factor=2 / 3,
                                 distance=distance,
+                                **energy_transfer_parameters,
                             )
 
         return transitions

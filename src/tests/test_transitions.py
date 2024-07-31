@@ -551,6 +551,7 @@ def test_derive_energy_transfer_transitions(dirnames, request, distance, expecte
         fluorophore_ids=[(1, 2)],
         dipole_orientation_factor=2 / 3,
         distance=distance,
+        refractive_index=1,
     )
 
     assert len(transitions) == expected

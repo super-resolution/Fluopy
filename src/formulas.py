@@ -314,7 +314,7 @@ def calculate_fret_rate(
     emission_rate=5e8,
     spectral_overlap_integral=1e16,
     dipole_orientation_factor=2 / 3,
-    refractive_index=1,
+    refractive_index=1.33,
 ):
     """
     Calculates the Förster resonance energy transfer rate.
@@ -330,7 +330,7 @@ def calculate_fret_rate(
     dipole_orientation_factor : float
         The dipole orientation factor κ².
     refractive_index : float
-        The refractive index.
+        The refractive index of the medium.
 
     Returns
     -------

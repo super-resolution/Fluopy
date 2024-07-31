@@ -604,8 +604,11 @@ def simulate_experiment(
     frames=10,
     frame_time="5ms",
     store_time_points=False,
-    return_fl_lifetimes=False,
     seed=None,
+    triplet_1=None,
+    triplet_2=None,
+    triplet_3=None,
+    triplet_4=None,
 ):
     """
     Simulates experimental data (i.e., number of photons per frame). Methodically the
@@ -636,8 +639,6 @@ def simulate_experiment(
     store_time_points : bool
         Whether to also create an array which contains the time points at which photons
         are detected.
-    return_fl_lifetimes : bool
-        Whether to return the fluorescence lifetimes.
     seed : None, int, BitGenerator, Generator
         A seed to initialize the BitGenerator.
 
@@ -648,8 +649,6 @@ def simulate_experiment(
     event_time_series : pd.Series
         Contains the time points (increasing by a defined time interval) as index and
         the number of events (i.e., detected emissions) as values.
-    fl_lifetimes : 1-D array_like, None
-        Contains the fluorescence lifetimes of detected emissions.
     """
 
     transition_matrix_sorted_indices = np.argsort(transition_matrix, axis=1)
@@ -665,11 +664,8 @@ def simulate_experiment(
     time_stamps = np.arange(0, frame_time * frames, frame_time)
     photon_collector = np.zeros(time_stamps.size)
     time = 0
-
-    fl_lifetimes = None
-    if return_fl_lifetimes:
-        fl_lifetimes = []
-
+    all_time = 0
+    durations = []
     if store_time_points:
         time_points = []
     else:
@@ -680,18 +676,20 @@ def simulate_experiment(
         random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
         i = 0
         j = 1
+        all_time_new = all_time
         while time < frame_time:
             current_state_lambda = row_sums[current_state_index]
 
             if current_state_lambda == 0:
                 photon_collector[frame] = photons
                 event_time_series = pd.Series(photon_collector, index=time_stamps)
-                warnings.warn("The fluorophore underwent photobleaching.")
+                warnings.warn(
+                    "All fluorophores underwent photobleaching or entered "
+                    "another Markov chain absorbing state."
+                )
                 if store_time_points:
                     event_time_points = np.array(time_points)
-                if return_fl_lifetimes:
-                    fl_lifetimes = np.array(fl_lifetimes)
-                return
+                return event_time_points, event_time_series
 
             transition_time = (
                 1
@@ -706,10 +704,20 @@ def simulate_experiment(
                 cumsum_sorted_trm[current_state_index],
                 random_numbers[i - (j - 1) * size, 1],
             )
-
+            all_time_new = all_time_new + transition_time
             next_transition = transition_matrix_sorted_indices[
                 current_state_index, sorted_index
             ]
+            if next_transition in triplet_1:
+                time_point_1 = all_time_new
+            if next_transition in triplet_2:
+                time_point_2 = all_time_new
+            if next_transition in triplet_3:
+                duration_1 = all_time_new - time_point_1
+                durations.append(duration_1)
+            if next_transition in triplet_4:
+                duration_2 = all_time_new - time_point_2
+                durations.append(duration_2)
             if next_transition in emitting_transition_ids:
                 if (
                     random_numbers[i - (j - 1) * size, 2]
@@ -718,8 +726,6 @@ def simulate_experiment(
                     photons += 1
                     if store_time_points:
                         time_points.append(frame * frame_time + time)
-                    if return_fl_lifetimes:
-                        fl_lifetimes.append(transition_time)
 
             current_state_index = next_transition
             i += 1
@@ -729,11 +735,198 @@ def simulate_experiment(
 
         time = 0
         photon_collector[frame] = photons
+        all_time += frame_time
 
     event_time_series = pd.Series(photon_collector, index=time_stamps, dtype=np.int64)
     if store_time_points:
         event_time_points = np.array(time_points)
-    if return_fl_lifetimes:
-        fl_lifetimes = np.array(fl_lifetimes)
 
-    return event_time_points, event_time_series, fl_lifetimes
+    return event_time_points, event_time_series, durations
+
+
+def simulate_TCSPC(
+    transition_set,
+    emitting_transition_ids,
+    start_index=0,
+    number_pulses=1e5,
+    pulse_duration=5e-11,
+    time_between_pulses=25e-9,
+    excitation_rate=1e6,
+    size=1e5,
+    seed=None,
+    frame_time=1e-3,
+    transitions_DA=None,
+    triplet_1=None,
+    triplet_2=None,
+    triplet_3=None,
+    triplet_4=None,
+):
+    """
+    Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence lifetime
+    measurement). Methodically the direct method of the gillespie algorithm.
+
+    Parameters
+    ----------
+    transition_matrix_non_exc : np.ndarray
+        Contains the normalized rate constants (i.e., point probabilities) for each
+        possible combined_state_transition at the corresponding index pair.
+        Excitiaion is not a possible transition.
+    row_sums_non_exc : np.ndarray
+        Contains the sum of each row of non-normalized transition rates, i.e., the sum
+        of rates of all possible combined_state_transitions.
+        Excitation is not a possible transition.
+    emitting_transition_ids : dict
+        Contains the combined_state_transition indices as keys and their probability of
+        passing a bandpass filter as values.
+    start_index : int
+        Starting index. The final state of the transition indexed is the starting state
+        configuration.
+    number_pulses : int
+        Number of pulses simulated.
+    pulse_duration : float
+        The duration of a laser pulse in s.
+    time_between_pulses : float
+        The time between 2 laser pulses in s.
+    excitation_rate : float
+        The excitation rate of the fluorophore given the pulse irradiance.
+    frame_time : float
+        The time interval at which the number of detected emissions is counted in s.
+    size : int
+        Size of random_numbers drawn at once.
+    seed : None, int, BitGenerator, Generator
+        A seed to initialize the BitGenerator.
+
+    Returns
+    -------
+    fl_lifetimes_D : 1-D array_like, None
+        Contains the fluorescence lifetimes of detected emissions when acceptor not 
+        available.
+    fl_lifetimes_DA : 1-D array_like, None
+        Contains the fluorescence lifetimes of detected emissions when acceptor 
+        available.
+    """
+    transition_matrix_non_exc = transition_set.transition_matrix
+    row_sums_non_exc = transition_set.row_sums
+
+    transition_matrix_sorted_indices_non_exc = np.argsort(
+        transition_matrix_non_exc, axis=1
+    )
+    sorted_transition_matrix_non_exc = np.take_along_axis(
+        transition_matrix_non_exc, transition_matrix_sorted_indices_non_exc, axis=1
+    )
+    cumsum_sorted_trm_non_exc = np.cumsum(sorted_transition_matrix_non_exc, axis=1)
+    excitation_probability = 1 - np.exp(
+        -excitation_rate * pulse_duration
+    )  # CDF of exponential distribution
+
+    number_fluorophores = transition_set.fluorophore_system.count
+    rng = np.random.default_rng(seed)
+    time_stamps = np.arange(
+        0, np.floor(number_pulses * time_between_pulses / frame_time), 1, dtype=np.int64
+    )
+    photon_collector = np.zeros(time_stamps.size)
+    current_state_index = start_index
+    lifetimes_D = []
+    lifetimes_DA = []
+
+    durations = []
+    i = 0
+    j = 1
+    k = 0
+    l = 1
+    S0 = 0
+    S1 = 1
+    random_numbers_exc = rng.uniform(low=0, high=1, size=(size, number_fluorophores))
+    random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
+    random_indices = rng.integers(low=0, high=number_fluorophores, size=size)
+    while i < number_pulses:
+        i += 1
+        if i >= j * size:
+            j += int(np.floor(i / (j * size)))
+            random_numbers_exc = rng.uniform(
+                low=0, high=1, size=(size, number_fluorophores)
+            )
+            random_indices = rng.integers(low=0, high=number_fluorophores, size=size)
+        time = (i - 1) * time_between_pulses
+        last_pulse_time = time
+        next_pulse_time = time + time_between_pulses
+        df = transition_set.combined_state_transitions_df
+        current_states = np.array(df["final_state"][current_state_index])
+        S0s = np.where(current_states == S0)[0]
+        excitations = np.where(
+            random_numbers_exc[i - (j - 1) * size, S0s] < excitation_probability
+        )[0]
+        if excitations.size != 0:
+            current_states[excitations] = S1
+        if (np.where(current_states == S0)[0]).size == number_fluorophores:
+            p_no_exc = (1 - excitation_probability) ** number_fluorophores
+            p_at_least_one_exc = 1 - p_no_exc
+            number_pulses_until_next_excitation = rng.geometric(
+                p=p_at_least_one_exc
+            )  # here, zero is not possible 
+            # which is correct, because it was already tested for current i
+            # why not use 0 and put it earlier? this way multiple excitations can happen
+            # in the same step
+            i += number_pulses_until_next_excitation - 1
+            try:
+                current_states[random_indices[i - (j - 1) * size]] = S1
+                time = (i - 1) * time_between_pulses
+                current_state_index = df[
+                    df["final_state"] == tuple(current_states)
+                ].index[0]
+                continue
+            except IndexError:
+                continue
+        current_state_index = df[df["final_state"] == tuple(current_states)].index[0]
+        while time < next_pulse_time:
+            k += 1
+            if k == l * size:
+                l += 1
+                random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
+            current_state_lambda = row_sums_non_exc[current_state_index]
+            if current_state_lambda == 0:
+                break
+            transition_time = (1 / current_state_lambda) * np.log(
+                1 / random_numbers[k - (l - 1) * size, 0]
+            )
+            time += transition_time
+
+            if time > next_pulse_time:
+                break
+
+            sorted_index = np.searchsorted(
+                cumsum_sorted_trm_non_exc[current_state_index],
+                random_numbers[k - (l - 1) * size, 1],
+            )
+
+            next_transition = transition_matrix_sorted_indices_non_exc[
+                current_state_index, sorted_index
+            ]
+            if next_transition in triplet_1:
+                time_point_1 = time
+            if next_transition in triplet_2:
+                time_point_2 = time
+            if next_transition in triplet_3:
+                duration_1 = time - time_point_1
+                durations.append(duration_1)
+            if next_transition in triplet_4:
+                duration_2 = time - time_point_2
+                durations.append(duration_2)
+            current_state_index = next_transition
+            if next_transition in emitting_transition_ids:
+                if (
+                    random_numbers[k - (l - 1) * size, 2]
+                    < emitting_transition_ids[next_transition]
+                ):
+                    if next_transition in transitions_DA:
+                        lifetimes_DA.append(time - last_pulse_time)
+                    else:
+                        lifetimes_D.append(time - last_pulse_time)
+                    frame = int(np.ceil(time / frame_time)) - 1
+                    try:
+                        photon_collector[frame] += 1
+                    except:
+                        pass
+    event_time_series = pd.Series(photon_collector, index=time_stamps, dtype=np.int64)
+
+    return lifetimes_DA, lifetimes_D, event_time_series, durations

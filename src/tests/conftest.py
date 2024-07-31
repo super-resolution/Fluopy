@@ -61,7 +61,8 @@ def flu_sys_1xcy5_1xatto643(flu_obj_cy5_1, flu_obj_atto643):
 @pytest.fixture()
 def tr_set_bl_et_3f(flu_sys_2xcy5_1xatto643):
     transitions = flu_sys_2xcy5_1xatto643.load_transitions(
-        irradiance=2, wavelength=640, bleaching=True, energy_transfer=True, dstorm=False
+        irradiance=2, wavelength=640, bleaching=True, energy_transfer=True, 
+        dstorm=False, energy_transfer_parameters={'refractive_index': 1},
     )
     tset = tr.TransitionSet(
         transitions=transitions, fluorophore_system=flu_sys_2xcy5_1xatto643
@@ -73,7 +74,8 @@ def tr_set_bl_et_3f(flu_sys_2xcy5_1xatto643):
 @pytest.fixture()
 def tr_set_bl_et_2f_diff(flu_sys_1xcy5_1xatto643):
     transitions = flu_sys_1xcy5_1xatto643.load_transitions(
-        irradiance=2, wavelength=640, bleaching=True, energy_transfer=True, dstorm=False
+        irradiance=2, wavelength=640, bleaching=True, energy_transfer=True, 
+        dstorm=False, energy_transfer_parameters={'refractive_index': 1},
     )
     tset = tr.TransitionSet(
         transitions=transitions, fluorophore_system=flu_sys_1xcy5_1xatto643
@@ -85,7 +87,8 @@ def tr_set_bl_et_2f_diff(flu_sys_1xcy5_1xatto643):
 @pytest.fixture()
 def tr_set_bl_et_2f_same(flu_sys_2xcy5):
     transitions = flu_sys_2xcy5.load_transitions(
-        irradiance=2, wavelength=640, bleaching=True, energy_transfer=True, dstorm=False
+        irradiance=2, wavelength=640, bleaching=True, energy_transfer=True, 
+        dstorm=False, energy_transfer_parameters={'refractive_index': 1},
     )
     tset = tr.TransitionSet(transitions=transitions, fluorophore_system=flu_sys_2xcy5)
     tset.finalize()
@@ -100,6 +103,7 @@ def tr_set_et_2f_diff(flu_sys_1xcy5_1xatto643):
         bleaching=False,
         energy_transfer=True,
         dstorm=False,
+        energy_transfer_parameters={'refractive_index': 1},
     )
     tset = tr.TransitionSet(
         transitions=transitions, fluorophore_system=flu_sys_1xcy5_1xatto643
@@ -156,7 +160,7 @@ def tr_set_1f(flu_sys_cy5):
 def tr_set_large(flu_sys_cy5):
     transitions = flu_sys_cy5.load_transitions(
         irradiance=2, wavelength=640, bleaching=True, energy_transfer=False, 
-        dstorm=True, reducing_agent='test', concentration=143, ph=8,
+        dstorm=True, dstorm_parameters={'reducing_agent':'test', 'ph':8},
     )
     tset = tr.TransitionSet(transitions=transitions, fluorophore_system=flu_sys_cy5)
     tset.finalize()
