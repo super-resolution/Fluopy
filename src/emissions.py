@@ -80,10 +80,6 @@ class Emissions:
         frames=10,
         store_time_points=False,
         seed=None,
-        triplet_1=None,
-        triplet_2=None,
-        triplet_3=None,
-        triplet_4=None,
     ):
         """
         Simulates events per time.
@@ -151,7 +147,7 @@ class Emissions:
                 identity: 1 for identity in emitting_transition_ids_
             }
         start_index = df[df["final_state"] == start_at].index[0]
-        self.event_time_points, self.event_time_series, durations = (
+        self.event_time_points, self.event_time_series = (
             simulate_experiment(
                 transition_matrix=transition_set.transition_matrix,
                 row_sums=transition_set.row_sums,
@@ -162,15 +158,8 @@ class Emissions:
                 frame_time=self.parameters["frame_time"],
                 store_time_points=store_time_points,
                 seed=seed,
-                triplet_1=triplet_1,
-                triplet_2=triplet_2,
-                triplet_3=triplet_3,
-                triplet_4=triplet_4,
             )
         )
-        print(f'{np.mean(durations):.2e}')
-        print(len(durations))
-        return durations
 
 
     def get_emission_indices(self, simulation, bandpass, seed):
@@ -485,7 +474,7 @@ class Emissions:
 
         kwargs.setdefault("type_", "hist")
         kwargs.setdefault("title", "intensity distribution")
-        kwargs.setdefault("xlabel", "photon count")
+        kwargs.setdefault("xlabel", r"$\frac{n_p}{frame}$")
         kwargs.setdefault("fontsize", 16)
         if density:
             kwargs.setdefault("ylabel", "PD")
@@ -529,7 +518,7 @@ class Emissions:
         kwargs.setdefault("type_", "line")
         kwargs.setdefault("title", "fluorescence trajectory")
         kwargs.setdefault("xlabel", "time [s]")
-        kwargs.setdefault("ylabel", "photon count")
+        kwargs.setdefault("ylabel", r"$\frac{n_p}{frame}$")
 
         axes = fi.universal_figure(data=data, **kwargs)
 

@@ -182,3 +182,21 @@ def print_class(class_instance, class_name):
                 print(attr_name, "=", aRepr.repr(attr_value))
             print("_" * 65)
     print("\n")
+
+
+def find_key_in_list(row, key):
+    """
+    Parameters
+    ----------
+    row : pd.Series
+        Row of a DataFrame.
+    key : any type
+        Key to search for in row['fluorophore_ids'].
+    Returns
+    -------
+    int, None
+        If key is in row['fluorophore_ids'], return the index of the row.
+    """
+    if key in row['fluorophore_ids']:
+        return row.name
+    return None

@@ -49,8 +49,12 @@ def simulate_data(number_of_simulations, memory, threshold, transition_set,
                 transition_set=transition_set, seed=rng, store_time_points=True, 
                 frames=300001, return_fl_lifetimes=True)
         else:
-            if memmap:
+            if isinstance(memmap, str):
+                memmap_path = memmap
+            elif memmap:
                 memmap_path = ''
+            else: 
+                memmap_path = None
             simulation = si.Simulation(transition_set=transition_set)
             simulation.run(size=1e7, end_time=300, seed=rng, use_memmap=memmap_path)
             emis = em.Emissions(frame_time='1ms', bandpass=[665, 731], seed=rng)

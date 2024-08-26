@@ -52,6 +52,7 @@ class PairedState(Enum):
     S1_S1 = [SingleState.S1, SingleState.S1]
     S0_T1 = [SingleState.S0, SingleState.T1]
     S0_OFF2 = [SingleState.S0, SingleState.OFF2]
+    S0_OFF1 = [SingleState.S0, SingleState.OFF1]
 
     @property
     def single_state_values(self):
@@ -162,7 +163,7 @@ class TransitionType(Enum):
         "OFRET1", PairedState.S1_OFF1, PairedState.S0_S0, False
     )
     OFF_FRET_2 = TransitionAttributes(
-        "OFRET2", PairedState.S1_OFF1, PairedState.S0_OFF2, False
+        "OFRET2", PairedState.S1_OFF1, PairedState.S0_OFF1, False
     )
     S_S_ANNIHILATION = TransitionAttributes(
         "SSA", PairedState.S1_S1, PairedState.S0_S1, False
@@ -520,6 +521,7 @@ class TransitionSet:
             columns=[
                 "initial_state",
                 "final_state",
+                "fluorophore_ids",
                 "abbreviation",
                 "transition_id",
                 "rate",
@@ -700,6 +702,7 @@ def rate_assignment_standard(
                             [
                                 current_state,
                                 future_state,
+                                [index],
                                 transition["abbreviation"],
                                 transition_id,
                                 transition["rate"],
@@ -766,6 +769,7 @@ def rate_assignment_energy_transfer(
                         [
                             current_state,
                             future_state,
+                            [donor, acceptor],
                             transition["abbreviation"],
                             transition_id,
                             transition["rate"],
@@ -780,7 +784,8 @@ def construct_transition_rate_list(transition_df, combined_state_transitions):
     """
     Constructs a list that contains lists of each realizable combined_state_transition.
     The inner lists contain initial state_combination, final state_combination,
-    abbreviation, transition id, rate and whether a photon is emitted.
+    the index of involved fluorophores, abbreviation, transition id, rate and whether a 
+    photon is emitted.
 
     Parameters
     ----------
@@ -917,7 +922,9 @@ def derive_energy_transfer_transitions(
         "s1": [(TransitionType.S_S_ANNIHILATION, 1)],
         "cis": [(TransitionType.CIS_FRET_1, 1-acceptor_data.BISO_EFFICIENCY), 
                 (TransitionType.CIS_FRET_2, acceptor_data.BISO_EFFICIENCY)],
-        "off": [(TransitionType.OFF_FRET_1, 1)],
+        "off": [(TransitionType.OFF_FRET_1, acceptor_data.OFRET_EFFICIENCY),
+                (TransitionType.OFF_FRET_2, 1-acceptor_data.OFRET_EFFICIENCY),
+                ],
     }
 
     transitions = []

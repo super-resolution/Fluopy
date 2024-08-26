@@ -24,7 +24,7 @@ def test_pairedstate():
     assert tr.PairedState.S1_S0.single_state_values == (1, 0)
     assert tr.PairedState.S1_S0.acceptor == tr.SingleState.S0
     assert tr.PairedState.S1_S0.donor == tr.SingleState.S1
-    assert len(tr.PairedState) == 11
+    assert len(tr.PairedState) == 12
 
 
 def test_transitiontype():
@@ -403,9 +403,9 @@ def test_rate_assignment_standard():
         combined_state_transitions=combined_state_transitions,
     )
     expected = [
-        [(0, 0, 0), (0, 1, 0), "EXC", 0, 1, False],
-        [(0, 1, 0), (1, 1, 0), "EXC", 0, 1, False],
-        [(0, 4, 5), (1, 4, 5), "EXC", 0, 1, False],
+        [(0, 0, 0), (0, 1, 0), [1], "EXC", 0, 1, False],
+        [(0, 1, 0), (1, 1, 0), [0], "EXC", 0, 1, False],
+        [(0, 4, 5), (1, 4, 5), [0], "EXC", 0, 1, False],
     ]
     assert transition_rate_list == expected
 
@@ -436,9 +436,9 @@ def test_rate_assignment_energy_transfer():
         combined_state_transitions=combined_state_transitions,
     )
     expected = [
-        [(0, 1, 0), (1, 0, 0), "FRET", 0, 1, False],
-        [(1, 0, 0), (0, 1, 0), "FRET", 0, 1, False],
-        [(0, 1, 5), (1, 0, 5), "FRET", 0, 1, False],
+        [(0, 1, 0), (1, 0, 0), [1, 0], "FRET", 0, 1, False],
+        [(1, 0, 0), (0, 1, 0), [0, 1], "FRET", 0, 1, False],
+        [(0, 1, 5), (1, 0, 5), [1, 0], "FRET", 0, 1, False],
     ]
     assert transition_rate_list == expected
 
@@ -484,12 +484,12 @@ def test_construct_transition_rate_list():
         combined_state_transitions=combined_state_transitions,
     )
     expected = [
-        [(0, 1, 0), (1, 1, 0), "EXC", 0, 1, False],
-        [(0, 0, 0), (0, 1, 0), "EXC", 0, 1, False],
-        [(0, 4, 5), (1, 4, 5), "EXC", 0, 1, False],
-        [(0, 1, 0), (1, 0, 0), "FRET", 1, 1, False],
-        [(1, 0, 0), (0, 1, 0), "FRET", 1, 1, False],
-        [(0, 1, 5), (1, 0, 5), "FRET", 1, 1, False],
+        [(0, 1, 0), (1, 1, 0), [0], "EXC", 0, 1, False],
+        [(0, 0, 0), (0, 1, 0), [1], "EXC", 0, 1, False],
+        [(0, 4, 5), (1, 4, 5), [0], "EXC", 0, 1, False],
+        [(0, 1, 0), (1, 0, 0), [1, 0], "FRET", 1, 1, False],
+        [(1, 0, 0), (0, 1, 0), [0, 1], "FRET", 1, 1, False],
+        [(0, 1, 5), (1, 0, 5), [1, 0], "FRET", 1, 1, False],
     ]
     assert transition_rate_list == expected
 
@@ -525,12 +525,13 @@ def test_transition_set_finalize(tr_set_bl_et_3f):
     assert tr_set_bl_et_3f.combined_state_transitions_df.columns.tolist() == [
         "initial_state",
         "final_state",
+        "fluorophore_ids",
         "abbreviation",
         "transition_id",
         "rate",
         "photon",
     ]
-    assert tr_set_bl_et_3f.combined_state_transitions_df.shape == (498, 6)
+    assert tr_set_bl_et_3f.combined_state_transitions_df.shape == (498, 7)
     assert tr_set_bl_et_3f.transition_matrix.shape == (498, 498)
     assert tr_set_bl_et_3f.row_sums.shape == (498,)
 
