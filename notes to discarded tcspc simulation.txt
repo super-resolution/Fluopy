@@ -1,0 +1,72 @@
+TCSPC simulation
+
+So far only suitable for one type of fluorophore (because fluo transitions is an array)
+The transition matrix is 0 for excitations. 
+While the current time is smaller then the time of the next pulse:
+        1. Get the rates (not normalized) of all possible next transitions**
+        2. Get the time via the exponential distribution for each rate
+        3. Get the next transition and time via the minimum of all times
+If the time exceeds the time of the next pulse*, the transition can be put into a waiting array (entry for each fluorophore). If a transition effects multiple fluorophores, it goes to the entry of each of them. The procedure with the waiting array is as follows:
+        1. The time is smaller than the smallest waiting time and smaller than the next pulse:
+                The transition is executed. If it effects fluorophores that have an entry in the waiting array, these transitions are discarded (even if it effects multiple fluorophores).
+        2. The time is larger than the smallest waiting time and the smallest waiting time is smaller than the next pulse time:
+                The waiting transition is executed and the new transition is discarded.
+        3. The time is larger than the next pulse time and smaller than the smallest waiting time:
+                The transition is stored in the waiting array. If it effects fluorophores that have an entry in the waiting array, they are replaced (if  the respective transitions effect multiple fluorophores, the other entries are discarded).
+                Go to the next pulse
+        4. The time is larger than the smallest waiting time and the smallest waiting time is larger than the next pulse time:
+                a. The new transition does not effect any waiting fluorophores:
+                        The new transition is stored in the waiting array.
+                b. The time is smaller than the waiting time of the effected waiting fluorophores:
+                        The new transition is stored in the waiting array  and replaces the respective entries; If the replaced transitions effect multiple fluorophores, the other entries are discarded.
+                        Go to the next pulse
+                c. Else:
+                        Go to the next pulse
+*Another chance of excitation. The time is set equal to the time of the pulse.
+**The possible transitions are effected by the waiting array. If no entries in the waiting array, all transitions are possible. If there are entries in the waiting array, there will be a laser pulse first. Only those transitions will possible to be drawn, that are associated to the excitation by this pulse. This can be done as long as all energy transfers have S1 as their donor and S1 can only be invoked by the laser pulse (i.e., no FRET to S0 or RISC). 
+\maybe solved due to adaption of possible transitions
+
+Replaced values in the waiting array are lost; however, if the replacement is replaced, the original transition may be restored (if the new replacing transition does not effect the fluorophore of the original transition). This is relatively unlikely if the time between pulses is long, because replacing transitions are energy transfers, indicating short times until transitions and hence no replacement (but discarding the original transition).  
+
+Why not number of pulses until next excitation if not all S0? If it is higher than sth. in the waiting array, discard and run waiting array?
+
+How to handle energy transfers? An energy transfer always excites the acceptor, hence it changes the photophysical state. This means that technically, the lifetime of the acceptor should be interrupted, i.e., shortened by the energy transfer. This is also the case if the excited acceptor state is being neglected due to a short lifetime and a recycling of the original acceptor state! Hence, an energy transfer transition like S1T1 - S0T2 - S0T1 that is approximated to S1T1 - S0T1 should lead a discarding/replacing of for example ISC stored for T1 in the waiting array. 
+
+
+# tests for simulate_TCSPC (also test for hardcoded stuff like S0 and S1 numbering)
+# tutorial, note that the extra simulation for homoFRET is needed to construct the ideal
+# homo FRET scenario. Also note that observed tau outside of the homoFRET consideration
+# in the standard algorithm (not TCSPC) means S1 lifetimes of photon emission - this 
+# discriminates between different fluos! TCSPC simulation doesnt do that.
+# also in simulate_experiment, skip number of frames if next transition exceeds frame 
+# threshold
+
+
+S1toT1; S1
+S1 first to S0 -> now S1toS0 possible which may not have been possible before; this is covered by the possible transitions, because one of the possible transitions is exactly this energy transfer. If it is faster than S1toT1, it outcompetes and happens!
+
+What was the problem before with discarding all transitions that are too long? For example, the triplet lifetimes were too short - why? because discarding of long lifetimes is more probable and long lifetimes are more likely when only ISC is possible (not e.g., ISC + S1 deexcitation of another fluorophore) hence if S1 suddenly comes into play the T1 lifetimes drawn are too short. It should be drawn independent (i.e., the sudden appearance of S1 should not influence ISC except it transfers energy to T1), however the times cannot be drawn completely independent due to energy transfers. Hence, the waiting array is a possible solution to this dilemma. 
+(shouldnt this be covered by the lower probability of executing the transition since there is a higher probability of receiving the e.g. fluorescence transition?)
+The discarding of too long lifetimes is feasible in the experiment simulation due to the constant drawing conditions!
+
+
+S0 T1 S0
+
+ISC between 1000 and 1001 pulses
+this is the next transition
+
+2x S0, next exciting laser pulse in 100 pulses
+this time is smaller than next transition -> go!
+
+2xS0, next exciting laser pulse in 2000 pulses
+this time is larger than next transition -> run next transition and discard the drawn laser pulses (dont store, it could be that now 3 fluorophores are available). 
+
+S1 S0 S0
+
+homoFRET  between 2 and 3 pulses
+this is the next transition
+
+2x S0, next exciting laser pulse in pulse
+this time is smaller than next transition -> go! This excitation  influences the waiting transition, hence it has to be discarded
+
+Why is this different from the problem of discarding too long drawn lifetimes described above? either the conditions are the same after the other transition was carried out, and the memorylessness enables redrawing. The other possibility is that the conditions are changed (suddenly less or more S0's) that change the distribution (which is basically the problem described above). But: here this is no problem because one would expect the probability of excitation to be lowered when only 1 S0 is left?
