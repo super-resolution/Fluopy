@@ -87,33 +87,33 @@ def test_prediction_3(tr_set_bl_et_2f_diff):
     assert prediction.transition_set == tr_set_bl_et_2f_diff
     exp_freq_trans = np.array(
         [
-            5.649337e-04,
-            1.771750e-04,
-            5.446492e-07,
-            5.445403e-07,
-            1.312408e-05,
-            1.312408e-05,
-            4.653601e-04,
+            5.132559e-04,
+            1.632239e-04,
+            5.017624e-07,
+            5.016621e-07,
+            1.209066e-05,
+            1.209066e-05,
+            4.287167e-04,
             0.000000e00,
-            9.987652e-01,
-            3.698573e-03,
-            2.164720e-03,
-            1.082360e-05,
-            1.082349e-05,
-            1.432323e-03,
-            0.000000e00,
-            9.926827e-01,
+            9.988696e-01,
+            3.720376e-03,
+            1.993971e-03,
+            9.969856e-06,
+            9.96975588e-06,
+            1.31934422e-03,
+            0.00000000e00,
+            9.92639978e-01,
+            3.06391128e-04,
         ]
     )
-
     np.testing.assert_allclose(
         prediction.frequency_transitions, exp_freq_trans, rtol=1e-6
     )
     exp_freq_states = {
         "testfluo_1": np.array(
-            [5.015457e-01, 4.984475e-01, 2.733246e-07, 6.586135e-06, 0.000000e00]
+            [5.015829e-01, 4.984108e-01, 2.518078e-07, 6.067659e-06, 0.000000e00]
         ),
-        "testfluo_2": np.array([4.984530e-01, 5.015415e-01, 5.415143e-06, 0.000000e00]),
+        "testfluo_2": np.array([4.984165e-01, 5.015785e-01, 4.987747e-06, 0.000000e00]),
     }
     for fluorophore, freq in prediction.frequency_states.items():
         np.testing.assert_allclose(freq, exp_freq_states[fluorophore], rtol=1e-5)
@@ -141,15 +141,16 @@ def test_prediction_4(tr_set_bl_et_2f_same):
     assert prediction.transition_set == tr_set_bl_et_2f_same
     exp_freq_trans = np.array(
         [
-            2.444193e-05,
-            6.599322e-06,
-            2.028681e-08,
-            2.028275e-08,
-            4.888387e-07,
-            4.888387e-07,
-            1.733349e-05,
+            2.402425e-05,
+            4.406643e-06,
+            1.354635e-08,
+            1.354364e-08,
+            3.264180e-07,
+            3.264180e-07,
+            1.157429e-05,
             0.000000e00,
-            9.999506e-01,
+            9.999516e-01,
+            7.703353e-06,
         ]
     )
     np.testing.assert_allclose(
@@ -157,7 +158,7 @@ def test_prediction_4(tr_set_bl_et_2f_same):
     )
     exp_freq_states = {
         "testfluo_1": np.array(
-            [6.666610e-01, 3.333387e-01, 1.352476e-08, 3.258978e-07, 0.000000e00]
+            [6.666603e-01, 3.333395e-01, 9.031066e-09, 2.176161e-07, 0.000000e00]
         )
     }
     for fluorophore, freq in prediction.frequency_states.items():
@@ -182,20 +183,21 @@ def test_prediction_5(tr_set_et_2f_diff):
     assert prediction.transition_set == tr_set_et_2f_diff
     exp_freq_trans = np.array(
         [
-            4.313134e-04,
-            1.411042e-04,
-            4.337649e-07,
-            4.337649e-07,
-            1.045217e-05,
-            1.045217e-05,
-            3.706181e-04,
-            9.990352e-01,
-            8.309057e-04,
-            4.438048e-04,
-            2.219024e-06,
-            2.219024e-06,
-            2.936509e-04,
-            9.984272e-01,
+            4.298562e-04,
+            1.407102e-04,
+            4.325535e-07,
+            4.325535e-07,
+            1.042297e-05,
+            1.042297e-05,
+            3.695831e-04,
+            9.990381e-01,
+            8.609659e-04,
+            2.769130e-04,
+            1.384565e-06,
+            1.384565e-06,
+            1.832241e-04,
+            9.983679e-01,
+            3.082213e-04,
         ]
     )
     np.testing.assert_allclose(
@@ -203,9 +205,9 @@ def test_prediction_5(tr_set_et_2f_diff):
     )
     exp_freq_states = {
         "testfluo_1": np.array(
-            [5.001722e-01, 4.998223e-01, 2.170531e-07, 5.230196e-06]
+            [5.001878e-01, 4.998067e-01, 2.164534e-07, 5.215744e-06]
         ),
-        "testfluo_2": np.array([4.998246e-01, 5.001743e-01, 1.110048e-06]),
+        "testfluo_2": np.array([4.998092e-01, 5.001901e-01, 6.926155e-07]),
     }
     for fluorophore, freq in prediction.frequency_states.items():
         np.testing.assert_allclose(freq, exp_freq_states[fluorophore], rtol=1e-5)

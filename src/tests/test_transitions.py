@@ -24,7 +24,6 @@ def test_pairedstate():
     assert tr.PairedState.S1_S0.single_state_values == (1, 0)
     assert tr.PairedState.S1_S0.acceptor == tr.SingleState.S0
     assert tr.PairedState.S1_S0.donor == tr.SingleState.S1
-    assert len(tr.PairedState) == 12
 
 
 def test_transitiontype():
@@ -266,17 +265,16 @@ def test_transition_set(request):
 def test_transition_set_filter_by_identity(tr_set_bl_et_3f):
     assert (
         tr_set_bl_et_3f.transition_df.index.get_level_values(1).tolist()
-        == (np.arange(0, 19, 1, dtype=int)).tolist()
+        == (np.arange(0, 22, 1, dtype=int)).tolist()
     )
     assert (
         "D: testfluo_1, A: testfluo_2, dist: 2.0"
         in tr_set_bl_et_3f.transition_df.index.get_level_values(0).tolist()
     )
-    print(tr_set_bl_et_3f.transition_df)
-    tr_set_bl_et_filtered = tr_set_bl_et_3f.filter_by_identity(remove_list=[4, 9])
+    tr_set_bl_et_filtered = tr_set_bl_et_3f.filter_by_identity(remove_list=[4, 10])
     assert (
         tr_set_bl_et_filtered.transition_df.index.get_level_values(1).tolist()
-        == (np.arange(0, 17, 1, dtype=int)).tolist()
+        == (np.arange(0, 20, 1, dtype=int)).tolist()
     )
     assert (
         "D: testfluo_1, A: testfluo_2, dist: 2.0"
@@ -285,36 +283,22 @@ def test_transition_set_filter_by_identity(tr_set_bl_et_3f):
 
 
 def test_transition_set_adjust_rates(tr_set_bl_et_3f):
-    assert tr_set_bl_et_3f.transition_df["rate"].tolist()[:13] == [
+    assert tr_set_bl_et_3f.transition_df["rate"].tolist()[:6] == [
         5815700.439305622,
         270000000.0,
         830000.0,
         5000.0,
         20000000.0,
         109542.37650972935,
-        709169999.9999999,
-        1.0,
-        248130286338181.22,
-        2065118533634.439,
-        132167586152604.1,
-        3577376.4193483423,
-        200000000.0,
     ]
-    tr_set_bl_et_adjusted = tr_set_bl_et_3f.adjust_rates(change_dict={4: 1, 12: 3.2})
-    assert tr_set_bl_et_adjusted.transition_df["rate"].tolist()[:13] == [
+    tr_set_bl_et_adjusted = tr_set_bl_et_3f.adjust_rates(change_dict={4: 1})
+    assert tr_set_bl_et_adjusted.transition_df["rate"].tolist()[:6] == [
         5815700.439305622,
         270000000.0,
         830000.0,
         5000.0,
         1.0,
         109542.37650972935,
-        709169999.9999999,
-        1.0,
-        248130286338181.22,
-        2065118533634.439,
-        132167586152604.1,
-        3577376.4193483423,
-        3.2,
     ]
 
 
@@ -531,19 +515,31 @@ def test_transition_set_finalize(tr_set_bl_et_3f):
         "rate",
         "photon",
     ]
-    assert tr_set_bl_et_3f.combined_state_transitions_df.shape == (498, 7)
-    assert tr_set_bl_et_3f.transition_matrix.shape == (498, 498)
-    assert tr_set_bl_et_3f.row_sums.shape == (498,)
+    assert tr_set_bl_et_3f.combined_state_transitions_df.shape == (516, 7)
+    assert tr_set_bl_et_3f.transition_matrix.shape == (516, 516)
+    assert tr_set_bl_et_3f.row_sums.shape == (516,)
 
 
 @pytest.mark.parametrize(
-    "dirnames, distance, expected",
+    "dirnames, distance, overwrite, exclude, include, expected",
     [
-        [["flu_obj_cy5_1", "flu_obj_cy5_1"], 1, 1],
-        [["flu_obj_cy5_1", "flu_obj_atto643"], 1, 1],
+        [["flu_obj_cy5_1", "flu_obj_cy5_1"], 1, None, None, None, 0],
+        [["flu_obj_cy5_1", "flu_obj_atto643"], 1, None, None, None, 1],
+        [["flu_obj_cy5_1", "flu_obj_cy5_1"], 1, {"s0": [0.1, 1]}, None, None, 2],
+        [["flu_obj_cy5_1", "flu_obj_cy5_1"], 1, None, ["s0"], None, 3],
+        [
+            ["flu_obj_cy5_1", "flu_obj_cy5_1"],
+            1,
+            None,
+            None,
+            {"t1": [(tr.TransitionType.S_T_ANNI_BLEACH, 0.5)]},
+            4,
+        ],
     ],
 )
-def test_derive_energy_transfer_transitions(dirnames, request, distance, expected):
+def test_derive_energy_transfer_transitions(
+    dirnames, request, distance, overwrite, exclude, include, expected
+):
     donor_data = request.getfixturevalue(dirnames[0]).constants
     acceptor_data = request.getfixturevalue(dirnames[1]).constants
     transitions = tr.derive_energy_transfer_transitions(
@@ -553,18 +549,38 @@ def test_derive_energy_transfer_transitions(dirnames, request, distance, expecte
         dipole_orientation_factor=2 / 3,
         distance=distance,
         refractive_index=1,
+        overwrite=overwrite,
+        exclude=exclude,
+        include=include,
     )
-
-    assert len(transitions) == expected
+    if expected == 0:
+        assert len(transitions) == 3
+        assert transitions[0].rate == 248130286338181.22
+    elif expected == 1:
+        assert len(transitions) == 1
+    elif expected == 2:
+        assert transitions[0].rate == 0.1 * 248130286338181.22
+    elif expected == 3:
+        assert len(transitions) == 2
+    elif expected == 4:
+        assert len(transitions) == 4
+        assert_total_rate = 0
+        for transition in transitions:
+            if transition.initial_state == tr.PairedState.S1_T1:
+                assert_total_rate += transition.rate
+                if transition.abbreviation == "STAB":
+                    assert_rate = transition.rate
+        assert assert_rate == 0.5 * assert_total_rate
 
 
 @pytest.mark.parametrize(
-    "irradiance, bleaching, dstorm",
-    [[0, False, False], [1, False, False], [1, True, True]],
+    "irradiance, bleaching, dstorm, summarize",
+    [[0, False, False, False], [1, False, False, True], [1, True, True, False]],
 )
-def test_derive_transitions(irradiance, bleaching, dstorm, request):
+def test_derive_transitions(irradiance, bleaching, dstorm, summarize, request):
     fluorophore_data = request.getfixturevalue("flu_obj_cy5_1").constants
     transitions = tr.derive_transitions(
+        summarize=summarize,
         fluorophore_data=fluorophore_data,
         fluorophore_ids=[1],
         irradiance=irradiance,
@@ -594,6 +610,15 @@ def test_derive_transitions(irradiance, bleaching, dstorm, request):
         for transition in transitions:
             if transition.abbreviation == "EXC":
                 assert transition.rate != 0
+    summarize_checker = ["S1S0SUM", "CisS0SUM", "T1S0SUM"]
+    if summarize:
+        for transition in transitions:
+            if transition.abbreviation in summarize_checker:
+                summarize_checker.remove(transition.abbreviation)
+        assert len(summarize_checker) == 0
+    else:
+        for transition in transitions:
+            assert transition.abbreviation not in summarize_checker
 
 
 def test_interpolate_data():

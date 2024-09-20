@@ -61,6 +61,8 @@ def simulate_data(number_of_simulations, memory, threshold, transition_set,
             analysis = an.Analysis(simulation)
             fluorescence_lifetimes = analysis.get_fluorescence_lifetimes()
             emis.extract(simulation)
+            if memmap_path is not None:
+                simulation.delete_memmaps()
 
         avrg_lifetimes = moving_average(fluorescence_lifetimes, n=5000)
         deciles = np.array_split(fluorescence_lifetimes, 10)

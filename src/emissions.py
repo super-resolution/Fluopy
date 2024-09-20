@@ -8,7 +8,7 @@ import pandas as pd
 from pathlib import Path
 from scipy.stats import norm, poisson, gamma, binom
 import src.figure as fi
-from src.simulation import simulate_experiment
+from src.simulation import simulate_experiment, simulate_TCSPC
 
 
 class Emissions:
@@ -79,7 +79,6 @@ class Emissions:
         size=1e5,
         frames=10,
         store_time_points=False,
-        seed=None,
     ):
         """
         Simulates events per time.
@@ -99,8 +98,6 @@ class Emissions:
         store_time_points : bool
             Whether to also create an array which contains the time points at which
             photons are detected.
-        seed : None, int, BitGenerator, Generator
-            A seed to initialize the BitGenerator.
 
         Returns
         -------
@@ -116,51 +113,109 @@ class Emissions:
                 "fluorophores."
             )
         size = int(size)
-        emitting_transition_ids = {}
-        if self.parameters["bandpass"] is not None:
-            processed = []
-            data_dir = os.path.join(Path(__file__).parent, "fluorophore_collection")
-            for fluorophore in transition_set.fluorophore_system.fluorophores:
-                if fluorophore.constants is None:
-                    raise ValueError(
-                        "bandpass not None but emission data not available for "
-                        f"this kind of fluorophore: {fluorophore.name}"
-                    )
-                if fluorophore.name not in processed:
-                    p_passed = get_p_filter(
-                        data_dir=data_dir,
-                        fluorophore=fluorophore,
-                        bandpass=self.parameters["bandpass"],
-                    )
-                    sub_df = transition_set.transition_df.loc[fluorophore.name]
-                    emitting_transitions_f = sub_df[sub_df["photon"]].index.to_numpy()
-                    df = transition_set.combined_state_transitions_df
-                    emitting_transition_ids_f = df[
-                        df["transition_id"].isin(emitting_transitions_f)
-                    ].index.to_numpy()
-                    for emitting_transition_id in emitting_transition_ids_f:
-                        emitting_transition_ids[emitting_transition_id] = p_passed
-        else:
-            df = transition_set.combined_state_transitions_df
-            emitting_transition_ids_ = df.loc[df["photon"] == True].index.to_numpy()
-            emitting_transition_ids = {
-                identity: 1 for identity in emitting_transition_ids_
-            }
+        emitting_transition_ids = get_emitting_transition_ids(
+            bandpass=self.parameters["bandpass"], transition_set=transition_set
+        )
+        df = transition_set.combined_state_transitions_df
         start_index = df[df["final_state"] == start_at].index[0]
-        self.event_time_points, self.event_time_series = (
-            simulate_experiment(
-                transition_matrix=transition_set.transition_matrix,
-                row_sums=transition_set.row_sums,
+        self.event_time_points, self.event_time_series = simulate_experiment(
+            transition_matrix=transition_set.transition_matrix,
+            row_sums=transition_set.row_sums,
+            emitting_transition_ids=emitting_transition_ids,
+            start_index=start_index,
+            size=size,
+            frames=frames,
+            frame_time=self.parameters["frame_time"],
+            store_time_points=store_time_points,
+            seed=self.parameters["seed"],
+        )
+
+    def tcspc(
+        self,
+        transition_set,
+        number_pulses=1e4,
+        pulse_duration=1e-11,
+        time_between_pulses=1e-7,
+        excitation_rates=None,
+        size=1e5,
+        store_time_points=False,
+    ):
+        """
+        Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence
+        lifetime measurements). The return value lifetimes_DA contains the fluorescence
+        lifetimes of detected emissions when energy transfer is available. This does
+        not discriminate between the number or kind of energy transfers.
+
+        Parameters
+        ----------
+        transition_set : src.transitions.TransitionSet
+            Collection of all relevant transitions and related attributes.
+        number_pulses : int
+            Number of pulses to be simulated.
+        pulse_duration : float
+            The duration of a laser pulse in s. This time is used to calculate the
+            probability of excitation, other than that it is neglected.
+        time_between_pulses : float
+            Time between two pulses in seconds.
+        excitation_rates : dict
+            Contains the fluorophore names as keys and the excitation rates as values.
+            Assumes uniform irradiance over the pulse duration.
+        size : int
+            Size of random_numbers drawn at once.
+        store_time_points : bool
+            Whether to store the time points at which photons are detected.
+
+        Returns
+        -------
+        lifetimes_DA : 1-D array_like
+            Contains the fluorescence lifetimes of detected emissions when energy 
+            transfer available.
+        lifetimes_D : 1-D array_like
+            Contains the fluorescence lifetimes of detected emissions when energy 
+            transfer not available.
+        """
+        exc = [
+            j
+            for _, j in transition_set.transition_df.index
+            if transition_set.transition_df.loc[(_, j), "abbreviation"] == "EXC"
+        ]
+        transition_set = transition_set.adjust_rates(
+            {identity: 0 for identity in exc}, keep_zero_rates=True
+        )
+        transition_set.finalize()
+        
+        if excitation_rates is None:
+            excitation_rates = {
+                f.name: 1e7 for f in transition_set.fluorophore_system.fluorophores
+            }
+        emitting_transition_ids = get_emitting_transition_ids(
+            bandpass=self.parameters["bandpass"], transition_set=transition_set
+        )
+        emit_ids_list = list(emitting_transition_ids.keys())
+        df = transition_set.combined_state_transitions_df
+        et_initial_states = (
+            df["initial_state"][df["fluorophore_ids"].apply(len) > 1]
+        ).values
+        et_transition_ids = df.iloc[emit_ids_list][
+            df.iloc[emit_ids_list]["initial_state"].isin(et_initial_states)
+        ].index.to_numpy()
+        self.event_time_series, self.event_time_points, lifetimes_DA, lifetimes_D = (
+            simulate_TCSPC(
+                transition_set=transition_set,
                 emitting_transition_ids=emitting_transition_ids,
-                start_index=start_index,
-                size=size,
-                frames=frames,
+                et_transition_ids=et_transition_ids,
+                number_pulses=number_pulses,
+                pulse_duration=pulse_duration,
+                time_between_pulses=time_between_pulses,
+                excitation_rates=excitation_rates,
                 frame_time=self.parameters["frame_time"],
+                size=size,
                 store_time_points=store_time_points,
-                seed=seed,
+                seed=self.parameters["seed"],
             )
         )
 
+        return lifetimes_DA, lifetimes_D
 
     def get_emission_indices(self, simulation, bandpass, seed):
         """
@@ -539,9 +594,11 @@ class Emissions:
         -------
         None
         """
-        time_series_file = os.path.join(path, "event_time_series" + name_extension)
+        time_series_file = os.path.join(
+            path, "event_time_series" + name_extension + ".csv"
+        )
         time_points_file = os.path.join(path, "event_time_points" + name_extension)
-        np.save(time_series_file, self.event_time_series)
+        self.event_time_series.to_csv(time_series_file, header=False)
         np.save(time_points_file, self.event_time_points)
 
     @classmethod
@@ -565,12 +622,20 @@ class Emissions:
             Instance of Emissions constructed with existing data.
         """
         obj = cls.__new__(cls)
-        obj.event_time_series = np.load(
-            os.path.join(path, "event_time_series" + name_extension + ".npy")
+        obj.event_time_series = pd.read_csv(
+            os.path.join(path, "event_time_series" + name_extension + ".csv"),
+            index_col=0,
+            header=None,
         )
+        obj.event_time_series = pd.Series(
+            obj.event_time_series.values.flatten(), index=obj.event_time_series.index
+        )
+        obj.event_time_series.index.name = None
         obj.event_time_points = np.load(
-            os.path.join(path, "event_time_points" + name_extension + ".npy")
+            os.path.join(path, "event_time_points" + name_extension + ".npy"),
+            allow_pickle=True,
         )
+
         return obj
 
 
@@ -615,3 +680,55 @@ def get_p_filter(data_dir, fluorophore, bandpass):
     p_passed = rel_emission.sum()
 
     return p_passed
+
+
+def get_emitting_transition_ids(bandpass, transition_set):
+    """
+    Get a dictionary with ids of emitting transitions as keys and probabilities of
+    passing the bandpass filter as values. If bandpass is None, all emitting transitions
+    are returned with a probability of 1.
+
+    Parameters
+    ----------
+    bandpass : tuple
+        The lowest and highest emission wavelength to be passed by the bandpass filter.
+    transition_set : src.transitions.TransitionSet
+        Collection of all relevant transitions and related attributes.
+
+    Returns
+    -------
+    emitting_transition_ids : dict
+        Dictionary with ids of emitting transitions as keys and probabilities of passing
+        the bandpass filter as values.
+        The ids correpsond to transition_set.combined_state_transitions_df.
+    """
+    emitting_transition_ids = {}
+    if bandpass is not None:
+        processed = []
+        data_dir = os.path.join(Path(__file__).parent, "fluorophore_collection")
+        for fluorophore in transition_set.fluorophore_system.fluorophores:
+            if fluorophore.constants is None:
+                raise ValueError(
+                    "bandpass not None but emission data not available for "
+                    f"this kind of fluorophore: {fluorophore.name}"
+                )
+            if fluorophore.name not in processed:
+                p_passed = get_p_filter(
+                    data_dir=data_dir,
+                    fluorophore=fluorophore,
+                    bandpass=bandpass,
+                )
+                sub_df = transition_set.transition_df.loc[fluorophore.name]
+                emitting_transitions_f = sub_df[sub_df["photon"]].index.to_numpy()
+                df = transition_set.combined_state_transitions_df
+                emitting_transition_ids_f = df[
+                    df["transition_id"].isin(emitting_transitions_f)
+                ].index.to_numpy()
+                for emitting_transition_id in emitting_transition_ids_f:
+                    emitting_transition_ids[emitting_transition_id] = p_passed
+    else:
+        df = transition_set.combined_state_transitions_df
+        emitting_transition_ids_ = df.loc[df["photon"] == True].index.to_numpy()
+        emitting_transition_ids = {identity: 1 for identity in emitting_transition_ids_}
+
+    return emitting_transition_ids

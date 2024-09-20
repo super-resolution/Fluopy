@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import src.emissions as em
 import src.fluorophores as fl
+from unittest.mock import patch
 
 
 @pytest.mark.parametrize(
@@ -49,6 +50,33 @@ def test_get_p_filter(bandpass, expected):
             data_dir=data_dir, fluorophore=fluorophore, bandpass=bandpass
         )
         assert p_passed == expected
+
+
+@pytest.mark.parametrize(
+    "bandpass, expected",
+    [
+        [None, {4: 1, 5: 1, 6: 1, 7: 1, 38: 1, 39: 1, 40: 1, 41: 1, 42: 1}],
+        [
+            (650, 700),
+            {
+                4: 0.685702066268812,
+                5: 0.685702066268812,
+                6: 0.685702066268812,
+                7: 0.685702066268812,
+                38: 0.5859441764799607,
+                39: 0.5859441764799607,
+                40: 0.5859441764799607,
+                41: 0.5859441764799607,
+                42: 0.5859441764799607,
+            },
+        ],
+    ],
+)
+def test_get_emitting_transition_ids(bandpass, expected, tr_set_bl_et_2f_diff):
+    emitting_transition_ids = em.get_emitting_transition_ids(
+        bandpass=bandpass, transition_set=tr_set_bl_et_2f_diff
+    )
+    assert emitting_transition_ids == expected
 
 
 def test_emissions():
@@ -104,14 +132,79 @@ def test_emissions_simulate(tr_set_1f_bl):
         size=1e3,
         frames=10,
         store_time_points=True,
-        seed=1,
     )
-    assert emis.event_time_points.size == 306
+    assert emis.event_time_points.size == 205
     exp_event_time_series = pd.Series(
-        np.array([80, 0, 0, 0, 9, 80, 79, 47, 11, 0], dtype=np.int64),
+        np.array([80, 0, 0, 0, 0, 0, 16, 52, 7, 50], dtype=np.int64),
         index=np.linspace(0, 0.0009, 10),
     )
     pd.testing.assert_series_equal(emis.event_time_series, exp_event_time_series)
+
+
+@pytest.mark.parametrize(
+    "dirname, excitation_rates, expected",
+    [
+        ["tr_set_1f_bl", {"testfluo_1": 1e5}, 0],
+        ["tr_set_bl_et_2f_diff", {"testfluo_1": 1e10, "testfluo_2": 1e11}, 1],
+        ["tr_set_bl_et_2f_same", {"testfluo_1": 1e10}, 1],
+    ],
+)
+def test_emissions_tcspc(dirname, request, excitation_rates, expected):
+    tr_set = request.getfixturevalue(dirname)
+    if expected == 1:
+        ets = [j for h, j in tr_set.transition_df.index if "dist" in h]
+        tr_set = tr_set.adjust_rates({identity: 1e10 for identity in ets})
+        tr_set.finalize()
+    emis = em.Emissions(frame_time="100us", bandpass=(650, 700), seed=1)
+    with pytest.warns(UserWarning, match="the last frame"):
+        lifetimes_DA, _ = emis.tcspc(
+            transition_set=tr_set,
+            number_pulses=1e4,
+            pulse_duration=1e-9,
+            time_between_pulses=1e-6,
+            excitation_rates=excitation_rates,
+            size=1e3,
+            store_time_points=True,
+        )
+    if expected == 1:
+        assert lifetimes_DA.size > 0
+    else:
+        assert lifetimes_DA.size == 0
+
+
+def test_emissions_tcspc_parameters(tr_set_bl_et_2f_diff):
+    tr_set = tr_set_bl_et_2f_diff.adjust_rates(
+        {8: 1e10, 15: 1e10}, keep_zero_rates=True
+    )
+    tr_set.finalize()
+    emis = em.Emissions(frame_time="1ms", bandpass=(650, 700), seed=1)
+    with patch("src.emissions.simulate_TCSPC") as mock_tcspc:
+        mock_tcspc.return_value = (0, 0, 0, 0)
+        emis.tcspc(
+            transition_set=tr_set,
+            number_pulses=1e4,
+            pulse_duration=1e-9,
+            time_between_pulses=1e-6,
+            excitation_rates={"testfluo_1": 1e5, "testfluo_2": 1e6},
+            size=1e3,
+            store_time_points=True,
+        )
+        emitting_transition_ids = {
+            4: 0.685702066268812,
+            5: 0.685702066268812,
+            6: 0.685702066268812,
+            7: 0.685702066268812,
+            38: 0.5859441764799607,
+            39: 0.5859441764799607,
+            40: 0.5859441764799607,
+            41: 0.5859441764799607,
+            42: 0.5859441764799607,
+        }
+        args, kwargs = mock_tcspc.call_args
+        np.testing.assert_array_equal(
+            kwargs["et_transition_ids"], np.array([4, 38, 40])
+        )
+        assert kwargs["emitting_transition_ids"] == emitting_transition_ids
 
 
 @pytest.mark.parametrize(
@@ -461,15 +554,15 @@ def test_emissions_add_poisson_noise(em_large):
 def test_save_and_load(em_tr_set_1f_bl):
     path = os.path.join(os.path.dirname(__file__), "temp_data")
     em_tr_set_1f_bl.save(path=path, name_extension="_test_extension")
-    assert os.path.isfile(os.path.join(path, "event_time_series_test_extension.npy"))
+    assert os.path.isfile(os.path.join(path, "event_time_series_test_extension.csv"))
     assert os.path.isfile(os.path.join(path, "event_time_points_test_extension.npy"))
     emis = em.Emissions.load(path=path, name_extension="_test_extension")
     assert type(emis.event_time_points) is np.ndarray
-    assert type(emis.event_time_series) is np.ndarray
-    os.remove(os.path.join(path, "event_time_series_test_extension.npy"))
+    assert type(emis.event_time_series) is pd.Series
+    os.remove(os.path.join(path, "event_time_series_test_extension.csv"))
     os.remove(os.path.join(path, "event_time_points_test_extension.npy"))
     assert not os.path.isfile(
-        os.path.join(path, "event_time_series_test_extension.npy")
+        os.path.join(path, "event_time_series_test_extension.csv")
     )
     assert not os.path.isfile(
         os.path.join(path, "event_time_points_test_extension.npy")

@@ -61,8 +61,12 @@ def flu_sys_1xcy5_1xatto643(flu_obj_cy5_1, flu_obj_atto643):
 @pytest.fixture()
 def tr_set_bl_et_3f(flu_sys_2xcy5_1xatto643):
     transitions = flu_sys_2xcy5_1xatto643.load_transitions(
-        irradiance=2, wavelength=640, bleaching=True, energy_transfer=True, 
-        dstorm=False, energy_transfer_parameters={'refractive_index': 1},
+        irradiance=2,
+        wavelength=640,
+        bleaching=True,
+        energy_transfer=True,
+        dstorm=False,
+        energy_transfer_parameters={"refractive_index": 1},
     )
     tset = tr.TransitionSet(
         transitions=transitions, fluorophore_system=flu_sys_2xcy5_1xatto643
@@ -74,8 +78,12 @@ def tr_set_bl_et_3f(flu_sys_2xcy5_1xatto643):
 @pytest.fixture()
 def tr_set_bl_et_2f_diff(flu_sys_1xcy5_1xatto643):
     transitions = flu_sys_1xcy5_1xatto643.load_transitions(
-        irradiance=2, wavelength=640, bleaching=True, energy_transfer=True, 
-        dstorm=False, energy_transfer_parameters={'refractive_index': 1},
+        irradiance=2,
+        wavelength=640,
+        bleaching=True,
+        energy_transfer=True,
+        dstorm=False,
+        energy_transfer_parameters={"refractive_index": 1},
     )
     tset = tr.TransitionSet(
         transitions=transitions, fluorophore_system=flu_sys_1xcy5_1xatto643
@@ -87,8 +95,12 @@ def tr_set_bl_et_2f_diff(flu_sys_1xcy5_1xatto643):
 @pytest.fixture()
 def tr_set_bl_et_2f_same(flu_sys_2xcy5):
     transitions = flu_sys_2xcy5.load_transitions(
-        irradiance=2, wavelength=640, bleaching=True, energy_transfer=True, 
-        dstorm=False, energy_transfer_parameters={'refractive_index': 1},
+        irradiance=2,
+        wavelength=640,
+        bleaching=True,
+        energy_transfer=True,
+        dstorm=False,
+        energy_transfer_parameters={"refractive_index": 1},
     )
     tset = tr.TransitionSet(transitions=transitions, fluorophore_system=flu_sys_2xcy5)
     tset.finalize()
@@ -103,7 +115,7 @@ def tr_set_et_2f_diff(flu_sys_1xcy5_1xatto643):
         bleaching=False,
         energy_transfer=True,
         dstorm=False,
-        energy_transfer_parameters={'refractive_index': 1},
+        energy_transfer_parameters={"refractive_index": 1},
     )
     tset = tr.TransitionSet(
         transitions=transitions, fluorophore_system=flu_sys_1xcy5_1xatto643
@@ -159,8 +171,12 @@ def tr_set_1f(flu_sys_cy5):
 @pytest.fixture()
 def tr_set_large(flu_sys_cy5):
     transitions = flu_sys_cy5.load_transitions(
-        irradiance=2, wavelength=640, bleaching=True, energy_transfer=False, 
-        dstorm=True, dstorm_parameters={'reducing_agent':'test', 'ph':8},
+        irradiance=2,
+        wavelength=640,
+        bleaching=True,
+        energy_transfer=False,
+        dstorm=True,
+        dstorm_parameters={"reducing_agent": "test", "ph": 8},
     )
     tset = tr.TransitionSet(transitions=transitions, fluorophore_system=flu_sys_cy5)
     tset.finalize()
@@ -222,26 +238,24 @@ def em_tr_set_et_2f_diff(sim_tr_set_et_2f_diff):
 
 
 @pytest.fixture()
-def em_large(tr_set_large):
-    emis = em.Emissions(frame_time="100ms", bandpass=None, seed=1)
-    emis.simulate(
-        transition_set=tr_set_large,
-        size=1e5,
-        frames=100,
-        store_time_points=False,
-        seed=25500,
+def em_large():
+    emis = em.Emissions.load(
+        path=(
+            r"C:\Users\vie43sq\OneDrive - Universität Würzburg\GitHub"
+            r"\Photoswitching\src\tests"
+        ),
+        name_extension="_em_large",
     )
     return emis
 
 
 @pytest.fixture()
-def em_very_large(tr_set_large):
-    emis = em.Emissions(frame_time="1ms", bandpass=None, seed=1)
-    emis.simulate(
-        transition_set=tr_set_large,
-        size=1e5,
-        frames=10000,
-        store_time_points=True,
-        seed=25500,
+def em_very_large():
+    emis = em.Emissions.load(
+        path=(
+            r"C:\Users\vie43sq\OneDrive - Universität Würzburg\GitHub"
+            r"\Photoswitching\src\tests"
+        ),
+        name_extension="_em_very_large",
     )
     return emis

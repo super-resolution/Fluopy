@@ -93,6 +93,7 @@ class FluorophoreSystem:
 
     def load_transitions(
         self,
+        summarize=False,
         irradiance=2,
         wavelength=600,
         bleaching=False,
@@ -118,7 +119,8 @@ class FluorophoreSystem:
         dstorm : bool
             Whether to incooperate dstorm photoswitching as possible transitions.
         energy_transfer_parameters : dict, optional
-            May contain the following keys: dipole_orientation_factor, refractive_index.
+            May contain the following keys: dipole_orientation_factor, refractive_index,
+            overwrite, exclude, include.
             Only needed if energy_transfer is True.
         dstorm_parameters : dict, optional
             May contain the following keys: reducing_agent, concentration, k_pet, ph.
@@ -183,6 +185,7 @@ class FluorophoreSystem:
             else:
                 if fluorophore.name not in transitions:
                     transitions[fluorophore.name] = derive_transitions(
+                        summarize=summarize,
                         fluorophore_data=fluorophore.constants,
                         fluorophore_ids=fluorophore_ids,
                         irradiance=irradiance,

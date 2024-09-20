@@ -22,6 +22,7 @@ class FluorophoreData:
     ISC_ST_RATE: float = 0
     ISC_TS_RATE: float = 0
     RISC_RATE: float = 0
+    STA_EFFICIENCY: float = 0
     PHOTOBLEACH_T1_RATE: float = 0
     PHOTOBLEACH_T2_RATE: float = 0
 
@@ -59,6 +60,7 @@ class Cy5_DNA(FluorophoreData):
     ISC_ST_RATE: float = 8.3e5
     ISC_TS_RATE: float = 5e3
     RISC_RATE: float = 0
+    STA_EFFICIENCY: float = 0
     PHOTOBLEACH_T1_RATE: float = 1e1  # estimation
     PHOTOBLEACH_T2_RATE: float = 0
 

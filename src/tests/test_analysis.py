@@ -120,22 +120,21 @@ def test_analysis_2(sim_tr_set_et_2f_diff):
     analysis = an.Analysis(simulation=sim_tr_set_et_2f_diff)
     assert analysis.simulation == sim_tr_set_et_2f_diff
     exp_freq_trans = np.array(
-        [
-            5.137426e-4,
-            2.568713e-4,
-            0.000000e0,
-            0.000000e0,
-            0.000000e0,
-            0.000000e0,
-            2.568713e-4,
-            9.989725e-1,
-            5.137426e-4,
-            2.568713e-4,
-            0.000000e0,
-            0.000000e0,
-            2.568713e-4,
-            9.989725e-1,
-        ]
+        [5.137426e-04, 
+        2.568713e-04, 
+        0.000000e+00, 
+        0.000000e+00,
+        0.000000e+00, 
+        0.000000e+00, 
+        2.568713e-04, 
+        9.989725e-01,
+        5.137426e-04, 
+        2.568713e-04, 
+        0.000000e+00, 
+        0.000000e+00,
+        2.568713e-04, 
+        9.989725e-01, 
+        0.000000e+00]
     )
     np.testing.assert_array_almost_equal(analysis.frequency_transitions, exp_freq_trans)
     exp_freq_states = {
@@ -165,6 +164,7 @@ def test_analysis_2(sim_tr_set_et_2f_diff):
             np.nan,
             1.008086e-14,
             4.636361e-13,
+            np.nan,
         ]
     )
     np.testing.assert_array_almost_equal(

@@ -53,6 +53,7 @@ class PairedState(Enum):
     S0_T1 = [SingleState.S0, SingleState.T1]
     S0_OFF2 = [SingleState.S0, SingleState.OFF2]
     S0_OFF1 = [SingleState.S0, SingleState.OFF1]
+    S0_B = [SingleState.S0, SingleState.B]
 
     @property
     def single_state_values(self):
@@ -141,15 +142,10 @@ class TransitionType(Enum):
     RAD_ESCAPE = TransitionAttributes("RE", SingleState.T1, SingleState.Rad, False)
     RAD_RELAX = TransitionAttributes("RR", SingleState.Rad, SingleState.S0, False)
 
-
     # cis trans isomerization
     ISOMERIZATION = TransitionAttributes("ISO", SingleState.S1, SingleState.Cis, False)
-    PHOTO_BISO = TransitionAttributes(
-        "PBISO", SingleState.Cis, SingleState.S0, False
-    )
-    THERM_BISO = TransitionAttributes(
-        "TBISO", SingleState.Cis, SingleState.S0, False
-    )
+    PHOTO_BISO = TransitionAttributes("PBISO", SingleState.Cis, SingleState.S0, False)
+    THERM_BISO = TransitionAttributes("TBISO", SingleState.Cis, SingleState.S0, False)
 
     # energy transfers
     FRET = TransitionAttributes("FRET", PairedState.S1_S0, PairedState.S0_S1, False)
@@ -160,22 +156,42 @@ class TransitionType(Enum):
         "CFRET2", PairedState.S1_Cis, PairedState.S0_S0, False
     )
     OFF_FRET_1 = TransitionAttributes(
-        "OFRET1", PairedState.S1_OFF1, PairedState.S0_S0, False
+        "OFRET1", PairedState.S1_OFF1, PairedState.S0_OFF1, False
     )
     OFF_FRET_2 = TransitionAttributes(
-        "OFRET2", PairedState.S1_OFF1, PairedState.S0_OFF1, False
+        "OFRET2", PairedState.S1_OFF1, PairedState.S0_S0, False
     )
     S_S_ANNIHILATION = TransitionAttributes(
         "SSA", PairedState.S1_S1, PairedState.S0_S1, False
     )
-    S_T_ANNIHILATION = TransitionAttributes(
-        "STA", PairedState.S1_T1, PairedState.S0_T1, False
+    S_S_ANNI_BLEACH = TransitionAttributes(
+        "SSAB", PairedState.S1_S1, PairedState.S0_B, False
+    )
+    S_T_ANNIHILATION_1 = TransitionAttributes(
+        "STA1", PairedState.S1_T1, PairedState.S0_T1, False
+    )
+    S_T_ANNIHILATION_2 = TransitionAttributes(
+        "STA2", PairedState.S1_T1, PairedState.S0_S1, False
+    )
+    S_T_ANNI_BLEACH = TransitionAttributes(
+        "STAB", PairedState.S1_T1, PairedState.S0_B, False
     )
 
     # rhodamines
     H2O_ATTACK_S = TransitionAttributes("H2OS", SingleState.S1, SingleState.OFF1, False)
     H2O_ATTACK_T = TransitionAttributes("H2OT", SingleState.T1, SingleState.OFF1, False)
     BACK_REACTION = TransitionAttributes("BR", SingleState.OFF1, SingleState.S0, False)
+
+    # summarize
+    S1_S0_TRANSITIONS = TransitionAttributes(
+        "S1S0SUM", SingleState.S1, SingleState.S0, False
+    )
+    CIS_S0_TRANSITIONS = TransitionAttributes(
+        "CisS0SUM", SingleState.Cis, SingleState.S0, False
+    )
+    T1_S0_TRANSITIONS = TransitionAttributes(
+        "T1S0SUM", SingleState.T1, SingleState.S0, False
+    )
 
     @property
     def abbreviation(self):
@@ -409,21 +425,24 @@ class TransitionSet:
                         filtered_transitions[fluorophore] += [transition]
                     else:
                         filtered_transitions[fluorophore] = [transition]
-
         filtered = TransitionSet(
             transitions=filtered_transitions, fluorophore_system=self.fluorophore_system
         )
 
         return filtered
 
-    def adjust_rates(self, change_dict=None):
+    def adjust_rates(self, change_dict=None, keep_zero_rates=False):
         """
-        Returns another TransitionSet with transition rates modified.
+        Returns another TransitionSet with transition rates modified. Should be used
+        as last modification step since other modifiers lack the keep_zero_rates
+        argument.
 
         Parameters
         ----------
         change_dict : dict
             Contains identities of transitions as key and rates as values.
+        keep_zero_rates : bool
+            Whether to keep transitions with rate 0.
 
         Returns
         -------
@@ -439,7 +458,9 @@ class TransitionSet:
                 if transition.identity in change_dict:
                     transition.rate = change_dict[transition.identity]
         adjusted = TransitionSet(
-            transitions=transitions, fluorophore_system=self.fluorophore_system
+            transitions=transitions,
+            fluorophore_system=self.fluorophore_system,
+            keep_zero_rates=keep_zero_rates,
         )
 
         return adjusted
@@ -609,7 +630,7 @@ def get_single_states(transitions, transition_df):
                 single_state_df["absorbing"]
             ]
             if not absorbing_states.empty:
-                indices = np.where(final_states == absorbing_states.values)[0]
+                indices = np.where(np.in1d(final_states, absorbing_states.values))[0]
                 index_values = transition_df.loc[fluorophore_comb].iloc[indices].index
                 transition_df.loc[(fluorophore_comb, index_values), "absorbing"] = True
 
@@ -784,7 +805,7 @@ def construct_transition_rate_list(transition_df, combined_state_transitions):
     """
     Constructs a list that contains lists of each realizable combined_state_transition.
     The inner lists contain initial state_combination, final state_combination,
-    the index of involved fluorophores, abbreviation, transition id, rate and whether a 
+    the index of involved fluorophores, abbreviation, transition id, rate and whether a
     photon is emitted.
 
     Parameters
@@ -871,8 +892,15 @@ def construct_transition_matrix(combined_state_transitions_df):
 
 
 def derive_energy_transfer_transitions(
-    donor_data, acceptor_data, fluorophore_ids, dipole_orientation_factor, distance,
+    donor_data,
+    acceptor_data,
+    fluorophore_ids,
+    dipole_orientation_factor,
+    distance,
     refractive_index,
+    overwrite=None,
+    exclude=None,
+    include=None,
 ):
     """
     Derive energy transfer transitions based on the experimental conditions and the
@@ -894,6 +922,16 @@ def derive_energy_transfer_transitions(
         The distance between the fluorophores of the fluorophore pair.
     refractive_index : float
         The refractive index of the medium.
+    overwrite : dict
+        Contains the type of acceptor state as key and a list with a factor for the rate
+        as well as an efficiency (acceptor state recycling) as value.
+    exclude : list
+        Contains the type of acceptor state (lowercase) to be excluded. 
+    include : dict
+        Contains the type of acceptor state as key and a list of tuples as values. The
+        tuples contain the transition type and an efficiency. If the summed efficiencies
+        is e.g., 0.5, all other energy transfers affecting the acceptor state are
+        multiplied by 1-0.5. 
 
     Returns
     -------
@@ -918,14 +956,75 @@ def derive_energy_transfer_transitions(
 
     which_et = {
         "s0": [(TransitionType.FRET, 1)],
-        "t1": [(TransitionType.S_T_ANNIHILATION, 1)],
+        "t1": [
+            (
+                TransitionType.S_T_ANNIHILATION_1,
+                (
+                    1 - acceptor_data.STA_EFFICIENCY
+                    if overwrite is None or "t1" not in overwrite
+                    else 1 - overwrite["t1"][1]
+                ),
+            ),
+            (
+                TransitionType.S_T_ANNIHILATION_2,
+                (
+                    acceptor_data.STA_EFFICIENCY
+                    if overwrite is None or "t1" not in overwrite
+                    else overwrite["t1"][1]
+                ),
+            ),
+        ],
         "s1": [(TransitionType.S_S_ANNIHILATION, 1)],
-        "cis": [(TransitionType.CIS_FRET_1, 1-acceptor_data.BISO_EFFICIENCY), 
-                (TransitionType.CIS_FRET_2, acceptor_data.BISO_EFFICIENCY)],
-        "off": [(TransitionType.OFF_FRET_1, acceptor_data.OFRET_EFFICIENCY),
-                (TransitionType.OFF_FRET_2, 1-acceptor_data.OFRET_EFFICIENCY),
-                ],
+        "cis": [
+            (
+                TransitionType.CIS_FRET_1,
+                (
+                    1 - acceptor_data.BISO_EFFICIENCY
+                    if overwrite is None or "cis" not in overwrite
+                    else 1 - overwrite["cis"][1]
+                ),
+            ),
+            (
+                TransitionType.CIS_FRET_2,
+                (
+                    acceptor_data.BISO_EFFICIENCY
+                    if overwrite is None or "cis" not in overwrite
+                    else overwrite["cis"][1]
+                ),
+            ),
+        ],
+        "off": [
+            (
+                TransitionType.OFF_FRET_1,
+                (
+                    1 - acceptor_data.OFRET_EFFICIENCY
+                    if overwrite is None or "off" not in overwrite
+                    else 1 - overwrite["off"][1]
+                ),
+            ),
+            (
+                TransitionType.OFF_FRET_2,
+                (
+                    acceptor_data.OFRET_EFFICIENCY
+                    if overwrite is None or "off" not in overwrite
+                    else overwrite["off"][1]
+                ),
+            ),
+        ],
     }
+
+    which_et_new = which_et.copy()
+    if include is not None:
+        for acceptor_state in include:
+            which_et_new[acceptor_state] = []
+            total_factor = 0
+            for transition_type, factor in include[acceptor_state]:
+                total_factor += factor
+                which_et_new[acceptor_state].append((transition_type, factor))
+            for transition_type, factor in which_et[acceptor_state]:
+                which_et_new[acceptor_state].append(
+                    (transition_type, factor * (1 - total_factor))
+                )
 
     transitions = []
     for acceptor_abs_file in acceptor_abs_files:
@@ -934,8 +1033,9 @@ def derive_energy_transfer_transitions(
         )
 
         J = fo.calculate_spectral_overlap_integral(
-            donor=donor_emission['y'], acceptor=acceptor_abs['y'], 
-            wavelengths=wavelengths_of_interest
+            donor=donor_emission["y"],
+            acceptor=acceptor_abs["y"],
+            wavelengths=wavelengths_of_interest,
         )
         rate = fo.calculate_fret_rate(
             distance=distance,
@@ -945,9 +1045,15 @@ def derive_energy_transfer_transitions(
             refractive_index=refractive_index,
         )
         acceptor_state = acceptor_abs_file.split("_")[1].split(".")[0]
-        for transition_type, factor in which_et[acceptor_state]:
+        if exclude is not None and acceptor_state in exclude:
+            continue
+        for transition_type, factor in which_et_new[acceptor_state]:
+            if overwrite is not None and acceptor_state in overwrite:
+                change_rate = overwrite[acceptor_state][0]
+            else:
+                change_rate = 1
             transition = Transition(
-                rate=rate * factor,
+                rate=rate * factor * change_rate,
                 transition_type=transition_type,
                 fluorophore_ids=fluorophore_ids,
             )
@@ -957,6 +1063,7 @@ def derive_energy_transfer_transitions(
 
 
 def derive_transitions(
+    summarize=False,
     fluorophore_data=None,
     fluorophore_ids=[0],
     irradiance=2,
@@ -971,6 +1078,8 @@ def derive_transitions(
 
     Parameters
     ----------
+    summarize : bool
+        Whether to summarize some transitions into fewer.
     fluorophore_data : FluorophoreData
         Contains all constant photophysical attributes of the fluorophore.
     fluorophore_ids : list
@@ -999,12 +1108,10 @@ def derive_transitions(
         fd.data_files,
         "absorption_s0.csv",
     )
-    
+
     dataframe_absorption = pd.read_csv(filepath_or_buffer=path_absorption, index_col=0)
 
-    extinction_coefficient = dataframe_absorption.loc[
-        int(wavelength), "y"
-    ]
+    extinction_coefficient = dataframe_absorption.loc[int(wavelength), "y"]
 
     excitation_rate = fo.calculate_excitation_rate(
         photon_flux=photon_flux, extinction_coefficient=extinction_coefficient
@@ -1147,6 +1254,31 @@ def derive_transitions(
         + dstorm_transitions
         + bleach
     )
+
+    summarized_transitions = [
+        TransitionType.S1_S0_TRANSITIONS,
+        TransitionType.T1_S0_TRANSITIONS,
+        TransitionType.CIS_S0_TRANSITIONS,
+    ]
+    if summarize:
+        for summarized_transition in summarized_transitions:
+            rate = 0
+            for transition in transitions:
+                if not transition.transition_type.photon:
+                    if (
+                        transition.transition_type.initial_state
+                        == summarized_transition.initial_state
+                        and transition.transition_type.final_state
+                        == summarized_transition.final_state
+                    ):
+                        rate += transition.rate
+                        transitions.remove(transition)
+            sum_transition = Transition(
+                rate=rate,
+                transition_type=summarized_transition,
+                fluorophore_ids=fluorophore_ids,
+            )
+            transitions.append(sum_transition)
 
     return transitions
 

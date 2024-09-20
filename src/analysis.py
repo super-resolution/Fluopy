@@ -86,6 +86,10 @@ class Analysis:
         """
         from src.transitions import SingleState
 
+        initial_states = self.simulation.transition_set.transition_df[
+            "initial_state"
+        ].apply(lambda x: x.value if not isinstance(x.value, list) else None)
+        initial_states = initial_states.dropna().astype(int).values
         absorbing_states = {}
         absorbing = False
         for (
@@ -93,12 +97,7 @@ class Analysis:
             single_states,
         ) in self.simulation.transition_set.single_states.items():
             for single_state in single_states:
-                if (
-                    SingleState(single_state)
-                    not in self.simulation.transition_set.transition_df[
-                        "initial_state"
-                    ].values
-                ):
+                if single_state not in initial_states:
                     if fluorophore in absorbing_states:
                         absorbing_states[fluorophore] += [single_state]
                     else:
