@@ -274,34 +274,39 @@ def test_simulate_TCSPC(
         with pytest.warns(
             UserWarning,
             match=re.escape(
-                "the last frame (of index 1) has 2.50e-02 times the pulses of other "
-                "frames."
+                "the last frame (of index 0.001) has 2.50e-02 times the pulses of "
+                "other frames."
             ),
         ):
-            event_time_series, event_time_points, lifetimes_DA, lifetimes_D = (
-                si.simulate_TCSPC(
-                    transition_set=tr_set,
-                    emitting_transition_ids=emitting_transition_ids,
-                    et_transition_ids=et_transition_ids,
-                    number_pulses=number_pulses,
-                    pulse_duration=pulse_duration,
-                    time_between_pulses=time_between_pulses,
-                    excitation_rates=excitation_rates,
-                    frame_time=frame_time,
-                    store_time_points=store_time_points,
-                    seed=1,
-                )
+            (
+                event_time_series,
+                event_time_points,
+                lifetimes_DA,
+                lifetimes_D,
+                lifetimes_all,
+            ) = si.simulate_TCSPC(
+                transition_set=tr_set,
+                emitting_transition_ids=emitting_transition_ids,
+                et_transition_ids=et_transition_ids,
+                number_pulses=number_pulses,
+                pulse_duration=pulse_duration,
+                time_between_pulses=time_between_pulses,
+                excitation_rates=excitation_rates,
+                frame_time=frame_time,
+                store_time_points=store_time_points,
+                seed=1,
             )
-        assert (
-            event_time_series.index[-1]
-            == int(np.ceil(number_pulses * time_between_pulses / 1e-3)) - 1
-        )
         assert (
             event_time_series.values.sum()
             == event_time_points.size
             == lifetimes_DA.size + lifetimes_D.size
+            == lifetimes_all.size
         )
-        assert event_time_series.size == 2
+        assert (
+            event_time_series.size
+            == 2
+            == int(np.ceil(number_pulses * time_between_pulses / 1e-3))
+        )
         assert lifetimes_DA.size == 0
         np.testing.assert_allclose(lifetimes_D.mean(), 9.96e-10, rtol=1e-2)
 
@@ -310,31 +315,30 @@ def test_simulate_TCSPC(
         tr_set = tr_set.adjust_rates({0: 0}, keep_zero_rates=True)
         tr_set.finalize()
         with pytest.warns(UserWarning) as record:
-            event_time_series, event_time_points, lifetimes_DA, lifetimes_D = (
-                si.simulate_TCSPC(
-                    transition_set=tr_set,
-                    emitting_transition_ids=emitting_transition_ids,
-                    et_transition_ids=et_transition_ids,
-                    number_pulses=number_pulses,
-                    pulse_duration=pulse_duration,
-                    time_between_pulses=time_between_pulses,
-                    excitation_rates=excitation_rates,
-                    frame_time=frame_time,
-                    store_time_points=store_time_points,
-                    seed=1,
-                )
+            (
+                event_time_series,
+                event_time_points,
+                lifetimes_DA,
+                lifetimes_D,
+                lifetimes_all,
+            ) = si.simulate_TCSPC(
+                transition_set=tr_set,
+                emitting_transition_ids=emitting_transition_ids,
+                et_transition_ids=et_transition_ids,
+                number_pulses=number_pulses,
+                pulse_duration=pulse_duration,
+                time_between_pulses=time_between_pulses,
+                excitation_rates=excitation_rates,
+                frame_time=frame_time,
+                store_time_points=store_time_points,
+                seed=1,
             )
-        assert (
-            event_time_series.index[-1]
-            == int(np.ceil(number_pulses * time_between_pulses / 1e-3)) - 1
+        assert event_time_series.size == int(
+            np.ceil(number_pulses * time_between_pulses / 1e-3)
         )
         assert str(record[0].message) == (
-            "the last frame (of index 102) has 5.00e-01 times the pulses of other "
+            "the last frame (of index 0.102) has 5.00e-01 times the pulses of other "
             "frames."
-        )
-        assert str(record[1].message) == (
-            "All fluorophores underwent photobleaching or entered another Markov "
-            "chain absorbing state."
         )
         assert event_time_series.values.sum() == lifetimes_D.size
         assert event_time_points is None
@@ -346,30 +350,33 @@ def test_simulate_TCSPC(
         tr_set = tr_set.adjust_rates({0: 0, 8: 2e10}, keep_zero_rates=True)
         tr_set.finalize()
         with pytest.warns(UserWarning) as record:
-            event_time_series, event_time_points, lifetimes_DA, lifetimes_D = (
-                si.simulate_TCSPC(
-                    transition_set=tr_set,
-                    emitting_transition_ids=emitting_transition_ids,
-                    et_transition_ids=et_transition_ids,
-                    number_pulses=number_pulses,
-                    pulse_duration=pulse_duration,
-                    time_between_pulses=time_between_pulses,
-                    excitation_rates=excitation_rates,
-                    frame_time=frame_time,
-                    store_time_points=store_time_points,
-                    seed=1,
-                )
+            (
+                event_time_series,
+                event_time_points,
+                lifetimes_DA,
+                lifetimes_D,
+                lifetimes_all,
+            ) = si.simulate_TCSPC(
+                transition_set=tr_set,
+                emitting_transition_ids=emitting_transition_ids,
+                et_transition_ids=et_transition_ids,
+                number_pulses=number_pulses,
+                pulse_duration=pulse_duration,
+                time_between_pulses=time_between_pulses,
+                excitation_rates=excitation_rates,
+                frame_time=frame_time,
+                store_time_points=store_time_points,
+                seed=1,
             )
-        assert (
-            event_time_series.index[-1]
-            == int(np.ceil(number_pulses * time_between_pulses / 1e-3)) - 1
+        assert event_time_series.size == int(
+            np.ceil(number_pulses * time_between_pulses / 1e-3)
         )
         assert str(record[0].message) == (
             "Not enough laser pulses to completely simulate a single frame "
             "(requires at least 1.0e+05 pulses)."
         )
         assert str(record[1].message) == (
-            "the last frame (of index 0) has 8.00e-01 times the pulses of other "
+            "the last frame (of index 0.0) has 8.00e-01 times the pulses of other "
             "frames."
         )
         assert (
@@ -381,33 +388,36 @@ def test_simulate_TCSPC(
     # this tests whether homoFRET doesn't change the observed lifetime and other details
     # see comments within
     elif expected == 3:
-        tr_set = tr_set.filter_by_identity([9])  # filter triplet et 
+        tr_set = tr_set.filter_by_identity([9])  # filter triplet et
         tr_set = tr_set.adjust_rates({0: 0, 8: 2e10}, keep_zero_rates=True)
         tr_set.finalize()
         with pytest.warns(
             UserWarning,
             match=re.escape(
-                "the last frame (of index 3999999) has 0.00e+00 times the pulses of "
+                "the last frame (of index 3999.999) has 0.00e+00 times the pulses of "
                 "other frames."
             ),
         ):
-            event_time_series, event_time_points, lifetimes_DA, lifetimes_D = (
-                si.simulate_TCSPC(
-                    transition_set=tr_set,
-                    emitting_transition_ids=emitting_transition_ids,
-                    et_transition_ids=et_transition_ids,
-                    number_pulses=number_pulses,
-                    pulse_duration=pulse_duration,
-                    time_between_pulses=time_between_pulses,
-                    excitation_rates=excitation_rates,
-                    frame_time=frame_time,
-                    store_time_points=store_time_points,
-                    seed=1,
-                )
+            (
+                event_time_series,
+                event_time_points,
+                lifetimes_DA,
+                lifetimes_D,
+                lifetimes_all,
+            ) = si.simulate_TCSPC(
+                transition_set=tr_set,
+                emitting_transition_ids=emitting_transition_ids,
+                et_transition_ids=et_transition_ids,
+                number_pulses=number_pulses,
+                pulse_duration=pulse_duration,
+                time_between_pulses=time_between_pulses,
+                excitation_rates=excitation_rates,
+                frame_time=frame_time,
+                store_time_points=store_time_points,
+                seed=1,
             )
-        assert (
-            event_time_series.index[-1]
-            == int(np.ceil(number_pulses * time_between_pulses / 1e-3)) - 1
+        assert event_time_series.size == int(
+            np.ceil(number_pulses * time_between_pulses / 1e-3)
         )
         assert (
             event_time_series.values.sum()
@@ -436,23 +446,26 @@ def test_simulate_TCSPC(
         tr_set = tr_set.adjust_rates({0: 0, 8: 2e10}, keep_zero_rates=True)
         tr_set.finalize()
         with pytest.warns(UserWarning) as record:
-            event_time_series, event_time_points, lifetimes_DA, lifetimes_D = (
-                si.simulate_TCSPC(
-                    transition_set=tr_set,
-                    emitting_transition_ids=emitting_transition_ids,
-                    et_transition_ids=et_transition_ids,
-                    number_pulses=number_pulses,
-                    pulse_duration=pulse_duration,
-                    time_between_pulses=time_between_pulses,
-                    excitation_rates=excitation_rates,
-                    frame_time=frame_time,
-                    store_time_points=store_time_points,
-                    seed=1,
-                )
+            (
+                event_time_series,
+                event_time_points,
+                lifetimes_DA,
+                lifetimes_D,
+                lifetimes_all,
+            ) = si.simulate_TCSPC(
+                transition_set=tr_set,
+                emitting_transition_ids=emitting_transition_ids,
+                et_transition_ids=et_transition_ids,
+                number_pulses=number_pulses,
+                pulse_duration=pulse_duration,
+                time_between_pulses=time_between_pulses,
+                excitation_rates=excitation_rates,
+                frame_time=frame_time,
+                store_time_points=store_time_points,
+                seed=1,
             )
-        assert (
-            event_time_series.index[-1]
-            == int(np.ceil(number_pulses * time_between_pulses / 1e-3)) - 1
+        assert event_time_series.size == int(
+            np.ceil(number_pulses * time_between_pulses / 1e-3)
         )
         assert (
             event_time_series.values.sum()
@@ -471,23 +484,26 @@ def test_simulate_TCSPC(
         tr_set = tr_set.adjust_rates({0: 0, 8: 1e10, 9: 0, 15: 0}, keep_zero_rates=True)
         tr_set.finalize()
         with pytest.warns(UserWarning) as record:
-            event_time_series, event_time_points, lifetimes_DA, lifetimes_D = (
-                si.simulate_TCSPC(
-                    transition_set=tr_set,
-                    emitting_transition_ids=emitting_transition_ids,
-                    et_transition_ids=et_transition_ids,
-                    number_pulses=number_pulses,
-                    pulse_duration=pulse_duration,
-                    time_between_pulses=time_between_pulses,
-                    excitation_rates=excitation_rates,
-                    frame_time=frame_time,
-                    store_time_points=store_time_points,
-                    seed=1,
-                )
+            (
+                event_time_series,
+                event_time_points,
+                lifetimes_DA,
+                lifetimes_D,
+                lifetimes_all,
+            ) = si.simulate_TCSPC(
+                transition_set=tr_set,
+                emitting_transition_ids=emitting_transition_ids,
+                et_transition_ids=et_transition_ids,
+                number_pulses=number_pulses,
+                pulse_duration=pulse_duration,
+                time_between_pulses=time_between_pulses,
+                excitation_rates=excitation_rates,
+                frame_time=frame_time,
+                store_time_points=store_time_points,
+                seed=1,
             )
-        assert (
-            event_time_series.index[-1]
-            == int(np.ceil(number_pulses * time_between_pulses / 1e-3)) - 1
+        assert event_time_series.size == int(
+            np.ceil(number_pulses * time_between_pulses / 1e-3)
         )
         assert (
             event_time_series.values.sum()
@@ -514,49 +530,56 @@ def test_simulate_TCSPC(
         )
         tr_set.finalize()
         with pytest.warns(UserWarning) as record:
-            event_time_series, event_time_points, lifetimes_DA, lifetimes_D = (
-                si.simulate_TCSPC(
-                    transition_set=tr_set,
-                    emitting_transition_ids=emitting_transition_ids,
-                    et_transition_ids=et_transition_ids,
-                    number_pulses=number_pulses,
-                    pulse_duration=pulse_duration,
-                    time_between_pulses=time_between_pulses,
-                    excitation_rates=excitation_rates,
-                    frame_time=frame_time,
-                    store_time_points=store_time_points,
-                    seed=1,
-                )
+            (
+                event_time_series,
+                event_time_points,
+                lifetimes_DA,
+                lifetimes_D,
+                lifetimes_all,
+            ) = si.simulate_TCSPC(
+                transition_set=tr_set,
+                emitting_transition_ids=emitting_transition_ids,
+                et_transition_ids=et_transition_ids,
+                number_pulses=number_pulses,
+                pulse_duration=pulse_duration,
+                time_between_pulses=time_between_pulses,
+                excitation_rates=excitation_rates,
+                frame_time=frame_time,
+                store_time_points=store_time_points,
+                seed=1,
             )
-        assert (
-            event_time_series.index[-1]
-            == int(np.ceil(number_pulses * time_between_pulses / 1e-3)) - 1
+        assert event_time_series.size == int(
+            np.ceil(number_pulses * time_between_pulses / 1e-3)
         )
         assert (
             event_time_series.values.sum()
             == lifetimes_D.size + lifetimes_DA.size
             == event_time_points.size
+            == 4e4
         )
-        assert event_time_series.values.sum() == 4e4
 
         # this tests for half the number of photons if half the excitation probability
         excitation_rates = {
             "testfluo_1": 1.4e10
         }  # corresponds to excitation probability of ~0.5
         with pytest.warns(UserWarning) as record:
-            event_time_series, event_time_points, lifetimes_DA, lifetimes_D = (
-                si.simulate_TCSPC(
-                    transition_set=tr_set,
-                    emitting_transition_ids=emitting_transition_ids,
-                    et_transition_ids=et_transition_ids,
-                    number_pulses=number_pulses,
-                    pulse_duration=pulse_duration,
-                    time_between_pulses=time_between_pulses,
-                    excitation_rates=excitation_rates,
-                    frame_time=frame_time,
-                    store_time_points=store_time_points,
-                    seed=1,
-                )
+            (
+                event_time_series,
+                event_time_points,
+                lifetimes_DA,
+                lifetimes_D,
+                lifetimes_all,
+            ) = si.simulate_TCSPC(
+                transition_set=tr_set,
+                emitting_transition_ids=emitting_transition_ids,
+                et_transition_ids=et_transition_ids,
+                number_pulses=number_pulses,
+                pulse_duration=pulse_duration,
+                time_between_pulses=time_between_pulses,
+                excitation_rates=excitation_rates,
+                frame_time=frame_time,
+                store_time_points=store_time_points,
+                seed=1,
             )
         np.testing.assert_allclose(event_time_series.values.sum(), 2e4, rtol=1e-1)
 
@@ -569,19 +592,23 @@ def test_simulate_TCSPC(
         tr_set = tr_set.adjust_rates({0: 0, 2: 0}, keep_zero_rates=True)
         tr_set.finalize()
         with pytest.warns(UserWarning) as record:
-            event_time_series, event_time_points, lifetimes_DA, lifetimes_D = (
-                si.simulate_TCSPC(
-                    transition_set=tr_set,
-                    emitting_transition_ids=emitting_transition_ids,
-                    et_transition_ids=et_transition_ids,
-                    number_pulses=number_pulses,
-                    pulse_duration=pulse_duration,
-                    time_between_pulses=time_between_pulses,
-                    excitation_rates=excitation_rates,
-                    frame_time=frame_time,
-                    store_time_points=store_time_points,
-                    seed=1,
-                )
+            (
+                event_time_series,
+                event_time_points,
+                lifetimes_DA,
+                lifetimes_D,
+                lifetimes_all,
+            ) = si.simulate_TCSPC(
+                transition_set=tr_set,
+                emitting_transition_ids=emitting_transition_ids,
+                et_transition_ids=et_transition_ids,
+                number_pulses=number_pulses,
+                pulse_duration=pulse_duration,
+                time_between_pulses=time_between_pulses,
+                excitation_rates=excitation_rates,
+                frame_time=frame_time,
+                store_time_points=store_time_points,
+                seed=1,
             )
         np.testing.assert_allclose(event_time_series.values.sum(), 4e4 + 1e4, rtol=1e-1)
 

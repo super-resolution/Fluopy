@@ -145,6 +145,8 @@ class Emissions:
         lifetime measurements). The return value lifetimes_DA contains the fluorescence
         lifetimes of detected emissions when energy transfer is available. This does
         not discriminate between the number or kind of energy transfers.
+        Note: the fluorescence lifetimes are the time differences of photon emission
+        to last laser pulse.
 
         Parameters
         ----------
@@ -168,11 +170,13 @@ class Emissions:
         Returns
         -------
         lifetimes_DA : 1-D array_like
-            Contains the fluorescence lifetimes of detected emissions when energy 
+            Contains the fluorescence lifetimes of detected emissions when energy
             transfer available.
         lifetimes_D : 1-D array_like
-            Contains the fluorescence lifetimes of detected emissions when energy 
+            Contains the fluorescence lifetimes of detected emissions when energy
             transfer not available.
+        lifetimes_all : 1-D array_like
+            Contains the fluorescence lifetimes of all detected emissions.
         """
         exc = [
             j
@@ -183,7 +187,7 @@ class Emissions:
             {identity: 0 for identity in exc}, keep_zero_rates=True
         )
         transition_set.finalize()
-        
+
         if excitation_rates is None:
             excitation_rates = {
                 f.name: 1e7 for f in transition_set.fluorophore_system.fluorophores
@@ -199,23 +203,27 @@ class Emissions:
         et_transition_ids = df.iloc[emit_ids_list][
             df.iloc[emit_ids_list]["initial_state"].isin(et_initial_states)
         ].index.to_numpy()
-        self.event_time_series, self.event_time_points, lifetimes_DA, lifetimes_D = (
-            simulate_TCSPC(
-                transition_set=transition_set,
-                emitting_transition_ids=emitting_transition_ids,
-                et_transition_ids=et_transition_ids,
-                number_pulses=number_pulses,
-                pulse_duration=pulse_duration,
-                time_between_pulses=time_between_pulses,
-                excitation_rates=excitation_rates,
-                frame_time=self.parameters["frame_time"],
-                size=size,
-                store_time_points=store_time_points,
-                seed=self.parameters["seed"],
-            )
+        (
+            self.event_time_series,
+            self.event_time_points,
+            lifetimes_DA,
+            lifetimes_D,
+            lifetimes_all,
+        ) = simulate_TCSPC(
+            transition_set=transition_set,
+            emitting_transition_ids=emitting_transition_ids,
+            et_transition_ids=et_transition_ids,
+            number_pulses=number_pulses,
+            pulse_duration=pulse_duration,
+            time_between_pulses=time_between_pulses,
+            excitation_rates=excitation_rates,
+            frame_time=self.parameters["frame_time"],
+            size=size,
+            store_time_points=store_time_points,
+            seed=self.parameters["seed"],
         )
 
-        return lifetimes_DA, lifetimes_D
+        return lifetimes_DA, lifetimes_D, lifetimes_all
 
     def get_emission_indices(self, simulation, bandpass, seed):
         """
@@ -320,10 +328,11 @@ class Emissions:
         if added_end_time:
             events[-1] = 0
 
-        event_time_series = pd.Series(events, index=time_deltas, dtype=np.int64)
+        event_time_series = pd.Series(events, index=time_deltas, dtype=np.int32)
         event_time_series = event_time_series.resample(resample).sum()
         time_deltas = event_time_series.index
         in_seconds = time_deltas / np.timedelta64(1, "s")
+        in_seconds = np.round(in_seconds, decimals=12)
         event_time_series.index = in_seconds
 
         self.event_time_series = event_time_series
@@ -439,7 +448,7 @@ class Emissions:
         rng = np.random.default_rng(seed)
         size = self.event_time_series.size
         variates = norm(mean, std).rvs(size, random_state=rng)
-        variates = variates.astype(int)
+        variates = variates.astype(np.int32)
         self.event_time_series = self.event_time_series + variates
 
     def add_poisson_noise(self, rate, seed=None):
@@ -461,6 +470,7 @@ class Emissions:
         rng = np.random.default_rng(seed)
         size = self.event_time_series.size
         variates = poisson(rate).rvs(size, random_state=rng)
+        variates = variates.astype(np.int32)
         self.event_time_series = self.event_time_series + variates
 
     def apply_threshold(self, threshold):

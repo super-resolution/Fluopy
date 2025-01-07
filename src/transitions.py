@@ -167,6 +167,9 @@ class TransitionType(Enum):
     S_S_ANNI_BLEACH = TransitionAttributes(
         "SSAB", PairedState.S1_S1, PairedState.S0_B, False
     )
+    S_S_OFF = TransitionAttributes(
+        "SSOFF", PairedState.S1_S1, PairedState.S0_OFF1, False
+    )
     S_T_ANNIHILATION_1 = TransitionAttributes(
         "STA1", PairedState.S1_T1, PairedState.S0_T1, False
     )
@@ -176,6 +179,10 @@ class TransitionType(Enum):
     S_T_ANNI_BLEACH = TransitionAttributes(
         "STAB", PairedState.S1_T1, PairedState.S0_B, False
     )
+    S_T_OFF = TransitionAttributes(
+        "STOFF", PairedState.S1_T1, PairedState.S0_OFF1, False
+    )
+    
 
     # rhodamines
     H2O_ATTACK_S = TransitionAttributes("H2OS", SingleState.S1, SingleState.OFF1, False)
@@ -395,6 +402,7 @@ class TransitionSet:
         self.transitions = transitions
 
         self.single_states = get_single_states(self.transitions, self.transition_df)
+        # also assigns whether a transition leads to a Markovian absorbing state
 
         self.combined_state_transitions_df = None
         self.transition_matrix = None
@@ -582,6 +590,9 @@ class TransitionSet:
 def get_single_states(transitions, transition_df):
     """
     Gets the values of SingleStates that occur in non-energy transfer transitions.
+    Also assigns whether a transition leads to a Markovian absorbing state (note that
+    hypothetically, an energy transfer onto that state which yields another or the same
+    state could still happen).
 
     Parameters
     ----------

@@ -1,5 +1,5 @@
 """
-Module simulation_GPU
+Module simulation_gpu
 """
 
 import cupy as cp

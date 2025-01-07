@@ -63,12 +63,12 @@ def test_get_distances(positions, expected):
 
 
 @pytest.mark.parametrize(
-    "dirnames, exp_distances, exp_count",
+    "dirnames, exp_distances, exp_count, multi_type",
     [
-        [["flu_obj_cy5_1"], {}, 1],
-        [["flu_obj_cy5_1", "flu_obj_cy5_2"], {(0, 1): 1, (1, 0): 1}, 2],
-        [["flu_obj_cy5_1", "flu_obj_cy5_1"], "ValueError1", None],
-        [["flu_obj_atto643", "flu_obj_cy5_1"], {(0, 1): 2, (1, 0): 2}, 2],
+        [["flu_obj_cy5_1"], {}, 1, False],
+        [["flu_obj_cy5_1", "flu_obj_cy5_2"], {(0, 1): 1, (1, 0): 1}, 2, False],
+        [["flu_obj_cy5_1", "flu_obj_cy5_1"], "ValueError1", None, False],
+        [["flu_obj_atto643", "flu_obj_cy5_1"], {(0, 1): 2, (1, 0): 2}, 2, True],
         [
             ["flu_obj_unknown", "flu_obj_cy5_1", "flu_obj_cy5_2"],
             {
@@ -80,10 +80,11 @@ def test_get_distances(positions, expected):
                 (2, 1): 1.0,
             },
             3,
+            True,
         ],
     ],
 )
-def test_fluorophore_system(dirnames, request, exp_distances, exp_count):
+def test_fluorophore_system(dirnames, request, exp_distances, exp_count, multi_type):
     if "flu_obj_unknown" in dirnames:
         with pytest.warns(
             UserWarning,
@@ -108,15 +109,17 @@ def test_fluorophore_system(dirnames, request, exp_distances, exp_count):
             assert fluorophore_sys == fluorophore
         assert fluorophore_system.distances == exp_distances
         assert fluorophore_system.count == exp_count
+        assert fluorophore_system.multi_type == multi_type
 
 
 # all other load_transitions parameters are tested in derive_transitions
 @pytest.mark.parametrize("energy_transfer", [[True], [False]])
 @pytest.mark.parametrize(
-    "dirname, expected_true, expected_false, expected_warnings",
+    "dirname, expected_true, expected_false, expected_warnings, "
+    "energy_transfer_parameters",
     [
-        ["flu_sys_unk", [], [], True],
-        ["flu_sys_unk_cy5", ["testfluo_1"], ["testfluo_1"], True],
+        ["flu_sys_unk", [], [], True, None],
+        ["flu_sys_unk_cy5", ["testfluo_1"], ["testfluo_1"], True, None],
         [
             "flu_sys_2xcy5_1xatto643",
             [
@@ -130,11 +133,18 @@ def test_fluorophore_system(dirnames, request, exp_distances, exp_count):
             ],
             ["testfluo_1", "testfluo_2"],
             False,
+            {"exclude": ["t1", "s0"]},
         ],
     ],
 )
 def test_fluorophore_system_load_transitions(
-    dirname, request, expected_true, expected_false, expected_warnings, energy_transfer
+    dirname,
+    request,
+    expected_true,
+    expected_false,
+    expected_warnings,
+    energy_transfer,
+    energy_transfer_parameters,
 ):
     if expected_warnings:
         with pytest.warns(
@@ -152,6 +162,16 @@ def test_fluorophore_system_load_transitions(
         ):
             transitions = fluorophore_system.load_transitions(
                 energy_transfer=energy_transfer
+            )
+    elif energy_transfer_parameters is not None:
+        with pytest.warns(
+            UserWarning,
+            match="'overwrite', 'exclude' or 'include' in energy_transfer_parameters "
+            "will effect all types of fluorophores.",
+        ):
+            transitions = fluorophore_system.load_transitions(
+                energy_transfer=energy_transfer,
+                energy_transfer_parameters=energy_transfer_parameters,
             )
     else:
         transitions = fluorophore_system.load_transitions(

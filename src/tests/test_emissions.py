@@ -114,13 +114,15 @@ def test_emissions_extract(dirname, request, frame_time, bandpass, expected):
                     11, 4, 5, 9, 9, 7, 10, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 4, 3, 5, 7,
                 ],
-                dtype=np.int64,
+                dtype=np.int32,
             ),
             # fmt: on
             index=np.linspace(0, 0.00044, 45),
         )
     else:
-        exp_event_time_series = pd.Series([expected], index=[0.0])
+        exp_event_time_series = pd.Series(
+            np.array([expected], dtype=np.int32), index=[0.0]
+        )
     pd.testing.assert_series_equal(emis.event_time_series, exp_event_time_series)
 
 
@@ -157,7 +159,7 @@ def test_emissions_tcspc(dirname, request, excitation_rates, expected):
         tr_set.finalize()
     emis = em.Emissions(frame_time="100us", bandpass=(650, 700), seed=1)
     with pytest.warns(UserWarning, match="the last frame"):
-        lifetimes_DA, _ = emis.tcspc(
+        lifetimes_DA, _, _ = emis.tcspc(
             transition_set=tr_set,
             number_pulses=1e4,
             pulse_duration=1e-9,
@@ -179,7 +181,7 @@ def test_emissions_tcspc_parameters(tr_set_bl_et_2f_diff):
     tr_set.finalize()
     emis = em.Emissions(frame_time="1ms", bandpass=(650, 700), seed=1)
     with patch("src.emissions.simulate_TCSPC") as mock_tcspc:
-        mock_tcspc.return_value = (0, 0, 0, 0)
+        mock_tcspc.return_value = (0, 0, 0, 0, 0)
         emis.tcspc(
             transition_set=tr_set,
             number_pulses=1e4,

@@ -266,7 +266,7 @@ def direct_method_steps(
 
     # a random index (in this case the first index) at which the final state of a
     # transition equals start_at
-    current_state_index = start_index
+    current_state_index = start_index        
 
     transition_matrix_sorted_indices = np.argsort(transition_matrix, axis=1)
     sorted_transition_matrix = np.take_along_axis(
@@ -658,6 +658,7 @@ def simulate_experiment(
 
     frame_time = pd.Timedelta(frame_time) / np.timedelta64(1, "s")
     time_stamps = np.arange(0, frame_time * frames, frame_time)
+    time_stamps = np.round(time_stamps, decimals=12)
     photon_collector = np.zeros(time_stamps.size)
     time = 0
     if store_time_points:
@@ -698,9 +699,7 @@ def simulate_experiment(
                 time += transition_time
                 if time > frame_time:
                     frame_diff = int(np.floor(time / frame_time)) - 1
-                    time -= (
-                        frame_diff + 1
-                    ) * frame_time  
+                    time -= (frame_diff + 1) * frame_time
                     skip = True
                     break
 
@@ -755,6 +754,9 @@ def simulate_TCSPC(
     measurement). Methodically the direct method of the gillespie algorithm.
     The simulation is bound to start at the state configuration where all fluorophores
     are in the ground state.
+    Note: the fluorescence lifetimes are the time differences of photon emission
+    to last laser pulse.
+
 
     Parameters
     ----------
@@ -793,12 +795,14 @@ def simulate_TCSPC(
         the number of events (i.e., detected emissions) as values.
     event_time_points : 1-D array_like
         The time points at which emissions are detected.
-    fl_lifetimes_DA : 1-D array_like
+    lifetimes_DA : 1-D array_like
         Contains the fluorescence lifetimes of detected emissions when energy transfer
         available.
-    fl_lifetimes_D : 1-D array_like
+    lifetimes_D : 1-D array_like
         Contains the fluorescence lifetimes of detected emissions when energy transfer
         not available.
+    lifetimes_all : 1-D array_like
+        Contains the fluorescence lifetimes of all detected emissions.
     """
     number_pulses = int(number_pulses)
     size = int(size)
@@ -832,7 +836,8 @@ def simulate_TCSPC(
     rng = np.random.default_rng(seed)
     frame_time = pd.Timedelta(frame_time) / np.timedelta64(1, "s")
     frames = number_pulses * time_between_pulses / frame_time
-    time_stamps = np.arange(0, np.ceil(frames), 1, dtype=np.int64)
+    time_stamps = np.arange(0, np.ceil(frames) * frame_time, frame_time)
+    time_stamps = np.round(time_stamps, decimals=12)
     if frames < 1:
         warnings.warn(
             f"Not enough laser pulses to completely simulate a single frame (requires "
@@ -849,6 +854,7 @@ def simulate_TCSPC(
     ].index[0]
     lifetimes_D = []
     lifetimes_DA = []
+    lifetimes_all = []
     remember = [np.inf, np.inf]
     if et_transition_ids is None:
         et_transition_ids = []
@@ -861,12 +867,12 @@ def simulate_TCSPC(
     skip = False
     checked = False
     not_broken = True
-    random_numbers_exc = rng.uniform(low=0, high=1, size=(size, number_fluorophores))
+    random_numbers_exc = rng.uniform(low=0, high=1, size=(size, excitable_indices.size))
     random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
     random_indices = np.array(
         [
             rng.integers(low=0, high=num + 1, size=size)
-            for num in range(number_fluorophores)
+            for num in range(excitable_indices.size)
         ]
     )
     if store_time_points:
@@ -879,30 +885,29 @@ def simulate_TCSPC(
         if i >= j * size:
             j = int(np.floor(i / size)) + 1
             random_numbers_exc = rng.uniform(
-                low=0, high=1, size=(size, number_fluorophores)
+                low=0, high=1, size=(size, excitable_indices.size)
             )
             random_indices = np.array(
                 [
                     rng.integers(low=0, high=num + 1, size=size)
-                    for num in range(number_fluorophores)
+                    for num in range(excitable_indices.size)
                 ]
             )
         time = (i - 1) * time_between_pulses
         last_pulse_time = time
         next_pulse_time = time + time_between_pulses
         current_states = np.array(df["final_state"][current_state_index])
-        S0s = np.where(current_states == S0)[0]#[excitable_indices]
-        print(np.where(current_states==S0))
-        print(S0s)
+        S0s = np.where(current_states[excitable_indices] == S0)[0]
         # if there are any S0 states, excitations can occur
         if S0s.size != 0:
+            not_broken = True
             excitations = np.where(
                 random_numbers_exc[i - (j - 1) * size, S0s]
-                < excitation_probabilities[S0s]
+                < excitation_probabilities[excitable_indices[S0s]]
             )[0]
             # if excitations occur, the fluorophores are set to S1
             if excitations.size != 0:
-                current_states[S0s[excitations]] = S1
+                current_states[excitable_indices[S0s[excitations]]] = S1
             # if no excitation happened and if a transition that is remembered could
             # take place, the simulation continues from there
             elif remember[1] < next_pulse_time:
@@ -915,7 +920,7 @@ def simulate_TCSPC(
             # until the next excitation event is calculated
             elif not checked:
                 number_pulses_until_next_excitation = rng.geometric(
-                    p=excitation_probabilities[S0s]
+                    p=excitation_probabilities[excitable_indices[S0s]]
                 )
                 indices_minimum = np.where(
                     number_pulses_until_next_excitation
@@ -930,7 +935,7 @@ def simulate_TCSPC(
                 # still happens in case multiple fluorophores are excited, thats why
                 # continue is used)
                 if potential_i * time_between_pulses < remember[1]:
-                    current_states[S0s[random_index]] = S1
+                    current_states[excitable_indices[S0s[random_index]]] = S1
                     current_state_index = df[
                         df["final_state"] == tuple(current_states)
                     ].index[0]
@@ -949,14 +954,14 @@ def simulate_TCSPC(
         # remembered, the simulation continues from there
         else:
             # if not_broken is False, this means that in the previous pulse it was
-            # already at this point (all non-S0) and did not get past the
+            # already at this point (all non-excitable) and did not get past the
             # current_state_lambda above 0. This means that the Markov chain has
-            # encountered an absorbing state that is not S0.
-            # Note that not_broken could not be set to True if the elif below is carried
-            # out (due to the skip) which immidiately is followed by
+            # encountered an absorbing state that is not excitable S0.
+            # Note that not_broken could not be set to False if the elif below is
+            # carried out (due to the skip) which immidiately is followed by
             # current_state_lambda == 0. This could be the case if one fluorophore
-            # is bleached and the other S0, but then it will not get to this point again
-            # immidiately after.
+            # is bleached and the other excitable S0, but then it will not get to this
+            # point again immidiately after.
             if not not_broken:
                 warnings.warn(
                     "All fluorophores underwent photobleaching or entered "
@@ -969,7 +974,14 @@ def simulate_TCSPC(
                     event_time_points = np.array(time_points)
                 lifetimes_DA = np.array(lifetimes_DA)
                 lifetimes_D = np.array(lifetimes_D)
-                return event_time_series, event_time_points, lifetimes_DA, lifetimes_D
+                lifetimes_all = np.array(lifetimes_all)
+                return (
+                    event_time_series,
+                    event_time_points,
+                    lifetimes_DA,
+                    lifetimes_D,
+                    lifetimes_all,
+                )
             elif remember[1] != np.inf and not checked:
                 skip = True
                 next_transition = remember[0]
@@ -1017,6 +1029,7 @@ def simulate_TCSPC(
                         lifetimes_DA.append(time - last_pulse_time)
                     else:
                         lifetimes_D.append(time - last_pulse_time)
+                    lifetimes_all.append(time - last_pulse_time)
                     frame = int(np.ceil(time / frame_time)) - 1
                     try:
                         photon_collector[frame] += 1
@@ -1030,5 +1043,12 @@ def simulate_TCSPC(
         event_time_points = np.array(time_points)
     lifetimes_DA = np.array(lifetimes_DA)
     lifetimes_D = np.array(lifetimes_D)
+    lifetimes_all = np.array(lifetimes_all)
 
-    return event_time_series, event_time_points, lifetimes_DA, lifetimes_D
+    return (
+        event_time_series,
+        event_time_points,
+        lifetimes_DA,
+        lifetimes_D,
+        lifetimes_all,
+    )

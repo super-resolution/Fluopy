@@ -336,7 +336,7 @@ def universal_figure(
                 if callable(color):
                     use_color = color(j)
                 else:
-                    use_color = color
+                    use_color = color[j]
                 ax.plot(
                     dat_[0],
                     dat_[1],

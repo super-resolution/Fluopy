@@ -5,6 +5,9 @@ Module distributions
 import numpy as np
 from scipy.special import i1
 from scipy.stats import rv_discrete
+from scipy.stats import expon
+from scipy.optimize import minimize
+from itertools import product
 
 
 def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100):
@@ -55,115 +58,348 @@ def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100
     return distribution
 
 
-def hypoexponential_distribution_two_parameters_pdf(a, b, x):
+def hypoexponential_distribution_cdf(x, *args):
     """
-    Probability density function of two-parameter hypoexponential distribution.
+    CDF of the hypoexponential distribution.
 
     Parameters
     ----------
-    a : float
-        Rate of one of the underlying exponential distributions.
-    b : float
-        Rate of the other of the underlying exponential distributions.
     x : float, 1-D array_like
         Sample.
+    args : float, 1-D array_like
+        Parameters (lambdas) of the hypoexponential distribution.
 
     Returns
     -------
-    pdf : float, np.ndarray
-        Probability densities.
+    cdf : float, 1-D array_like
+        CDF of the hypoexponential distribution.
     """
-    x = np.asarray(x)
-    pdf = a * b / (a - b) * (np.exp(-b * x) - np.exp(-a * x))
-
-    return pdf
-
-
-def hypoexponential_distribution_two_parameters_cdf(a, b, x):
-    """
-    Cumulative distribution function of two-parameter hypoexponential distribution.
-
-    Parameters
-    ----------
-    a : float
-        Rate of one of the underlying exponential distributions.
-    b : float
-        Rate of the other of the underlying exponential distributions.
-    x : float, 1-D array_like
-        Sample.
-
-    Returns
-    -------
-    cdf : float, np.ndarray
-        Probabilities of samples less than or equal to x.
-    """
-    x = np.asarray(x)
-    cdf = 1 - b / (b - a) * np.exp(-a * x) + a / (b - a) * np.exp(-b * x)
-    # note that this is the cdf and not the pdf, so the /(r2 - r1) makes sense
+    cdf = 1
+    for arg in args:
+        other_args = np.array([other for other in args if other != arg])
+        cdf -= np.exp(-arg * x) * np.prod(other_args) / np.prod(- arg + other_args)
 
     return cdf
 
 
-def hypoexponential_distribution_three_parameters_pdf(a, b, c, x):
+def hypoexponential_distribution_pdf(x, *args):
     """
-    Probability density function of three-parameter hypoexponential distribution.
+    PDF of the hypoexponential distribution.
 
     Parameters
     ----------
-    a : float
-        Rate of the first of the underlying exponential distributions.
-    b : float
-        Rate of the second of the underlying exponential distributions.
-    c : float
-        Rate of the third of the underlying exponential distributions.
     x : float, 1-D array_like
         Sample.
-
+    args : float, 1-D array_like
+        Parameters (lambdas) of the hypoexponential distribution.
+    
     Returns
     -------
-    pdf : float, np.ndarray
-        Probability densities.
+    pdf : float, 1-D array_like
+        PDF of the hypoexponential distribution.
     """
-    x = np.asarray(x)
-    z = a * b * c
-    pdf = (
-        np.exp(-c * x) * z / ((a - c) * (b - c))
-        + np.exp(-a * x) * z / ((-a + b) * (-a + c))
-        + np.exp(-b * x) * z / ((a - b) * (-b + c))
-    )
+    all_args = np.array(args)
+    pdf = 0
+    for arg in args:
+        other_args = np.array([other for other in args if other != arg])
+        pdf += np.exp(-arg * x) * np.prod(all_args) / np.prod(- arg + other_args)
 
     return pdf
 
 
-def hypoexponential_distribution_three_parameters_cdf(a, b, c, x):
+def photoswitching_fingerprint_prepare(n, pis):
     """
-    Cumulative distribution function of three-parameter hypoexponential distribution.
+    Get indices for valid lambda combinations for the photoswitching fingerprint model.
+    Modifies the weights of the underlying exponential distributions by converting
+    probabilities to 1, if their counterpart is not valid.
 
     Parameters
     ----------
-    a : float
-        Rate of the first of the underlying exponential distributions.
-    b : float
-        Rate of the second of the underlying exponential distributions.
-    c : float
-        Rate of the third of the underlying exponential distributions.
+    valid_combinations : 2-D array_like
+        Valid combinations of lambdas.
+    pis : 2-D array_like
+        Modified weights of the underlying exponential distributions.
+    """
+    combinations = product([0, 1], repeat=n)
+    valid_combinations = [
+    comb for comb in combinations if all(
+            not (comb[h] == 0 and comb[h-1] == 1) for h in range(1, n)
+        )
+    ]
+    valid_combinations = np.array(valid_combinations, dtype=int)
+    pis = pis[valid_combinations, np.arange(valid_combinations.shape[1])]
+    for n, comb in enumerate(valid_combinations):
+        ones = np.where(comb == 1)[0]
+        if ones.size > 1:
+            pis[n, ones[1:]] = 1
+
+    return valid_combinations, pis
+
+
+def photoswitching_fingerprint_cdf(x, lambdas, pis_orig):
+    """
+    Model to describe photoswitching fingerprints produced by n fluorophores where there
+    is bias in time (e.g., increased probability of ON in the beginning). The model is 
+    adjusted to account for truncations.
+
+    Parameters
+    ----------
     x : float, 1-D array_like
         Sample.
+    lambdas : float, 2-D array_like
+        Rates of the underlying exponential distributions.
+    pis : float, 1-D array_like
+        Weights of the underlying exponential distributions.
+    """
+    lambdas = np.asarray(lambdas)
+    pis_orig = np.asarray(pis_orig)
+    pis_orig = np.array([pis_orig, 1-pis_orig])
+    n = lambdas.shape[1]
+    cdf = 0
+    for i in range(n):
+        valid_combinations, pis = photoswitching_fingerprint_prepare(i+1, pis_orig)
+        cdf_part = 0
+        for j in range(i+2):
+            pi_set = np.prod(pis[j])
+            cdf_part += pi_set * hypoexponential_distribution_cdf(
+                x, 
+                *lambdas[
+                    valid_combinations[j], np.arange(valid_combinations[j].shape[0])
+                ]
+            )
+        cdf += 1/n * cdf_part
+    
+    # truncation
+    cdf = (cdf - cdf[0]) / (cdf[-1] - cdf[0])
+
+    return cdf
+
+
+def fit_1_fluorophore(x, lam1_1, lam1_2, pi1):
+    cdf = photoswitching_fingerprint_cdf(
+        x, lambdas=[[lam1_1], [lam1_2]], pis_orig=[pi1]
+    )
+    return cdf
+
+
+def fit_2_fluorophore(x, lam1_1, lam2_1, lam1_2, lam2_2, pi1, pi2):
+    cdf = photoswitching_fingerprint_cdf(
+        x, lambdas=[[lam1_1, lam2_1], [lam1_2, lam2_2]], pis_orig=[pi1, pi2]
+    )
+    return cdf
+
+
+def fit_3_fluorophore(x, lam1_1, lam2_1, lam3_1, lam1_2, lam2_2, lam3_2, pi1, pi2, pi3):
+    cdf = photoswitching_fingerprint_cdf(
+        x,
+        lambdas=[[lam1_1, lam2_1, lam3_1], [lam1_2, lam2_2, lam3_2]],
+        pis_orig=[pi1, pi2, pi3],
+    )
+    return cdf
+
+
+def fit_4_fluorophore(x, lam1_1, lam2_1, lam3_1, lam4_1, lam1_2, lam2_2, lam3_2, lam4_2, 
+                      pi1, pi2, pi3, pi4):
+    cdf = photoswitching_fingerprint_cdf(
+        x, 
+        lambdas=[[lam1_1, lam2_1, lam3_1, lam4_1], [lam1_2, lam2_2, lam3_2, lam4_2]], 
+        pis_orig=[pi1, pi2, pi3, pi4])
+    return cdf
+
+
+def photoswitching_fingerprint_pdf(x, lambdas, pis):
+    """
+    PDF of the photoswitching fingerprint model.
+
+    Parameters
+    ----------
+    x : float, 1-D array_like
+        Sample.
+    lambdas : float, 2-D array_like
+        Rates of the underlying exponential distributions.
+    pis : float, 1-D array_like
+        Weights of the underlying exponential distributions.
+    """
+    lambdas = np.asarray(lambdas)
+    pis = np.asarray(pis)
+    n = lambdas.shape[1]
+    pdf = 0
+    for i in range(n):
+        valid_combinations, pis = photoswitching_fingerprint_prepare(i+1, pis)
+        pdf_part = 0
+        for j in range(i+2):
+            pi_set = np.prod(pis[j])
+            pdf_part += pi_set * hypoexponential_distribution_pdf(
+                x, 
+                *lambdas[
+                    valid_combinations[j], np.arange(valid_combinations[j].shape[0])
+                ]
+            )
+        pdf += 1/n * pdf_part
+    # truncation
+    pdf = pdf / np.trapz(pdf, x)  # could also be normalized using cdf[-1] - cdf[0]
+
+    return pdf
+
+
+def two_expon_mixture_cdf(x, lambda1, lambda2, p):
+    """
+    Cumulative distribution function of a mixture of two exponential distributions.
+
+    Parameters
+    ----------
+    x : float, 1-D array_like
+        Sample.
+    lambda1 : float
+        Rate of the first exponential distribution.
+    lambda2 : float
+        Rate of the second exponential distribution.
+    p : float
+        Weight of the first exponential distribution.
+    
+    Returns
+    -------
+    model : float, 1-D array_like
+        Model output.
+    """
+    total_cdf = (p * expon.cdf(x, scale=1/lambda1) + 
+                (1-p) * expon.cdf(x, scale=1/lambda2))
+    model = (total_cdf - total_cdf[0]) / (total_cdf[-1] - total_cdf[0])
+
+    return model
+
+
+def two_expon_mixture_pdf(x, lambda1, lambda2, p):
+    """
+    Probability density function of a mixture of two exponential distributions.
+
+    Parameters
+    ----------
+    x : float, 1-D array_like
+        Sample.
+    lambda1 : float
+        Rate of the first exponential distribution.
+    lambda2 : float
+        Rate of the second exponential distribution.
+    p : float
+        Weight of the first exponential distribution.
+    
+    Returns
+    -------
+    model : float, 1-D array_like
+        Model output.
+    """
+    total_pdf = (p * expon.pdf(x, scale=1/lambda1) + 
+                (1-p) * expon.pdf(x, scale=1/lambda2))
+    total_cdf = (p * expon.cdf(x, scale=1/lambda1) + 
+            (1-p) * expon.cdf(x, scale=1/lambda2))
+    model = total_pdf / (total_cdf[-1] - total_cdf[0])
+
+    return model
+
+
+def mixture_log_likelihood(params, data, truncation_low, truncation_up, 
+                           number_no_events=0):
+    """
+    Negative log-likelihood of a mixture of two exponential distributions (pdf).
+
+    Parameters
+    ----------
+    params : list
+        Parameters of the mixture distribution.
+    data : np.ndarray
+        Sample.
+    truncation_low : float
+        Lower truncation of the distribution.
+    truncation_up : float
+        Upper truncation of the distribution.
+    number_no_events : int
+        Number of runs without events.
 
     Returns
     -------
-    cdf : float, np.ndarray
-        Probabilities of samples less than or equal to x.
+    negative_log_likelihood : float
+        Negative log-likelihood to be minimized.
     """
-    x = np.asarray(x)
-    cdf = (
-        1
-        - np.exp(-c * x) * a * b / ((a - c) * (b - c))
-        - np.exp(-a * x) * b * c / ((-a + b) * (-a + c))
-        - np.exp(-b * x) * a * c / ((a - b) * (-b + c))
+    pi, lambda1, lambda2 = params
+
+    if not (0 <= pi <= 1) or lambda1 <= 0 or lambda2 <= 0:
+        return np.inf
+
+    norm1 = (1 - np.exp(-lambda1 * truncation_up)) - (  # adjust for truncation
+        1 - np.exp(-lambda1 * truncation_low)
+    )
+    norm2 = (1 - np.exp(-lambda2 * truncation_up)) - (
+        1 - np.exp(-lambda2 * truncation_low)
     )
 
-    return cdf
+    exp1 = pi * expon.pdf(data, scale=1 / lambda1) / norm1
+    exp2 = (1 - pi) * expon.pdf(data, scale=1 / lambda2) / norm2
+
+    log_likelihood_observation = np.log(exp1 + exp2)
+    if number_no_events == 0:
+        log_likelihood_no_observation = 0
+    else:
+        prob_event = pi * norm1 + (1 - pi) * norm2
+        prob_event = np.minimum(prob_event, 1-1e-14)
+        log_likelihood_no_observation = np.log1p(- prob_event) * number_no_events
+
+    log_likelihood = (np.sum(log_likelihood_observation) +
+                    log_likelihood_no_observation)
+    negative_log_likelihood = - log_likelihood
+
+    return negative_log_likelihood
+
+
+def estimate_mixture_parameters(
+    data, 
+    initial_guess, 
+    bounds, 
+    truncation_low=0, 
+    truncation_up=300, 
+    number_no_events=0,
+    method="L-BFGS-B",
+):
+    """
+    Estimate the parameters of a mixture of two exponential distributions (pdf).
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Sample.
+    initial_guess : list
+        Initial guess for the optimization. For parameters, see return values.
+    bounds : list
+        Bounds for the optimization. For parameters, see return values.
+    truncation_low : float
+        Lower truncation of the distribution.
+    truncation_up : float
+        Upper truncation of the distribution.
+    number_no_events : int
+        Number of runs without events. Set to 0 if all runs produced events or if no
+        influence of log-likelihood of no events is desired. 
+    method : str
+        Optimization method.
+
+    Returns
+    -------
+    pi : float
+        Weight of the first exponential distribution.
+    lambda1 : float
+        Rate of the first exponential distribution.
+    lambda2 : float
+        Rate of the second exponential distribution.
+    """
+    result = minimize(
+        mixture_log_likelihood,
+        initial_guess,
+        args=(data, truncation_low, truncation_up, number_no_events),
+        bounds=bounds,
+        method=method,
+    )
+    pi, lambda1, lambda2 = result.x
+
+    return pi, lambda1, lambda2
 
 
 def rejection_sampling(pdf, x_min, x_max, y_min, y_max, batch, size, parameters, seed):

@@ -66,6 +66,8 @@ class FluorophoreSystem:
     ----------
     fluorophores : Collection
         Contains all given fluorophores of type Fluorophore.
+    multi_type : bool
+        Whether there are multiple types of fluorophores in the system.
     distances : dict
         Contains tuples of 2 fluorophore ids as keys and their distance as values.
     count : int
@@ -73,12 +75,20 @@ class FluorophoreSystem:
     """
 
     fluorophores: Collection[Fluorophore] = field()
+    multi_type: bool = field(init=False)
     distances: dict = field(init=False)
     count: int = field(init=False)
 
     def __post_init__(self):
         for i, fluorophore in enumerate(self.fluorophores):
             fluorophore.identity = i
+        if all(
+            fluorophore.name == self.fluorophores[0].name
+            for fluorophore in self.fluorophores
+        ):
+            object.__setattr__(self, "multi_type", False)
+        else:
+            object.__setattr__(self, "multi_type", True)
         object.__setattr__(
             self,
             "distances",
@@ -121,10 +131,10 @@ class FluorophoreSystem:
         energy_transfer_parameters : dict, optional
             May contain the following keys: dipole_orientation_factor, refractive_index,
             overwrite, exclude, include.
-            Only needed if energy_transfer is True.
+            Only used if energy_transfer is True.
         dstorm_parameters : dict, optional
             May contain the following keys: reducing_agent, concentration, k_pet, ph.
-            Only needed if dstorm is True.
+            Only used if dstorm is True.
 
         Returns
         -------
@@ -160,6 +170,17 @@ class FluorophoreSystem:
 
         if energy_transfer_parameters is None:
             energy_transfer_parameters = {}
+        else:
+            if any(
+                key in energy_transfer_parameters
+                for key in ["overwrite", "exclude", "include"]
+            ):
+                if self.multi_type:
+                    warnings.warn(
+                        "'overwrite', 'exclude' or 'include' in "
+                        "energy_transfer_parameters will effect all types of "
+                        "fluorophores."
+                    )
         energy_transfer_parameters.setdefault("dipole_orientation_factor", 2 / 3)
         energy_transfer_parameters.setdefault("refractive_index", 1.33)
 
