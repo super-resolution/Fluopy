@@ -115,6 +115,13 @@ def photoswitching_fingerprint_prepare(n, pis):
 
     Parameters
     ----------
+    n : int
+        Number of fluorophores.
+    pis : 2-D array_like
+        Weights of the underlying exponential distributions.
+
+    Returns
+    -------
     valid_combinations : 2-D array_like
         Valid combinations of lambdas.
     pis : 2-D array_like
@@ -148,8 +155,13 @@ def photoswitching_fingerprint_cdf(x, lambdas, pis_orig):
         Sample.
     lambdas : float, 2-D array_like
         Rates of the underlying exponential distributions.
-    pis : float, 1-D array_like
+    pis_orig : float, 1-D array_like
         Weights of the underlying exponential distributions.
+    
+    Returns
+    -------
+    cdf : float, 1-D array_like
+        Model output.
     """
     lambdas = np.asarray(lambdas)
     pis_orig = np.asarray(pis_orig)
@@ -170,7 +182,8 @@ def photoswitching_fingerprint_cdf(x, lambdas, pis_orig):
         cdf += 1/n * cdf_part
     
     # truncation
-    cdf = (cdf - cdf[0]) / (cdf[-1] - cdf[0])
+    if cdf.size > 2:
+        cdf = (cdf - cdf[0]) / (cdf[-1] - cdf[0])
 
     return cdf
 
@@ -207,7 +220,7 @@ def fit_4_fluorophore(x, lam1_1, lam2_1, lam3_1, lam4_1, lam1_2, lam2_2, lam3_2,
     return cdf
 
 
-def photoswitching_fingerprint_pdf(x, lambdas, pis):
+def photoswitching_fingerprint_pdf(x, lambdas, pis_orig):
     """
     PDF of the photoswitching fingerprint model.
 
@@ -217,15 +230,21 @@ def photoswitching_fingerprint_pdf(x, lambdas, pis):
         Sample.
     lambdas : float, 2-D array_like
         Rates of the underlying exponential distributions.
-    pis : float, 1-D array_like
+    pis_orig : float, 1-D array_like
         Weights of the underlying exponential distributions.
+    
+    Returns
+    -------
+    pdf : float, 1-D array_like
+        Model output.
     """
     lambdas = np.asarray(lambdas)
-    pis = np.asarray(pis)
+    pis_orig = np.asarray(pis_orig)
+    pis_orig = np.array([pis_orig, 1-pis_orig])
     n = lambdas.shape[1]
     pdf = 0
     for i in range(n):
-        valid_combinations, pis = photoswitching_fingerprint_prepare(i+1, pis)
+        valid_combinations, pis = photoswitching_fingerprint_prepare(i+1, pis_orig)
         pdf_part = 0
         for j in range(i+2):
             pi_set = np.prod(pis[j])
@@ -237,8 +256,9 @@ def photoswitching_fingerprint_pdf(x, lambdas, pis):
             )
         pdf += 1/n * pdf_part
     # truncation
-    pdf = pdf / np.trapz(pdf, x)  # could also be normalized using cdf[-1] - cdf[0]
-
+    if pdf.size > 2:
+        pdf = pdf / np.trapz(pdf, x)  # could also be normalized using cdf[-1] - cdf[0]
+    
     return pdf
 
 
@@ -259,14 +279,15 @@ def two_expon_mixture_cdf(x, lambda1, lambda2, p):
     
     Returns
     -------
-    model : float, 1-D array_like
-        Model output.
+    cdf : float, 1-D array_like
+        CDF of two exponential mixture distribution.
     """
-    total_cdf = (p * expon.cdf(x, scale=1/lambda1) + 
+    cdf = (p * expon.cdf(x, scale=1/lambda1) + 
                 (1-p) * expon.cdf(x, scale=1/lambda2))
-    model = (total_cdf - total_cdf[0]) / (total_cdf[-1] - total_cdf[0])
+    if cdf.size > 2:
+        cdf = (cdf - cdf[0]) / (cdf[-1] - cdf[0])
 
-    return model
+    return cdf
 
 
 def two_expon_mixture_pdf(x, lambda1, lambda2, p):
@@ -286,16 +307,17 @@ def two_expon_mixture_pdf(x, lambda1, lambda2, p):
     
     Returns
     -------
-    model : float, 1-D array_like
-        Model output.
+    pdf : float, 1-D array_like
+        PDF of two exponential mixture distribution.
     """
-    total_pdf = (p * expon.pdf(x, scale=1/lambda1) + 
+    pdf = (p * expon.pdf(x, scale=1/lambda1) + 
                 (1-p) * expon.pdf(x, scale=1/lambda2))
-    total_cdf = (p * expon.cdf(x, scale=1/lambda1) + 
+    cdf = (p * expon.cdf(x, scale=1/lambda1) + 
             (1-p) * expon.cdf(x, scale=1/lambda2))
-    model = total_pdf / (total_cdf[-1] - total_cdf[0])
+    if pdf.size > 2:
+        pdf = pdf / (cdf[-1] - cdf[0])
 
-    return model
+    return pdf
 
 
 def mixture_log_likelihood(params, data, truncation_low, truncation_up, 

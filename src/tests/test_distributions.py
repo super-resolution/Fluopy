@@ -21,60 +21,56 @@ def test_high_gain_amplification_noise_distribution(x_min, x_max, v, gain, expec
 
 
 @pytest.mark.parametrize(
-    "a, b, x, expected",
-    [[1, 2, 1, 0.46509], [1, 2, [1, 2, 3], np.array([0.46509, 0.23404, 0.09462])]],
+    "x, args, expected",
+    [[1, [1], 0.6321], [1, [1, 0.9], 0.2452], [1, [1, 0.99, 1.01], 0.08029]],
 )
-def test_hypoexponential_distribution_two_parameters_pdf(a, b, x, expected):
-    pdf = dist.hypoexponential_distribution_two_parameters_pdf(a=a, b=b, x=x)
-    np.testing.assert_allclose(pdf, expected, rtol=1e-4)
-
-
-@pytest.mark.parametrize(
-    "a, b, x, expected",
-    [[1, 2, 1, 0.3996], [1, 2, [1, 2, 3], np.array([0.3996, 0.7476, 0.9029])]],
-)
-def test_hypoexponential_distribution_two_parameters_cdf(a, b, x, expected):
-    cdf = dist.hypoexponential_distribution_two_parameters_cdf(a=a, b=b, x=x)
+def test_hypoexponential_distribution_cdf(x, args, expected):
+    cdf = dist.hypoexponential_distribution_cdf(x, *args)
     np.testing.assert_allclose(cdf, expected, rtol=1e-4)
 
 
 @pytest.mark.parametrize(
-    "a, b, c, x, expected",
-    [
-        [1, 2, 3, 1, 0.44099],
-        [1, 2, 3, [1, 2, 3], np.array([0.440988, 0.303548, 0.134859])],
-    ],
+    "x, args, expected",
+    [[1, [1], 0.36788], [1, [1, 0.9], 0.34821], [1, [1, 0.99, 1.01], 0.18392]],
 )
-def test_hypoexponential_distribution_three_parameters_pdf(a, b, c, x, expected):
-    pdf = dist.hypoexponential_distribution_three_parameters_pdf(a=a, b=b, c=c, x=x)
+def test_hypoexponential_distribution_pdf(x, args, expected):
+    pdf = dist.hypoexponential_distribution_pdf(x, *args)
     np.testing.assert_allclose(pdf, expected, rtol=1e-4)
 
 
-@pytest.mark.parametrize(
-    "a, b, c, x, expected",
-    [
-        [1, 2, 3, 1, 0.25258],
-        [1, 2, 3, [1, 2, 3], np.array([0.25258, 0.64646, 0.85795])],
-    ],
-)
-def test_hypoexponential_distribution_three_parameters_cdf(a, b, c, x, expected):
-    cdf = dist.hypoexponential_distribution_three_parameters_cdf(a=a, b=b, c=c, x=x)
+def test_photoswitching_fingerprint_prepare():
+    valid_combinations, pis = dist.photoswitching_fingerprint_prepare(
+        n=3, pis=np.array([[1, 0.7, 0.5], [0, 0.3, 0.5]])
+    )
+    expected_combinations = np.array([[0, 0, 0], [0, 0, 1], [0, 1, 1], [1, 1, 1]])
+    expected_pis = np.array([[1, 0.7, 0.5], [1, 0.7, 0.5], [1, 0.3, 1], [0, 1, 1]])
+    np.testing.assert_array_equal(valid_combinations, expected_combinations)
+    np.testing.assert_array_equal(pis, expected_pis)
+
+
+def test_photoswitching_fingerprint_cdf():
+    cdf = dist.photoswitching_fingerprint_cdf(
+        x=2, lambdas=[[1, 0.7, 0.5], [0.7, 0.5, 0.3]], pis_orig=[1, 0.7, 0.5]
+    )
+    expected = 0.4838
     np.testing.assert_allclose(cdf, expected, rtol=1e-4)
 
 
-def test_rejection_sampling():
-    samples = dist.rejection_sampling(
-        pdf=dist.hypoexponential_distribution_two_parameters_pdf,
-        x_min=1,
-        x_max=10,
-        y_min=0,
-        y_max=1,
-        batch=2,
-        size=10,
-        parameters=[1, 2],
-        seed=1,
+def test_photoswitching_fingerprint_pdf():
+    pdf = dist.photoswitching_fingerprint_pdf(
+        x=2, lambdas=[[1, 0.7, 0.5], [0.7, 0.5, 0.3]], pis_orig=[1, 0.7, 0.5]
     )
-    expected = np.array(
-        [1.5644, 1.0524, 3.1889, 1.6937, 4.2642, 2.4269, 1.4138, 2.0629, 1.1785, 2.2404]
-    )
-    np.testing.assert_allclose(samples, expected, rtol=1e-4)
+    expected = 0.17106
+    np.testing.assert_allclose(pdf, expected, rtol=1e-4)
+
+
+def test_two_expon_mixture_cdf():
+    cdf = dist.two_expon_mixture_cdf(x=2, lambda1=1, lambda2=0.7, p=0.3)
+    expected = 0.7868
+    np.testing.assert_allclose(cdf, expected, rtol=1e-4)
+
+
+def test_two_expon_mixture_pdf():
+    pdf = dist.two_expon_mixture_pdf(x=2, lambda1=1, lambda2=0.7, p=0.3)
+    expected = 0.16143
+    np.testing.assert_allclose(pdf, expected, rtol=1e-4)
