@@ -266,7 +266,7 @@ def direct_method_steps(
 
     # a random index (in this case the first index) at which the final state of a
     # transition equals start_at
-    current_state_index = start_index        
+    current_state_index = start_index
 
     transition_matrix_sorted_indices = np.argsort(transition_matrix, axis=1)
     sorted_transition_matrix = np.take_along_axis(
@@ -657,7 +657,7 @@ def simulate_experiment(
     current_state_index = start_index
 
     frame_time = pd.Timedelta(frame_time) / np.timedelta64(1, "s")
-    time_stamps = np.arange(0, frame_time * frames, frame_time)
+    time_stamps = np.linspace(0, frame_time * frames, frames + 1)
     time_stamps = np.round(time_stamps, decimals=12)
     photon_collector = np.zeros(time_stamps.size)
     time = 0
@@ -666,9 +666,9 @@ def simulate_experiment(
     else:
         event_time_points = None
 
-    frame = -1
+    frame = 0
     skip = False
-    while frame < frames - 1:
+    while frame < frames:
         frame += 1
         photons = 0
         random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
@@ -836,7 +836,7 @@ def simulate_TCSPC(
     rng = np.random.default_rng(seed)
     frame_time = pd.Timedelta(frame_time) / np.timedelta64(1, "s")
     frames = number_pulses * time_between_pulses / frame_time
-    time_stamps = np.arange(0, np.ceil(frames) * frame_time, frame_time)
+    time_stamps = np.linspace(0, np.ceil(frames) * frame_time, int(np.ceil(frames)) + 1)
     time_stamps = np.round(time_stamps, decimals=12)
     if frames < 1:
         warnings.warn(
@@ -1030,7 +1030,7 @@ def simulate_TCSPC(
                     else:
                         lifetimes_D.append(time - last_pulse_time)
                     lifetimes_all.append(time - last_pulse_time)
-                    frame = int(np.ceil(time / frame_time)) - 1
+                    frame = int(np.ceil(time / frame_time))
                     try:
                         photon_collector[frame] += 1
                         if store_time_points:

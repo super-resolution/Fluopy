@@ -124,17 +124,45 @@ def test_simulate_experiment(
     if expected is None:
         assert event_time_points is None
         exp_event_time_series = pd.Series(
-            np.array([388, 702, 442, 87, 436, 558, 73, 435, 344, 229], dtype=np.int64),
+            np.array(
+                [0, 388, 702, 442, 87, 436, 558, 73, 435, 344, 229], dtype=np.int64
+            ),
             index=np.array(
-                [0.0, 0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009]
+                [
+                    0.0,
+                    0.001,
+                    0.002,
+                    0.003,
+                    0.004,
+                    0.005,
+                    0.006,
+                    0.007,
+                    0.008,
+                    0.009,
+                    0.01,
+                ]
             ),
         )
         pd.testing.assert_series_equal(event_time_series, exp_event_time_series)
     else:
         exp_event_time_series = pd.Series(
-            np.array([347, 639, 403, 85, 394, 500, 66, 383, 313, 205], dtype=np.int64),
+            np.array(
+                [0, 347, 639, 403, 85, 394, 500, 66, 383, 313, 205], dtype=np.int64
+            ),
             index=np.array(
-                [0.0, 0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009]
+                [
+                    0.0,
+                    0.001,
+                    0.002,
+                    0.003,
+                    0.004,
+                    0.005,
+                    0.006,
+                    0.007,
+                    0.008,
+                    0.009,
+                    0.01,
+                ]
             ),
         )
         assert event_time_points.size == event_time_series.values.sum()
@@ -274,7 +302,7 @@ def test_simulate_TCSPC(
         with pytest.warns(
             UserWarning,
             match=re.escape(
-                "the last frame (of index 0.001) has 2.50e-02 times the pulses of "
+                "the last frame (of index 0.002) has 2.50e-02 times the pulses of "
                 "other frames."
             ),
         ):
@@ -304,8 +332,8 @@ def test_simulate_TCSPC(
         )
         assert (
             event_time_series.size
-            == 2
-            == int(np.ceil(number_pulses * time_between_pulses / 1e-3))
+            == 3
+            == int(np.ceil(number_pulses * time_between_pulses / 1e-3)) + 1
         )
         assert lifetimes_DA.size == 0
         np.testing.assert_allclose(lifetimes_D.mean(), 9.96e-10, rtol=1e-2)
@@ -334,10 +362,10 @@ def test_simulate_TCSPC(
                 seed=1,
             )
         assert event_time_series.size == int(
-            np.ceil(number_pulses * time_between_pulses / 1e-3)
+            np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
         )
         assert str(record[0].message) == (
-            "the last frame (of index 0.102) has 5.00e-01 times the pulses of other "
+            "the last frame (of index 0.103) has 5.00e-01 times the pulses of other "
             "frames."
         )
         assert event_time_series.values.sum() == lifetimes_D.size
@@ -369,14 +397,14 @@ def test_simulate_TCSPC(
                 seed=1,
             )
         assert event_time_series.size == int(
-            np.ceil(number_pulses * time_between_pulses / 1e-3)
+            np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
         )
         assert str(record[0].message) == (
             "Not enough laser pulses to completely simulate a single frame "
             "(requires at least 1.0e+05 pulses)."
         )
         assert str(record[1].message) == (
-            "the last frame (of index 0.0) has 8.00e-01 times the pulses of other "
+            "the last frame (of index 0.001) has 8.00e-01 times the pulses of other "
             "frames."
         )
         assert (
@@ -394,7 +422,7 @@ def test_simulate_TCSPC(
         with pytest.warns(
             UserWarning,
             match=re.escape(
-                "the last frame (of index 3999.999) has 0.00e+00 times the pulses of "
+                "the last frame (of index 4000.0) has 0.00e+00 times the pulses of "
                 "other frames."
             ),
         ):
@@ -417,7 +445,7 @@ def test_simulate_TCSPC(
                 seed=1,
             )
         assert event_time_series.size == int(
-            np.ceil(number_pulses * time_between_pulses / 1e-3)
+            np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
         )
         assert (
             event_time_series.values.sum()
@@ -465,7 +493,7 @@ def test_simulate_TCSPC(
                 seed=1,
             )
         assert event_time_series.size == int(
-            np.ceil(number_pulses * time_between_pulses / 1e-3)
+            np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
         )
         assert (
             event_time_series.values.sum()
@@ -503,7 +531,7 @@ def test_simulate_TCSPC(
                 seed=1,
             )
         assert event_time_series.size == int(
-            np.ceil(number_pulses * time_between_pulses / 1e-3)
+            np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
         )
         assert (
             event_time_series.values.sum()
@@ -549,7 +577,7 @@ def test_simulate_TCSPC(
                 seed=1,
             )
         assert event_time_series.size == int(
-            np.ceil(number_pulses * time_between_pulses / 1e-3)
+            np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
         )
         assert (
             event_time_series.values.sum()

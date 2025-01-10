@@ -45,7 +45,6 @@ def get_bleaching_times(simulation):
             time = np.nan
         bleaching_times.append(time)
     bleaching_times = np.sort(np.array(bleaching_times))
-
     
     return bleaching_times
 
@@ -53,7 +52,7 @@ def get_bleaching_times(simulation):
 def get_global_bleaching_rates(bleaching_times):
     """
     Get the global bleaching rates for each fluorophore. The global bleaching rate is 
-    the inverse of the lifetime of a fluorophore. 
+    the inverse of the lifetime of a fluorophore starting from the last bleaching event. 
 
     Parameters
     ----------
@@ -75,7 +74,7 @@ def get_global_bleaching_rates(bleaching_times):
         delta_bleaching_times = delta_bleaching_times[~np.isnan(delta_bleaching_times)]
         delta_bleaching_times_all.append(delta_bleaching_times)
         previous_times = bleaching_times_fluo
-        lambda_1, lambda_2, p1 = dist.estimate_mixture_parameters(
+        p1, lambda_1, lambda_2 = dist.estimate_mixture_parameters(
             data=delta_bleaching_times,
             initial_guess=[0.1, 0.01, 0.5],
             bounds=[(0, 1), (0, None), (0, None)],
@@ -87,7 +86,6 @@ def get_global_bleaching_rates(bleaching_times):
     global_bleaching_rates = np.array(global_bleaching_rates)
 
     return global_bleaching_rates, delta_bleaching_times_all
-
 
 
 def fingerprint_analysis(

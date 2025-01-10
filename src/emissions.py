@@ -329,13 +329,22 @@ class Emissions:
             events[-1] = 0
 
         event_time_series = pd.Series(events, index=time_deltas, dtype=np.int32)
-        event_time_series = event_time_series.resample(resample).sum()
-        time_deltas = event_time_series.index
+        event_time_series_r = event_time_series.resample(
+            resample, closed="right", label="right"
+        ).sum()
+        if (
+            event_time_series_r.index[-1] > event_time_series.index[-1]
+            and event_time_series_r.values[-1] == 0
+        ):
+            event_time_series_r = event_time_series_r.drop(
+                event_time_series_r.index[-1]
+            )
+        time_deltas = event_time_series_r.index
         in_seconds = time_deltas / np.timedelta64(1, "s")
         in_seconds = np.round(in_seconds, decimals=12)
-        event_time_series.index = in_seconds
+        event_time_series_r.index = in_seconds
 
-        self.event_time_series = event_time_series
+        self.event_time_series = event_time_series_r
 
     def add_photon_collection_objective(self, p, seed=None):
         """
@@ -446,10 +455,11 @@ class Emissions:
         None
         """
         rng = np.random.default_rng(seed)
-        size = self.event_time_series.size
+        size = self.event_time_series.size - 1
         variates = norm(mean, std).rvs(size, random_state=rng)
         variates = variates.astype(np.int32)
-        self.event_time_series = self.event_time_series + variates
+        self.event_time_series.values[1:] = self.event_time_series.values[1:] + variates
+        self.event_time_series.clip(lower=0, inplace=True)
 
     def add_poisson_noise(self, rate, seed=None):
         """
@@ -468,10 +478,10 @@ class Emissions:
         None
         """
         rng = np.random.default_rng(seed)
-        size = self.event_time_series.size
+        size = self.event_time_series.size - 1
         variates = poisson(rate).rvs(size, random_state=rng)
         variates = variates.astype(np.int32)
-        self.event_time_series = self.event_time_series + variates
+        self.event_time_series.values[1:] = self.event_time_series.values[1:] + variates
 
     def apply_threshold(self, threshold):
         """

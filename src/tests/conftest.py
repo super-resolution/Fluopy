@@ -241,8 +241,7 @@ def em_tr_set_et_2f_diff(sim_tr_set_et_2f_diff):
 def em_large():
     emis = em.Emissions.load(
         path=(
-            r"C:\Users\vie43sq\OneDrive - Universität Würzburg\GitHub"
-            r"\Photoswitching\src\tests"
+            r"C:\Users\vie43sq\Desktop\GitHub\Photoswitching\src\tests"
         ),
         name_extension="_em_large",
     )
@@ -253,8 +252,7 @@ def em_large():
 def em_very_large():
     emis = em.Emissions.load(
         path=(
-            r"C:\Users\vie43sq\OneDrive - Universität Würzburg\GitHub"
-            r"\Photoswitching\src\tests"
+            r"C:\Users\vie43sq\Desktop\GitHub\Photoswitching\src\tests"
         ),
         name_extension="_em_very_large",
     )
