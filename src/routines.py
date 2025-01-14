@@ -7,8 +7,7 @@ import pandas as pd
 import src.emissions as em
 import src.simulation as si
 import src.formulas as fo
-import src.distributions as dist
-from scipy.optimize import minimize
+import src.fitting as fit
 
 
 def get_bleaching_times(simulation):
@@ -74,7 +73,7 @@ def get_global_bleaching_rates(bleaching_times):
         delta_bleaching_times = delta_bleaching_times[~np.isnan(delta_bleaching_times)]
         delta_bleaching_times_all.append(delta_bleaching_times)
         previous_times = bleaching_times_fluo
-        p1, lambda_1, lambda_2 = dist.estimate_mixture_parameters(
+        p1, lambda_1, lambda_2 = fit.estimate_mixture_parameters(
             data=delta_bleaching_times,
             initial_guess=[0.1, 0.01, 0.5],
             bounds=[(0, 1), (0, None), (0, None)],

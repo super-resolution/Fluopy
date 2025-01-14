@@ -6,7 +6,6 @@ import numpy as np
 from scipy.special import i1
 from scipy.stats import rv_discrete
 from scipy.stats import expon
-from scipy.optimize import minimize
 from itertools import product
 
 
@@ -188,38 +187,6 @@ def photoswitching_fingerprint_cdf(x, lambdas, pis_orig):
     return cdf
 
 
-def fit_1_fluorophore(x, lam1_1, lam1_2, pi1):
-    cdf = photoswitching_fingerprint_cdf(
-        x, lambdas=[[lam1_1], [lam1_2]], pis_orig=[pi1]
-    )
-    return cdf
-
-
-def fit_2_fluorophore(x, lam1_1, lam2_1, lam1_2, lam2_2, pi1, pi2):
-    cdf = photoswitching_fingerprint_cdf(
-        x, lambdas=[[lam1_1, lam2_1], [lam1_2, lam2_2]], pis_orig=[pi1, pi2]
-    )
-    return cdf
-
-
-def fit_3_fluorophore(x, lam1_1, lam2_1, lam3_1, lam1_2, lam2_2, lam3_2, pi1, pi2, pi3):
-    cdf = photoswitching_fingerprint_cdf(
-        x,
-        lambdas=[[lam1_1, lam2_1, lam3_1], [lam1_2, lam2_2, lam3_2]],
-        pis_orig=[pi1, pi2, pi3],
-    )
-    return cdf
-
-
-def fit_4_fluorophore(x, lam1_1, lam2_1, lam3_1, lam4_1, lam1_2, lam2_2, lam3_2, lam4_2, 
-                      pi1, pi2, pi3, pi4):
-    cdf = photoswitching_fingerprint_cdf(
-        x, 
-        lambdas=[[lam1_1, lam2_1, lam3_1, lam4_1], [lam1_2, lam2_2, lam3_2, lam4_2]], 
-        pis_orig=[pi1, pi2, pi3, pi4])
-    return cdf
-
-
 def photoswitching_fingerprint_pdf(x, lambdas, pis_orig):
     """
     PDF of the photoswitching fingerprint model.
@@ -260,6 +227,159 @@ def photoswitching_fingerprint_pdf(x, lambdas, pis_orig):
         pdf = pdf / np.trapz(pdf, x)  # could also be normalized using cdf[-1] - cdf[0]
     
     return pdf
+
+
+def ps_fingerprint_cdf_1f(x, lam1_1, lam1_2, pi1):
+    """
+    Cumulative distribution function of the photoswitching fingerprint model with one
+    fluorophore.
+    
+    Parameters
+    ----------
+    x : float, 1-D array_like
+        Sample.
+    lam1_1 : float
+        Rate of the first (biased) exponential distribution.
+    lam1_2 : float
+        Rate of the second (non-biased) exponential distribution.
+    pi1 : float
+        Weight of the first exponential distribution.
+    
+    Returns
+    -------
+    cdf : float, 1-D array_like
+        CDF of the photoswitching fingerprint model.
+    """
+    cdf = photoswitching_fingerprint_cdf(
+        x, lambdas=[[lam1_1], [lam1_2]], pis_orig=[pi1]
+    )
+
+    return cdf
+
+
+def ps_fingerprint_cdf_2f(x, lam1_1, lam2_1, lam1_2, lam2_2, pi1, pi2):
+    """
+    Cumulative distribution function of the photoswitching fingerprint model with two
+    fluorophores.
+    
+    Parameters
+    ----------
+    x : float, 1-D array_like
+        Sample.
+    lam1_1 : float
+        Rate of the first (biased) exponential distribution of the first fluorophore.
+    lam2_1 : float
+        Rate of the first (biased) exponential distribution of the second fluorophore.
+    lam1_2 : float
+        Rate of the second (non-biased) exponential distribution of the first fluorophore.
+    lam2_2 : float
+        Rate of the second (non-biased) exponential distribution of the second fluorophore.
+    pi1 : float
+        Weight of the first exponential distribution of the first fluorophore.
+    pi2 : float
+        Weight of the first exponential distribution of the second fluorophore.
+    
+    Returns
+    -------
+    cdf : float, 1-D array_like
+        CDF of the photoswitching fingerprint model.
+    """
+    cdf = photoswitching_fingerprint_cdf(
+        x, lambdas=[[lam1_1, lam2_1], [lam1_2, lam2_2]], pis_orig=[pi1, pi2]
+    )
+
+    return cdf
+
+
+def ps_fingerprint_cdf_3f(x, lam1_1, lam2_1, lam3_1, lam1_2, lam2_2, lam3_2, pi1, pi2, pi3):
+    """
+    Cumulative distribution function of the photoswitching fingerprint model with three
+    fluorophores.
+    
+    Parameters
+    ----------
+    x : float, 1-D array_like
+        Sample.
+    lam1_1 : float
+        Rate of the first (biased) exponential distribution of the first fluorophore.
+    lam2_1 : float
+        Rate of the first (biased) exponential distribution of the second fluorophore.
+    lam3_1 : float
+        Rate of the first (biased) exponential distribution of the third fluorophore.
+    lam1_2 : float
+        Rate of the second (non-biased) exponential distribution of the first fluorophore.
+    lam2_2 : float
+        Rate of the second (non-biased) exponential distribution of the second fluorophore.
+    lam3_2 : float
+        Rate of the second (non-biased) exponential distribution of the third fluorophore.
+    pi1 : float
+        Weight of the first exponential distribution of the first fluorophore.
+    pi2 : float
+        Weight of the first exponential distribution of the second fluorophore.
+    pi3 : float
+        Weight of the first exponential distribution of the third fluorophore.
+    
+    Returns
+    -------
+    cdf : float, 1-D array_like
+        CDF of the photoswitching fingerprint model.
+    """
+    cdf = photoswitching_fingerprint_cdf(
+        x,
+        lambdas=[[lam1_1, lam2_1, lam3_1], [lam1_2, lam2_2, lam3_2]],
+        pis_orig=[pi1, pi2, pi3],
+    )
+
+    return cdf  
+
+
+def ps_fingerprint_cdf_4f(x, lam1_1, lam2_1, lam3_1, lam4_1, lam1_2, lam2_2, lam3_2, lam4_2,
+                            pi1, pi2, pi3, pi4):
+    """
+    Cumulative distribution function of the photoswitching fingerprint model with four
+    fluorophores.
+
+    Parameters
+    ----------
+    x : float, 1-D array_like
+        Sample.
+    lam1_1 : float
+        Rate of the first (biased) exponential distribution of the first fluorophore.
+    lam2_1 : float
+        Rate of the first (biased) exponential distribution of the second fluorophore.
+    lam3_1 : float
+        Rate of the first (biased) exponential distribution of the third fluorophore.
+    lam4_1 : float
+        Rate of the first (biased) exponential distribution of the fourth fluorophore.
+    lam1_2 : float
+        Rate of the second (non-biased) exponential distribution of the first fluorophore.
+    lam2_2 : float
+        Rate of the second (non-biased) exponential distribution of the second fluorophore.
+    lam3_2 : float
+        Rate of the second (non-biased) exponential distribution of the third fluorophore.
+    lam4_2 : float
+        Rate of the second (non-biased) exponential distribution of the fourth fluorophore.
+    pi1 : float
+        Weight of the first exponential distribution of the first fluorophore.
+    pi2 : float
+        Weight of the first exponential distribution of the second fluorophore.
+    pi3 : float
+        Weight of the first exponential distribution of the third fluorophore.
+    pi4 : float
+        Weight of the first exponential distribution of the fourth fluorophore.
+    
+    Returns
+    -------
+    cdf : float, 1-D array_like
+        CDF of the photoswitching fingerprint model.
+    """
+    cdf = photoswitching_fingerprint_cdf(
+        x, 
+        lambdas=[[lam1_1, lam2_1, lam3_1, lam4_1], [lam1_2, lam2_2, lam3_2, lam4_2]], 
+        pis_orig=[pi1, pi2, pi3, pi4]
+    )
+
+    return cdf
 
 
 def two_expon_mixture_cdf(x, lambda1, lambda2, p):
@@ -318,110 +438,6 @@ def two_expon_mixture_pdf(x, lambda1, lambda2, p):
         pdf = pdf / (cdf[-1] - cdf[0])
 
     return pdf
-
-
-def mixture_log_likelihood(params, data, truncation_low, truncation_up, 
-                           number_no_events=0):
-    """
-    Negative log-likelihood of a mixture of two exponential distributions (pdf).
-
-    Parameters
-    ----------
-    params : list
-        Parameters of the mixture distribution.
-    data : np.ndarray
-        Sample.
-    truncation_low : float
-        Lower truncation of the distribution.
-    truncation_up : float
-        Upper truncation of the distribution.
-    number_no_events : int
-        Number of runs without events.
-
-    Returns
-    -------
-    negative_log_likelihood : float
-        Negative log-likelihood to be minimized.
-    """
-    pi, lambda1, lambda2 = params
-
-    if not (0 <= pi <= 1) or lambda1 <= 0 or lambda2 <= 0:
-        return np.inf
-
-    norm1 = (1 - np.exp(-lambda1 * truncation_up)) - (  # adjust for truncation
-        1 - np.exp(-lambda1 * truncation_low)
-    )
-    norm2 = (1 - np.exp(-lambda2 * truncation_up)) - (
-        1 - np.exp(-lambda2 * truncation_low)
-    )
-
-    exp1 = pi * expon.pdf(data, scale=1 / lambda1) / norm1
-    exp2 = (1 - pi) * expon.pdf(data, scale=1 / lambda2) / norm2
-
-    log_likelihood_observation = np.log(exp1 + exp2)
-    if number_no_events == 0:
-        log_likelihood_no_observation = 0
-    else:
-        prob_event = pi * norm1 + (1 - pi) * norm2
-        prob_event = np.minimum(prob_event, 1-1e-14)
-        log_likelihood_no_observation = np.log1p(- prob_event) * number_no_events
-
-    log_likelihood = (np.sum(log_likelihood_observation) +
-                    log_likelihood_no_observation)
-    negative_log_likelihood = - log_likelihood
-
-    return negative_log_likelihood
-
-
-def estimate_mixture_parameters(
-    data, 
-    initial_guess, 
-    bounds, 
-    truncation_low=0, 
-    truncation_up=300, 
-    number_no_events=0,
-    method="L-BFGS-B",
-):
-    """
-    Estimate the parameters of a mixture of two exponential distributions (pdf).
-
-    Parameters
-    ----------
-    data : np.ndarray
-        Sample.
-    initial_guess : list
-        Initial guess for the optimization. For parameters, see return values.
-    bounds : list
-        Bounds for the optimization. For parameters, see return values.
-    truncation_low : float
-        Lower truncation of the distribution.
-    truncation_up : float
-        Upper truncation of the distribution.
-    number_no_events : int
-        Number of runs without events. Set to 0 if all runs produced events or if no
-        influence of log-likelihood of no events is desired. 
-    method : str
-        Optimization method.
-
-    Returns
-    -------
-    pi : float
-        Weight of the first exponential distribution.
-    lambda1 : float
-        Rate of the first exponential distribution.
-    lambda2 : float
-        Rate of the second exponential distribution.
-    """
-    result = minimize(
-        mixture_log_likelihood,
-        initial_guess,
-        args=(data, truncation_low, truncation_up, number_no_events),
-        bounds=bounds,
-        method=method,
-    )
-    pi, lambda1, lambda2 = result.x
-
-    return pi, lambda1, lambda2
 
 
 def rejection_sampling(pdf, x_min, x_max, y_min, y_max, batch, size, parameters, seed):

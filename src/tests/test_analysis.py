@@ -295,7 +295,6 @@ def test_get_fluorescence_lifetimes(sim_tr_set_1f_bl, sim_tr_set_2f_diff):
 def test_get_emitting_transition_lifetiems(sim_tr_set_1f_bl, sim_tr_set_2f_diff):
     analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
     exp_fluorescence_lifetimes = analysis.get_emitting_transition_lifetimes()
-    print(exp_fluorescence_lifetimes)
     np.testing.assert_array_almost_equal(
         exp_fluorescence_lifetimes[:12],
         np.array(
