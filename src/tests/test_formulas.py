@@ -180,7 +180,7 @@ def test_calculate_pet_rate(reducing_agent, concentration, k_pet, ph, expected):
     [
         [[1, 2, 3], [1], [1, 2, 3], "ValueError"],
         [[1, 2, 3], [2, 3, 4], [3], "ValueError"],
-        [[1, 2, 3], [2, 3, 4], [100, 200, 300], 1690098112],
+        [[1, 2, 3], [2, 3, 4], [100, 200, 300], 1.4575e10],
     ],
 )
 def test_calculate_spectral_overlap_integral(donor, acceptor, wavelengths, expected):

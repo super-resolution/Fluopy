@@ -272,7 +272,7 @@ class Emissions:
                     emitting_transition_ids_f = df[
                         df["transition_id"].isin(emitting_transitions_f)
                     ].index.to_numpy()
-                    emission_indices_f = np.in1d(
+                    emission_indices_f = np.isin(
                         simulation.transition_series, emitting_transition_ids_f
                     ).nonzero()[0]
                     amount_not_detected = binom.rvs(
@@ -292,7 +292,7 @@ class Emissions:
         else:
             df = simulation.transition_set.combined_state_transitions_df
             emitting_transition_ids = df.loc[df["photon"] == True].index.to_numpy()
-            emission_indices = np.in1d(
+            emission_indices = np.isin(
                 simulation.transition_series, emitting_transition_ids
             ).nonzero()[0]
 

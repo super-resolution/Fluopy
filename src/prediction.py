@@ -179,7 +179,7 @@ class Prediction:
         abs_indices_combined = df[df["transition_id"].isin(abs_indices)].index
         drop_transitions = df[df["final_state"] == abs_final_state].index
         drop_diff = abs_indices_combined[
-            ~np.in1d(abs_indices_combined, drop_transitions)
+            ~np.isin(abs_indices_combined, drop_transitions)
         ]
         Q = get_Q(
             P=self.transition_set.transition_matrix, drop_transitions=drop_transitions

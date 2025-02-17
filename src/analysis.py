@@ -132,7 +132,7 @@ class Analysis:
         df = self.simulation.transition_set.combined_state_transitions_df
         for _, i in self.simulation.transition_set.transition_df.index:
             indices = df.index[df["transition_id"] == i].tolist()
-            transition_occurrences = np.in1d(
+            transition_occurrences = np.isin(
                 self.simulation.transition_series, indices
             ).nonzero()[0]
             all_transition_occurrences[i] = transition_occurrences.size
@@ -184,10 +184,10 @@ class Analysis:
             changes_at_and_last = np.append(changes_at, last_state)
             states = state_series_fluorophore[changes_at_and_last]
             state_ids, state_counts = np.unique(states, return_counts=True)
-            corresponding_state_indices = np.in1d(
+            corresponding_state_indices = np.isin(
                 single_states[fluorophore], state_ids
             ).nonzero()[0]
-            keep_indices = np.in1d(state_ids, single_states[fluorophore]).nonzero()[0]
+            keep_indices = np.isin(state_ids, single_states[fluorophore]).nonzero()[0]
             state_counts = state_counts[keep_indices]
             occurrences_states[fluorophore][corresponding_state_indices] += state_counts
 
@@ -246,7 +246,7 @@ class Analysis:
             transitions_fluorophore = self.simulation.transition_series[changes_at]
             for h, j in self.simulation.transition_set.transition_df.index:
                 indices = df.index[df["transition_id"] == j].tolist()
-                transition_occurrences = np.in1d(
+                transition_occurrences = np.isin(
                     transitions_fluorophore, indices
                 ).nonzero()[0]
                 if "dist" in h:
@@ -255,7 +255,7 @@ class Analysis:
                     ].donor.value
                     donor_indices = np.where(initial_single_states == source_donor)[0]
                     transition_occurrences = transition_occurrences[
-                        np.in1d(transition_occurrences, donor_indices)
+                        np.isin(transition_occurrences, donor_indices)
                     ]
 
                 time_intervals_transition = time_intervals[transition_occurrences]

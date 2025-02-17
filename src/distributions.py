@@ -2,6 +2,8 @@
 Module distributions
 """
 
+import inspect
+import warnings
 import numpy as np
 from scipy.special import i1
 from scipy.stats import rv_discrete
@@ -106,6 +108,206 @@ def hypoexponential_distribution_pdf(x, *args):
     return pdf
 
 
+def hypoexponential_distribution_pdf_1st_order_derivative(x, *args):
+    """
+    First order derivative of the PDF of the hypoexponential distribution.
+
+    Parameters
+    ----------
+    x : float, 1-D array_like
+        Sample.
+    args : float, 1-D array_like
+        Parameters (lambdas) of the hypoexponential distribution.
+    
+    Returns
+    -------
+    pdf_1st_order_derivative : float, 1-D array_like
+        First order derivative of the PDF of the hypoexponential distribution.
+    """
+    all_args = np.array(args)
+    pdf_1st_order_derivative = 0
+    for arg in args:
+        other_args = np.array([other for other in args if other != arg])
+        pdf_1st_order_derivative += - arg * np.exp(-arg * x) * np.prod(all_args) / np.prod(- arg + other_args)
+
+    return pdf_1st_order_derivative
+
+
+def hypoexponential_distribution_pdf_2nd_order_derivative(x, *args):
+    """
+    Second order derivative of the PDF of the hypoexponential distribution.
+
+    Parameters
+    ----------
+    x : float, 1-D array_like
+        Sample.
+    args : float, 1-D array_like
+        Parameters (lambdas) of the hypoexponential distribution.
+    
+    Returns
+    -------
+    pdf_2nd_order_derivative : float, 1-D array_like
+        Second order derivative of the PDF of the hypoexponential distribution.
+    """
+    all_args = np.array(args)
+    pdf_2nd_order_derivative = 0
+    for arg in args:
+        other_args = np.array([other for other in args if other != arg])
+        pdf_2nd_order_derivative += arg**2 * np.exp(-arg * x) * np.prod(all_args) / np.prod(- arg + other_args)
+
+    return pdf_2nd_order_derivative
+
+
+class Photoswitching_fingerprint_model:
+    """
+    Model to describe photoswitching fingerprints produced by n fluorophores where there
+    is bias in time (e.g., increased probability of ON in the beginning).
+    """
+    def __init__(self, lambdas, pis_orig, domain=(0, np.inf)):
+        """
+        Parameters
+        ----------
+        lambdas : float, 2-D array_like
+            Rates of the underlying exponential distributions.
+        pis_orig : float, 1-D array_like
+            Weights of the underlying exponential distributions.
+        domain : tuple
+            Domain of the model. Default is (0, np.inf).
+        """
+        self.lambdas = np.asarray(lambdas)
+        pis_orig = np.asarray(pis_orig)
+        self.pis_orig = np.array([pis_orig, 1-pis_orig])
+        self.domain = domain
+        
+    def pdf(self, x, order=0):
+        """
+        PDF
+
+        Parameters
+        ----------
+        x : float, 1-D array_like
+            Sample.
+        order : int
+            Order of the derivative of the PDF to be calculated.
+        
+        Returns
+        -------
+        pdf : float, 1-D array_like
+            Model output.
+        """
+        if order == 0:
+            call = hypoexponential_distribution_pdf
+        elif order == 1:
+            caller = inspect.stack()[1].function
+            if caller != 'dpdf':
+                raise ValueError("Call dpdf instead of setting order=1.")
+            call = hypoexponential_distribution_pdf_1st_order_derivative
+        elif order == 2:
+            caller = inspect.stack()[1].function
+            if caller != 'ddpdf':
+                raise ValueError("Call ddpdf instead of setting order=2.")
+            call = hypoexponential_distribution_pdf_2nd_order_derivative
+        else:
+            raise ValueError("Order has to be 0, 1, or 2.")
+
+        n = self.lambdas.shape[1]
+        pdf = 0
+        for i in range(n):
+            valid_combinations, pis = photoswitching_fingerprint_prepare(i+1, self.pis_orig)
+            pdf_part = 0
+            for j in range(i+2):
+                pi_set = np.prod(pis[j])
+                pdf_part += pi_set * call(
+                    x, 
+                    *self.lambdas[
+                        valid_combinations[j], np.arange(valid_combinations[j].shape[0])
+                    ]
+                )
+            pdf += 1/n * pdf_part
+        
+        if self.domain != (0, np.inf):
+            if self.domain[-1] == np.inf:
+                F_1 = 1
+            else:
+                F_1 = self.cdf(self.domain[-1], extra=True)
+            F_0 = self.cdf(self.domain[0], extra=True)
+            pdf = pdf / (F_1 - F_0)  # true for pdf, dpdf, ddpdf
+        
+        return pdf
+    
+    def cdf(self, x, extra=False):
+        """
+        CDF
+
+        Parameters
+        ----------
+        x : float, 1-D array_like
+            Sample.
+        
+        Returns
+        -------
+        cdf : float, 1-D array_like
+            Model output.
+        """
+        n = self.lambdas.shape[1]
+        cdf = 0
+        for i in range(n):
+            valid_combinations, pis = photoswitching_fingerprint_prepare(i+1, self.pis_orig)
+            cdf_part = 0
+            for j in range(i+2):
+                pi_set = np.prod(pis[j])
+                cdf_part += pi_set * hypoexponential_distribution_cdf(
+                    x, 
+                    *self.lambdas[
+                        valid_combinations[j], np.arange(valid_combinations[j].shape[0])
+                    ]
+                )
+            cdf += 1/n * cdf_part
+        if extra:
+            return cdf
+        
+        if self.domain != (0, np.inf):
+            if self.domain[-1] == np.inf:
+                F_1 = 1
+            else:
+                F_1 = self.cdf(self.domain[-1], extra=True)
+            F_0 = self.cdf(self.domain[0], extra=True)
+            cdf = (cdf - F_0) / (F_1 - F_0)
+
+        return cdf
+        
+    def dpdf(self, x):
+        """
+        first derivate of PDF
+        """
+        dpdf = self.pdf(x, order=1)
+
+        return dpdf
+    
+    def ddpdf(self, x):
+        """
+        second derivate of PDF
+        """
+        ddpdf = self.pdf(x, order=2)
+
+        return ddpdf
+    
+    def logp(self, x):
+        """
+        Logarithm of the PDF
+        """
+        logp = np.log(self.pdf(x))  # lower-level implementation of log does not provide
+        # much numerical stability since sum of e^x terms has to be calculated first.
+
+        return logp
+    
+    def quantile_function():
+        """
+        Quantile function
+        """
+        raise ValueError("Quantile function has no closed form. Inverse CDF has to be "
+                         "calculated numerically.")
+
 def photoswitching_fingerprint_prepare(n, pis):
     """
     Get indices for valid lambda combinations for the photoswitching fingerprint model.
@@ -142,94 +344,7 @@ def photoswitching_fingerprint_prepare(n, pis):
     return valid_combinations, pis
 
 
-def photoswitching_fingerprint_cdf(x, lambdas, pis_orig):
-    """
-    Model to describe photoswitching fingerprints produced by n fluorophores where there
-    is bias in time (e.g., increased probability of ON in the beginning). The model is 
-    adjusted to account for truncations.
-
-    Parameters
-    ----------
-    x : float, 1-D array_like
-        Sample.
-    lambdas : float, 2-D array_like
-        Rates of the underlying exponential distributions.
-    pis_orig : float, 1-D array_like
-        Weights of the underlying exponential distributions.
-    
-    Returns
-    -------
-    cdf : float, 1-D array_like
-        Model output.
-    """
-    lambdas = np.asarray(lambdas)
-    pis_orig = np.asarray(pis_orig)
-    pis_orig = np.array([pis_orig, 1-pis_orig])
-    n = lambdas.shape[1]
-    cdf = 0
-    for i in range(n):
-        valid_combinations, pis = photoswitching_fingerprint_prepare(i+1, pis_orig)
-        cdf_part = 0
-        for j in range(i+2):
-            pi_set = np.prod(pis[j])
-            cdf_part += pi_set * hypoexponential_distribution_cdf(
-                x, 
-                *lambdas[
-                    valid_combinations[j], np.arange(valid_combinations[j].shape[0])
-                ]
-            )
-        cdf += 1/n * cdf_part
-    
-    # truncation
-    if cdf.size > 2:
-        cdf = (cdf - cdf[0]) / (cdf[-1] - cdf[0])
-
-    return cdf
-
-
-def photoswitching_fingerprint_pdf(x, lambdas, pis_orig):
-    """
-    PDF of the photoswitching fingerprint model.
-
-    Parameters
-    ----------
-    x : float, 1-D array_like
-        Sample.
-    lambdas : float, 2-D array_like
-        Rates of the underlying exponential distributions.
-    pis_orig : float, 1-D array_like
-        Weights of the underlying exponential distributions.
-    
-    Returns
-    -------
-    pdf : float, 1-D array_like
-        Model output.
-    """
-    lambdas = np.asarray(lambdas)
-    pis_orig = np.asarray(pis_orig)
-    pis_orig = np.array([pis_orig, 1-pis_orig])
-    n = lambdas.shape[1]
-    pdf = 0
-    for i in range(n):
-        valid_combinations, pis = photoswitching_fingerprint_prepare(i+1, pis_orig)
-        pdf_part = 0
-        for j in range(i+2):
-            pi_set = np.prod(pis[j])
-            pdf_part += pi_set * hypoexponential_distribution_pdf(
-                x, 
-                *lambdas[
-                    valid_combinations[j], np.arange(valid_combinations[j].shape[0])
-                ]
-            )
-        pdf += 1/n * pdf_part
-    # truncation
-    if pdf.size > 2:
-        pdf = pdf / np.trapz(pdf, x)  # could also be normalized using cdf[-1] - cdf[0]
-    
-    return pdf
-
-
-def ps_fingerprint_cdf_1f(x, lam1_1, lam1_2, pi1):
+def ps_fingerprint_cdf_1f(x, lam1_1, lam1_2, pi1, domain):
     """
     Cumulative distribution function of the photoswitching fingerprint model with one
     fluorophore.
@@ -250,14 +365,14 @@ def ps_fingerprint_cdf_1f(x, lam1_1, lam1_2, pi1):
     cdf : float, 1-D array_like
         CDF of the photoswitching fingerprint model.
     """
-    cdf = photoswitching_fingerprint_cdf(
-        x, lambdas=[[lam1_1], [lam1_2]], pis_orig=[pi1]
-    )
+    cdf = Photoswitching_fingerprint_model(
+        lambdas=[[lam1_1], [lam1_2]], pis_orig=[pi1], domain=domain,
+    ).cdf(x)
 
     return cdf
 
 
-def ps_fingerprint_cdf_2f(x, lam1_1, lam2_1, lam1_2, lam2_2, pi1, pi2):
+def ps_fingerprint_cdf_2f(x, lam1_1, lam2_1, lam1_2, lam2_2, pi1, pi2, domain):
     """
     Cumulative distribution function of the photoswitching fingerprint model with two
     fluorophores.
@@ -284,14 +399,14 @@ def ps_fingerprint_cdf_2f(x, lam1_1, lam2_1, lam1_2, lam2_2, pi1, pi2):
     cdf : float, 1-D array_like
         CDF of the photoswitching fingerprint model.
     """
-    cdf = photoswitching_fingerprint_cdf(
-        x, lambdas=[[lam1_1, lam2_1], [lam1_2, lam2_2]], pis_orig=[pi1, pi2]
-    )
+    cdf = Photoswitching_fingerprint_model(
+        lambdas=[[lam1_1, lam2_1], [lam1_2, lam2_2]], pis_orig=[pi1, pi2], domain=domain,
+    ).cdf(x)
 
     return cdf
 
 
-def ps_fingerprint_cdf_3f(x, lam1_1, lam2_1, lam3_1, lam1_2, lam2_2, lam3_2, pi1, pi2, pi3):
+def ps_fingerprint_cdf_3f(x, lam1_1, lam2_1, lam3_1, lam1_2, lam2_2, lam3_2, pi1, pi2, pi3, domain):
     """
     Cumulative distribution function of the photoswitching fingerprint model with three
     fluorophores.
@@ -324,17 +439,16 @@ def ps_fingerprint_cdf_3f(x, lam1_1, lam2_1, lam3_1, lam1_2, lam2_2, lam3_2, pi1
     cdf : float, 1-D array_like
         CDF of the photoswitching fingerprint model.
     """
-    cdf = photoswitching_fingerprint_cdf(
-        x,
+    cdf = Photoswitching_fingerprint_model(
         lambdas=[[lam1_1, lam2_1, lam3_1], [lam1_2, lam2_2, lam3_2]],
-        pis_orig=[pi1, pi2, pi3],
-    )
+        pis_orig=[pi1, pi2, pi3], domain=domain,
+    ).cdf(x)
 
     return cdf  
 
 
 def ps_fingerprint_cdf_4f(x, lam1_1, lam2_1, lam3_1, lam4_1, lam1_2, lam2_2, lam3_2, lam4_2,
-                            pi1, pi2, pi3, pi4):
+                            pi1, pi2, pi3, pi4, domain):
     """
     Cumulative distribution function of the photoswitching fingerprint model with four
     fluorophores.
@@ -373,11 +487,9 @@ def ps_fingerprint_cdf_4f(x, lam1_1, lam2_1, lam3_1, lam4_1, lam1_2, lam2_2, lam
     cdf : float, 1-D array_like
         CDF of the photoswitching fingerprint model.
     """
-    cdf = photoswitching_fingerprint_cdf(
-        x, 
+    cdf = Photoswitching_fingerprint_model(
         lambdas=[[lam1_1, lam2_1, lam3_1, lam4_1], [lam1_2, lam2_2, lam3_2, lam4_2]], 
-        pis_orig=[pi1, pi2, pi3, pi4]
-    )
+        pis_orig=[pi1, pi2, pi3, pi4], domain=domain).cdf(x)
 
     return cdf
 

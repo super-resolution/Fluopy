@@ -641,7 +641,7 @@ def get_single_states(transitions, transition_df):
                 single_state_df["absorbing"]
             ]
             if not absorbing_states.empty:
-                indices = np.where(np.in1d(final_states, absorbing_states.values))[0]
+                indices = np.where(np.isin(final_states, absorbing_states.values))[0]
                 index_values = transition_df.loc[fluorophore_comb].iloc[indices].index
                 transition_df.loc[(fluorophore_comb, index_values), "absorbing"] = True
 

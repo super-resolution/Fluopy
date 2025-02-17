@@ -302,9 +302,9 @@ def calculate_spectral_overlap_integral(donor=None, acceptor=None, wavelengths=N
     if donor.size != acceptor.size or donor.size != wavelengths.size:
         raise ValueError("donor, acceptor and wavelengths have to be of the same size.")
 
-    donor = donor / np.trapz(donor)  # normalize spectrum to area of 1
+    donor = donor / np.trapezoid(donor)  # normalize spectrum to area of 1
     not_integrated = donor * acceptor * wavelengths**4
-    spectral_overlap_integral = np.trapz(not_integrated)
+    spectral_overlap_integral = np.trapezoid(not_integrated)
 
     return spectral_overlap_integral
 

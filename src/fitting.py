@@ -10,7 +10,8 @@ import src.distributions as dist
 
 def ps_fingerprint_cdf_fit_1f(x, y, **diff_ev):
     def objective_function(params):
-        y_pred = dist.ps_fingerprint_cdf_1f(x, *params)
+        domain = (x[0], x[-1])
+        y_pred = dist.ps_fingerprint_cdf_1f(x, *params, domain=domain)
         error = np.sum((y - y_pred) ** 2)
         
         return error
@@ -28,7 +29,8 @@ def ps_fingerprint_cdf_fit_1f(x, y, **diff_ev):
 
 def ps_fingerprint_cdf_fit_2f(x, y, **diff_ev):
     def objective_function(params):
-        y_pred = dist.ps_fingerprint_cdf_2f(x, *params)
+        domain = (x[0], x[-1])
+        y_pred = dist.ps_fingerprint_cdf_2f(x, *params, domain=domain)
         error = np.sum((y - y_pred) ** 2)
         
         return error
@@ -53,7 +55,8 @@ def ps_fingerprint_cdf_fit_2f(x, y, **diff_ev):
 
 def ps_fingerprint_cdf_fit_3f(x, y, **diff_ev):
     def objective_function(params):
-        y_pred = dist.ps_fingerprint_cdf_3f(x, *params)
+        domain = (x[0], x[-1])
+        y_pred = dist.ps_fingerprint_cdf_3f(x, *params, domain=domain)
         error = np.sum((y - y_pred) ** 2)
         
         return error
@@ -79,13 +82,15 @@ def ps_fingerprint_cdf_fit_3f(x, y, **diff_ev):
                                         **diff_ev)
     return result
 
-
-def ps_fingerprint_cdf_fit_4f(x, y, **diff_ev):
-    def objective_function(params):
-        y_pred = dist.ps_fingerprint_cdf_4f(x, *params)
+def objective_function(params, x, y):
+        domain = (x[0], x[-1])
+        y_pred = dist.ps_fingerprint_cdf_4f(x, *params, domain=domain)
         error = np.sum((y - y_pred) ** 2)
         
         return error
+
+def ps_fingerprint_cdf_fit_4f(x, y, **diff_ev):
+
     linear_constraint = LinearConstraint(
         A = [
             [1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # lam1_1 > lam2_1
@@ -102,12 +107,12 @@ def ps_fingerprint_cdf_fit_4f(x, y, **diff_ev):
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1, 0],  # pi2 > pi3
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1],  # pi3 > pi4
         ],
-        lb=[1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3],
-        ub=[np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, 1, 1, 1],
+        lb=[1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3],
+        ub=[np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, 1, 1, 1],
     )
     bounds = Bounds([1e-9, 1e-9, 1e-9, 1e-9, 1e-9, 1e-9, 1e-9, 1e-9, 0, 0, 0, 0],
                     [500, 500, 500, 500, 500, 500, 500, 500, 1, 1, 1, 1])
-    result = differential_evolution(objective_function, bounds=bounds,
+    result = differential_evolution(objective_function, bounds=bounds, args=(x, y),
                                         constraints=linear_constraint,
                                         **diff_ev)
     return result

@@ -48,18 +48,18 @@ def test_photoswitching_fingerprint_prepare():
     np.testing.assert_array_equal(pis, expected_pis)
 
 
-def test_photoswitching_fingerprint_cdf():
-    cdf = dist.photoswitching_fingerprint_cdf(
-        x=2, lambdas=[[1, 0.7, 0.5], [0.7, 0.5, 0.3]], pis_orig=[1, 0.7, 0.5]
-    )
+def test_PFM_cdf():
+    cdf = dist.Photoswitching_fingerprint_model(
+        lambdas=[[1, 0.7, 0.5], [0.7, 0.5, 0.3]], pis_orig=[1, 0.7, 0.5]
+    ).cdf(x=2)
     expected = 0.4838
     np.testing.assert_allclose(cdf, expected, rtol=1e-4)
 
 
-def test_photoswitching_fingerprint_pdf():
-    pdf = dist.photoswitching_fingerprint_pdf(
-        x=2, lambdas=[[1, 0.7, 0.5], [0.7, 0.5, 0.3]], pis_orig=[1, 0.7, 0.5]
-    )
+def test_PFM_pdf():
+    pdf = dist.Photoswitching_fingerprint_model(
+        lambdas=[[1, 0.7, 0.5], [0.7, 0.5, 0.3]], pis_orig=[1, 0.7, 0.5]
+    ).pdf(x=2)
     expected = 0.17106
     np.testing.assert_allclose(pdf, expected, rtol=1e-4)
 

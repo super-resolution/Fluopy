@@ -66,7 +66,7 @@ def universal_figure(
         Factor to scale the figure.
     type_ : str
         Type of the plot. One of "hist", "multiple_hist", "bar", "line",
-        "multiple_line", "scatter", "errorbar".
+        "multiple_line", "scatter", "errorbar", "step".
     data : np.ndarray, Collection
         Data to be plotted. Required formation depends on input parameter type_.
     label : str, list
@@ -322,6 +322,8 @@ def universal_figure(
                 )
         case "line":
             ax.plot(data[0], data[1], color=color, label=label, **type_specific_kwargs)
+        case "step":
+            ax.step(data[0], data[1], color=color, label=label, **type_specific_kwargs)
         case "errorbar":
             ax.errorbar(
                 data[0],
