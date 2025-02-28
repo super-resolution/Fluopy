@@ -174,7 +174,7 @@ class FCS:
         kwargs.setdefault("title", rf"$\tau_{{min}} = {tau_data[0]:.2e}$ {unit}")
         kwargs.setdefault("type_", "line")
         kwargs.setdefault("xscale", "log")
-        kwargs.setdefault("xlabel", rf"$\tau \ [{unit}]$")
+        kwargs.setdefault("xlabel", rf"$\tau \ ({unit})$")
         kwargs.setdefault("ylabel", r"$G(\tau)$")
 
         axes = fi.universal_figure(data=[tau_data, correl_data], **kwargs)

@@ -7,6 +7,7 @@ import warnings
 import numpy as np
 import matplotlib as mpl
 import src.figure as fi
+from src.miscellaneous import format_electronic_state
 
 
 class Analysis:
@@ -411,8 +412,7 @@ class Analysis:
                 for _ in range(size)
             ],
         )
-        kwargs.setdefault("ylabel", "PR")
-        kwargs.setdefault("title", "frequency transitions")
+        kwargs.setdefault("ylabel", "Prob. occurrence")
         kwargs.setdefault("legend", True)
         kwargs.setdefault(
             "legendhandles",
@@ -463,7 +463,7 @@ class Analysis:
             patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
             xticks += states.size
             data_merged.append(self.frequency_states[fluorophore])
-            labels.extend([SingleState(identity).name for identity in states])
+            labels.extend([format_electronic_state(SingleState(identity).name) for identity in states])
         data_merged = np.concatenate(data_merged)
         data = [np.arange(xticks), data_merged]
         kwargs.setdefault("type_", "bar")
@@ -472,8 +472,7 @@ class Analysis:
         kwargs.setdefault("edgecolor", "black")
         kwargs.setdefault("xticks", range(xticks))
         kwargs.setdefault("xticklabels", dict(labels=labels, rotation=70))
-        kwargs.setdefault("ylabel", "PR")
-        kwargs.setdefault("title", "frequency states")
+        kwargs.setdefault("ylabel", "Prob. occurrence")
         kwargs.setdefault("color", colors)
         kwargs.setdefault("legend", True)
         kwargs.setdefault("legendhandles", patches)
@@ -534,8 +533,7 @@ class Analysis:
                 for _ in range(size)
             ],
         )
-        kwargs.setdefault("ylabel", "mean [s]")
-        kwargs.setdefault("title", "time to transition")
+        kwargs.setdefault("ylabel", r"$\tau$ (s)")
         kwargs.setdefault("legend", True)
         kwargs.setdefault(
             "legendhandles",
@@ -591,7 +589,7 @@ class Analysis:
             patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
             xticks += states.size
             data_merged.append(self.mean_lifetimes[fluorophore])
-            labels.extend([SingleState(identity).name for identity in states])
+            labels.extend([format_electronic_state(SingleState(identity).name) for identity in states])
         data_merged = np.concatenate(data_merged)
         data = [np.arange(xticks), data_merged]
         kwargs.setdefault("type_", "bar")
@@ -604,8 +602,7 @@ class Analysis:
         kwargs.setdefault("color", colors)
         kwargs.setdefault("legend", True)
         kwargs.setdefault("legendhandles", patches)
-        kwargs.setdefault("ylabel", "mean [s]")
-        kwargs.setdefault("title", "lifetimes")
+        kwargs.setdefault("ylabel", r"$\tau$ (s)")
 
         draw_marker = None
         if prediction is not None:
@@ -661,7 +658,7 @@ class Analysis:
             patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
             xticks += states.size
             data_merged.append(self.state_occupations[fluorophore])
-            labels.extend([SingleState(identity).name for identity in states])
+            labels.extend([format_electronic_state(SingleState(identity).name) for identity in states])
         data_merged = np.concatenate(data_merged)
         data = [np.arange(xticks), data_merged]
         kwargs.setdefault("type_", "bar")
@@ -670,8 +667,7 @@ class Analysis:
         kwargs.setdefault("edgecolor", "black")
         kwargs.setdefault("xticks", range(xticks))
         kwargs.setdefault("xticklabels", dict(labels=labels, rotation=70))
-        kwargs.setdefault("ylabel", "PR")
-        kwargs.setdefault("title", "occupation")
+        kwargs.setdefault("ylabel", "Prob. occupation")
         kwargs.setdefault("color", colors)
         kwargs.setdefault("legend", True)
         kwargs.setdefault("legendhandles", patches)
@@ -724,12 +720,12 @@ class Analysis:
         from src.transitions import SingleState
 
         kwargs.setdefault("type_", "hist")
-        kwargs.setdefault("ylabel", "PD")
+        kwargs.setdefault("ylabel", "Prob. density")
         kwargs.setdefault(
-            "title", rf"$\tau$ of {fluorophore} {SingleState(state_identity).name}"
+            "title", f"{fluorophore}"
         )
         kwargs.setdefault("yscale", "log")
-        kwargs.setdefault("xlabel", "lifetime [s]")
+        kwargs.setdefault("xlabel", rf"{format_electronic_state(SingleState(state_identity).name)} duration (s)")
         kwargs.setdefault("density", True)
         index = np.where(
             self.simulation.transition_set.single_states[fluorophore] == state_identity
@@ -748,9 +744,9 @@ class Analysis:
                     "possible."
                 )
             plot_distribution = prediction.lifetime_distributions[fluorophore][index]
-            plot_distribution_label = "pred"
-            kwargs.setdefault("label", "sim")
+            plot_distribution_label = "Prediction"
             kwargs.setdefault("legend", True)
+
         axes = fi.universal_figure(
             data=data,
             plot_distribution=plot_distribution,

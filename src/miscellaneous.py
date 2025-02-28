@@ -2,6 +2,7 @@
 Module miscellaneous
 """
 
+import re
 import reprlib
 import numpy as np
 import pandas as pd
@@ -200,3 +201,50 @@ def find_key_in_list(row, key):
     if key in row['fluorophore_ids']:
         return row.name
     return None
+
+
+def format_electronic_state(label):
+    """
+    Format label for LaTeX.
+    
+    Parameters
+    ----------
+    label : str
+        Label to format.
+    
+    Returns
+    -------
+    label : str
+        Formatted label.
+    """
+    if re.match(r"^[A-Z]\d$", label): 
+        return label[0] + r"$_{" + label[1:] + r"}$"  
+    return label
+
+
+def format_axis_labels(label, offset):
+    """
+    Format axis labels for LaTeX.
+
+    Parameters
+    ----------
+    label : str
+        Label to format.
+    offset : str
+        Offset to multiply label with.
+    
+    Returns
+    -------
+    label : str
+        Formatted label
+    """
+    _, exponent = offset.split("e")
+    offset = rf"$10^{{{exponent}}}$"
+    if "(" in label and ")" in label:
+        label = re.sub(r"\((.*?)\)", rf"({offset} x \1)", label)
+    elif "[" in label and "]" in label:
+        label = re.sub(r"\[(.*?)\]", rf"[{offset} × \1]", label)
+    else:
+        label = f"{label} (× {offset})"
+
+    return label

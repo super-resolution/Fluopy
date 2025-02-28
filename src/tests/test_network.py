@@ -112,7 +112,7 @@ def test_construct_state_graphs(tr_set_bl_et_3f):
             ("testfluo_1_S1", "testfluo_1_T1", {"w": "ISCST", "dist": ""}),
             ("testfluo_1_S1", "testfluo_1_Cis", {"w": "ISO", "dist": ""}),
             ("testfluo_1_T1", "testfluo_1_S0", {"w": "ISCTS", "dist": ""}),
-            ("testfluo_1_T1", "testfluo_1_B", {"w": "BLE1", "dist": ""}),
+            ("testfluo_1_T1", "testfluo_1_B", {"w": "BLE", "dist": ""}),
             ("testfluo_1_Cis", "testfluo_1_S0", {"w": "PBISO", "dist": ""}),
         ],
         [
@@ -121,7 +121,7 @@ def test_construct_state_graphs(tr_set_bl_et_3f):
             ("testfluo_2_S1", "testfluo_2_S0", {"w": "ICS", "dist": ""}),
             ("testfluo_2_S1", "testfluo_2_T1", {"w": "ISCST", "dist": ""}),
             ("testfluo_2_T1", "testfluo_2_S0", {"w": "ISCTS", "dist": ""}),
-            ("testfluo_2_T1", "testfluo_2_B", {"w": "BLE1", "dist": ""}),
+            ("testfluo_2_T1", "testfluo_2_B", {"w": "BLE", "dist": ""}),
         ],
     ]
 

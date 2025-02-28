@@ -31,6 +31,8 @@ def get_bleaching_times(simulation):
     bleached_states = [x.value for x in bleached_states]
     if len(bleached_states) == 1:
         bleached_state = bleached_states[0]
+    elif len(bleached_states) == 0:
+        return np.full(simulation.state_series.shape[0], np.nan)
     else:
         raise NotImplementedError("Multiple bleaching states not yet implemented in " +
                                   "this function.")
@@ -134,6 +136,7 @@ def fingerprint_analysis(
                                  dtype=np.int32)
     output_file_bleach = fr"{filepath}\bleaching_times_{filename}.npy"
     bleaching_times_all_runs = []
+    delta_times_photons_between_bleaching = [[] for _ in range(transition_set.fluorophore_system.count)]
     for i in range(batches):
         output_file_run = fr"{filepath}\single_runs_{filename}_batch_{i}.parquet"
         df = None
@@ -144,6 +147,22 @@ def fingerprint_analysis(
             bleaching_times_all_runs.append(bleaching_times)
             emis = em.Emissions(frame_time='1ms', bandpass=[665, 731], seed=rng)
             emis.extract(simulation)
+
+
+            for n in range(transition_set.fluorophore_system.count):
+                if n > 0:
+                    start = bleaching_times[n-1]
+                else:
+                    start = 0
+                start_index = np.searchsorted(emis.event_time_points, start)
+                if bleaching_times.size > n:
+                    end_index = np.searchsorted(emis.event_time_points, bleaching_times[n])
+                    delta_times_photons_between_bleaching[n].append(emis.event_time_points[start_index:end_index] - start)
+                else:
+                    delta_times_photons_between_bleaching[n].append(emis.event_time_points[start_index:] - start)  # the delta, not the actual times
+                    break
+                    
+
             photon_collection_rate = fo.calculate_photon_collection_rate(
                 NA=1.45, n1=1.51
             )
@@ -165,5 +184,5 @@ def fingerprint_analysis(
     np.save(output_file_bleach, bleaching_times_all_runs)
     fingerprint_data = fingerprint_data.cumsum() / fingerprint_data.sum()
 
-    return fingerprint_data, bleaching_times_all_runs       
+    return fingerprint_data, bleaching_times_all_runs, delta_times_photons_between_bleaching    
     

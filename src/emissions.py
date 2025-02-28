@@ -508,13 +508,12 @@ class Emissions:
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         cum_events = self.event_time_series.cumsum()
-        cum_events = cum_events / cum_events.max() * 100
+        cum_events = cum_events / cum_events.max()
         data = [self.event_time_series.index, cum_events.values]
         kwargs.setdefault("type_", "line")
-        kwargs.setdefault("title", "cum. events")
-        kwargs.setdefault("xlabel", "time [s]")
-        kwargs.setdefault("ylabel", "%")
-        kwargs.setdefault("ylim", [0, 100])
+        kwargs.setdefault("xlabel", "Photon arrival time (s)")
+        kwargs.setdefault("ylabel", "Cumulative prob.")
+        kwargs.setdefault("ylim", [0, 1])
 
         axes = fi.universal_figure(data=data, **kwargs)
 
@@ -548,14 +547,12 @@ class Emissions:
             data = data[data != 0]
 
         kwargs.setdefault("type_", "hist")
-        kwargs.setdefault("title", "intensity distribution")
-        kwargs.setdefault("xlabel", r"$\frac{n_p}{frame}$")
-        kwargs.setdefault("fontsize", 16)
+        kwargs.setdefault("xlabel", r"$\frac{photons}{frame}$")
         if density:
-            kwargs.setdefault("ylabel", "PD")
+            kwargs.setdefault("ylabel", "Prob. density")
             kwargs.setdefault("density", True)
         else:
-            kwargs.setdefault("ylabel", "Pr")
+            kwargs.setdefault("ylabel", "Probability")
             kwargs.setdefault("weights", np.ones_like(data) / data.size)
 
         axes = fi.universal_figure(data=data, **kwargs)
@@ -570,7 +567,7 @@ class Emissions:
                 y=0.85,
                 s=rf"$\mu = {mean:.2f}$",
                 transform=axes[0][0].transAxes,
-                fontsize=kwargs["fontsize"],
+                fontsize=16,
                 color=mean_color,
             )
 
@@ -591,9 +588,8 @@ class Emissions:
         """
         data = [self.event_time_series.index, self.event_time_series.values]
         kwargs.setdefault("type_", "line")
-        kwargs.setdefault("title", "fluorescence trajectory")
-        kwargs.setdefault("xlabel", "time [s]")
-        kwargs.setdefault("ylabel", r"$\frac{n_p}{frame}$")
+        kwargs.setdefault("xlabel", "Time (s)")
+        kwargs.setdefault("ylabel", r"$\frac{photons}{frame}$")
 
         axes = fi.universal_figure(data=data, **kwargs)
 
@@ -632,7 +628,7 @@ class Emissions:
         Parameters
         ----------
         path : str
-            Directory where the files shall be stored.
+            Directory where the files are stored.
         name_extension : str
             Optional file name extension.
 

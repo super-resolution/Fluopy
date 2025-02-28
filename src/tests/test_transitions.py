@@ -13,7 +13,7 @@ def test_singlestate():
     assert tr.SingleState.T2.value == 4
     assert tr.SingleState.B.value == 5
     assert tr.SingleState.Cis.value == 6
-    assert tr.SingleState.OFF1.value == 7
+    assert tr.SingleState.OFF.value == 7
     assert tr.SingleState.OFF2.value == 8
     assert tr.SingleState.Rad.value == 9
     assert len(tr.SingleState) == 10
@@ -588,7 +588,7 @@ def test_derive_transitions(irradiance, bleaching, dstorm, summarize, request):
         bleaching=bleaching,
         dstorm=dstorm,
     )
-    dstorm_checker = ["ETT", "ETS", "REDT", "REDS", "OXI1"]
+    dstorm_checker = ["ETT", "ETS", "REDT", "REDS", "OXI"]
     if not dstorm:
         for transition in transitions:
             assert transition.abbreviation not in dstorm_checker
@@ -599,9 +599,9 @@ def test_derive_transitions(irradiance, bleaching, dstorm, summarize, request):
         assert len(dstorm_checker) == 0
     if not bleaching:
         for transition in transitions:
-            assert transition.abbreviation not in ["BLE1"]
+            assert transition.abbreviation not in ["BLE"]
     else:
-        assert any(transition.abbreviation == "BLE1" for transition in transitions)
+        assert any(transition.abbreviation == "BLE" for transition in transitions)
     if irradiance == 0:
         for transition in transitions:
             if transition.abbreviation == "EXC":

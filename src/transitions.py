@@ -28,7 +28,7 @@ class SingleState(Enum):
     T2 = 4
     B = 5
     Cis = 6
-    OFF1 = 7
+    OFF = 7
     OFF2 = 8
     Rad = 9
 
@@ -46,13 +46,13 @@ class PairedState(Enum):
     S1_T1 = [SingleState.S1, SingleState.T1]
     S1_Cis = [SingleState.S1, SingleState.Cis]
     S0_Cis = [SingleState.S0, SingleState.Cis]
-    S1_OFF1 = [SingleState.S1, SingleState.OFF1]
+    S1_OFF = [SingleState.S1, SingleState.OFF]
     S0_S0 = [SingleState.S0, SingleState.S0]
     S0_T2 = [SingleState.S0, SingleState.T2]
     S1_S1 = [SingleState.S1, SingleState.S1]
     S0_T1 = [SingleState.S0, SingleState.T1]
     S0_OFF2 = [SingleState.S0, SingleState.OFF2]
-    S0_OFF1 = [SingleState.S0, SingleState.OFF1]
+    S0_OFF = [SingleState.S0, SingleState.OFF]
     S0_B = [SingleState.S0, SingleState.B]
 
     @property
@@ -126,7 +126,7 @@ class TransitionType(Enum):
         "RISC", SingleState.T2, SingleState.S1, False
     )
     PHOTOBLEACHING_1 = TransitionAttributes(
-        "BLE1", SingleState.T1, SingleState.B, False
+        "BLE", SingleState.T1, SingleState.B, False
     )
     PHOTOBLEACHING_2 = TransitionAttributes(
         "BLE2", SingleState.T2, SingleState.B, False
@@ -135,9 +135,9 @@ class TransitionType(Enum):
     # dstorm
     ET_CYCLE_T = TransitionAttributes("ETT", SingleState.T1, SingleState.S0, False)
     ET_CYCLE_S = TransitionAttributes("ETS", SingleState.S1, SingleState.S0, False)
-    REDUCTION_T = TransitionAttributes("REDT", SingleState.T1, SingleState.OFF1, False)
-    REDUCTION_S = TransitionAttributes("REDS", SingleState.S1, SingleState.OFF1, False)
-    OXIDATION_1 = TransitionAttributes("OXI1", SingleState.OFF1, SingleState.S0, False)
+    REDUCTION_T = TransitionAttributes("REDT", SingleState.T1, SingleState.OFF, False)
+    REDUCTION_S = TransitionAttributes("REDS", SingleState.S1, SingleState.OFF, False)
+    OXIDATION_1 = TransitionAttributes("OXI", SingleState.OFF, SingleState.S0, False)
     OXIDATION_2 = TransitionAttributes("OXI2", SingleState.OFF2, SingleState.S0, False)
     RAD_ESCAPE = TransitionAttributes("RE", SingleState.T1, SingleState.Rad, False)
     RAD_RELAX = TransitionAttributes("RR", SingleState.Rad, SingleState.S0, False)
@@ -156,10 +156,10 @@ class TransitionType(Enum):
         "CFRET2", PairedState.S1_Cis, PairedState.S0_S0, False
     )
     OFF_FRET_1 = TransitionAttributes(
-        "OFRET1", PairedState.S1_OFF1, PairedState.S0_OFF1, False
+        "OFRET1", PairedState.S1_OFF, PairedState.S0_OFF, False
     )
     OFF_FRET_2 = TransitionAttributes(
-        "OFRET2", PairedState.S1_OFF1, PairedState.S0_S0, False
+        "OFRET2", PairedState.S1_OFF, PairedState.S0_S0, False
     )
     S_S_ANNIHILATION = TransitionAttributes(
         "SSA", PairedState.S1_S1, PairedState.S0_S1, False
@@ -168,7 +168,7 @@ class TransitionType(Enum):
         "SSAB", PairedState.S1_S1, PairedState.S0_B, False
     )
     S_S_OFF = TransitionAttributes(
-        "SSOFF", PairedState.S1_S1, PairedState.S0_OFF1, False
+        "SSOFF", PairedState.S1_S1, PairedState.S0_OFF, False
     )
     S_T_ANNIHILATION_1 = TransitionAttributes(
         "STA1", PairedState.S1_T1, PairedState.S0_T1, False
@@ -180,14 +180,14 @@ class TransitionType(Enum):
         "STAB", PairedState.S1_T1, PairedState.S0_B, False
     )
     S_T_OFF = TransitionAttributes(
-        "STOFF", PairedState.S1_T1, PairedState.S0_OFF1, False
+        "STOFF", PairedState.S1_T1, PairedState.S0_OFF, False
     )
     
 
     # rhodamines
-    H2O_ATTACK_S = TransitionAttributes("H2OS", SingleState.S1, SingleState.OFF1, False)
-    H2O_ATTACK_T = TransitionAttributes("H2OT", SingleState.T1, SingleState.OFF1, False)
-    BACK_REACTION = TransitionAttributes("BR", SingleState.OFF1, SingleState.S0, False)
+    H2O_ATTACK_S = TransitionAttributes("H2OS", SingleState.S1, SingleState.OFF, False)
+    H2O_ATTACK_T = TransitionAttributes("H2OT", SingleState.T1, SingleState.OFF, False)
+    BACK_REACTION = TransitionAttributes("BR", SingleState.OFF, SingleState.S0, False)
 
     # summarize
     S1_S0_TRANSITIONS = TransitionAttributes(

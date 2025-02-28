@@ -71,28 +71,22 @@ class Blinking:
         )
         if mode == "on_histogram":
             data = self.on_periods
-            kwargs.setdefault("title", "ON periods")
-            axes = plot_histogram(data=data, sec_per_frame=sec_per_frame, **kwargs)
+            axes = plot_histogram(data=data, mode='ON', sec_per_frame=sec_per_frame, **kwargs)
         elif mode == "on_boxplot":
             data = self.on_periods
-            kwargs.setdefault("title", "ON periods")
-            axes = plot_boxplot(data=data, sec_per_frame=sec_per_frame, **kwargs)
+            axes = plot_boxplot(data=data, mode='ON', sec_per_frame=sec_per_frame, **kwargs)
         elif mode == "off_histogram":
             data = self.off_periods
-            kwargs.setdefault("title", "OFF periods")
-            axes = plot_histogram(data=data, sec_per_frame=sec_per_frame, **kwargs)
+            axes = plot_histogram(data=data, mode='OFF', sec_per_frame=sec_per_frame, **kwargs)
         elif mode == "off_boxplot":
             data = self.off_periods
-            kwargs.setdefault("title", "OFF periods")
-            axes = plot_boxplot(data=data, sec_per_frame=sec_per_frame, **kwargs)
+            axes = plot_boxplot(data=data, mode='OFF', sec_per_frame=sec_per_frame, **kwargs)
         elif mode == "on_frame_series":
             data = np.array([np.arange(0, self.on_periods.size), self.on_periods])
-            kwargs.setdefault("title", "ON periods")
-            axes = plot_frame_series(data=data, **kwargs)
+            axes = plot_frame_series(data=data, mode='ON', **kwargs)
         elif mode == "off_frame_series":
             data = np.array([np.arange(0, self.off_periods.size), self.off_periods])
-            kwargs.setdefault("title", "OFF periods")
-            axes = plot_frame_series(data=data, **kwargs)
+            axes = plot_frame_series(data=data, mode='OFF', **kwargs)
         else:
             raise ValueError(f"mode {mode} unknown.")
 
@@ -251,7 +245,7 @@ def get_off_statistics(simulation, index):
             f"index assumes {index + 1} fluorophores but "
             f"{simulation.state_series.shape[0]} are present."
         )
-    off_index = np.where(simulation.state_series[index] == tr.SingleState.OFF1.value)[0]
+    off_index = np.where(simulation.state_series[index] == tr.SingleState.OFF.value)[0]
     off2_index = np.where(simulation.state_series[index] == tr.SingleState.OFF2.value)[
         0
     ]
@@ -350,7 +344,7 @@ def plot_off_statistics(on_off_times, on_off_values, **kwargs):
 
 
 def plot_histogram(
-    data, density=True, display_mean=True, as_time=None, sec_per_frame=None, **kwargs
+    data, mode='OFF', density=True, display_mean=True, as_time=None, sec_per_frame=None, **kwargs
 ):
     """
     Plot histogram of ON or OFF periods.
@@ -358,6 +352,8 @@ def plot_histogram(
     Parameters
     ----------
     data : 1-D array_like
+    mode : str
+        One of 'ON' or 'OFF'.
     density : bool
         Whether to display the histogram as probability densities. Else, probabilities.
     display_mean : bool
@@ -375,15 +371,14 @@ def plot_histogram(
         Contains matplotlib.axes._subplots.AxesSubplots.
     """
     kwargs.setdefault("type_", "hist")
-    kwargs.setdefault("fontsize", 16)
     if density:
-        kwargs.setdefault("ylabel", "PD")
+        kwargs.setdefault("ylabel", "Prob. density")
         kwargs.setdefault("density", True)
     else:
-        kwargs.setdefault("ylabel", "Pr")
+        kwargs.setdefault("ylabel", "Probability")
         kwargs.setdefault("weights", np.ones_like(data) / data.size)
     if as_time is not None:
-        kwargs.setdefault("xlabel", f"time [{as_time}]")
+        kwargs.setdefault("xlabel", f"{mode} period ({as_time})")
         if as_time == "ms":
             data = data * sec_per_frame * 1000
         elif as_time == "s":
@@ -391,7 +386,7 @@ def plot_histogram(
         else:
             raise ValueError("given unit not implemented.")
     else:
-        kwargs.setdefault("xlabel", "consecutive frames")
+        kwargs.setdefault("xlabel", "Consecutive frames")
 
     axes = fi.universal_figure(data=data, **kwargs)
 
@@ -405,20 +400,22 @@ def plot_histogram(
             y=0.85,
             s=rf"$\mu = {mean:.2f}$",
             transform=axes[0][0].transAxes,
-            fontsize=kwargs["fontsize"],
+            fontsize=16,
             color=mean_color,
         )
 
     return axes
 
 
-def plot_boxplot(data, as_time=None, sec_per_frame=None, **kwargs):
+def plot_boxplot(data, mode='OFF', as_time=None, sec_per_frame=None, **kwargs):
     """
     Plot boxplot of ON or OFF periods.
 
     Parameters
     ----------
     data : 1-D array_like
+    mode : str
+        One of 'ON' or 'OFF'.
     as_time : None, str
         If not None, display the y-axis as time in unit as_time.
     sec_per_frame : float
@@ -432,7 +429,7 @@ def plot_boxplot(data, as_time=None, sec_per_frame=None, **kwargs):
     kwargs.setdefault("type_", "boxplot")
     kwargs.setdefault("fontsize", 16)
     if as_time is not None:
-        kwargs.setdefault("ylabel", f"time [{as_time}]")
+        kwargs.setdefault("ylabel", f"{mode} period ({as_time})")
         if as_time == "ms":
             data = data * sec_per_frame * 1000
         elif as_time == "s":
@@ -448,7 +445,7 @@ def plot_boxplot(data, as_time=None, sec_per_frame=None, **kwargs):
 
 
 
-def plot_frame_series(data, **kwargs):
+def plot_frame_series(data, mode='OFF', **kwargs):
     """
     Plot frame series of ON or OFF periods.
 
@@ -456,6 +453,8 @@ def plot_frame_series(data, **kwargs):
     ----------
     data : 2-D array_like
         Contains x and y data.
+    mode : str
+        One of 'ON' or 'OFF'.
     kwargs : src.figure.universal_figure arguments
 
     Returns
@@ -465,7 +464,7 @@ def plot_frame_series(data, **kwargs):
     """
     kwargs.setdefault("type_", "line")
     kwargs.setdefault("xlabel", "identity")
-    kwargs.setdefault("ylabel", "consecutive frames")
+    kwargs.setdefault("ylabel", f"consecutive {mode} frames")
 
     axes = fi.universal_figure(data=data, **kwargs)
 

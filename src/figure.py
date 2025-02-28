@@ -2,10 +2,14 @@
 Module custom_plot
 """
 
+from PIL import Image
+import io
+import cairosvg
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib import rcParams, rcParamsDefault
+from src.miscellaneous import format_axis_labels
 
 
 def universal_figure(
@@ -14,6 +18,7 @@ def universal_figure(
     fig_width=6,
     fig_height=3,
     scale=1,
+    rc_linewidth=2,
     type_="line",
     data=(0, 0),
     label=None,
@@ -26,6 +31,8 @@ def universal_figure(
     ylim=None,
     xscale=None,
     yscale=None,
+    xminor=False,
+    yminor=False,
     adjust_x=None,
     adjust_y=None,
     xticks=None,
@@ -43,7 +50,9 @@ def universal_figure(
     legend=False,
     legendhandles=None,
     legendcolor="black",
+    legendargs=None,
     draw_marker=None,
+    draw_marker_param=None,
     plot_distribution=None,
     plot_distribution_label=None,
     axes=None,
@@ -89,6 +98,10 @@ def universal_figure(
         One of "linear", "log", "symlog", "logit".
     yscale : str
         One of "linear", "log", "symlog", "logit".
+    xminor : bool
+        Whether to plot minor ticks on the x-axis.
+    yminor : bool
+        Whether to plot minor ticks on the y-axis.
     adjust_x : float
         Factor with which the x data is multiplicated.
     adjust_y : float
@@ -125,8 +138,12 @@ def universal_figure(
         If not None, collection of handles (e.g., matplotlib.patches.Patch).
     legendcolor : str
         Color of text in legend.
+    legendargs : dict
+        Additional arguments to pass to legend.
     draw_marker : Collection
         The data positions, consists of x and y.
+    draw_marker_param : dict
+        Parameters to pass to .scatter
     plot_distribution : distr.rv_frozen
         Additional distribution to be plotted.
     plot_distribution_label : str
@@ -141,7 +158,7 @@ def universal_figure(
         Contains matplotlib.axes.Axes.
     """
     # initialize figure
-    rcParams["axes.linewidth"] = 2
+    rcParams["axes.linewidth"] = rc_linewidth
     rcParams["figure.dpi"] = rcParamsDefault["figure.dpi"] * scale
     rcParams["figure.facecolor"] = "white"
 
@@ -159,59 +176,6 @@ def universal_figure(
         axes = axes[np.newaxis]
 
     ax = axes[0]
-    # texts
-    ax.set_ylabel(ylabel, fontsize=fontsize, color=ylabelcolor)
-    ax.set_xlabel(xlabel, fontsize=fontsize)
-    if title is not None:
-        ax.set_title(title, fontsize=fontsize)
-
-    # x-axis
-    if xlim is not None:
-        ax.set_xlim(xlim)
-    if adjust_x is not None:
-        ax.xaxis.set_major_formatter(
-            ticker.FuncFormatter(lambda old_x, _: "{0:g}".format(old_x * adjust_x))
-        )
-    if xscale is not None:
-        ax.set_xscale(xscale)
-
-    # x-axis ticks
-    if xticks is not None:
-        ax.set_xticks(xticks)
-    if xticklabels is not None:
-        ax.set_xticklabels(**xticklabels)
-    if tick_spacing_x is not None:
-        ax.xaxis.set_major_locator(ticker.MultipleLocator(tick_spacing_x))
-
-    # y-axis
-    if ylim is not None:
-        ax.set_ylim(ylim)
-    if adjust_y is not None:
-        ax.yaxis.set_major_formatter(
-            ticker.FuncFormatter(lambda old_y, _: "{0:g}".format(old_y * adjust_y))
-        )
-    if yscale is not None:
-        ax.set_yscale(yscale)
-
-    # y-axis ticks
-    if yticks is not None:
-        ax.set_yticks(yticks)
-    if yticklabels is not None:
-        ax.set_yticklabels(**yticklabels)
-    if tick_spacing_y is not None:
-        ax.yaxis.set_major_locator(ticker.MultipleLocator(tick_spacing_y))
-
-    # general tick formatting
-    ax.tick_params(labelsize=fontsize, width=2, length=6)
-    if tick_params is not None:
-        ax.tick_params(**tick_params)
-    ax.tick_params(which="minor", width=2, length=4, labelleft=False, left=True)
-    if tick_style_x is not None:
-        ax.ticklabel_format(style=tick_style_x, axis="x", scilimits=(0, 0))
-        ax.xaxis.get_offset_text().set_visible(False)
-    if tick_style_y is not None:
-        ax.ticklabel_format(style=tick_style_y, axis="y", scilimits=(0, 0))
-        ax.yaxis.get_offset_text().set_visible(False)
 
     # data incorporation
     match type_:
@@ -253,6 +217,7 @@ def universal_figure(
                         c="k",
                         label=plot_distribution_label,
                     )
+
                 except AttributeError:
                     x = np.linspace(np.min(bins), np.max(bins), 100)
                     ax.plot(
@@ -264,6 +229,8 @@ def universal_figure(
 
         case "multiple_hist":
             for j, dat_ in enumerate(data):
+                if 'weights' in type_specific_kwargs:
+                    type_specific_kwargs['weights'] = np.ones_like(dat_) / dat_.size
                 if dat_.size != 0:
                     if callable(color):
                         use_color = color(j)
@@ -353,6 +320,78 @@ def universal_figure(
         case "boxplot":
             ax.boxplot(data, labels=label, **type_specific_kwargs)
 
+    # x-axis
+    if xlim is not None:
+        ax.set_xlim(xlim)
+    if adjust_x is not None:
+        ax.xaxis.set_major_formatter(
+            ticker.FuncFormatter(lambda old_x, _: "{0:g}".format(old_x * adjust_x))
+        )
+    if xscale is not None:
+        ax.set_xscale(xscale)
+        if xminor:
+            ax.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs='auto', numticks=10))
+        else:
+            ax.xaxis.minorticks_off()
+    
+    # x-axis ticks
+    if xticks is not None:
+        ax.set_xticks(xticks)
+    if xticklabels is not None:
+        ax.set_xticklabels(**xticklabels)
+    if tick_spacing_x is not None:
+        ax.xaxis.set_major_locator(ticker.MultipleLocator(tick_spacing_x))
+
+    # y-axis
+    if ylim is not None:
+        ax.set_ylim(ylim)
+    if adjust_y is not None:
+        ax.yaxis.set_major_formatter(
+            ticker.FuncFormatter(lambda old_y, _: "{0:g}".format(old_y * adjust_y))
+        )
+    if yscale is not None:
+        ax.set_yscale(yscale)
+        if yminor:
+            ax.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs='auto', numticks=10))
+        else:
+            ax.yaxis.minorticks_off()
+
+    # y-axis ticks
+    if yticks is not None:
+        ax.set_yticks(yticks)
+    if yticklabels is not None:
+        ax.set_yticklabels(**yticklabels)
+    if tick_spacing_y is not None:
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(tick_spacing_y))
+
+    # general tick formatting
+    ax.tick_params(labelsize=fontsize, width=2, length=6)
+    if tick_params is not None:
+        ax.tick_params(**tick_params)
+    ax.tick_params(which="minor", width=2, length=4, labelleft=False, left=True)
+    if tick_style_x is not None:
+        ax.ticklabel_format(style=tick_style_x, axis="x", scilimits=(0, 0))
+        ax.xaxis.get_offset_text().set_visible(False)
+    if tick_style_y is not None:
+        ax.ticklabel_format(style=tick_style_y, axis="y", scilimits=(0, 0))
+        ax.yaxis.get_offset_text().set_visible(False)
+
+
+    if tick_style_x is not None:
+        plt.draw()
+        offset_x = ax.xaxis.get_offset_text().get_text()
+        xlabel = format_axis_labels(xlabel, offset_x)
+    if tick_style_y is not None:
+        plt.draw()
+        offset_y = ax.yaxis.get_offset_text().get_text()
+        ylabel = format_axis_labels(ylabel, offset_y)
+
+    # texts
+    ax.set_ylabel(ylabel, fontsize=fontsize, color=ylabelcolor)
+    ax.set_xlabel(xlabel, fontsize=fontsize)
+    if title is not None:
+        ax.set_title(title, fontsize=fontsize)
+
     # second x-axis
     if second_axis_x:
         ticks = ax.get_xticks()
@@ -376,14 +415,62 @@ def universal_figure(
         )
 
     if draw_marker is not None:
-        ax.scatter(*draw_marker, marker="x", c="k", label="pred")
+        if draw_marker_param is None:
+            draw_marker_param = {'marker':"x", 'c':"k", 'label':"Prediction", 's':100}
+        ax.scatter(*draw_marker, **draw_marker_param)
 
     if legend:
+        if legendargs is None:
+            legendargs = {}
         if legendhandles is not None:
-            ax.legend(labelcolor=legendcolor, handles=legendhandles)
+            ax.legend(labelcolor=legendcolor, handles=legendhandles, **legendargs)
         else:
-            ax.legend(labelcolor=legendcolor)
+            ax.legend(labelcolor=legendcolor, **legendargs)
 
     axes = axes.reshape(nrows, ncols)
-
+    
     return axes
+
+
+def multi_plot(svg_files, dpi=300, dims=None, figsize=(10, 10),
+               width_ratios=None, height_ratios=None, spans=None):
+    """
+    Constructs a figure with multiple plots.
+
+    Parameters
+    ----------
+    svg_files : list
+        List of .svg files to include in the figure.
+    dpi : int
+        Dots per inch.
+    dims : tuple
+        Dimensions of the grid. If None, the grid will be len(svg_files)/2 x 2.
+    figsize : tuple
+        Size of the figure.
+
+    Returns
+    -------
+    axes : np.ndarray
+        Contains matplotlib.axes.Axes.
+    """
+    images = []
+    for svg_file in svg_files:
+        image = cairosvg.svg2png(url=svg_file, dpi=dpi)
+        img = Image.open(io.BytesIO(image))
+        images.append(img)
+    if dims is None:
+        dims = (len(svg_files)//2 + 1, 2)
+    gs = plt.GridSpec(dims[0], dims[1], 
+                      width_ratios=width_ratios, 
+                      height_ratios=height_ratios)
+    fig = plt.figure(figsize=figsize)
+    for i, img in enumerate(images):
+        if spans:
+            ax = fig.add_subplot(gs[spans[i][0]:spans[i][1]])
+        else:
+            ax = fig.add_subplot(gs[i])
+        ax.imshow(img)
+        ax.axis('off')
+
+    return fig
+
