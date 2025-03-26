@@ -155,6 +155,20 @@ def tr_set_1f_bl(flu_sys_cy5):
 
 
 @pytest.fixture()
+def tr_set_1f_bl_2(flu_sys_cy5):
+    transitions = flu_sys_cy5.load_transitions(
+        irradiance=5,
+        wavelength=640,
+        bleaching=True,
+        energy_transfer=False,
+        dstorm=False,
+    )
+    tset = tr.TransitionSet(transitions=transitions, fluorophore_system=flu_sys_cy5)
+    tset.finalize()
+    return tset
+
+
+@pytest.fixture()
 def tr_set_1f(flu_sys_cy5):
     transitions = flu_sys_cy5.load_transitions(
         irradiance=2,
@@ -192,6 +206,12 @@ def pred_tr_set_1f(tr_set_1f):
 @pytest.fixture()
 def pred_tr_set_1f_bl(tr_set_1f_bl):
     pred = pr.Prediction(transition_set=tr_set_1f_bl)
+    return pred
+
+
+@pytest.fixture()
+def pred_tr_set_1f_bl_2(tr_set_1f_bl_2):
+    pred = pr.Prediction(transition_set=tr_set_1f_bl_2)
     return pred
 
 

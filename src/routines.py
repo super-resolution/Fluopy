@@ -185,4 +185,28 @@ def fingerprint_analysis(
     fingerprint_data = fingerprint_data.cumsum() / fingerprint_data.sum()
 
     return fingerprint_data, bleaching_times_all_runs, delta_times_photons_between_bleaching    
-    
+
+
+def truncate_fingerprints(fingerprint, low, high):
+    """
+    Truncate the fingerprint data. The data will be normalized again.
+
+    Parameters
+    ----------
+    fingerprint : pd.Series
+        Fingerprint data - normalized cumulative emissions.
+    low : float
+        Lower bound for truncation.
+    high : float
+        Upper bound for truncation.
+
+    Returns
+    -------
+    fingerprint : 1-D array_like
+        Truncated fingerprint data - normalized cumulative emissions.
+    """
+    fingerprint = fingerprint.iloc[low:high]
+    fingerprint = fingerprint - fingerprint.iloc[0]
+    fingerprint = fingerprint / fingerprint.iloc[-1]
+
+    return fingerprint

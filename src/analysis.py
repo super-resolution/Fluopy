@@ -185,12 +185,10 @@ class Analysis:
             changes_at_and_last = np.append(changes_at, last_state)
             states = state_series_fluorophore[changes_at_and_last]
             state_ids, state_counts = np.unique(states, return_counts=True)
-            corresponding_state_indices = np.isin(
-                single_states[fluorophore], state_ids
-            ).nonzero()[0]
-            keep_indices = np.isin(state_ids, single_states[fluorophore]).nonzero()[0]
-            state_counts = state_counts[keep_indices]
-            occurrences_states[fluorophore][corresponding_state_indices] += state_counts
+            _, corresponding_indices, _ = np.intersect1d(single_states[fluorophore], state_ids,
+                                                   assume_unique=True, return_indices=True)
+
+            occurrences_states[fluorophore][corresponding_indices] += state_counts
 
         frequency_states = {
             key: array / np.sum(array) for key, array in occurrences_states.items()
@@ -425,7 +423,7 @@ class Analysis:
         draw_marker = None
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
-                raise ValueError(
+                warnings.warn(
                     "prediction is based on different TransitionSet than simulation."
                 )
             draw_marker = [np.arange(df.shape[0]), prediction.frequency_transitions]
@@ -480,7 +478,7 @@ class Analysis:
         draw_marker = None
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
-                raise ValueError(
+                warnings.warn(
                     "prediction is based on different TransitionSet than simulation."
                 )
             draw_marker = [
@@ -546,7 +544,7 @@ class Analysis:
         draw_marker = None
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
-                raise ValueError(
+                warnings.warn(
                     "prediction is based on different TransitionSet than simulation."
                 )
             if prediction.energy_transfer:
@@ -607,7 +605,7 @@ class Analysis:
         draw_marker = None
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
-                raise ValueError(
+                warnings.warn(
                     "prediction is based on different TransitionSet than simulation."
                 )
             if prediction.energy_transfer:
@@ -675,7 +673,7 @@ class Analysis:
         draw_marker = None
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
-                raise ValueError(
+                warnings.warn(
                     "prediction is based on different TransitionSet than simulation."
                 )
             if prediction.energy_transfer:
@@ -735,7 +733,7 @@ class Analysis:
         plot_distribution_label = None
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
-                raise ValueError(
+                warnings.warn(
                     "prediction is based on different TransitionSet than simulation."
                 )
             if prediction.energy_transfer:
@@ -793,7 +791,7 @@ class Analysis:
         plot_distribution_label = None
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
-                raise ValueError(
+                warnings.warn(
                     "prediction is based on different TransitionSet than simulation."
                 )
             if prediction.energy_transfer:

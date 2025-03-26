@@ -13,13 +13,14 @@ import src.transitions as tr
 
 
 # test with 1 fluorophore, with bleaching
-def test_analysis_1(sim_tr_set_1f_bl, pred_tr_set_1f, request):
+def test_analysis_1(sim_tr_set_1f_bl, request):
     with pytest.warns(
         UserWarning,
         match="absorbing states have a lifetime of inf and a frequency / occupation "
         "of 0. Absorbing transitions have a frequency of 0.",
     ):
         pred_bl = request.getfixturevalue("pred_tr_set_1f_bl")
+        pred_bl_2 = request.getfixturevalue("pred_tr_set_1f_bl_2")
     analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
     assert analysis.simulation == sim_tr_set_1f_bl
     exp_freq_trans = np.array([0.496, 0.147, 0.001, 0.001, 0.008, 0.008, 0.339, 0.0])
@@ -63,52 +64,52 @@ def test_analysis_1(sim_tr_set_1f_bl, pred_tr_set_1f, request):
     }
     for fluorophore, state_occ in analysis.state_occupations.items():
         np.testing.assert_array_almost_equal(state_occ, exp_state_occ[fluorophore])
-    with pytest.raises(
-        ValueError,
+    with pytest.warns(
+        UserWarning,
         match="prediction is based on different TransitionSet than simulation.",
     ):
-        analysis.plot_frequency_transitions(prediction=pred_tr_set_1f)
+        analysis.plot_frequency_transitions(prediction=pred_bl_2)
     analysis.plot_frequency_transitions(prediction=pred_bl)
-    with pytest.raises(
-        ValueError,
+    with pytest.warns(
+        UserWarning,
         match="prediction is based on different TransitionSet than simulation.",
     ):
-        analysis.plot_frequency_states(prediction=pred_tr_set_1f)
+        analysis.plot_frequency_states(prediction=pred_bl_2)
     analysis.plot_frequency_states(prediction=pred_bl)
-    with pytest.raises(
-        ValueError,
+    with pytest.warns(
+        UserWarning,
         match="prediction is based on different TransitionSet than simulation.",
     ):
-        analysis.plot_mean_transition_times(prediction=pred_tr_set_1f)
+        analysis.plot_mean_transition_times(prediction=pred_bl_2)
     analysis.plot_mean_transition_times(prediction=pred_bl)
-    with pytest.raises(
-        ValueError,
+    with pytest.warns(
+        UserWarning,
         match="prediction is based on different TransitionSet than simulation.",
     ):
-        analysis.plot_mean_lifetimes(prediction=pred_tr_set_1f)
+        analysis.plot_mean_lifetimes(prediction=pred_bl_2)
     analysis.plot_mean_lifetimes(prediction=pred_bl)
-    with pytest.raises(
-        ValueError,
+    with pytest.warns(
+        UserWarning,
         match="prediction is based on different TransitionSet than simulation.",
     ):
-        analysis.plot_state_occupations(prediction=pred_tr_set_1f)
+        analysis.plot_state_occupations(prediction=pred_bl_2)
     analysis.plot_state_occupations(prediction=pred_bl)
-    with pytest.raises(
-        ValueError,
+    with pytest.warns(
+        UserWarning,
         match="prediction is based on different TransitionSet than simulation.",
     ):
         analysis.plot_lifetime_distributions(
-            fluorophore="testfluo_1", state_identity=0, prediction=pred_tr_set_1f
+            fluorophore="testfluo_1", state_identity=0, prediction=pred_bl_2
         )
     analysis.plot_lifetime_distributions(
         fluorophore="testfluo_1", state_identity=0, prediction=pred_bl
     )
-    with pytest.raises(
-        ValueError,
+    with pytest.warns(
+        UserWarning,
         match="prediction is based on different TransitionSet than simulation.",
     ):
         analysis.plot_transition_time_distributions(
-            fluorophore="testfluo_1", transition_id=0, prediction=pred_tr_set_1f
+            fluorophore="testfluo_1", transition_id=0, prediction=pred_bl_2
         )
     analysis.plot_transition_time_distributions(
         fluorophore="testfluo_1", transition_id=0, prediction=pred_bl

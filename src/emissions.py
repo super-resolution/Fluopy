@@ -8,7 +8,8 @@ import pandas as pd
 from pathlib import Path
 from scipy.stats import norm, poisson, gamma, binom
 import src.figure as fi
-from src.simulation import simulate_experiment, simulate_TCSPC
+from src.simulation import simulate_experiment
+from src.simulation_tcspc import simulate_TCSPC, simulate_TCSPC_detailed
 
 
 class Emissions:
@@ -139,12 +140,18 @@ class Emissions:
         excitation_rates=None,
         size=1e5,
         store_time_points=False,
+        details=False,
     ):
         """
         Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence
         lifetime measurements). The return value lifetimes_DA contains the fluorescence
         lifetimes of detected emissions when energy transfer is available. This does
-        not discriminate between the number or kind of energy transfers.
+        not discriminate between the number or kind of energy transfers. Note that if
+        energy transfer is available, the emitting fluorophore could have been the donor
+        even if other potential donors exist, because all implemented energy transfers
+        have S1 as the donor, which is also the only implemented emitting state.
+        Also note that energy transfer may have become available during the S1 lifetime
+        of the emitting fluorophore. 
         Note: the fluorescence lifetimes are the time differences of photon emission
         to last laser pulse.
 
@@ -197,19 +204,20 @@ class Emissions:
         )
         emit_ids_list = list(emitting_transition_ids.keys())
         df = transition_set.combined_state_transitions_df
+        # if fluorophore_ids length is greater than 1, it is an energy transfer
         et_initial_states = (
             df["initial_state"][df["fluorophore_ids"].apply(len) > 1]
         ).values
+        # if the initial state is in et_initial_states, the fluorescence occurred 
+        # while energy transfer was also an option
         et_transition_ids = df.iloc[emit_ids_list][
             df.iloc[emit_ids_list]["initial_state"].isin(et_initial_states)
         ].index.to_numpy()
-        (
-            self.event_time_series,
-            self.event_time_points,
-            lifetimes_DA,
-            lifetimes_D,
-            lifetimes_all,
-        ) = simulate_TCSPC(
+        if details:
+            func = simulate_TCSPC_detailed
+        else:
+            func = simulate_TCSPC
+        return_values = func(
             transition_set=transition_set,
             emitting_transition_ids=emitting_transition_ids,
             et_transition_ids=et_transition_ids,
@@ -222,8 +230,10 @@ class Emissions:
             store_time_points=store_time_points,
             seed=self.parameters["seed"],
         )
+        self.event_time_series = return_values[0]
+        self.event_time_points = return_values[1]
 
-        return lifetimes_DA, lifetimes_D, lifetimes_all
+        return return_values[2:]
 
     def get_emission_indices(self, simulation, bandpass, seed):
         """

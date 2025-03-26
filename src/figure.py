@@ -473,4 +473,3 @@ def multi_plot(svg_files, dpi=300, dims=None, figsize=(10, 10),
         ax.axis('off')
 
     return fig
-
