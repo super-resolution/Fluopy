@@ -6,6 +6,7 @@ import re
 import warnings
 import numpy as np
 import matplotlib as mpl
+import pandas as pd
 import src.figure as fi
 from src.miscellaneous import format_electronic_state
 
@@ -185,8 +186,12 @@ class Analysis:
             changes_at_and_last = np.append(changes_at, last_state)
             states = state_series_fluorophore[changes_at_and_last]
             state_ids, state_counts = np.unique(states, return_counts=True)
-            _, corresponding_indices, _ = np.intersect1d(single_states[fluorophore], state_ids,
-                                                   assume_unique=True, return_indices=True)
+            _, corresponding_indices, _ = np.intersect1d(
+                single_states[fluorophore],
+                state_ids,
+                assume_unique=True,
+                return_indices=True,
+            )
 
             occurrences_states[fluorophore][corresponding_indices] += state_counts
 
@@ -374,7 +379,7 @@ class Analysis:
 
         return exp_fluorescence_lifetimes
 
-    def plot_frequency_transitions(self, prediction=None, **kwargs):
+    def plot_frequency_transitions(self, prediction=None, diff_dist=True, **kwargs):
         """
         Plot frequencies of transitions.
 
@@ -389,7 +394,16 @@ class Analysis:
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         df = self.simulation.transition_set.transition_df
-        data = [np.arange(df.shape[0]), self.frequency_transitions]
+        dat = self.frequency_transitions
+        if not diff_dist:
+            df, dict2, dict_values = no_diff_dist(
+                df, self.simulation.transition_set.single_states.keys()
+            )
+            data2 = np.delete(dat, dict_values)
+            for key, values in dict2.items():
+                data2[key] += np.sum(dat[values])
+            dat = data2
+        data = [np.arange(df.shape[0]), dat]
         kwargs.setdefault("type_", "bar")
         kwargs.setdefault("xlabel", None)
         kwargs.setdefault("yscale", "log")
@@ -415,7 +429,14 @@ class Analysis:
         kwargs.setdefault(
             "legendhandles",
             [
-                mpl.patches.Patch(color=colormap(i), label=name)
+                mpl.patches.Patch(
+                    color=colormap(i),
+                    label=(
+                        name.split("dist")[0][:-2]
+                        if "dist" in name and not diff_dist
+                        else name
+                    ),
+                )
                 for i, name in enumerate(df.index.get_level_values(0).unique())
             ],
         )
@@ -461,7 +482,12 @@ class Analysis:
             patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
             xticks += states.size
             data_merged.append(self.frequency_states[fluorophore])
-            labels.extend([format_electronic_state(SingleState(identity).name) for identity in states])
+            labels.extend(
+                [
+                    format_electronic_state(SingleState(identity).name)
+                    for identity in states
+                ]
+            )
         data_merged = np.concatenate(data_merged)
         data = [np.arange(xticks), data_merged]
         kwargs.setdefault("type_", "bar")
@@ -495,7 +521,7 @@ class Analysis:
 
         return axes
 
-    def plot_mean_transition_times(self, prediction=None, **kwargs):
+    def plot_mean_transition_times(self, prediction=None, diff_dist=True, **kwargs):
         """
         Plot mean times until transitions occur.
 
@@ -503,6 +529,8 @@ class Analysis:
         ----------
         prediction : src.prediction.Prediction
             Container of mathematically derived statistical attributes and methods.
+        diff_dist : bool
+            Whether to plot energy transfers distance-specific or not. 
 
         Returns
         -------
@@ -510,7 +538,23 @@ class Analysis:
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         df = self.simulation.transition_set.transition_df
-        data = [np.arange(df.shape[0]), self.mean_transition_times]
+        dat = self.mean_transition_times
+        if not diff_dist:
+            df, dict2, dict_values = no_diff_dist(
+                df, self.simulation.transition_set.single_states.keys()
+            )
+            data2 = [
+                val
+                for i, val in enumerate(self.transition_time_distributions)
+                if i not in dict_values
+            ]
+            for key, values in dict2.items():
+                for value in values:
+                    data2[key] = np.concatenate(
+                        (data2[key], self.transition_time_distributions[value])
+                    )
+            dat = np.array([(np.mean(d) if d.size > 0 else np.nan) for d in data2])
+        data = [np.arange(df.shape[0]), dat]
         kwargs.setdefault("type_", "bar")
         kwargs.setdefault("xlabel", None)
         kwargs.setdefault("yscale", "log")
@@ -536,7 +580,14 @@ class Analysis:
         kwargs.setdefault(
             "legendhandles",
             [
-                mpl.patches.Patch(color=colormap(i), label=name)
+                mpl.patches.Patch(
+                    color=colormap(i),
+                    label=(
+                        name.split("dist")[0][:-2]
+                        if "dist" in name and not diff_dist
+                        else name
+                    ),
+                )
                 for i, name in enumerate(df.index.get_level_values(0).unique())
             ],
         )
@@ -587,7 +638,12 @@ class Analysis:
             patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
             xticks += states.size
             data_merged.append(self.mean_lifetimes[fluorophore])
-            labels.extend([format_electronic_state(SingleState(identity).name) for identity in states])
+            labels.extend(
+                [
+                    format_electronic_state(SingleState(identity).name)
+                    for identity in states
+                ]
+            )
         data_merged = np.concatenate(data_merged)
         data = [np.arange(xticks), data_merged]
         kwargs.setdefault("type_", "bar")
@@ -656,7 +712,12 @@ class Analysis:
             patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
             xticks += states.size
             data_merged.append(self.state_occupations[fluorophore])
-            labels.extend([format_electronic_state(SingleState(identity).name) for identity in states])
+            labels.extend(
+                [
+                    format_electronic_state(SingleState(identity).name)
+                    for identity in states
+                ]
+            )
         data_merged = np.concatenate(data_merged)
         data = [np.arange(xticks), data_merged]
         kwargs.setdefault("type_", "bar")
@@ -719,11 +780,12 @@ class Analysis:
 
         kwargs.setdefault("type_", "hist")
         kwargs.setdefault("ylabel", "Prob. density")
-        kwargs.setdefault(
-            "title", f"{fluorophore}"
-        )
+        kwargs.setdefault("title", f"{fluorophore}")
         kwargs.setdefault("yscale", "log")
-        kwargs.setdefault("xlabel", rf"{format_electronic_state(SingleState(state_identity).name)} duration (s)")
+        kwargs.setdefault(
+            "xlabel",
+            rf"{format_electronic_state(SingleState(state_identity).name)} duration (s)",
+        )
         kwargs.setdefault("density", True)
         index = np.where(
             self.simulation.transition_set.single_states[fluorophore] == state_identity
@@ -811,3 +873,55 @@ class Analysis:
         )
 
         return axes
+
+
+def no_diff_dist(transition_df, fluorophores):
+    """
+    Get a transition_df which only contains one distance for each type of energy
+    transfer.
+
+    Parameters
+    ----------
+    transition_df : pd.DataFrame
+        Dataframe of all given transitions with non-zero rate containing their id as
+        second level index and their other attributes as columns. Name of fluorophores
+        as first level index.
+    fluorophores : list
+        List of fluorophores (str).
+
+    Returns
+    -------
+    df2 : pd.DataFrame
+        Altered transition_df.
+    dict2 : dict
+        New indices of type of energy transfer as keys and the old indices of distance-
+        dependent duplices as values.
+    dict2_vals : np.ndarray
+        Flattened array of the values of dict2.
+    """
+    df2 = transition_df.copy()
+    level_0 = df2.index.get_level_values(0)
+    level_1 = df2.index.get_level_values(1)
+    level_0_unique = level_0.unique()
+    dict1 = {}
+    for f in fluorophores:
+        indices = np.where(level_0_unique.str.contains(f))[0]
+        different_names = level_0_unique[indices]
+        indices_2 = np.where(different_names.str.contains("dist"))[0]
+        to_discard = different_names[indices_2[1:]]
+        to_keep = different_names[indices_2[0]]
+        corresponding_level1 = level_1[level_0.isin(to_discard)]
+        dict1[to_keep] = corresponding_level1
+        df2 = df2[~df2.index.get_level_values(0).isin(to_discard)]
+        df2.index = pd.MultiIndex.from_arrays(
+            [df2.index.get_level_values(0), range(len(df2))]
+        )
+    dict2 = {}
+    for key, values in dict1.items():
+        df_subset = df2.loc[key]
+        size = df_subset.shape[0]
+        for i in range(size):
+            dict2[df_subset.index[i]] = values[i::size]
+    dict2_vals = np.concatenate([v.to_numpy() for v in dict2.values()])
+
+    return df2, dict2, dict2_vals

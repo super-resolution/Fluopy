@@ -114,7 +114,9 @@ def test_get_blinking_statistics(
     np.testing.assert_array_equal(off_periods_frames, exp_off_periods_frames)
 
 
-def test_get_off_statistics(sim_dstorm):
+def test_get_off_statistics(request):
+    with pytest.warns(UserWarning, match="Floating point precision error warning"):
+        sim_dstorm = request.getfixturevalue("sim_dstorm")
     on_off_times, on_off_values = bl.get_off_statistics(simulation=sim_dstorm, index=0)
     exp_on_off_values = np.array([1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0])
     exp_on_off_times = np.array(

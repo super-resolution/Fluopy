@@ -1,5 +1,9 @@
-import numpy as np
+"""
+Module simulation_tcspc
+"""
+
 import warnings
+import numpy as np
 import pandas as pd
 import src.simulation as si
 
@@ -21,10 +25,9 @@ def simulate_TCSPC(
     Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence lifetime
     measurement). Methodically the direct method of the gillespie algorithm.
     The simulation is bound to start at the state configuration where all fluorophores
-    are in the ground state.
-    Note: the fluorescence lifetimes are the time differences of photon emission
-    to last laser pulse.
-
+    are in the ground state. The fluorescence lifetimes are the time differences of 
+    photon emission to last laser pulse. The simulation approximates laser pulses to be 
+    instantaneous. 
 
     Parameters
     ----------
@@ -339,10 +342,12 @@ def simulate_TCSPC_detailed(
     Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence lifetime
     measurement). Methodically the direct method of the gillespie algorithm.
     The simulation is bound to start at the state configuration where all fluorophores
-    are in the ground state.
-    Note: the fluorescence lifetimes are the time differences of photon emission
-    to last laser pulse.
-
+    are in the ground state. The fluorescence lifetimes are the time differences of 
+    photon emission to last laser pulse. This is the detailed version of the simulation,
+    meaning that it additionally provides a simulation object that contains all 
+    transitions, their time points and the corresponding states. The simulation 
+    approximates laser pulses to be instantaneous. If multiple excitations occur at the
+    same time point, the time points are spaced by a minimal amount.
 
     Parameters
     ----------
@@ -389,6 +394,8 @@ def simulate_TCSPC_detailed(
         not available.
     lifetimes_all : 1-D array_like
         Contains the fluorescence lifetimes of all detected emissions.
+    simulation_object : src.simulation.Simulation
+        Container for simulation-associated attributes and methods. 
     """
     number_pulses = int(number_pulses)
     size = int(size)
@@ -438,7 +445,7 @@ def simulate_TCSPC_detailed(
     current_state_index = df.loc[
         df["final_state"] == tuple(np.zeros(number_fluorophores))
     ].index[0]
-    time_series = []
+    time_series = [0]
     transition_series = []
     excitation_series = []
     lifetimes_D = []
@@ -467,7 +474,7 @@ def simulate_TCSPC_detailed(
     if store_time_points:
         time_points = []
     else:
-        event_time_points = None
+        time_points = None
 
     while i < number_pulses:
         i += 1
@@ -493,7 +500,7 @@ def simulate_TCSPC_detailed(
             # multiple excitations can occur within one pulse
             excitations = np.where(
                 random_numbers_exc[i - (j - 1) * size, S0s]
-                < excitation_probabilities[excitable_indices[S0s]] 
+                < excitation_probabilities[excitable_indices[S0s]]
             )[0]
             # if excitations occur, the fluorophores are set to S1
             if excitations.size != 0:
@@ -561,29 +568,20 @@ def simulate_TCSPC_detailed(
                     "All fluorophores underwent photobleaching or entered "
                     "another Markov chain absorbing state."
                 )
-                event_time_series = pd.Series(
-                    photon_collector, index=time_stamps, dtype=np.int64
-                )
-                if store_time_points:
-                    event_time_points = np.array(time_points)
-                lifetimes_DA = np.array(lifetimes_DA)
-                lifetimes_D = np.array(lifetimes_D)
-                lifetimes_all = np.array(lifetimes_all)
-                time_series = np.array(time_series)
-                if time_series[0] != 0:
-                    time_series = np.insert(time_series, 0, 0)
-                transition_series = np.array(transition_series)
-                excitation_series = np.array(excitation_series)
-                return (
-                    event_time_series,
-                    event_time_points,
+                return_values = prepare_return_values(
+                    photon_collector,
+                    time_stamps,
+                    time_points,
                     lifetimes_DA,
                     lifetimes_D,
                     lifetimes_all,
                     time_series,
                     transition_series,
                     excitation_series,
+                    transition_set,
                 )
+
+                return return_values
             elif remember[1] != np.inf and not checked:
                 skip = True
                 next_transition = remember[0]
@@ -642,86 +640,151 @@ def simulate_TCSPC_detailed(
                             time_points.append(time)
                     except:
                         pass
-    
+
     # if checked, the last simulated pulse is past the last existing pulse
     if checked:
         time_series = time_series[:-1]
         excitation_series = excitation_series[:-1]
-
-    event_time_series = pd.Series(photon_collector, index=time_stamps, dtype=np.int64)
-    if store_time_points:
-        event_time_points = np.array(time_points)
-    lifetimes_DA = np.array(lifetimes_DA)
-    lifetimes_D = np.array(lifetimes_D)
-    lifetimes_all = np.array(lifetimes_all)
-    time_series = np.array(time_series)
-    if time_series[0] != 0:
-        time_series = np.insert(time_series, 0, 0)
-    transition_series = np.array(transition_series)
-    excitation_series = np.array(excitation_series)
-
-    return (
-        event_time_series,
-        event_time_points,
+    return_values = prepare_return_values(
+        photon_collector,
+        time_stamps,
+        time_points,
         lifetimes_DA,
         lifetimes_D,
         lifetimes_all,
         time_series,
         transition_series,
         excitation_series,
+        transition_set,
     )
+
+    return return_values
 
 
 def space_multiple_excitations(time_series):
+    """
+    If multiple excitations occur at the same time point, the time point is repeated.
+    This function creates a minimal space between the same time points. Note that this
+    also creates space for transitions whose time was too small to be differentiated
+    given the floating point precision. It is necessary to space excitations AND other
+    transitions, otherwise a transition could appear at a time point smaller than the
+    previous one. 
+
+    Parameters
+    ----------
+    time_series : 1-D array_like
+        Contains the time points at which transitions occur. Transitions may occur at 
+        the same time point.
+    Returns
+    -------
+    time_series : np.ndarray
+        Contains the time points at which transitions occur. Transitions that occurred
+        at the same time point are now spaced by a minimal amount.
+    """
+    warnings.warn('Multiple excitations at the same time point are spaced by a minimal '
+                  'amount. This also spaces other transitions whose time was too small '
+                  'to be differentiated given the floating point precision. Hence, '
+                  'transitions with mean time lower than expected will now have mean '
+                  'time higher than expected.')
     indices = np.unique(time_series, return_index=True)[1]
-    mask = np.ones(time_series.shape, dtype=bool)
-    mask[indices] = False
-    time_series[mask] = np.nextafter(time_series[mask], float('inf'))
+    while indices.size != time_series.size:
+        mask = np.ones(time_series.shape, dtype=bool)
+        mask[indices] = False
+        time_series[mask] = np.nextafter(time_series[mask], float("inf"))
+        indices = np.unique(time_series, return_index=True)[1]
+    
     return time_series
 
 
 def insert_excitations(transition_series, transition_set, excitation_series):
+    """
+    Inserts the indices of the excitation transitions into the transition series in the
+    correct order.
+    
+    Parameters
+    ----------
+    transition_series : 1-D array_like
+        Contains the indices of the transitions that occur. Does not include the indices
+        of the excitations.
+    transition_set : src.transitions.TransitionSet
+        Collection of all relevant transitions and related attributes.
+    excitation_series : 1-D array_like
+        Contains the index of a fluorophore if excitation, -1 otherwise.
+    
+    Returns
+    -------
+    transition_series_ad : 1-D array_like
+        Contains the indices of the transitions that occur. Includes the indices of the
+        excitations.
+    """
     transition_series_ad = transition_series.copy()
     df = transition_set.combined_state_transitions_df
-    excitations = df[df['abbreviation'] == 'EXC']
+    excitations = df[df["abbreviation"] == "EXC"]
     indices_transitions = np.where(excitation_series == -1)[0]
     diffs = np.diff(indices_transitions)
     diffs = np.insert(diffs, 0, 2)
-    number_fluorophores = 2
+    number_fluorophores = transition_set.fluorophore_system.count
     for i, diff in enumerate(range(number_fluorophores)):
         diff += 2
         processing = np.where(diffs >= diff)[0]
-        corresponding_excitations = excitation_series[indices_transitions[processing] - 1 - i]
+        corresponding_excitations = excitation_series[
+            indices_transitions[processing] - 1 - i
+        ]
         if i != 0:
-            insert_at = np.searchsorted(already_processed, processing, side='left')
+            insert_at = np.searchsorted(already_processed, processing, side="left")
             already_processed = np.insert(already_processed, insert_at, processing)
             processing += insert_at
         else:
             already_processed = processing
         transitions = transition_series_ad[processing]
-        final_states = np.array(df['initial_state'].iloc[transitions].values.tolist())
+        final_states = np.array(df["initial_state"].iloc[transitions].values.tolist())
         initial_states = final_states.copy()
-        initial_states[np.arange(initial_states.shape[0]), corresponding_excitations] = 0
-        df2 = pd.DataFrame({'initial_state': map(tuple, initial_states.tolist()), 'final_state': map(tuple, final_states.tolist())})
-        df2.reset_index(names='original_index', inplace=True)
-        merged = (excitations.reset_index(names='id').merge(df2, on=['initial_state', 'final_state'], how='inner'))
-        indices = np.array(merged['id'].tolist())
-        original_indices = np.array(merged['original_index'].tolist())
-        transition_series_ad = np.insert(transition_series_ad, processing[original_indices], indices)
+        initial_states[
+            np.arange(initial_states.shape[0]), corresponding_excitations
+        ] = 0
+        df2 = pd.DataFrame(
+            {
+                "initial_state": map(tuple, initial_states.tolist()),
+                "final_state": map(tuple, final_states.tolist()),
+            }
+        )
+        df2.reset_index(names="original_index", inplace=True)
+        merged = excitations.reset_index(names="id").merge(
+            df2, on=["initial_state", "final_state"], how="inner"
+        )
+        indices = np.array(merged["id"].tolist())
+        original_indices = np.array(merged["original_index"].tolist())
+        transition_series_ad = np.insert(
+            transition_series_ad, processing[original_indices], indices
+        )
 
-        return transition_series_ad
+    return transition_series_ad
 
 
 def get_state_series(transition_set, transition_series):
-    start_at = tuple(
-            np.zeros(shape=transition_set.fluorophore_system.count, dtype=int)
-        )
+    """
+    Creates a series of states based on the transitions that occur, starting at state 0.
+
+    Parameters
+    ----------
+    transition_set : src.transitions.TransitionSet
+        Collection of all relevant transitions and related attributes.
+    transition_series : 1-D array_like
+        Contains the indices of the transitions that occur. 
+    
+    Returns
+    -------
+    state_series : np.ndarray
+        Contains 1-D array_like for each fluorophore representing its state at index i
+        corresponding to transition_series[i-1].
+    """
+    start_at = tuple(np.zeros(shape=transition_set.fluorophore_system.count, dtype=int))
     final_states = transition_set.combined_state_transitions_df["final_state"]
 
     state_series = np.empty(
-            shape=(transition_set.fluorophore_system.count, transition_series.size + 1),
-            dtype=np.int8,
-        )
+        shape=(transition_set.fluorophore_system.count, transition_series.size + 1),
+        dtype=np.int8,
+    )
     state_series[:, 0] = start_at
 
     for i, _ in enumerate(final_states[0]):
@@ -729,27 +792,90 @@ def get_state_series(transition_set, transition_series):
             dtype=np.int8
         )
         state_series[i][1:] = final_states_fluorophore[transition_series]
-    
+
     return state_series
 
 
-def prepare_return_values(photon_collector, time_stamps, store_time_points, time_points,
-                          lifetimes_DA, lifetimes_D, lifetimes_all, time_series, transition_series,
-                          excitation_series, transition_set):
+def prepare_return_values(
+    photon_collector,
+    time_stamps,
+    time_points,
+    lifetimes_DA,
+    lifetimes_D,
+    lifetimes_all,
+    time_series,
+    transition_series,
+    excitation_series,
+    transition_set,
+):
+    """
+    Prepares the return values for the detailed TCSPC simulation. This includes the
+    conversion to numpy arrays, the insertion of excitation transitions, the spacing of
+    multiple excitations at the same point in time, and the creation of the state 
+    series. Subsequently, the Simulation object is created.
+
+    Parameters
+    ----------
+    photon_collector : 1-D array_like
+        Contains the number of detected emissions at the corresponding time points.
+    time_stamps : 1-D array_like
+        Contains the time points (increasing by a defined time interval).
+    time_points : 1-D array_like, None   
+        The time points at which emissions are detected.
+    lifetimes_DA : 1-D array_like
+        Contains the fluorescence lifetimes of detected emissions when energy transfer
+        available.
+    lifetimes_D : 1-D array_like
+        Contains the fluorescence lifetimes of detected emissions when energy transfer
+        not available.
+    lifetimes_all : 1-D array_like
+        Contains the fluorescence lifetimes of all detected emissions.
+    time_series : 1-D array_like
+        Contains the time points at which transitions occur. Also includes the time
+        points at which excitations occur. Note that if multiple excitations occur at
+        the same time point, the time point is repeated.
+    transition_series : 1-D array_like
+        Contains the indices of the transitions that occur. Does not include the indices
+        of the excitations.
+    excitation_series : 1-D array_like
+        Contains the index of a fluorophore if excitation, -1 otherwise.
+    transition_set : src.transitions.TransitionSet
+        Collection of all relevant transitions and related attributes.
+    
+    Returns
+    -------
+    event_time_series : pd.Series
+        Contains the time points (increasing by a defined time interval) as index and
+        the number of events (i.e., detected emissions) as values.
+    event_time_points : 1-D array_like, None
+        The time points at which emissions are detected.
+    lifetimes_DA : 1-D array_like
+        Contains the fluorescence lifetimes of detected emissions when energy transfer
+        available.
+    lifetimes_D : 1-D array_like
+        Contains the fluorescence lifetimes of detected emissions when energy transfer
+        not available.
+    lifetimes_all : 1-D array_like
+        Contains the fluorescence lifetimes of all detected emissions.
+    simulation_object : src.simulation.Simulation
+        Container for simulation-associated attributes and methods.
+    """
     event_time_series = pd.Series(photon_collector, index=time_stamps, dtype=np.int64)
-    if store_time_points:
+    if time_points is not None:
         event_time_points = np.array(time_points)
+    else:
+        event_time_points = None
     lifetimes_DA = np.array(lifetimes_DA)
     lifetimes_D = np.array(lifetimes_D)
     lifetimes_all = np.array(lifetimes_all)
     time_series = np.array(time_series)
-    if time_series[0] != 0:
-        time_series = np.insert(time_series, 0, 0)
     transition_series = np.array(transition_series)
     excitation_series = np.array(excitation_series)
 
     time_series = space_multiple_excitations(time_series)
-    transition_series = insert_excitations(transition_series, transition_set, excitation_series)
+    transition_series = insert_excitations(
+        transition_series, transition_set, excitation_series
+    )
     state_series = get_state_series(transition_set, transition_series)
 
     simulation_object = si.Simulation(transition_set)
@@ -757,4 +883,11 @@ def prepare_return_values(photon_collector, time_stamps, store_time_points, time
     simulation_object.transition_series = transition_series
     simulation_object.state_series = state_series
 
-    return event_time_series, event_time_points, lifetimes_DA, lifetimes_D, lifetimes_all, simulation_object
+    return (
+        event_time_series,
+        event_time_points,
+        lifetimes_DA,
+        lifetimes_D,
+        lifetimes_all,
+        simulation_object,
+    )

@@ -103,7 +103,11 @@ def test_emissions():
 )
 def test_emissions_extract(dirname, request, frame_time, bandpass, expected):
     emis = em.Emissions(frame_time=frame_time, bandpass=bandpass, seed=1)
-    simulation = request.getfixturevalue(dirname)
+    with pytest.warns(
+        UserWarning,
+        match="Floating point precision error warning"
+    ):
+        simulation = request.getfixturevalue(dirname)
     emis.extract(simulation=simulation)
     assert emis.event_time_points.size == expected
     if frame_time == "10us":
@@ -460,7 +464,12 @@ def test_emissions_add_poisson_noise(em_large):
     pd.testing.assert_series_equal(em_large.event_time_series, exp_event_time_series)
 
 
-def test_save_and_load(em_tr_set_1f_bl):
+def test_save_and_load(request):
+    with pytest.warns(
+        UserWarning,
+        match="Floating point precision error warning"
+    ):
+        em_tr_set_1f_bl = request.getfixturevalue("em_tr_set_1f_bl")
     path = os.path.join(os.path.dirname(__file__), "temp_data")
     em_tr_set_1f_bl.save(path=path, name_extension="_test_extension")
     assert os.path.isfile(os.path.join(path, "event_time_series_test_extension.csv"))

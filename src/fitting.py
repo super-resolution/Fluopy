@@ -1,5 +1,5 @@
 """
-Module distributions
+Module fitting
 """
 
 import numpy as np

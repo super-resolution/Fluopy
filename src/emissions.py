@@ -8,7 +8,7 @@ import pandas as pd
 from pathlib import Path
 from scipy.stats import norm, poisson, gamma, binom
 import src.figure as fi
-from src.simulation import simulate_experiment
+from src.simulation import simulate_experiment, eval_floating_point_precision_error
 from src.simulation_tcspc import simulate_TCSPC, simulate_TCSPC_detailed
 
 
@@ -151,9 +151,8 @@ class Emissions:
         even if other potential donors exist, because all implemented energy transfers
         have S1 as the donor, which is also the only implemented emitting state.
         Also note that energy transfer may have become available during the S1 lifetime
-        of the emitting fluorophore. 
-        Note: the fluorescence lifetimes are the time differences of photon emission
-        to last laser pulse.
+        of the emitting fluorophore. Also note that the fluorescence lifetimes are the
+        time differences of photon emission to last laser pulse.
 
         Parameters
         ----------
@@ -173,6 +172,8 @@ class Emissions:
             Size of random_numbers drawn at once.
         store_time_points : bool
             Whether to store the time points at which photons are detected.
+        details : bool
+            Whether to additionally return a simulation object.
 
         Returns
         -------
@@ -184,6 +185,9 @@ class Emissions:
             transfer not available.
         lifetimes_all : 1-D array_like
             Contains the fluorescence lifetimes of all detected emissions.
+        simulation_object : src.simulation.Simulation
+            Container for simulation-associated attributes and methods. Only returned if
+            details is True.
         """
         exc = [
             j
@@ -208,13 +212,17 @@ class Emissions:
         et_initial_states = (
             df["initial_state"][df["fluorophore_ids"].apply(len) > 1]
         ).values
-        # if the initial state is in et_initial_states, the fluorescence occurred 
+        # if the initial state is in et_initial_states, the fluorescence occurred
         # while energy transfer was also an option
         et_transition_ids = df.iloc[emit_ids_list][
             df.iloc[emit_ids_list]["initial_state"].isin(et_initial_states)
         ].index.to_numpy()
         if details:
             func = simulate_TCSPC_detailed
+            eval_floating_point_precision_error(
+                transition_set=transition_set,
+                largest_number=number_pulses * time_between_pulses,
+            )
         else:
             func = simulate_TCSPC
         return_values = func(
@@ -232,8 +240,13 @@ class Emissions:
         )
         self.event_time_series = return_values[0]
         self.event_time_points = return_values[1]
-
-        return return_values[2:]
+        lifetimes_DA = return_values[2]
+        lifetimes_D = return_values[3]
+        lifetimes_all = return_values[4]
+        if details:
+            return lifetimes_DA, lifetimes_D, lifetimes_all, return_values[5]
+        else:
+            return lifetimes_DA, lifetimes_D, lifetimes_all
 
     def get_emission_indices(self, simulation, bandpass, seed):
         """
@@ -726,7 +739,7 @@ def get_emitting_transition_ids(bandpass, transition_set):
     emitting_transition_ids : dict
         Dictionary with ids of emitting transitions as keys and probabilities of passing
         the bandpass filter as values.
-        The ids correpsond to transition_set.combined_state_transitions_df.
+        The ids correspond to transition_set.combined_state_transitions_df.
     """
     emitting_transition_ids = {}
     if bandpass is not None:

@@ -1,5 +1,7 @@
 import pytest
+import warnings
 import numpy as np
+import pandas as pd
 import src.analysis as an
 import src.transitions as tr
 
@@ -13,7 +15,7 @@ import src.transitions as tr
 
 
 # test with 1 fluorophore, with bleaching
-def test_analysis_1(sim_tr_set_1f_bl, request):
+def test_analysis_1(request):
     with pytest.warns(
         UserWarning,
         match="absorbing states have a lifetime of inf and a frequency / occupation "
@@ -21,6 +23,8 @@ def test_analysis_1(sim_tr_set_1f_bl, request):
     ):
         pred_bl = request.getfixturevalue("pred_tr_set_1f_bl")
         pred_bl_2 = request.getfixturevalue("pred_tr_set_1f_bl_2")
+    with pytest.warns(UserWarning, match="Floating point precision error warning"):
+        sim_tr_set_1f_bl = request.getfixturevalue("sim_tr_set_1f_bl")
     analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
     assert analysis.simulation == sim_tr_set_1f_bl
     exp_freq_trans = np.array([0.496, 0.147, 0.001, 0.001, 0.008, 0.008, 0.339, 0.0])
@@ -117,25 +121,29 @@ def test_analysis_1(sim_tr_set_1f_bl, request):
 
 
 # test with 2 fluorophores, with energy transfer
-def test_analysis_2(sim_tr_set_et_2f_diff):
+def test_analysis_2(request):
+    with pytest.warns(UserWarning, match="Floating point precision error warning"):
+        sim_tr_set_et_2f_diff = request.getfixturevalue("sim_tr_set_et_2f_diff")
     analysis = an.Analysis(simulation=sim_tr_set_et_2f_diff)
     assert analysis.simulation == sim_tr_set_et_2f_diff
     exp_freq_trans = np.array(
-        [5.137426e-04, 
-        2.568713e-04, 
-        0.000000e+00, 
-        0.000000e+00,
-        0.000000e+00, 
-        0.000000e+00, 
-        2.568713e-04, 
-        9.989725e-01,
-        5.137426e-04, 
-        2.568713e-04, 
-        0.000000e+00, 
-        0.000000e+00,
-        2.568713e-04, 
-        9.989725e-01, 
-        0.000000e+00]
+        [
+            5.137426e-04,
+            2.568713e-04,
+            0.000000e00,
+            0.000000e00,
+            0.000000e00,
+            0.000000e00,
+            2.568713e-04,
+            9.989725e-01,
+            5.137426e-04,
+            2.568713e-04,
+            0.000000e00,
+            0.000000e00,
+            2.568713e-04,
+            9.989725e-01,
+            0.000000e00,
+        ]
     )
     np.testing.assert_array_almost_equal(analysis.frequency_transitions, exp_freq_trans)
     exp_freq_states = {
@@ -188,7 +196,9 @@ def test_analysis_2(sim_tr_set_et_2f_diff):
 
 
 # test with 2 fluorophores, without energy transfer
-def test_analysis_3(sim_tr_set_2f_diff):
+def test_analysis_3(request):
+    with pytest.warns(UserWarning, match="Floating point precision error warning"):
+        sim_tr_set_2f_diff = request.getfixturevalue("sim_tr_set_2f_diff")
     analysis = an.Analysis(simulation=sim_tr_set_2f_diff)
     assert analysis.simulation == sim_tr_set_2f_diff
     exp_freq_trans = np.array(
@@ -256,7 +266,10 @@ def test_analysis_3(sim_tr_set_2f_diff):
         np.testing.assert_array_almost_equal(state_occ, exp_state_occ[fluorophore])
 
 
-def test_get_fluorescence_lifetimes(sim_tr_set_1f_bl, sim_tr_set_2f_diff):
+def test_get_fluorescence_lifetimes(request):
+    with pytest.warns(UserWarning, match="Floating point precision error warning"):
+        sim_tr_set_1f_bl = request.getfixturevalue("sim_tr_set_1f_bl")
+        sim_tr_set_2f_diff = request.getfixturevalue("sim_tr_set_2f_diff")
     assert tr.SingleState.S1.value == 1  # if it fails, check
     # analysis.get_fluorescence_lifetimes
     analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
@@ -293,7 +306,10 @@ def test_get_fluorescence_lifetimes(sim_tr_set_1f_bl, sim_tr_set_2f_diff):
     analysis.get_fluorescence_lifetimes("testfluo_1")
 
 
-def test_get_emitting_transition_lifetiems(sim_tr_set_1f_bl, sim_tr_set_2f_diff):
+def test_get_emitting_transition_lifetimes(request):
+    with pytest.warns(UserWarning, match="Floating point precision error warning"):
+        sim_tr_set_1f_bl = request.getfixturevalue("sim_tr_set_1f_bl")
+        sim_tr_set_2f_diff = request.getfixturevalue("sim_tr_set_2f_diff")
     analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
     exp_fluorescence_lifetimes = analysis.get_emitting_transition_lifetimes()
     np.testing.assert_array_almost_equal(
@@ -326,3 +342,51 @@ def test_get_emitting_transition_lifetiems(sim_tr_set_1f_bl, sim_tr_set_2f_diff)
     ):
         analysis.get_emitting_transition_lifetimes()
     analysis.get_emitting_transition_lifetimes("testfluo_1")
+
+
+def test_no_diff_dist():
+    arrays = [
+        [
+            "Cy5",
+            "Cy5",
+            "Cy5",
+            "Cy5_dist_1",
+            "Cy5_dist_1",
+            "Cy5_dist_2",
+            "Cy5_dist_2",
+            "Cy5_dist_3",
+            "Cy5_dist_3",
+            "H",
+            "H",
+            "H",
+            "H_dist_2",
+            "H_dist_2",
+            "H_dist_1",
+            "H_dist_1",
+        ],
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    ]
+    index = pd.MultiIndex.from_tuples(list(zip(*arrays)), names=["Group", "Number"])
+
+    data = np.random.randn(16, 3)
+    df = pd.DataFrame(data, index=index, columns=["X", "Y", "Z"])
+
+    df2, dict2, dict2_vals = an.no_diff_dist(df, ["Cy5", "H"])
+    assert df2.shape == (10, 3)
+    assert df2.index.get_level_values(0).unique().tolist() == [
+        "Cy5",
+        "Cy5_dist_1",
+        "H",
+        "H_dist_2",
+    ]
+    dict2_exp = {
+        np.int64(3): pd.Index([5, 7], dtype="int64", name="Number"),
+        np.int64(4): pd.Index([6, 8], dtype="int64", name="Number"),
+        np.int64(8): pd.Index([14], dtype="int64", name="Number"),
+        np.int64(9): pd.Index([15], dtype="int64", name="Number"),
+    }
+    assert dict2.keys() == dict2_exp.keys()
+    for key in dict2_exp:
+        pd.testing.assert_index_equal(dict2[key], dict2_exp[key])
+    dict2_vals_exp = np.array([5, 7, 6, 8, 14 ,15])
+    np.testing.assert_array_equal(dict2_vals, dict2_vals_exp)
