@@ -10,6 +10,19 @@ import src.formulas as fo
 import src.fitting as fit
 
 
+def emission_post_processing(emis, rng):
+    photon_collection_rate = fo.calculate_photon_collection_rate(
+                NA=1.45, n1=1.51
+    )
+    emis.add_photon_collection_objective(p=photon_collection_rate, seed=rng) 
+    emis.add_transmittance(p=0.9, seed=rng)  # mirror 90/100
+    emis.add_transmittance(p=0.99, seed=rng) # lens 1
+    emis.add_transmittance(p=0.99, seed=rng) # lens 2
+    emis.add_quantum_efficiency(p=0.85, seed=rng)
+    emis.add_poisson_noise(rate=0.6, seed=rng)
+    emis.apply_threshold(threshold=10)
+
+
 def get_bleaching_times(simulation):
     """
     Get the times where photobleaching occurred - for each fluorophore, one number will
@@ -160,20 +173,9 @@ def fingerprint_analysis(
                     delta_times_photons_between_bleaching[n].append(emis.event_time_points[start_index:end_index] - start)
                 else:
                     delta_times_photons_between_bleaching[n].append(emis.event_time_points[start_index:] - start)  # the delta, not the actual times
-                    break
-                    
-
-            photon_collection_rate = fo.calculate_photon_collection_rate(
-                NA=1.45, n1=1.51
-            )
-            emis.add_photon_collection_objective(p=photon_collection_rate, seed=rng) 
-            emis.add_transmittance(p=0.9, seed=rng)  # mirror 90/100
-            emis.add_transmittance(p=0.99, seed=rng) # lens 1
-            emis.add_transmittance(p=0.99, seed=rng) # lens 2
-            emis.add_quantum_efficiency(p=0.85, seed=rng)
-            emis.add_poisson_noise(rate=0.6, seed=rng)
-            emis.apply_threshold(threshold=10)
-            emis.event_time_series.name = i*batch_size + j
+                    break   
+                
+            emission_post_processing(emis, rng)
             if df is None:
                 df = emis.event_time_series
             else:

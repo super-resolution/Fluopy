@@ -238,6 +238,123 @@ class Emissions:
             store_time_points=store_time_points,
             seed=self.parameters["seed"],
         )
+        # self.event_time_series = return_values[0]
+        # self.event_time_points = return_values[1]
+        # lifetimes_DA = return_values[2]
+        # lifetimes_D = return_values[3]
+        # lifetimes_all = return_values[4]
+        if details:
+            return return_values
+        else:
+            return return_values
+
+    def tcspc_rest(
+        self,
+        transition_set,
+        number_pulses=1e4,
+        pulse_duration=1e-11,
+        time_between_pulses=1e-7,
+        excitation_rates=None,
+        size=1e5,
+        store_time_points=False,
+        details=False,
+    ):
+        """
+        Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence
+        lifetime measurements). The return value lifetimes_DA contains the fluorescence
+        lifetimes of detected emissions when energy transfer is available. This does
+        not discriminate between the number or kind of energy transfers. Note that if
+        energy transfer is available, the emitting fluorophore could have been the donor
+        even if other potential donors exist, because all implemented energy transfers
+        have S1 as the donor, which is also the only implemented emitting state.
+        Also note that energy transfer may have become available during the S1 lifetime
+        of the emitting fluorophore. Also note that the fluorescence lifetimes are the
+        time differences of photon emission to last laser pulse.
+
+        Parameters
+        ----------
+        transition_set : src.transitions.TransitionSet
+            Collection of all relevant transitions and related attributes.
+        number_pulses : int
+            Number of pulses to be simulated.
+        pulse_duration : float
+            The duration of a laser pulse in s. This time is used to calculate the
+            probability of excitation, other than that it is neglected.
+        time_between_pulses : float
+            Time between two pulses in seconds.
+        excitation_rates : dict
+            Contains the fluorophore names as keys and the excitation rates as values.
+            Assumes uniform irradiance over the pulse duration.
+        size : int
+            Size of random_numbers drawn at once.
+        store_time_points : bool
+            Whether to store the time points at which photons are detected.
+        details : bool
+            Whether to additionally return a simulation object.
+
+        Returns
+        -------
+        lifetimes_DA : 1-D array_like
+            Contains the fluorescence lifetimes of detected emissions when energy
+            transfer available.
+        lifetimes_D : 1-D array_like
+            Contains the fluorescence lifetimes of detected emissions when energy
+            transfer not available.
+        lifetimes_all : 1-D array_like
+            Contains the fluorescence lifetimes of all detected emissions.
+        simulation_object : src.simulation.Simulation
+            Container for simulation-associated attributes and methods. Only returned if
+            details is True.
+        """
+        exc = [
+            j
+            for _, j in transition_set.transition_df.index
+            if transition_set.transition_df.loc[(_, j), "abbreviation"] == "EXC"
+        ]
+        transition_set = transition_set.adjust_rates(
+            {identity: 0 for identity in exc}, keep_zero_rates=True
+        )
+        transition_set.finalize()
+
+        if excitation_rates is None:
+            excitation_rates = {
+                f.name: 1e7 for f in transition_set.fluorophore_system.fluorophores
+            }
+        emitting_transition_ids = get_emitting_transition_ids(
+            bandpass=self.parameters["bandpass"], transition_set=transition_set
+        )
+        emit_ids_list = list(emitting_transition_ids.keys())
+        df = transition_set.combined_state_transitions_df
+        # if fluorophore_ids length is greater than 1, it is an energy transfer
+        et_initial_states = (
+            df["initial_state"][df["fluorophore_ids"].apply(len) > 1]
+        ).values
+        # if the initial state is in et_initial_states, the fluorescence occurred
+        # while energy transfer was also an option
+        et_transition_ids = df.iloc[emit_ids_list][
+            df.iloc[emit_ids_list]["initial_state"].isin(et_initial_states)
+        ].index.to_numpy()
+        if details:
+            func = simulate_TCSPC_detailed
+            eval_floating_point_precision_error(
+                transition_set=transition_set,
+                largest_number=number_pulses * time_between_pulses,
+            )
+        else:
+            func = simulate_TCSPC
+        return_values = func(
+            transition_set=transition_set,
+            emitting_transition_ids=emitting_transition_ids,
+            et_transition_ids=et_transition_ids,
+            number_pulses=number_pulses,
+            pulse_duration=pulse_duration,
+            time_between_pulses=time_between_pulses,
+            excitation_rates=excitation_rates,
+            frame_time=self.parameters["frame_time"],
+            size=size,
+            store_time_points=store_time_points,
+            seed=self.parameters["seed"],
+        )
         self.event_time_series = return_values[0]
         self.event_time_points = return_values[1]
         lifetimes_DA = return_values[2]
