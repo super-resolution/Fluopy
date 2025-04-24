@@ -1,11 +1,11 @@
 import os
-from pathlib import Path
 import pytest
-import pandas as pd
 import numpy as np
-import src.emissions as em
-import src.fluorophores as fl
+import pandas as pd
+from pathlib import Path
 from unittest.mock import patch
+from fluopy import emissions as em
+from fluopy import fluorophores as fl
 
 
 @pytest.mark.parametrize(
@@ -19,7 +19,9 @@ from unittest.mock import patch
     ],
 )
 def test_get_p_filter(bandpass, expected):
-    data_dir = os.path.join(Path(__file__).parent.parent, "fluorophore_collection")
+    data_dir = os.path.join(
+        Path(__file__).parents[1], "fluopy", "fluorophore_collection"
+    )
     fluorophore = fl.Fluorophore(name="testfluo_1", position=[0, 0])
     if expected == "ValueError1":
         with pytest.raises(
@@ -103,10 +105,7 @@ def test_emissions():
 )
 def test_emissions_extract(dirname, request, frame_time, bandpass, expected):
     emis = em.Emissions(frame_time=frame_time, bandpass=bandpass, seed=1)
-    with pytest.warns(
-        UserWarning,
-        match="Floating point precision error warning"
-    ):
+    with pytest.warns(UserWarning, match="Floating point precision error warning"):
         simulation = request.getfixturevalue(dirname)
     emis.extract(simulation=simulation)
     assert emis.event_time_points.size == expected
@@ -185,7 +184,7 @@ def test_emissions_tcspc_parameters(tr_set_bl_et_2f_diff):
     )
     tr_set.finalize()
     emis = em.Emissions(frame_time="1ms", bandpass=(650, 700), seed=1)
-    with patch("src.emissions.simulate_TCSPC") as mock_tcspc:
+    with patch("fluopy.emissions.simulate_TCSPC") as mock_tcspc:
         mock_tcspc.return_value = (0, 0, 0, 0, 0)
         emis.tcspc(
             transition_set=tr_set,
@@ -465,10 +464,7 @@ def test_emissions_add_poisson_noise(em_large):
 
 
 def test_save_and_load(request):
-    with pytest.warns(
-        UserWarning,
-        match="Floating point precision error warning"
-    ):
+    with pytest.warns(UserWarning, match="Floating point precision error warning"):
         em_tr_set_1f_bl = request.getfixturevalue("em_tr_set_1f_bl")
     path = os.path.join(os.path.dirname(__file__), "temp_data")
     em_tr_set_1f_bl.save(path=path, name_extension="_test_extension")

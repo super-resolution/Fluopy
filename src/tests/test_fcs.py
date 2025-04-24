@@ -1,5 +1,5 @@
 import numpy as np
-import src.fcs as fcs_p
+from fluopy import fcs as fcs_p
 
 
 def test_fcs(em_very_large):

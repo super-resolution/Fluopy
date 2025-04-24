@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 import pandas as pd
 from dataclasses import asdict
-import src.transitions as tr
+from fluopy import transitions as tr
 
 
 def test_singlestate():

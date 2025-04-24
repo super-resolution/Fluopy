@@ -1,5 +1,5 @@
 import inspect
-import src.fluo_data as fd
+from fluopy import fluo_data as fd
 
 
 def test_subclasses():

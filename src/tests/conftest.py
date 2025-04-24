@@ -1,9 +1,9 @@
 import pytest
-import src.fluorophores as fl
-import src.transitions as tr
-import src.prediction as pr
-import src.simulation as si
-import src.emissions as em
+from fluopy import emissions as em
+from fluopy import prediction as pr
+from fluopy import simulation as si
+from fluopy import transitions as tr
+from fluopy import fluorophores as fl
 
 
 @pytest.fixture()

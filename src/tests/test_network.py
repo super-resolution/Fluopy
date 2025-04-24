@@ -1,6 +1,6 @@
 import pytest
 import networkx as nx
-import src.network as net
+from fluopy import network as net
 
 
 def test_construct_state_graphs(tr_set_bl_et_3f):

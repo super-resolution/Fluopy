@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-import src.distributions as dist
+from fluopy import distributions as dist
 
 
 @pytest.mark.parametrize(

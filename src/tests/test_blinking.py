@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import pandas as pd
-import src.blinking as bl
+from fluopy import blinking as bl
 
 
 @pytest.mark.parametrize(

@@ -1,9 +1,8 @@
 import pytest
-import warnings
 import numpy as np
 import pandas as pd
-import src.analysis as an
-import src.transitions as tr
+from fluopy import analysis as an
+from fluopy import transitions as tr
 
 
 # test_analysis_# includes testing of...

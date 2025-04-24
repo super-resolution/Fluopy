@@ -1,8 +1,8 @@
 import re
 import pytest
 import numpy as np
-import src.transitions as tr
-import src.simulation_tcspc as si
+from fluopy import transitions as tr
+from fluopy import simulation_tcspc as si
 
 
 @pytest.mark.parametrize(
@@ -475,3 +475,96 @@ def test_simulate_TCSPC(
                 seed=1,
             )
         np.testing.assert_allclose(event_time_series.values.sum(), 4e4 + 1e4, rtol=1e-1)
+
+
+def test_simulate_TCSPC_detailed(request):
+    transition_set = request.getfixturevalue("tr_set_bl_et_2f_diff")
+    transition_set = transition_set.filter_by_identity(
+        [2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15]
+    )
+    transition_set = transition_set.adjust_rates({0: 0, 2: 0}, keep_zero_rates=True)
+    transition_set.finalize()
+    emitting_transition_ids = {2: 1, 3: 1, 6: 0.5, 7: 0.5}
+    et_transition_ids = [4]
+    number_pulses = 4e4
+    pulse_duration = 5e-11
+    time_between_pulses = 1e-1
+    excitation_rates = {"testfluo_1": 1e12, "testfluo_2": 1.4e10}
+    frame_time = "1ms"
+    store_time_points = True
+    with pytest.warns(UserWarning) as record:
+        return_values = si.simulate_TCSPC_detailed(
+            transition_set=transition_set,
+            emitting_transition_ids=emitting_transition_ids,
+            et_transition_ids=et_transition_ids,
+            number_pulses=number_pulses,
+            pulse_duration=pulse_duration,
+            time_between_pulses=time_between_pulses,
+            excitation_rates=excitation_rates,
+            frame_time=frame_time,
+            store_time_points=store_time_points,
+            seed=1,
+        )
+    # test whether each transition is followed by a correct transition
+    df = transition_set.combined_state_transitions_df
+    arr = return_values[-1].transition_series
+    curr_indices = arr[:-1]
+    next_indices = arr[1:]
+    final_states = df["final_state"].to_numpy()
+    initial_states = df["initial_state"].to_numpy()
+    is_match = final_states[curr_indices] == initial_states[next_indices]
+    assert is_match.all()
+    # test whether the simulation attributes are correct
+    assert (
+        return_values[-1].transition_series.size
+        == return_values[-1].state_series.shape[1] - 1
+    )
+    assert return_values[-1].state_series.shape == (2, 120313)
+    assert (
+        return_values[-1].transition_series.size
+        == return_values[-1].time_series.size - 1
+    )
+    # test whether the spacing of time series was successfull
+    assert (
+        np.unique(return_values[-1].time_series).size
+        == return_values[-1].time_series.size
+    )
+
+
+def test_space_multiple_excitations():
+    time_series = np.array([0, 0, 1, 1, 1, 2], dtype=np.float64)
+    assert np.unique(time_series).size != time_series.size
+    with pytest.warns(UserWarning) as record:
+        time_series_adjusted = si.space_multiple_excitations(time_series)
+    assert np.unique(time_series_adjusted).size == time_series_adjusted.size
+
+
+def test_insert_excitations(request):
+    excitation_series = np.array(
+        [1, 2, 0, -1, -1, -1, 2, -1, 1, -1, -1, 2, 1, -1, -1, -1]
+    )
+    transition_series = np.array([250, 241, 446, 446, 80, 120, 81, 398, 122])
+    transition_set = request.getfixturevalue("tr_set_bl_et_3f")
+    transition_series_adj = si.insert_excitations(
+        transition_series, transition_set, excitation_series
+    )
+    transition_series_exp = np.array(
+        [0, 347, 9, 250, 241, 446, 346, 446, 0, 80, 120, 346, 2, 81, 398, 122]
+    )
+    np.testing.assert_array_equal(transition_series_adj, transition_series_exp)
+
+
+def test_get_state_series(request):
+    transition_set = request.getfixturevalue("tr_set_bl_et_3f")
+    transition_series = np.array(
+        [0, 347, 9, 250, 241, 446, 346, 446, 0, 80, 120, 346, 2, 81, 398, 122]
+    )
+    state_series = si.get_state_series(transition_set, transition_series)
+    state_series_exp = np.array(
+        [
+            [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 3, 0, 0, 1, 3, 3, 0],
+            [0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 3, 3],
+        ]
+    )
+    np.testing.assert_array_equal(state_series, state_series_exp)

@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
-import src.fluorophores as fl
-from src.fluo_data import TestFluo_1, TestFluo_2
+from fluopy import fluorophores as fl
+from fluopy.fluo_data import TestFluo_1, TestFluo_2
 
 
 @pytest.mark.parametrize(

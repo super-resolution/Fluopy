@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-import src.formulas as fo
+from fluopy import formulas as fo
 
 
 @pytest.mark.parametrize(

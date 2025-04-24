@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import scipy.stats as stats
-import src.prediction as pr
+from fluopy import prediction as pr
 
 
 @pytest.mark.parametrize(
