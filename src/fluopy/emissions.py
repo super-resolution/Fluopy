@@ -12,6 +12,9 @@ from .simulation_tcspc import simulate_TCSPC, simulate_TCSPC_detailed
 from .simulation import simulate_experiment, eval_floating_point_precision_error
 
 
+__version__ = "0.1.0"
+
+
 class Emissions:
     """
     Container for emission-associated attributes.

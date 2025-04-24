@@ -10,6 +10,9 @@ import matplotlib.pyplot as plt
 from dataclasses import is_dataclass, fields
 
 
+__version__ = "0.1.0"
+
+
 def delete_subplots(axes, keep_number=None, del_positions=None):
     """
     Deletes subplots from figure object.

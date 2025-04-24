@@ -10,6 +10,9 @@ from scipy.stats import expon
 from . import figure as fi
 
 
+__version__ = "0.1.0"
+
+
 class Prediction:
     """
     Container of mathematically derived statistical attributes and methods.

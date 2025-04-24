@@ -8,6 +8,9 @@ from scipy.optimize import minimize, LinearConstraint, differential_evolution, B
 from . import distributions as dist
 
 
+__version__ = "0.1.0"
+
+
 def ps_fingerprint_cdf_fit_1f(x, y, **diff_ev):
     def objective_function(params):
         domain = (x[0], x[-1])

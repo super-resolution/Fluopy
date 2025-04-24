@@ -8,6 +8,9 @@ from torch import tensor, cuda, repeat_interleave
 from . import network as net
 
 
+__version__ = "0.1.0"
+
+
 def list_devices():
     print(f"pytorch device count: {cuda.device_count()}")
     print(f"pytorch device: {cuda.current_device()}")

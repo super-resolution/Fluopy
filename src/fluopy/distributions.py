@@ -9,6 +9,9 @@ from itertools import product
 from scipy.stats import rv_discrete, expon
 
 
+__version__ = "0.1.0"
+
+
 def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100):
     """
     The high gain amplification noise distribution as proposed in

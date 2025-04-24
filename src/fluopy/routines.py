@@ -10,6 +10,9 @@ from . import emissions as em
 from . import simulation as si
 
 
+__version__ = "0.1.0"
+
+
 def emission_post_processing(emis, rng):
     photon_collection_rate = fo.calculate_photon_collection_rate(NA=1.45, n1=1.51)
     emis.add_photon_collection_objective(p=photon_collection_rate, seed=rng)

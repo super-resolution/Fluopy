@@ -9,6 +9,9 @@ import multipletau as mp
 from . import figure as fi
 
 
+__version__ = "0.1.0"
+
+
 class FCS:
     """
     Container of FCS-assocciated attributes and methods.
