@@ -123,23 +123,6 @@ def test_calculate_internal_conversion_rate(
         np.testing.assert_allclose(result, expected)
 
 
-@pytest.mark.parametrize(
-    "photon_flux, absorption_cross_section, expected",
-    [
-        [0.5, 2, 0.0001],
-        [[0.5, 1], 2, np.array([0.0001, 0.0002])],
-        [[0.5, 1], [2, 1], np.array([0.0001, 0.0001])],
-    ],
-)
-def test_calculate_back_isomerization_rate(
-    photon_flux, absorption_cross_section, expected
-):
-    result = fo.calculate_back_isomerization_rate(
-        photon_flux=photon_flux, absorption_cross_section=absorption_cross_section
-    )
-    np.testing.assert_allclose(result, expected)
-
-
 @pytest.mark.parametrize("ph, pka, concentration, expected", [[8, 9.6, 143, 3.50398]])
 def test_henderson_hasselbalch_equation(ph, pka, concentration, expected):
     base_concentration = fo.henderson_hasselbalch_equation(

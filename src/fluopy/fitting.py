@@ -12,6 +12,23 @@ __version__ = "0.1.0"
 
 
 def ps_fingerprint_cdf_fit_1f(x, y, **diff_ev):
+    """
+    Fit a 1f distribution to the data using the differential evolution algorithm.
+    
+    Parameters
+    ----------
+    x : np.ndarray
+        The x values of the data.
+    y : np.ndarray
+        The y values of the data.
+    diff_ev : dict
+        Additional parameters for the differential evolution algorithm.
+    
+    Returns
+    -------
+    result : OptimizeResult
+        The result of the optimization.
+    """
     def objective_function(params):
         domain = (x[0], x[-1])
         y_pred = dist.ps_fingerprint_cdf_1f(x, *params, domain=domain)
@@ -35,6 +52,23 @@ def ps_fingerprint_cdf_fit_1f(x, y, **diff_ev):
 
 
 def ps_fingerprint_cdf_fit_2f(x, y, **diff_ev):
+    """
+    Fit a 2f distribution to the data using the differential evolution algorithm.
+    
+    Parameters
+    ----------
+    x : np.ndarray
+        The x values of the data.
+    y : np.ndarray
+        The y values of the data.
+    diff_ev : dict
+        Additional parameters for the differential evolution algorithm.
+    
+    Returns
+    -------
+    result : OptimizeResult
+        The result of the optimization.
+    """
     def objective_function(params):
         domain = (x[0], x[-1])
         y_pred = dist.ps_fingerprint_cdf_2f(x, *params, domain=domain)
@@ -61,6 +95,23 @@ def ps_fingerprint_cdf_fit_2f(x, y, **diff_ev):
 
 
 def ps_fingerprint_cdf_fit_3f(x, y, **diff_ev):
+    """
+    Fit a 3f distribution to the data using the differential evolution algorithm.
+    
+    Parameters
+    ----------
+    x : np.ndarray
+        The x values of the data.
+    y : np.ndarray
+        The y values of the data.
+    diff_ev : dict
+        Additional parameters for the differential evolution algorithm.
+    
+    Returns
+    -------
+    result : OptimizeResult
+        The result of the optimization.
+    """
     def objective_function(params):
         domain = (x[0], x[-1])
         y_pred = dist.ps_fingerprint_cdf_3f(x, *params, domain=domain)
@@ -94,6 +145,23 @@ def ps_fingerprint_cdf_fit_3f(x, y, **diff_ev):
 
 
 def ps_fingerprint_cdf_fit_4f(x, y, **diff_ev):
+    """
+    Fit a 4f distribution to the data using the differential evolution algorithm.
+    
+    Parameters
+    ----------
+    x : np.ndarray
+        The x values of the data.
+    y : np.ndarray
+        The y values of the data.
+    diff_ev : dict
+        Additional parameters for the differential evolution algorithm.
+    
+    Returns
+    -------
+    result : OptimizeResult
+        The result of the optimization.
+    """
     def objective_function(params):
         domain = (x[0], x[-1])
         y_pred = dist.ps_fingerprint_cdf_4f(x, *params, domain=domain)

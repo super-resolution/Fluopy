@@ -140,8 +140,8 @@ class TransitionType(Enum):
     ET_CYCLE_S = TransitionAttributes("ETS", SingleState.S1, SingleState.S0, False)
     REDUCTION_T = TransitionAttributes("REDT", SingleState.T1, SingleState.OFF, False)
     REDUCTION_S = TransitionAttributes("REDS", SingleState.S1, SingleState.OFF, False)
-    OXIDATION_1 = TransitionAttributes("OXI", SingleState.OFF, SingleState.S0, False)
-    OXIDATION_2 = TransitionAttributes("OXI2", SingleState.OFF2, SingleState.S0, False)
+    THERM_ELIMINATION = TransitionAttributes('TE', SingleState.OFF, SingleState.S0, False)
+    PHOTO_ELIMINATION = TransitionAttributes('PE', SingleState.OFF, SingleState.S0, False)
     RAD_ESCAPE = TransitionAttributes("RE", SingleState.T1, SingleState.Rad, False)
     RAD_RELAX = TransitionAttributes("RR", SingleState.Rad, SingleState.S0, False)
 
@@ -201,6 +201,9 @@ class TransitionType(Enum):
     )
     T1_S0_TRANSITIONS = TransitionAttributes(
         "T1S0SUM", SingleState.T1, SingleState.S0, False
+    )
+    OFF_S0_TRANSITIONS = TransitionAttributes(
+        "OFF_S0_SUM", SingleState.OFF, SingleState.S0, False
     )
 
     @property
@@ -1163,7 +1166,7 @@ def derive_transitions(
         fluorophore_ids=fluorophore_ids,
     )
 
-    biso_rate = fo.calculate_back_isomerization_rate(
+    biso_rate = fo.calculate_excitation_rate(
         photon_flux=photon_flux, absorption_cross_section=fd.BISO_CROSS_SECTION
     )
     photo_bisomerization = Transition(
@@ -1219,9 +1222,18 @@ def derive_transitions(
             transition_type=TransitionType.REDUCTION_S,
             fluorophore_ids=fluorophore_ids,
         )
-        dstorm_oxi = Transition(
+        photo_elim = fo.calculate_excitation_rate(
+            photon_flux=photon_flux,
+            absorption_cross_section=fd.DSTORM_P_EL_CROSS_SECTION,
+        )
+        photo_elimination = Transition(
+            rate=photo_elim,
+            transition_type=TransitionType.PHOTO_ELIMINATION,
+            fluorophore_ids=fluorophore_ids,
+        )
+        thermal_elimination = Transition(
             rate=fd.DSTORM_TH_EL_RATE_1,
-            transition_type=TransitionType.OXIDATION_1,
+            transition_type=TransitionType.THERM_ELIMINATION,
             fluorophore_ids=fluorophore_ids,
         )
         rad_escape = Transition(
@@ -1239,7 +1251,8 @@ def derive_transitions(
             dstorm_pet_s,
             dstorm_red_t,
             dstorm_red_s,
-            dstorm_oxi,
+            photo_elimination,
+            thermal_elimination,
             rad_escape,
             rad_relax,
         ]
@@ -1273,6 +1286,7 @@ def derive_transitions(
         TransitionType.S1_S0_TRANSITIONS,
         TransitionType.T1_S0_TRANSITIONS,
         TransitionType.CIS_S0_TRANSITIONS,
+        TransitionType.OFF_S0_TRANSITIONS,
     ]
     if summarize:
         for summarized_transition in summarized_transitions:
@@ -1315,9 +1329,9 @@ def interpolate_data(minimum_wavelength, maximum_wavelength, data):
     interpolated : 1-D array_like
         The data corresponding to each integer wavelength within the defined margins.
     """
-    data["Wavelength"] = data["Wavelength"].astype(int)
-    data = data.drop_duplicates(subset=["Wavelength"])
-    wavelengths = data["Wavelength"]
+    data["Wavelengths"] = data["Wavelengths"].astype(int)
+    data = data.drop_duplicates(subset=["Wavelengths"])
+    wavelengths = data["Wavelengths"]
     add_lower = np.zeros(shape=min(wavelengths) - minimum_wavelength)
     add_upper = np.zeros(shape=maximum_wavelength - max(wavelengths))
     wavelengths_stepwise = np.arange(min(wavelengths), max(wavelengths) + 1)

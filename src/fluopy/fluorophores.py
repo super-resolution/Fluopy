@@ -337,7 +337,7 @@ def triangle_third_position(position_1=None, position_2=None):
     return position_3
 
 
-def get_positions_from_distance(distance, count, shape="triangle"):
+def get_positions_from_distance(distance=1, count=1, shape="triangle"):
     """
     Gets positions of up to 4 fluorophores based on a single distance. If it is 3
     fluorophores, they are positioned either in an equilateral triangle or in a square
@@ -358,29 +358,32 @@ def get_positions_from_distance(distance, count, shape="triangle"):
         Contains np.ndarrays of x and y for each fluorophore.
     """
     position_1 = np.array([0, 0])
-    position_2 = np.array([distance, 0])
     if count == 1:
         positions = np.array([position_1])
-    elif count == 2:
-        positions = np.array([position_1, position_2])
-    elif count == 3:
-        if shape == "triangle":
-            position_3 = triangle_third_position(
-                position_1=position_1, position_2=position_2
-            )
-        elif shape == "square":
+    elif count in [2, 3, 4]:
+        position_2 = np.array([distance, 0])
+        if count == 2:
+            positions = np.array([position_1, position_2])
+        elif count == 3:
+            if shape == "triangle":
+                position_3 = triangle_third_position(
+                    position_1=position_1, position_2=position_2
+                )
+            elif shape == "square":
+                position_3 = np.array([0, distance])
+            else:
+                raise ValueError(
+                    f"shape {shape} not known. Can either be 'triangle' or 'square'."
+                )
+            positions = np.array([position_1, position_2, position_3])
+        elif count == 4:
             position_3 = np.array([0, distance])
-        else:
-            raise ValueError(
-                f"shape {shape} not known. Can either be 'triangle' or 'square'."
-            )
-        positions = np.array([position_1, position_2, position_3])
-    elif count == 4:
-        position_3 = np.array([0, distance])
-        position_4 = np.array([distance, distance])
-        positions = np.array([position_1, position_2, position_3, position_4])
+            position_4 = np.array([distance, distance])
+            positions = np.array([position_1, position_2, position_3, position_4])
     else:
-        raise ValueError("count has to be one of 1, 2, 3 or 4.")
+        warnings.warn('If count is above 4, all fluorophores are positioned at the same'
+                      ' location. This indicates no support for energy transfers.') 
+        positions = [[position_1[0], position_1[1] + i] for i in range(count)]
 
     return positions
 

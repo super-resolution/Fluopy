@@ -588,7 +588,7 @@ def test_derive_transitions(irradiance, bleaching, dstorm, summarize, request):
         bleaching=bleaching,
         dstorm=dstorm,
     )
-    dstorm_checker = ["ETT", "ETS", "REDT", "REDS", "OXI"]
+    dstorm_checker = ["ETT", "ETS", "REDT", "REDS", "TE",]
     if not dstorm:
         for transition in transitions:
             assert transition.abbreviation not in dstorm_checker
@@ -622,7 +622,9 @@ def test_derive_transitions(irradiance, bleaching, dstorm, summarize, request):
 
 
 def test_interpolate_data():
-    data = pd.DataFrame({"Wavelength": [617, 619, 620, 621], "y": [0.5, 0.6, 0.7, 0.6]})
+    data = pd.DataFrame(
+        {"Wavelengths": [617, 619, 620, 621], "y": [0.5, 0.6, 0.7, 0.6]}
+    )
     interpolated = tr.interpolate_data(
         minimum_wavelength=610, maximum_wavelength=621, data=data
     )

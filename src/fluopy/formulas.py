@@ -192,29 +192,6 @@ def calculate_internal_conversion_rate(
     return internal_conversion_rate
 
 
-def calculate_back_isomerization_rate(photon_flux=8e25, absorption_cross_section=1e-17):
-    """
-    Returns the back-isomerization rate for a given irradiance and an absorption cross
-    section of the molecule/isomer.
-
-    Parameters
-    ----------
-    photon_flux : float, 1-D array_like
-        The photon flux in 1/(m² s).
-    absorption_cross_section : float, 1-D array_like
-        Absorption cross section of fluorophore isomer at wavelength w in cm².
-
-    Returns
-    -------
-    back_isomerization_rate : float, np.ndarray
-        The back-isomerization rate in 1/s.
-    """
-    absorption_cross_section = np.asarray(absorption_cross_section) * 1e-4
-    back_isomerization_rate = np.asarray(photon_flux) * absorption_cross_section
-
-    return back_isomerization_rate
-
-
 def henderson_hasselbalch_equation(ph, pka, concentration):
     """
     Returns the estimated concentration of the base given the total concentration.

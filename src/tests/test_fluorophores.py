@@ -207,8 +207,7 @@ def test_triangle_third_position(position_1, position_2, expected):
         [5, 3, "elipse", "ValueError1"],
         [5, 2, None, np.array([[0, 0], [5, 0]])],
         [5, 1, None, np.array([[0, 0]])],
-        [5, 0, None, "ValueError2"],
-        [5, 5, None, "ValueError2"],
+        [5, 5, None, "Warning1"],
     ],
 )
 def test_get_positions_from_distance(distance, count, shape, expected):
@@ -221,9 +220,9 @@ def test_get_positions_from_distance(distance, count, shape, expected):
                 fl.get_positions_from_distance(
                     distance=distance, count=count, shape=shape
                 )
-        elif expected == "ValueError2":
-            with pytest.raises(
-                ValueError, match="count has to be one of 1, 2, 3 or 4."
+        elif expected == "Warning1":
+            with pytest.warns(
+                UserWarning, match="If count is above 4"
             ):
                 fl.get_positions_from_distance(
                     distance=distance, count=count, shape=shape

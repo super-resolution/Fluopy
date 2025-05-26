@@ -35,6 +35,7 @@ class FluorophoreData:
     DSTORM_PET_SUCCESS_RATE: float = 0
     DSTORM_TH_EL_RATE_1: float = 0
     DSTORM_TH_EL_RATE_2: float = 0
+    DSTORM_P_EL_CROSS_SECTION: float = 0
     RAD_ESCAPE_RATE: float = 0
     RAD_RELAX_RATE: float = 0
     OFRET_EFFICIENCY: float = 0
@@ -70,8 +71,9 @@ class Cy5_DNA(FluorophoreData):
     DSTORM_PET_T_RATE_MOL: float = 1e8
     DSTORM_PET_S_RATE_MOL: float = 1e9
     DSTORM_PET_SUCCESS_RATE: float = 1e-3
-    DSTORM_TH_EL_RATE_1: float = 2e-2
+    DSTORM_TH_EL_RATE_1: float = 1e-2
     DSTORM_TH_EL_RATE_2: float = 0
+    DSTORM_P_EL_CROSS_SECTION: float = 6e-24
     RAD_ESCAPE_RATE: float = 0
     RAD_RELAX_RATE: float = 0
     OFRET_EFFICIENCY: float = 0.001

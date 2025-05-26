@@ -14,6 +14,20 @@ __version__ = "0.1.0"
 
 
 def emission_post_processing(emis, rng):
+    """
+    Post-processing of the emission data.
+
+    Parameters
+    ----------
+    emis : fluopy.emissions.Emissions
+        Container for emission-associated attributes.
+    rng : None, int, BitGenerator, Generator
+        A seed to initialize the BitGenerator.
+    
+    Returns
+    -------
+    None
+    """
     photon_collection_rate = fo.calculate_photon_collection_rate(NA=1.45, n1=1.51)
     emis.add_photon_collection_objective(p=photon_collection_rate, seed=rng)
     emis.add_transmittance(p=0.9, seed=rng)  # mirror 90/100
@@ -74,12 +88,15 @@ def get_global_bleaching_rates(bleaching_times):
     ----------
     bleaching_times : 2-D array_like
         Times where photobleaching occurred. Each run is a row, each fluorophore a
-        column). Each row is sorted, np.nan will be at the end.
+        column. Each row is sorted, np.nan will be at the end.
 
     Returns
     -------
     global_bleaching_rates : 2-D array_like
         The two global bleaching rates and the mixing factor for each fluorophore.
+    delta_bleaching_times_all : list of arrays
+        The arrival times of photons between bleaching events. The timer starts at the 
+        previous bleaching event.
     """
     global_bleaching_rates = []
     delta_bleaching_times_all = []
@@ -144,6 +161,9 @@ def fingerprint_analysis(
     bleaching_times : 2-D array_like
         Times where photobleaching occurred. Each run is a row, each fluorophore a
         column). Each row is sorted, np.nan will be at the end.
+    delta_times_photons_between_bleaching : list of lists
+        The arrival times of photons between bleaching events. The timer starts at the 
+        previous bleaching event. 
     """
     rng = np.random.default_rng(seed)
     fingerprint_data = pd.Series(
@@ -159,12 +179,12 @@ def fingerprint_analysis(
     for i in range(batches):
         output_file_run = rf"{filepath}\single_runs_{filename}_batch_{i}.parquet"
         df = None
-        for j in range(batch_size):
+        for _ in range(batch_size):
             simulation = si.Simulation(transition_set)
             simulation.run(size=1e6, seed=rng, end_time=300, use_memmap=use_memmap)
             bleaching_times = get_bleaching_times(simulation)
             bleaching_times_all_runs.append(bleaching_times)
-            emis = em.Emissions(frame_time="1ms", bandpass=[665, 731], seed=rng)
+            emis = em.Emissions(seed=rng, **PARAMS_EMIS)
             emis.extract(simulation)
 
             for n in range(transition_set.fluorophore_system.count):
@@ -227,3 +247,37 @@ def truncate_fingerprints(fingerprint, low, high):
     fingerprint = fingerprint / fingerprint.iloc[-1]
 
     return fingerprint
+
+
+PARAMS_DSTORM = {
+    "irradiance": 2.5,
+    "wavelength": 640,
+    "dstorm": True,
+    "dstorm_parameters": {
+        "reducing_agent": "mea",
+        "concentration": 100,
+        "ph": 7.5,
+    },
+    'energy_transfer_parameters': {'overwrite': {'off': [1, 1e-4]}, 
+                                   'exclude': ['s0']}
+}
+
+
+PARAMS_TROLOX = {
+    "irradiance": 5,
+    "wavelength": 640,
+    "dstorm": False,
+    'energy_transfer_parameters': {'exclude': ['s0']}
+}
+
+
+PARAMS_EMIS = {
+    "frame_time": "1ms",
+    "bandpass": [665, 731],
+}
+
+
+PARAMS_PULSE = {
+    'time_between_pulses': 1.25e-8,
+    'pulse_duration': 5e-11,
+}

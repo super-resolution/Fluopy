@@ -3,6 +3,7 @@ Module emissions
 """
 
 import os
+import warnings
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -192,20 +193,28 @@ class Emissions:
             Container for simulation-associated attributes and methods. Only returned if
             details is True.
         """
-        exc = [
-            j
-            for _, j in transition_set.transition_df.index
-            if transition_set.transition_df.loc[(_, j), "abbreviation"] == "EXC"
-        ]
+        df = transition_set.transition_df
+        exc = [j for _, j in df.index if df.loc[(_, j), "abbreviation"] == "EXC"]
         transition_set = transition_set.adjust_rates(
             {identity: 0 for identity in exc}, keep_zero_rates=True
         )
         transition_set.finalize()
 
         if excitation_rates is None:
-            excitation_rates = {
-                f.name: 1e7 for f in transition_set.fluorophore_system.fluorophores
-            }
+            warnings.warn(
+                "The irradiance used initially for excitation rates in\n"
+                " transition_set is now assumed to be the mean irradiance of\n"
+                " pulse and no pulse duration."
+            )
+            # This assumes that the irradiance used for the excitation rates in
+            # transition_set is the mean irradiance of pulse and no pulse duration.
+            factor_excitation_rate = time_between_pulses / pulse_duration
+            excitation_rates = {}
+            for f in transition_set.fluorophore_system.fluorophores:
+                exc_rate = df.loc[f.name][df.loc[f.name]["abbreviation"] == "EXC"][
+                    "rate"
+                ].values[0]
+                excitation_rates[f.name] = exc_rate * factor_excitation_rate
         emitting_transition_ids = get_emitting_transition_ids(
             bandpass=self.parameters["bandpass"], transition_set=transition_set
         )
