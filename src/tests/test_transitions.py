@@ -12,10 +12,10 @@ def test_singlestate():
     assert tr.SingleState.T1.value == 3
     assert tr.SingleState.T2.value == 4
     assert tr.SingleState.B.value == 5
-    assert tr.SingleState.Cis.value == 6
+    assert tr.SingleState.cis.value == 6
     assert tr.SingleState.OFF.value == 7
     assert tr.SingleState.OFF2.value == 8
-    assert tr.SingleState.Rad.value == 9
+    assert tr.SingleState.R.value == 9
     assert len(tr.SingleState) == 10
 
 
@@ -247,7 +247,7 @@ def test_transition_set(request):
         transition_set.transition_df.loc[
             transition_set.transition_df["absorbing"], "abbreviation"
         ]
-    ).tolist() == ["ISCST"]
+    ).tolist() == ["ISC_ST"]
     test_single_states = {
         "testfluo_1": np.array([0, 1, 3]),
         "testfluo_2": np.array([0, 1]),
@@ -588,7 +588,16 @@ def test_derive_transitions(irradiance, bleaching, dstorm, summarize, request):
         bleaching=bleaching,
         dstorm=dstorm,
     )
-    dstorm_checker = ["ETT", "ETS", "REDT", "REDS", "TE",]
+    dstorm_checker = [
+        "PET_TS",
+        "PET_SS",
+        "PET_SO",
+        "PET_TO",
+        "TE",
+        "PU",
+        "PET_TR",
+        "OXI",
+    ]
     if not dstorm:
         for transition in transitions:
             assert transition.abbreviation not in dstorm_checker
@@ -610,7 +619,7 @@ def test_derive_transitions(irradiance, bleaching, dstorm, summarize, request):
         for transition in transitions:
             if transition.abbreviation == "EXC":
                 assert transition.rate != 0
-    summarize_checker = ["S1S0SUM", "CisS0SUM", "T1S0SUM"]
+    summarize_checker = ["S1S0SUM", "cisS0SUM", "T1S0SUM"]
     if summarize:
         for transition in transitions:
             if transition.abbreviation in summarize_checker:

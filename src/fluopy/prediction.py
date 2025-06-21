@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib as mpl
 from scipy.stats import expon
 from . import figure as fi
+from .miscellaneous import format_electronic_state, format_transition
 
 
 __version__ = "0.1.0"
@@ -365,7 +366,10 @@ class Prediction:
         kwargs.setdefault("yscale", "log")
         kwargs.setdefault("edgecolor", "black")
         kwargs.setdefault("xticks", range(df.shape[0]))
-        kwargs.setdefault("xticklabels", dict(labels=df["abbreviation"], rotation=70))
+        kwargs.setdefault(
+            "xticklabels",
+            dict(labels=df["abbreviation"].apply(format_transition), rotation=70),
+        )
         colormap = mpl.colors.ListedColormap(
             [
                 mpl.colormaps["Spectral"](value)
@@ -380,8 +384,7 @@ class Prediction:
                 for _ in range(size)
             ],
         )
-        kwargs.setdefault("ylabel", "PR")
-        kwargs.setdefault("title", "frequency transitions")
+        kwargs.setdefault("ylabel", "Prob. occurrence")
         kwargs.setdefault("legend", True)
         kwargs.setdefault(
             "legendhandles",
@@ -418,7 +421,12 @@ class Prediction:
             patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
             xticks += states.size
             data_merged.append(self.frequency_states[fluorophore])
-            labels.extend([SingleState(identity).name for identity in states])
+            labels.extend(
+                [
+                    format_electronic_state(SingleState(identity).name)
+                    for identity in states
+                ]
+            )
         data_merged = np.concatenate(data_merged)
         data = [np.arange(xticks), data_merged]
         kwargs.setdefault("type_", "bar")
@@ -427,8 +435,7 @@ class Prediction:
         kwargs.setdefault("edgecolor", "black")
         kwargs.setdefault("xticks", range(xticks))
         kwargs.setdefault("xticklabels", dict(labels=labels, rotation=70))
-        kwargs.setdefault("ylabel", "PR")
-        kwargs.setdefault("title", "frequency states")
+        kwargs.setdefault("ylabel", "Prob. occurrence")
         kwargs.setdefault("color", colors)
         kwargs.setdefault("legend", True)
         kwargs.setdefault("legendhandles", patches)
@@ -456,7 +463,10 @@ class Prediction:
         kwargs.setdefault("yscale", "log")
         kwargs.setdefault("edgecolor", "black")
         kwargs.setdefault("xticks", range(df.shape[0]))
-        kwargs.setdefault("xticklabels", dict(labels=df["abbreviation"], rotation=70))
+        kwargs.setdefault(
+            "xticklabels",
+            dict(labels=df["abbreviation"].apply(format_transition), rotation=70),
+        )
         colormap = mpl.colors.ListedColormap(
             [
                 mpl.colormaps["Spectral"](value)
@@ -471,8 +481,7 @@ class Prediction:
                 for _ in range(size)
             ],
         )
-        kwargs.setdefault("ylabel", "mean [s]")
-        kwargs.setdefault("title", "time to transition")
+        kwargs.setdefault("ylabel", r"$\tau$ (s)")
         kwargs.setdefault("legend", True)
         kwargs.setdefault(
             "legendhandles",
@@ -513,7 +522,12 @@ class Prediction:
             patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
             xticks += states.size
             data_merged.append(self.mean_lifetimes[fluorophore])
-            labels.extend([SingleState(identity).name for identity in states])
+            labels.extend(
+                [
+                    format_electronic_state(SingleState(identity).name)
+                    for identity in states
+                ]
+            )
         data_merged = np.concatenate(data_merged)
         data = [np.arange(xticks), data_merged]
         kwargs.setdefault("type_", "bar")
@@ -526,8 +540,7 @@ class Prediction:
         kwargs.setdefault("color", colors)
         kwargs.setdefault("legend", True)
         kwargs.setdefault("legendhandles", patches)
-        kwargs.setdefault("ylabel", "mean [s]")
-        kwargs.setdefault("title", "lifetimes")
+        kwargs.setdefault("ylabel", r"$\tau$ (s)")
         axes = fi.universal_figure(data=data, **kwargs)
 
         return axes
@@ -560,7 +573,12 @@ class Prediction:
             patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
             xticks += states.size
             data_merged.append(self.state_occupations[fluorophore])
-            labels.extend([SingleState(identity).name for identity in states])
+            labels.extend(
+                [
+                    format_electronic_state(SingleState(identity).name)
+                    for identity in states
+                ]
+            )
         data_merged = np.concatenate(data_merged)
         data = [np.arange(xticks), data_merged]
         kwargs.setdefault("type_", "bar")
@@ -569,8 +587,7 @@ class Prediction:
         kwargs.setdefault("edgecolor", "black")
         kwargs.setdefault("xticks", range(xticks))
         kwargs.setdefault("xticklabels", dict(labels=labels, rotation=70))
-        kwargs.setdefault("ylabel", "PR")
-        kwargs.setdefault("title", "occupation")
+        kwargs.setdefault("ylabel", "Prob. occupation")
         kwargs.setdefault("color", colors)
         kwargs.setdefault("legend", True)
         kwargs.setdefault("legendhandles", patches)

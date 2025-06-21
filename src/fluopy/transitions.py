@@ -30,10 +30,10 @@ class SingleState(Enum):
     T1 = 3
     T2 = 4
     B = 5
-    Cis = 6
+    cis = 6
     OFF = 7
     OFF2 = 8
-    Rad = 9
+    R = 9
 
 
 class PairedState(Enum):
@@ -47,8 +47,8 @@ class PairedState(Enum):
     S1_S0 = [SingleState.S1, SingleState.S0]
     S0_S1 = [SingleState.S0, SingleState.S1]
     S1_T1 = [SingleState.S1, SingleState.T1]
-    S1_Cis = [SingleState.S1, SingleState.Cis]
-    S0_Cis = [SingleState.S0, SingleState.Cis]
+    S1_Cis = [SingleState.S1, SingleState.cis]
+    S0_Cis = [SingleState.S0, SingleState.cis]
     S1_OFF = [SingleState.S1, SingleState.OFF]
     S0_S0 = [SingleState.S0, SingleState.S0]
     S0_T2 = [SingleState.S0, SingleState.T2]
@@ -117,75 +117,65 @@ class TransitionType(Enum):
         "SQ", SingleState.S1, SingleState.S0, False
     )
     INTERSYSTEM_CROSSING_ST = TransitionAttributes(
-        "ISCST", SingleState.S1, SingleState.T1, False
+        "ISC_ST", SingleState.S1, SingleState.T1, False
     )
     INTERSYSTEM_CROSSING_TS = TransitionAttributes(
-        "ISCTS", SingleState.T1, SingleState.S0, False
+        "ISC_TS", SingleState.T1, SingleState.S0, False
     )
     INTERNAL_CONVERSION_S = TransitionAttributes(
-        "ICS", SingleState.S1, SingleState.S0, False
+        "IC", SingleState.S1, SingleState.S0, False
     )
     REVERSE_INTERSYSTEM_CROSSING = TransitionAttributes(
         "RISC", SingleState.T2, SingleState.S1, False
     )
-    PHOTOBLEACHING_1 = TransitionAttributes(
-        "BLE", SingleState.T1, SingleState.B, False
-    )
+    PHOTOBLEACHING_1 = TransitionAttributes("BLE", SingleState.T1, SingleState.B, False)
     PHOTOBLEACHING_2 = TransitionAttributes(
         "BLE2", SingleState.T2, SingleState.B, False
     )
 
     # dstorm
-    ET_CYCLE_T = TransitionAttributes("ETT", SingleState.T1, SingleState.S0, False)
-    ET_CYCLE_S = TransitionAttributes("ETS", SingleState.S1, SingleState.S0, False)
-    REDUCTION_T = TransitionAttributes("REDT", SingleState.T1, SingleState.OFF, False)
-    REDUCTION_S = TransitionAttributes("REDS", SingleState.S1, SingleState.OFF, False)
-    THERM_ELIMINATION = TransitionAttributes('TE', SingleState.OFF, SingleState.S0, False)
-    PHOTO_ELIMINATION = TransitionAttributes('PE', SingleState.OFF, SingleState.S0, False)
-    RAD_ESCAPE = TransitionAttributes("RE", SingleState.T1, SingleState.Rad, False)
-    RAD_RELAX = TransitionAttributes("RR", SingleState.Rad, SingleState.S0, False)
+    ET_CYCLE_T = TransitionAttributes("PET_TS", SingleState.T1, SingleState.S0, False)
+    ET_CYCLE_S = TransitionAttributes("PET_SS", SingleState.S1, SingleState.S0, False)
+    ADDUCT_T = TransitionAttributes("PET_TO", SingleState.T1, SingleState.OFF, False)
+    ADDUCT_S = TransitionAttributes("PET_SO", SingleState.S1, SingleState.OFF, False)
+    THERM_ELIMINATION = TransitionAttributes(
+        "TE", SingleState.OFF, SingleState.S0, False
+    )
+    PHOTO_UNCAGING = TransitionAttributes("PU", SingleState.OFF, SingleState.S0, False)
+    RAD_ESCAPE = TransitionAttributes("PET_TR", SingleState.T1, SingleState.R, False)
+    RAD_RELAX = TransitionAttributes("OXI", SingleState.R, SingleState.S0, False)
 
     # cis trans isomerization
-    ISOMERIZATION = TransitionAttributes("ISO", SingleState.S1, SingleState.Cis, False)
-    PHOTO_BISO = TransitionAttributes("PBISO", SingleState.Cis, SingleState.S0, False)
-    THERM_BISO = TransitionAttributes("TBISO", SingleState.Cis, SingleState.S0, False)
+    ISOMERIZATION = TransitionAttributes("ISO", SingleState.S1, SingleState.cis, False)
+    PHOTO_BISO = TransitionAttributes("PBISO", SingleState.cis, SingleState.S0, False)
+    THERM_BISO = TransitionAttributes("TBISO", SingleState.cis, SingleState.S0, False)
 
     # energy transfers
     FRET = TransitionAttributes("FRET", PairedState.S1_S0, PairedState.S0_S1, False)
     CIS_FRET_1 = TransitionAttributes(
-        "CFRET1", PairedState.S1_Cis, PairedState.S0_Cis, False
+        "CET1", PairedState.S1_Cis, PairedState.S0_Cis, False
     )
     CIS_FRET_2 = TransitionAttributes(
-        "CFRET2", PairedState.S1_Cis, PairedState.S0_S0, False
+        "CET2", PairedState.S1_Cis, PairedState.S0_S0, False
     )
     OFF_FRET_1 = TransitionAttributes(
-        "OFRET1", PairedState.S1_OFF, PairedState.S0_OFF, False
+        "OET1", PairedState.S1_OFF, PairedState.S0_OFF, False
     )
     OFF_FRET_2 = TransitionAttributes(
-        "OFRET2", PairedState.S1_OFF, PairedState.S0_S0, False
+        "OET2", PairedState.S1_OFF, PairedState.S0_S0, False
     )
     S_S_ANNIHILATION = TransitionAttributes(
         "SSA", PairedState.S1_S1, PairedState.S0_S1, False
     )
-    S_S_ANNI_BLEACH = TransitionAttributes(
-        "SSAB", PairedState.S1_S1, PairedState.S0_B, False
+    S_T_ANNIHILATION = TransitionAttributes(
+        "STA", PairedState.S1_T1, PairedState.S0_T1, False
     )
-    S_S_OFF = TransitionAttributes(
-        "SSOFF", PairedState.S1_S1, PairedState.S0_OFF, False
-    )
-    S_T_ANNIHILATION_1 = TransitionAttributes(
-        "STA1", PairedState.S1_T1, PairedState.S0_T1, False
-    )
-    S_T_ANNIHILATION_2 = TransitionAttributes(
+    S_T_ANNI_RISC = TransitionAttributes(
         "STA2", PairedState.S1_T1, PairedState.S0_S1, False
     )
     S_T_ANNI_BLEACH = TransitionAttributes(
         "STAB", PairedState.S1_T1, PairedState.S0_B, False
     )
-    S_T_OFF = TransitionAttributes(
-        "STOFF", PairedState.S1_T1, PairedState.S0_OFF, False
-    )
-    
 
     # rhodamines
     H2O_ATTACK_S = TransitionAttributes("H2OS", SingleState.S1, SingleState.OFF, False)
@@ -197,13 +187,13 @@ class TransitionType(Enum):
         "S1S0SUM", SingleState.S1, SingleState.S0, False
     )
     CIS_S0_TRANSITIONS = TransitionAttributes(
-        "CisS0SUM", SingleState.Cis, SingleState.S0, False
+        "cisS0SUM", SingleState.cis, SingleState.S0, False
     )
     T1_S0_TRANSITIONS = TransitionAttributes(
         "T1S0SUM", SingleState.T1, SingleState.S0, False
     )
     OFF_S0_TRANSITIONS = TransitionAttributes(
-        "OFF_S0_SUM", SingleState.OFF, SingleState.S0, False
+        "OFFS0SUM", SingleState.OFF, SingleState.S0, False
     )
 
     @property
@@ -941,14 +931,14 @@ def derive_energy_transfer_transitions(
         The refractive index of the medium.
     overwrite : dict
         Contains the type of acceptor state as key and a list with a factor for the rate
-        as well as an efficiency (acceptor state recycling) as value.
+        as well as an efficiency (of not recylcing acceptor state) as value.
     exclude : list
-        Contains the type of acceptor state (lowercase) to be excluded. 
+        Contains the type of acceptor state (lowercase) to be excluded.
     include : dict
         Contains the type of acceptor state as key and a list of tuples as values. The
         tuples contain the transition type and an efficiency. If the summed efficiencies
         is e.g., 0.5, all other energy transfers affecting the acceptor state are
-        multiplied by 1-0.5. 
+        multiplied by 1-0.5.
 
     Returns
     -------
@@ -975,7 +965,7 @@ def derive_energy_transfer_transitions(
         "s0": [(TransitionType.FRET, 1)],
         "t1": [
             (
-                TransitionType.S_T_ANNIHILATION_1,
+                TransitionType.S_T_ANNIHILATION,
                 (
                     1 - acceptor_data.STA_EFFICIENCY
                     if overwrite is None or "t1" not in overwrite
@@ -983,7 +973,7 @@ def derive_energy_transfer_transitions(
                 ),
             ),
             (
-                TransitionType.S_T_ANNIHILATION_2,
+                TransitionType.S_T_ANNI_RISC,
                 (
                     acceptor_data.STA_EFFICIENCY
                     if overwrite is None or "t1" not in overwrite
@@ -1210,25 +1200,25 @@ def derive_transitions(
             transition_type=TransitionType.ET_CYCLE_S,
             fluorophore_ids=fluorophore_ids,
         )
-        dstorm_red_t_rate = dstorm_pet_t_rate * fd.DSTORM_PET_SUCCESS_RATE
-        dstorm_red_s_rate = dstorm_pet_s_rate * fd.DSTORM_PET_SUCCESS_RATE
-        dstorm_red_t = Transition(
-            rate=dstorm_red_t_rate,
-            transition_type=TransitionType.REDUCTION_T,
+        dstorm_add_t_rate = dstorm_pet_t_rate * fd.DSTORM_PET_SUCCESS_RATE
+        dstorm_add_s_rate = dstorm_pet_s_rate * fd.DSTORM_PET_SUCCESS_RATE
+        dstorm_adduct_t = Transition(
+            rate=dstorm_add_t_rate,
+            transition_type=TransitionType.ADDUCT_T,
             fluorophore_ids=fluorophore_ids,
         )
-        dstorm_red_s = Transition(
-            rate=dstorm_red_s_rate,
-            transition_type=TransitionType.REDUCTION_S,
+        dstorm_adduct_s = Transition(
+            rate=dstorm_add_s_rate,
+            transition_type=TransitionType.ADDUCT_S,
             fluorophore_ids=fluorophore_ids,
         )
-        photo_elim = fo.calculate_excitation_rate(
+        photo_uncage = fo.calculate_excitation_rate(
             photon_flux=photon_flux,
             absorption_cross_section=fd.DSTORM_P_EL_CROSS_SECTION,
         )
-        photo_elimination = Transition(
-            rate=photo_elim,
-            transition_type=TransitionType.PHOTO_ELIMINATION,
+        photo_uncaging = Transition(
+            rate=photo_uncage,
+            transition_type=TransitionType.PHOTO_UNCAGING,
             fluorophore_ids=fluorophore_ids,
         )
         thermal_elimination = Transition(
@@ -1237,7 +1227,7 @@ def derive_transitions(
             fluorophore_ids=fluorophore_ids,
         )
         rad_escape = Transition(
-            rate=fd.RAD_ESCAPE_RATE,
+            rate=dstorm_pet_t_rate * fd.RAD_ESCAPE_EFFICIENCY,
             transition_type=TransitionType.RAD_ESCAPE,
             fluorophore_ids=fluorophore_ids,
         )
@@ -1249,9 +1239,9 @@ def derive_transitions(
         dstorm_transitions = [
             dstorm_pet_t,
             dstorm_pet_s,
-            dstorm_red_t,
-            dstorm_red_s,
-            photo_elimination,
+            dstorm_adduct_t,
+            dstorm_adduct_s,
+            photo_uncaging,
             thermal_elimination,
             rad_escape,
             rad_relax,
@@ -1288,10 +1278,12 @@ def derive_transitions(
         TransitionType.CIS_S0_TRANSITIONS,
         TransitionType.OFF_S0_TRANSITIONS,
     ]
+
+    transitions_copy = transitions[:]
     if summarize:
         for summarized_transition in summarized_transitions:
             rate = 0
-            for transition in transitions:
+            for transition in transitions_copy:
                 if not transition.transition_type.photon:
                     if (
                         transition.transition_type.initial_state

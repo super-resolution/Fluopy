@@ -225,6 +225,26 @@ def format_electronic_state(label):
     return label
 
 
+def format_transition(label):
+    """
+    Format label for LaTeX.
+
+    Parameters
+    ----------
+    label : str
+        Label to format.
+
+    Returns
+    -------
+    label : str
+        Formatted label.
+    """
+    if '_' in label:
+        parts = label.split('_', 1)
+        return parts[0] + r"$_{" + parts[1] + r"}$"
+    return label
+
+
 def format_axis_labels(label, offset):
     """
     Format axis labels for LaTeX.

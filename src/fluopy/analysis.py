@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import matplotlib as mpl
 from . import figure as fi
-from .miscellaneous import format_electronic_state
+from .miscellaneous import format_electronic_state, format_transition
 
 
 __version__ = "0.1.0"
@@ -412,7 +412,10 @@ class Analysis:
         kwargs.setdefault("yscale", "log")
         kwargs.setdefault("edgecolor", "black")
         kwargs.setdefault("xticks", range(df.shape[0]))
-        kwargs.setdefault("xticklabels", dict(labels=df["abbreviation"], rotation=70))
+        kwargs.setdefault(
+            "xticklabels",
+            dict(labels=df["abbreviation"].apply(format_transition), rotation=70),
+        )
         colormap = mpl.colors.ListedColormap(
             [
                 mpl.colormaps["Spectral"](value)
@@ -563,7 +566,10 @@ class Analysis:
         kwargs.setdefault("yscale", "log")
         kwargs.setdefault("edgecolor", "black")
         kwargs.setdefault("xticks", range(df.shape[0]))
-        kwargs.setdefault("xticklabels", dict(labels=df["abbreviation"], rotation=70))
+        kwargs.setdefault(
+            "xticklabels",
+            dict(labels=df["abbreviation"].apply(format_transition), rotation=70),
+        )
         colormap = mpl.colors.ListedColormap(
             [
                 mpl.colormaps["Spectral"](value)
@@ -845,9 +851,9 @@ class Analysis:
         kwargs.setdefault(
             "title",
             rf"""$\tau$ of {fluorophore} 
-            {self.simulation.transition_set.transition_df.loc[(fluorophore, 
+            {format_transition(self.simulation.transition_set.transition_df.loc[(fluorophore, 
                                                                transition_id), 
-                                                               "abbreviation"]}""",
+                                                               "abbreviation"])}""",
         )
         kwargs.setdefault("yscale", "log")
         kwargs.setdefault("xlabel", "time to transition [s]")

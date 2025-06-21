@@ -179,7 +179,7 @@ def fingerprint_analysis(
     for i in range(batches):
         output_file_run = rf"{filepath}\single_runs_{filename}_batch_{i}.parquet"
         df = None
-        for _ in range(batch_size):
+        for j in range(batch_size):
             simulation = si.Simulation(transition_set)
             simulation.run(size=1e6, seed=rng, end_time=300, use_memmap=use_memmap)
             bleaching_times = get_bleaching_times(simulation)
@@ -207,6 +207,7 @@ def fingerprint_analysis(
                     break
 
             emission_post_processing(emis, rng)
+            emis.event_time_series.name = i*batch_size + j
             if df is None:
                 df = emis.event_time_series
             else:
@@ -264,7 +265,7 @@ PARAMS_DSTORM = {
 
 
 PARAMS_TROLOX = {
-    "irradiance": 5,
+    "irradiance": 2.5,
     "wavelength": 640,
     "dstorm": False,
     'energy_transfer_parameters': {'exclude': ['s0']}

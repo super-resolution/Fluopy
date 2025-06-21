@@ -135,6 +135,17 @@ class FluorophoreSystem:
             May contain the following keys: dipole_orientation_factor, refractive_index,
             overwrite, exclude, include.
             Only used if energy_transfer is True.
+            - overwrite : dict
+                Contains the type of acceptor state as key and a list with a factor for 
+                the rate as well as an efficiency (of not recylcing acceptor state) as 
+                value.
+            - exclude : list
+                Contains the type of acceptor state (lowercase) to be excluded.
+            - include : dict
+                Contains the type of acceptor state as key and a list of tuples as 
+                values. The tuples contain the transition type and an efficiency. If the 
+                summed efficiencies is e.g., 0.5, all other energy transfers affecting 
+                the acceptor state are multiplied by 1-0.5.
         dstorm_parameters : dict, optional
             May contain the following keys: reducing_agent, concentration, k_pet, ph.
             Only used if dstorm is True.
@@ -381,8 +392,10 @@ def get_positions_from_distance(distance=1, count=1, shape="triangle"):
             position_4 = np.array([distance, distance])
             positions = np.array([position_1, position_2, position_3, position_4])
     else:
-        warnings.warn('If count is above 4, all fluorophores are positioned at the same'
-                      ' location. This indicates no support for energy transfers.') 
+        warnings.warn(
+            "If count is above 4, all fluorophores are positioned at the same"
+            " location. This indicates no support for energy transfers."
+        )
         positions = [[position_1[0], position_1[1] + i] for i in range(count)]
 
     return positions

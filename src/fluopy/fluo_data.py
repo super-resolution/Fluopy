@@ -36,7 +36,7 @@ class FluorophoreData:
     DSTORM_TH_EL_RATE_1: float = 0
     DSTORM_TH_EL_RATE_2: float = 0
     DSTORM_P_EL_CROSS_SECTION: float = 0
-    RAD_ESCAPE_RATE: float = 0
+    RAD_ESCAPE_EFFICIENCY: float = 0
     RAD_RELAX_RATE: float = 0
     OFRET_EFFICIENCY: float = 0
 
@@ -65,7 +65,7 @@ class Cy5_DNA(FluorophoreData):
     ISC_TS_RATE: float = 5e3
     RISC_RATE: float = 0
     STA_EFFICIENCY: float = 0
-    PHOTOBLEACH_T1_RATE: float = 1e1  # estimation
+    PHOTOBLEACH_T1_RATE: float = 1e1  
     PHOTOBLEACH_T2_RATE: float = 0
 
     DSTORM_PET_T_RATE_MOL: float = 1e8
@@ -73,110 +73,15 @@ class Cy5_DNA(FluorophoreData):
     DSTORM_PET_SUCCESS_RATE: float = 1e-3
     DSTORM_TH_EL_RATE_1: float = 1e-2
     DSTORM_TH_EL_RATE_2: float = 0
-    DSTORM_P_EL_CROSS_SECTION: float = 6e-24
-    RAD_ESCAPE_RATE: float = 0
-    RAD_RELAX_RATE: float = 0
+    DSTORM_P_EL_CROSS_SECTION: float = 6e-24  # 640 nm
+    RAD_ESCAPE_EFFICIENCY: float = 0.01
+    RAD_RELAX_RATE: float = 1.3e3
     OFRET_EFFICIENCY: float = 0.001
 
     ISO_RATE: float = 4e6
-    BISO_CROSS_SECTION: float = 0.6e-17
+    BISO_CROSS_SECTION: float = 0.6e-17  # 640 nm
     BISO_THERMAL_RATE: float = 5e3
-    BISO_EFFICIENCY: float = 0.03
-
-
-@dataclass
-class Cy5_Widengren(FluorophoreData):
-    """
-    Contains constant attributes of the fluorophore Cy5 as defined in Characterization 
-    of photoinduced isomerization and back-isomerization of the cyanine dye Cy5 by FCS 
-    (Widengren, Schwille).
-    The buffer is air-saturated.
-    """
-
-    data_files: str = "cy5_data"
-
-    QUANTUM_YIELD: float = 0.27
-    FLUORESCENCE_LIFETIME: float = 1e-9
-    ISC_ST_RATE: float = 8.3e5
-    ISC_TS_RATE: float = 5e5
-    RISC_RATE: float = 0
-    PHOTOBLEACH_T1_RATE: float = 2.5e3
-    PHOTOBLEACH_T2_RATE: float = 0
-
-    DSTORM_PET_T_RATE_MOL: float = 1e8
-    DSTORM_PET_S_RATE_MOL: float = 1e9
-    DSTORM_PET_SUCCESS_RATE: float = 1e-3
-    DSTORM_TH_EL_RATE_1: float = 2e-2
-    DSTORM_TH_EL_RATE_2: float = 0
-
-    ISO_RATE: float = 2e7
-    BISO_CROSS_SECTION: float = 1.7e-17
-    BISO_THERMAL_RATE: float = 5e3
-    BISO_EFFICIENCY: float = 0.03
-
-
-@dataclass
-class Cy5_Widengren_DNA(FluorophoreData):
-    """
-    Contains constant attributes of the fluorophore Cy5 as defined in Characterization
-    of photoinduced isomerization and back-isomerization of the cyanine dye Cy5 by FCS
-    (Widengren, Schwille).
-    The buffer is air-saturated.
-    Here, Cy5 is bound to DNA. 
-    The ratios of 632 nm (DNA to noDNA) are applied to 647 nm.
-    """
-
-    data_files: str = "cy5_data"
-
-    QUANTUM_YIELD: float = 0.27
-    FLUORESCENCE_LIFETIME: float = 1e-9
-    ISC_ST_RATE: float = 4e5
-    ISC_TS_RATE: float = 1e5
-    RISC_RATE: float = 0
-    PHOTOBLEACH_T1_RATE: float = 5e2  # since ISC_TS_RATE is 1/5 of the original
-    PHOTOBLEACH_T2_RATE: float = 0
-
-    DSTORM_PET_T_RATE_MOL: float = 1e8
-    DSTORM_PET_S_RATE_MOL: float = 1e9
-    DSTORM_PET_SUCCESS_RATE: float = 1e-3
-    DSTORM_TH_EL_RATE_1: float = 2e-2
-    DSTORM_TH_EL_RATE_2: float = 0
-
-    ISO_RATE: float = 4e6
-    BISO_CROSS_SECTION: float = 0.6e-17
-    BISO_THERMAL_RATE: float = 5e3
-    BISO_EFFICIENCY: float = 0.2
-
-
-@dataclass
-class Cy5_Gidi_DNA(FluorophoreData):
-    """
-    Contains constant attributes of the fluorophore Cy5 as defined in Unifying 
-    Mechanism for Thiol-Induced Photoswitching and Photostability of Cyanine Dyes (Gidi 
-    et al.).
-    The buffer is oxygen-depleted.
-    """
-
-    data_files: str = "cy5_data"
-
-    QUANTUM_YIELD: float = 0.27
-    FLUORESCENCE_LIFETIME: float = 1e-9
-    ISC_ST_RATE: float = 8.3e5
-    ISC_TS_RATE: float = 5e3
-    RISC_RATE: float = 0
-    PHOTOBLEACH_T1_RATE: float = 1e1  # estimation
-    PHOTOBLEACH_T2_RATE: float = 0
-
-    DSTORM_PET_T_RATE_MOL: float = 1e8
-    DSTORM_PET_S_RATE_MOL: float = 1e9
-    DSTORM_PET_SUCCESS_RATE: float = 1e-3
-    DSTORM_TH_EL_RATE_1: float = 2e-2
-    DSTORM_TH_EL_RATE_2: float = 0
-
-    ISO_RATE: float = 4e6
-    BISO_CROSS_SECTION: float = 0.6e-17
-    BISO_THERMAL_RATE: float = 5e3
-    BISO_EFFICIENCY: float = 0.2
+    BISO_EFFICIENCY: float = 0.04
 
 
 @dataclass
