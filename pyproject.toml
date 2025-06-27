@@ -123,6 +123,7 @@ source = [
 omit = [
     "tests/*",
     "*/fluopy/tests/*",
+    "src/fluopy/_version.py"
 ]
 
 [tool.coverage.report]
