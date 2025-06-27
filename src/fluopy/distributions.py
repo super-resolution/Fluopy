@@ -3,10 +3,11 @@ Module distributions
 """
 
 import inspect
+from itertools import product
+
 import numpy as np
 from scipy.special import i1
-from itertools import product
-from scipy.stats import rv_discrete, expon
+from scipy.stats import expon, rv_discrete
 
 
 def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100):

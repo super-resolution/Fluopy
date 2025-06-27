@@ -4,9 +4,10 @@ Module routines
 
 import numpy as np
 import pandas as pd
-from . import formulas as fo
-from . import fitting as fit
+
 from . import emissions as em
+from . import fitting as fit
+from . import formulas as fo
 from . import simulation as si
 
 

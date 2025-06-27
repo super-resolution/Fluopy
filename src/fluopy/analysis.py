@@ -4,9 +4,11 @@ Module analysis
 
 import re
 import warnings
+
+import matplotlib as mpl
 import numpy as np
 import pandas as pd
-import matplotlib as mpl
+
 from . import figure as fi
 from .miscellaneous import format_electronic_state, format_transition
 

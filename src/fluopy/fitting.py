@@ -3,8 +3,9 @@ Module fitting
 """
 
 import numpy as np
+from scipy.optimize import Bounds, LinearConstraint, differential_evolution, minimize
 from scipy.stats import expon
-from scipy.optimize import minimize, LinearConstraint, differential_evolution, Bounds
+
 from . import distributions as dist
 
 

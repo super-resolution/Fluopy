@@ -4,7 +4,8 @@ Module simulation_gpu
 
 import cupy as cp
 import numpy as np
-from torch import tensor, cuda, repeat_interleave
+from torch import cuda, repeat_interleave, tensor
+
 from . import network as net
 
 

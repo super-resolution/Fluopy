@@ -3,10 +3,12 @@ Module fluorophores
 """
 
 import warnings
-import numpy as np
-from typing import Optional
 from collections.abc import Collection
 from dataclasses import dataclass, field
+from typing import Optional
+
+import numpy as np
+
 from . import figure as fi
 from . import fluo_data as fd
 
@@ -155,8 +157,8 @@ class FluorophoreSystem:
         """
         transitions = {}
         from .transitions import (
-            derive_transitions,
             derive_energy_transfer_transitions,
+            derive_transitions,
         )
 
         skip_warnings = []

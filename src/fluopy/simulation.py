@@ -5,9 +5,11 @@ Module simulation
 import gc
 import os
 import warnings
+
+import iteround as it
 import numpy as np
 import pandas as pd
-import iteround as it
+
 from . import network as net
 
 

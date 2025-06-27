@@ -4,6 +4,7 @@ Module blinking
 
 import numpy as np
 import pandas as pd
+
 from . import figure as fi
 from . import transitions as tr
 

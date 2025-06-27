@@ -4,9 +4,11 @@ Module prediction
 
 import re
 import warnings
-import numpy as np
+
 import matplotlib as mpl
+import numpy as np
 from scipy.stats import expon
+
 from . import figure as fi
 from .miscellaneous import format_electronic_state, format_transition
 

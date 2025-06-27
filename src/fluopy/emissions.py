@@ -4,13 +4,15 @@ Module emissions
 
 import os
 import warnings
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from scipy.stats import norm, poisson, gamma, binom
+from scipy.stats import binom, gamma, norm, poisson
+
 from . import figure as fi
+from .simulation import eval_floating_point_precision_error, simulate_experiment
 from .simulation_tcspc import simulate_TCSPC, simulate_TCSPC_detailed
-from .simulation import simulate_experiment, eval_floating_point_precision_error
 
 
 class Emissions:

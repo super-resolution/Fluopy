@@ -4,10 +4,11 @@ Module miscellaneous
 
 import re
 import reprlib
+from dataclasses import fields, is_dataclass
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from dataclasses import is_dataclass, fields
 
 
 def delete_subplots(axes, keep_number=None, del_positions=None):
