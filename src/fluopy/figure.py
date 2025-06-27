@@ -320,7 +320,7 @@ def universal_figure(
         case "boxplot":
             ax.boxplot(data, labels=label, **type_specific_kwargs)
         case _:
-            raise ValueError('Invalid type_ argument.')
+            raise ValueError("Invalid type_ argument.")
 
     # x-axis
     if xlim is not None:

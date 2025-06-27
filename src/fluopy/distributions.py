@@ -226,7 +226,7 @@ class Photoswitching_fingerprint_model:
                     x,
                     *self.lambdas[
                         valid_combinations[j], np.arange(valid_combinations[j].shape[0])
-                    ]
+                    ],
                 )
             pdf += 1 / n * pdf_part
 
@@ -267,7 +267,7 @@ class Photoswitching_fingerprint_model:
                     x,
                     *self.lambdas[
                         valid_combinations[j], np.arange(valid_combinations[j].shape[0])
-                    ]
+                    ],
                 )
             cdf += 1 / n * cdf_part
         if extra:

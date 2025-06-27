@@ -8,7 +8,6 @@ from . import figure as fi
 from . import transitions as tr
 
 
-
 class Blinking:
     """
     Container for blinking-associated attributes.

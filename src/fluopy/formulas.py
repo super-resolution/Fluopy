@@ -147,7 +147,7 @@ def calculate_internal_conversion_rate(
     quantum_yield=0.5,
     emission_rate=5e8,
     *other_outgoing_rates_args,
-    **other_outgoing_rates_kwargs
+    **other_outgoing_rates_kwargs,
 ):
     """
     Calculates the rate of internal conversion from the first excited state to the
@@ -241,7 +241,7 @@ def calculate_pet_rate(reducing_agent="mea", concentration=143, k_pet=1, ph=8):
         pka = 9.5
     else:
         raise ValueError('reducing_agent has to be one of "betaME", "mea".')
-    
+
     concentration = (
         henderson_hasselbalch_equation(ph=ph, pka=pka, concentration=concentration)
         * 1e-3
@@ -354,7 +354,7 @@ def calculate_fret_efficiency(fret_rate=1e8, fluorescence_lifetime=1e-9):
 
 def calculate_photon_collection_rate(NA=1.45, n1=1.51):
     """
-    Calculates the photon collection rate based on the numerical aperture of the 
+    Calculates the photon collection rate based on the numerical aperture of the
     objective.
 
     Parameters
@@ -363,13 +363,13 @@ def calculate_photon_collection_rate(NA=1.45, n1=1.51):
         Numerical aperture of the objective.
     n1 : float
         Refractive index of the medium.
-    
+
     Returns
     -------
     photon_collection_rate : float
         The photon collection rate.
     """
-    half_angle = np.arcsin(NA/n1)
+    half_angle = np.arcsin(NA / n1)
     cone = 2 * np.pi * (1 - np.cos(half_angle))
     photon_collection_rate = cone / (4 * np.pi)
 
