@@ -87,6 +87,9 @@ lint = [
 ]
 typing = [
     "mypy",
+    "pandas-stubs",
+    "types-networkx",
+    "types-tqdm",
 ]
 dev = [
     "pre-commit",
@@ -206,4 +209,22 @@ files = [
     "$MYPY_CONFIG_FILE_DIR/src",
     "$MYPY_CONFIG_FILE_DIR/tests/"
 ]
-strict = false
+strict = true
+
+# all attr-defined errors are due to star imports
+[[tool.mypy.overrides]]
+module = [
+    'tests.*',
+]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+disable_error_code = ["attr-defined"]
+
+[[tool.mypy.overrides]]
+module = [
+    'lmfit.*',
+    'scipy.*',
+    'sklearn.*',
+]
+ignore_missing_imports = true
