@@ -1,0 +1,199 @@
+[build-system]
+requires = [
+    "setuptools>=64",
+    "setuptools_scm[toml]>=8"
+    ]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+locan = ["py.typed", "*.pyi"]
+
+[tool.setuptools_scm]
+version_file = "src/fluopy/_version.py"
+version_scheme = "release-branch-semver"
+
+[project]
+name = "FluoPy"
+description = "Continous-time Markov chain simulations of photophysical processes in fluorescent dyes"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {file = "LICENSE.md"}
+authors = [
+  {name = "Vincent Ebert"},
+  {name = "Sören Doose"},
+  {name = "Photoswitching Developers"},
+]
+maintainers = [
+  {name = "Vincent Ebert"},
+  {name = "Sören Doose"}
+]
+keywords = [
+    "fluorescence", "super-resolution", " single-molecule localization microscopy",
+    "cyanine", "Cy5", "photophysics", "Continuous-time Markov chain simulation"
+]
+classifiers = [
+    "Environment :: Console",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: C",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Operating System :: MacOS",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dynamic = ["version"]
+
+dependencies = [
+    "lmfit",
+    "matplotlib",
+    "networkx",
+    "numba",
+    "numpy",
+    "pandas",
+    "scipy",
+    "scikit-learn",
+]
+
+[project.urls]
+homepage = "https://github.com/super-resolution/Photoswitching"
+documentation = "https://github.com/super-resolution/Photoswitching/README.md"
+repository = "https://github.com/super-resolution/Photoswitching"
+issues = "https://github.com/super-resolution/Photoswitching/issues"
+changelog = "https://github.com/super-resolution/Photoswitching"
+
+[dependency-groups]
+test = [
+    "pytest",
+    "coverage",
+]
+lint = [
+    "black~=25.0",
+    "ruff",
+]
+typing = [
+    "mypy",
+]
+dev = [
+    "pre-commit",
+    {include-group = "test"},
+    {include-group = "lint"},
+    {include-group = "typing"},
+]
+jupyter = [
+    "jupyterlab"
+]
+
+
+[tool.black]
+line_length = 88
+
+[tool.pytest.ini_options]
+testpaths = [
+    "src/fluopy/tests",
+    "tests"
+]
+addopts = "--import-mode=importlib
+
+
+[tool.coverage.run]
+source = [
+    "fluopy"
+]
+omit = [
+    "tests/*",
+    "*/fluopy/tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+
+[tool.ruff]
+line-length = 88
+# automatically exclude files that are ignored by .gitignore
+exclude = [
+    ".*",
+    "dist",
+    "docs",
+    "docker",
+    "src/fluopy/_version.py",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "Q",  # flake8-quotes
+    "YTT",  # flake8-2020
+    "S",  # flake8-bandit
+    "UP",  # pyupgrade
+    "BLE",  # flake8-blind-exception
+    "ISC",  # flake8-implicit-str-concat
+    "NPY",  # numpy-specific rules
+    # "PT", # flake8-pytest-style
+]
+# Rules - https://github.com/charliermarsh/ruff#reference:
+# B905 `zip()` without an explicit `strict=` parameter - should be used from py310.
+# E402 module-import-not-at-top-of-file
+# E501 line-too-long
+# F403 import-star-used
+# F405 undefined-local-with-import-star-usage
+# I001 unsorted-imports
+# Q000 bad-quotes-inline-string
+# S101 assert
+# S307 suspicious-eval-usage
+# S404 `subprocess` module is possibly insecure
+# S603 `subprocess` call: check for execution of untrusted input
+# S605 start-process-with-a-shell
+# S607 start-process-with-partial-path
+ignore = ["E501", "B905"]
+preview = true
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "F401", "F403", "F405", "I001"]
+"test_*.py" = ["S101", "S307", "S403", "S404", "S605", "S607"]
+
+[tool.ruff.lint.flake8-quotes]
+docstring-quotes = "double"
+
+[tool.ruff.lint.flake8-import-conventions]
+[tool.ruff.lint.flake8-import-conventions.aliases]
+numpy = "np"
+pandas = "pd"
+matplotlib = "mpl"
+"matplotlib.pyplot" = "plt"
+networkx = "nx"
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+
+[tool.mypy]
+files = [
+    "$MYPY_CONFIG_FILE_DIR/src",
+    "$MYPY_CONFIG_FILE_DIR/tests/"
+]
+strict = false
