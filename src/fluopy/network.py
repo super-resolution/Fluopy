@@ -9,9 +9,6 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams, rcParamsDefault
 
 
-__version__ = "0.1.0"
-
-
 def construct_state_graphs(transition_df):
     """
     Constructs graphs of states (nodes) and their transitions (edges). Each fluorophore

@@ -11,9 +11,6 @@ from . import figure as fi
 from . import fluo_data as fd
 
 
-__version__ = "0.1.0"
-
-
 @dataclass
 class Fluorophore:
     """

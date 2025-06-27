@@ -11,9 +11,6 @@ from . import figure as fi
 from .miscellaneous import format_electronic_state, format_transition
 
 
-__version__ = "0.1.0"
-
-
 class Analysis:
     """
     Container of simulation-dervied statistical attributes and methods.

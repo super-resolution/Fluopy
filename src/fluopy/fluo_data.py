@@ -5,9 +5,6 @@ Module fluo_data
 from dataclasses import dataclass
 
 
-__version__ = "0.1.0"
-
-
 @dataclass
 class FluorophoreData:
     """

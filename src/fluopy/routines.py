@@ -10,9 +10,6 @@ from . import emissions as em
 from . import simulation as si
 
 
-__version__ = "0.1.0"
-
-
 def emission_post_processing(emis, rng):
     """
     Post-processing of the emission data.

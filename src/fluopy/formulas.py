@@ -6,9 +6,6 @@ import numpy as np
 from scipy import constants
 
 
-__version__ = "0.1.0"
-
-
 def convert_wavenumber_wavelength_frequency(
     wavenumber=None, wavelength=None, frequency=None
 ):

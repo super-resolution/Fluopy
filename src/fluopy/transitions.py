@@ -16,9 +16,6 @@ from . import network as net
 from . import formulas as fo
 
 
-__version__ = "0.1.0"
-
-
 class SingleState(Enum):
     """
     Assigns a unique identifier (value) to each possible photophysical state.

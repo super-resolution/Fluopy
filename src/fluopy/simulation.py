@@ -11,9 +11,6 @@ import iteround as it
 from . import network as net
 
 
-__version__ = "0.1.0"
-
-
 class Simulation:
     """
     Container of simulation-associated attributes and methods.

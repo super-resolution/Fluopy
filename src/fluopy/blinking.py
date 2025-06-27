@@ -8,8 +8,6 @@ from . import figure as fi
 from . import transitions as tr
 
 
-__version__ = "0.1.0"
-
 
 class Blinking:
     """

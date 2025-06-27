@@ -8,9 +8,6 @@ import pandas as pd
 from . import simulation as si
 
 
-__version__ = "0.1.0"
-
-
 def simulate_TCSPC(
     transition_set,
     emitting_transition_ids,
