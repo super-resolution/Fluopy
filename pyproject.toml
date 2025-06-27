@@ -56,8 +56,11 @@ classifiers = [
 dynamic = ["version"]
 
 dependencies = [
+    "cairosvg",
+    "iteround",
     "lmfit",
     "matplotlib",
+    "multipletau",
     "networkx",
     "numba",
     "numpy",
@@ -99,12 +102,13 @@ jupyter = [
 [tool.black]
 line_length = 88
 
+
 [tool.pytest.ini_options]
 testpaths = [
     "src/fluopy/tests",
     "tests"
 ]
-addopts = "--import-mode=importlib
+addopts = "--import-mode=importlib"
 
 
 [tool.coverage.run]
