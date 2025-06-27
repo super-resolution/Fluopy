@@ -109,6 +109,11 @@ testpaths = [
     "tests"
 ]
 addopts = "--import-mode=importlib"
+markers = [
+    "gui: marks tests that require user interaction (skipped by default)",
+    "visual: marks tests that require visual inspection (skipped by default)",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
 
 
 [tool.coverage.run]
