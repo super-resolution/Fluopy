@@ -5,12 +5,13 @@ Module simulation
 import gc
 import os
 import warnings
-
-import iteround as it
 import numpy as np
 import pandas as pd
-
+import iteround as it
 from . import network as net
+
+
+__version__ = "0.1.0"
 
 
 class Simulation:
@@ -90,9 +91,8 @@ class Simulation:
         size = int(size)
         df = self.transition_set.combined_state_transitions_df
         start_index = df[df["final_state"] == start_at].index[0]
-        eval_floating_point_precision_error(
-            transition_set=self.transition_set, largest_number=end_time
-        )
+        eval_floating_point_precision_error(transition_set=self.transition_set, 
+                                            largest_number=end_time)
         if end_time is None:
             self.time_series, self.transition_series = direct_method_steps(
                 transition_matrix=self.transition_set.transition_matrix,
@@ -131,7 +131,7 @@ class Simulation:
         self.state_series[:, 0] = start_at
 
         for i, _ in enumerate(final_states[0]):
-            final_states_fluorophore = final_states.map(lambda x, i=i: x[i]).to_numpy(
+            final_states_fluorophore = final_states.map(lambda x: x[i]).to_numpy(
                 dtype=np.int8
             )
             self.state_series[i][1:] = final_states_fluorophore[self.transition_series]
@@ -162,13 +162,9 @@ class Simulation:
                 "approximation only available to single fluorophore systems."
             )
         if prediction.absorbing_chain:
-            warnings.warn(
-                "approximation ignors absorbing states, they will not occur.",
-                stacklevel=2,
-            )
-        eval_floating_point_precision_error(
-            transition_set=self.transition_set, largest_number=None
-        )
+            warnings.warn("approximation ignors absorbing states, they will not occur.")
+        eval_floating_point_precision_error(transition_set=self.transition_set, 
+                                            largest_number=None)
         self.time_series, self.transition_series = approximation(
             prediction=prediction, size=size, seed=seed
         )
@@ -556,7 +552,7 @@ def approximation(prediction, size, seed):
         transition_occurrences[maximum_transition_index], starting_transition
     )
 
-    for transition in transition_order:
+    for i, transition in enumerate(transition_order):
         transition_indices = np.where(transition_series == transition)[0]
         occurrences = transition_indices.size
         rng.shuffle(transition_indices)
@@ -696,8 +692,7 @@ def simulate_experiment(
                     )
                     warnings.warn(
                         "All fluorophores underwent photobleaching or entered "
-                        "another Markov chain absorbing state.",
-                        stacklevel=2,
+                        "another Markov chain absorbing state."
                     )
                     if store_time_points:
                         event_time_points = np.array(time_points)
@@ -751,16 +746,16 @@ def simulate_experiment(
 def eval_floating_point_precision_error(transition_set, largest_number=None):
     """
     Evaluates the floating point precision error of the transition_set. The larger the
-    rates, the more significant the error.
-
+    rates, the more significant the error. 
+    
     Parameters
     ----------
     transition_set : fluopy.transitions.TransitionSet
         Collection of all relevant transitions and related attributes.
     largest_number : None, float
-        The largest number used in the simulation. If None, the smallest increment is
+        The largest number used in the simulation. If None, the smallest increment is 
         calculated for a probability of 0.001.
-
+    
     Returns
     -------
     None
@@ -787,8 +782,7 @@ def eval_floating_point_precision_error(transition_set, largest_number=None):
             "\n Using the highest possible rate which occurs for example in "
             f"state combination {states}\n gives a probability of "
             f"{probability_smallest_increment:.2e} for a smaller increment"
-            " to be drawn.",
-            stacklevel=2,
+            " to be drawn."
         )
 
     else:
@@ -806,8 +800,7 @@ def eval_floating_point_precision_error(transition_set, largest_number=None):
                     "\n This was estimated using the highest possible rate "
                     f"which occurs for example in state combination {states}."
                     "\n Everything drawn below this number will be rounded "
-                    f"to zero starting somewhere between {log_space[i - 1]:.2e}"
-                    f" - {large_number:.2e}.",
-                    stacklevel=2,
+                    f"to zero starting somewhere between {log_space[i-1]:.2e}"
+                    f" - {large_number:.2e}."
                 )
                 break

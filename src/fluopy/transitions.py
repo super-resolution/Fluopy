@@ -2,20 +2,21 @@
 Module transitions
 """
 
-import copy
-import os
 import re
-from dataclasses import asdict, dataclass, field
-from enum import Enum
-from itertools import product
-from pathlib import Path
-
+import os
+import copy
 import numpy as np
 import pandas as pd
+from enum import Enum
+from pathlib import Path
+from itertools import product
 from scipy import interpolate as itp
-
-from . import formulas as fo
+from dataclasses import dataclass, field, asdict
 from . import network as net
+from . import formulas as fo
+
+
+__version__ = "0.1.0"
 
 
 class SingleState(Enum):
@@ -152,16 +153,16 @@ class TransitionType(Enum):
     # energy transfers
     FRET = TransitionAttributes("FRET", PairedState.S1_S0, PairedState.S0_S1, False)
     CIS_FRET_1 = TransitionAttributes(
-        "CET_1", PairedState.S1_Cis, PairedState.S0_Cis, False
+        "CET1", PairedState.S1_Cis, PairedState.S0_Cis, False
     )
     CIS_FRET_2 = TransitionAttributes(
-        "CET_2", PairedState.S1_Cis, PairedState.S0_S0, False
+        "CET2", PairedState.S1_Cis, PairedState.S0_S0, False
     )
     OFF_FRET_1 = TransitionAttributes(
-        "OET_1", PairedState.S1_OFF, PairedState.S0_OFF, False
+        "OET1", PairedState.S1_OFF, PairedState.S0_OFF, False
     )
     OFF_FRET_2 = TransitionAttributes(
-        "OET_2", PairedState.S1_OFF, PairedState.S0_S0, False
+        "OET2", PairedState.S1_OFF, PairedState.S0_S0, False
     )
     S_S_ANNIHILATION = TransitionAttributes(
         "SSA", PairedState.S1_S1, PairedState.S0_S1, False
@@ -170,10 +171,10 @@ class TransitionType(Enum):
         "STA", PairedState.S1_T1, PairedState.S0_T1, False
     )
     S_T_ANNI_RISC = TransitionAttributes(
-        "STA_2", PairedState.S1_T1, PairedState.S0_S1, False
+        "STA2", PairedState.S1_T1, PairedState.S0_S1, False
     )
     S_T_ANNI_BLEACH = TransitionAttributes(
-        "STA_B", PairedState.S1_T1, PairedState.S0_B, False
+        "STAB", PairedState.S1_T1, PairedState.S0_B, False
     )
 
     # rhodamines
@@ -334,7 +335,7 @@ class TransitionSet:
             keep_transitions = []
             df_constructor = []
             for transition in f_transitions:
-                if "dist" not in fluorophore_comb and isinstance(
+                if not "dist" in fluorophore_comb and isinstance(
                     transition.initial_state, PairedState
                 ):
                     raise ValueError(
@@ -511,7 +512,7 @@ class TransitionSet:
 
         keep_transitions = {}
         for fluorophore, f_transition in transitions.items():
-            if "dist" not in fluorophore:
+            if not "dist" in fluorophore:
                 keep_transitions[fluorophore] = f_transition
 
         no_ets = TransitionSet(
@@ -1071,7 +1072,7 @@ def derive_energy_transfer_transitions(
 def derive_transitions(
     summarize=False,
     fluorophore_data=None,
-    fluorophore_ids=None,
+    fluorophore_ids=[0],
     irradiance=2,
     wavelength=640,
     bleaching=False,
@@ -1114,8 +1115,6 @@ def derive_transitions(
         fd.data_files,
         "absorption_s0.csv",
     )
-    if fluorophore_ids is None:
-        fluorophore_ids = [0]
 
     dataframe_absorption = pd.read_csv(filepath_or_buffer=path_absorption, index_col=0)
 

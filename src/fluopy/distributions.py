@@ -3,11 +3,13 @@ Module distributions
 """
 
 import inspect
-from itertools import product
-
 import numpy as np
 from scipy.special import i1
-from scipy.stats import expon, rv_discrete
+from itertools import product
+from scipy.stats import rv_discrete, expon
+
+
+__version__ = "0.1.0"
 
 
 def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100):
@@ -227,7 +229,7 @@ class Photoswitching_fingerprint_model:
                     x,
                     *self.lambdas[
                         valid_combinations[j], np.arange(valid_combinations[j].shape[0])
-                    ],
+                    ]
                 )
             pdf += 1 / n * pdf_part
 
@@ -268,7 +270,7 @@ class Photoswitching_fingerprint_model:
                     x,
                     *self.lambdas[
                         valid_combinations[j], np.arange(valid_combinations[j].shape[0])
-                    ],
+                    ]
                 )
             cdf += 1 / n * cdf_part
         if extra:

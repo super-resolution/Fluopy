@@ -3,11 +3,12 @@ Module simulation_tcspc
 """
 
 import warnings
-
 import numpy as np
 import pandas as pd
-
 from . import simulation as si
+
+
+__version__ = "0.1.0"
 
 
 def simulate_TCSPC(
@@ -17,7 +18,7 @@ def simulate_TCSPC(
     number_pulses=1e5,
     pulse_duration=5e-11,
     time_between_pulses=25e-9,
-    excitation_rates=None,
+    excitation_rates={},
     frame_time="1ms",
     size=1e5,
     store_time_points=False,
@@ -27,9 +28,9 @@ def simulate_TCSPC(
     Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence lifetime
     measurement). Methodically the direct method of the gillespie algorithm.
     The simulation is bound to start at the state configuration where all fluorophores
-    are in the ground state. The fluorescence lifetimes are the time differences of
-    photon emission to last laser pulse. Only photons that pass the bandpass filter are
-    taken into account. The simulation approximates laser pulses to be instantaneous.
+    are in the ground state. The fluorescence lifetimes are the time differences of 
+    photon emission to last laser pulse. Only photons that pass the bandpass filter are 
+    taken into account. The simulation approximates laser pulses to be instantaneous. 
 
     Parameters
     ----------
@@ -90,8 +91,6 @@ def simulate_TCSPC(
     )
     cumsum_sorted_trm_non_exc = np.cumsum(sorted_transition_matrix_non_exc, axis=1)
     number_fluorophores = transition_set.fluorophore_system.count
-    if excitation_rates is None:
-        excitation_rates = {}
     for f in transition_set.fluorophore_system.fluorophores:
         if f.name not in excitation_rates:
             raise ValueError("excitation rates must be provided for all fluorophores.")
@@ -107,7 +106,7 @@ def simulate_TCSPC(
             -excitation_rate * pulse_duration
         )  # CDF of exponential distribution
         excitation_probabilities[fluorophore_ids] = excitation_probability
-
+    
     excitable_indices = np.where(excitation_probabilities != 0)[0]
     rng = np.random.default_rng(seed)
     frame_time = pd.Timedelta(frame_time) / np.timedelta64(1, "s")
@@ -117,13 +116,11 @@ def simulate_TCSPC(
     if frames < 1:
         warnings.warn(
             f"Not enough laser pulses to completely simulate a single frame (requires "
-            f"at least {int(np.ceil(frame_time / time_between_pulses)):.1e} pulses).",
-            stacklevel=2,
+            f"at least {int(np.ceil(frame_time/time_between_pulses)):.1e} pulses)."
         )
     warnings.warn(
-        f"the last frame (of index {time_stamps[-1]}) has {frames - int(frames):.2e} "
-        "times the pulses of other frames.",
-        stacklevel=2,
+        f"the last frame (of index {time_stamps[-1]}) has {frames-int(frames):.2e} "
+        "times the pulses of other frames."
     )
     photon_collector = np.zeros(time_stamps.size)
     df = transition_set.combined_state_transitions_df
@@ -139,16 +136,16 @@ def simulate_TCSPC(
     i = 0
     j = 1
     k = 0
-    m = 1
+    l = 1
     S0 = 0
     S1 = 1
     # skip is True if next transition shall be the remembered one wihtout the chance of
-    # another transition that is not excitation to come before it
+    # another transition that is not excitation to come before it 
     skip = False
     # checked is True if next excitation oulse that excites a fluorophore happens before
     # a remembered transition
     checked = False
-    # not_broken is False if no excitable states AND no possible future transitions
+    # not_broken is False if no excitable states AND no possible future transitions 
     # (i.e., to differentiate between S0 and B since S0 leads to current_state_lambda=0)
     not_broken = True
     random_numbers_exc = rng.uniform(low=0, high=1, size=(size, excitable_indices.size))
@@ -250,8 +247,7 @@ def simulate_TCSPC(
             if not not_broken:
                 warnings.warn(
                     "All fluorophores underwent photobleaching or entered "
-                    "another Markov chain absorbing state.",
-                    stacklevel=2,
+                    "another Markov chain absorbing state."
                 )
                 event_time_series = pd.Series(
                     photon_collector, index=time_stamps, dtype=np.int64
@@ -270,9 +266,9 @@ def simulate_TCSPC(
                 )
             # note that not_broken will be set to False. The rembered transition will be
             # carried out and after that, if the transition was not to an all-absorbing
-            # state (i.e., current_state_lambda != 0), not_broken will be set to True.
+            # state (i.e., current_state_lambda != 0), not_broken will be set to True. 
             # current_state_lambda could also be 0 due to S0 states, but in that case,
-            # not_broken will be set to True since S0s.size != 0.
+            # not_broken will be set to True since S0s.size != 0. 
             elif remember[1] != np.inf and not checked:
                 skip = True
                 next_transition = remember[0]
@@ -288,8 +284,8 @@ def simulate_TCSPC(
         while time < next_pulse_time:
             if not skip:
                 k += 1
-                if k == m * size:
-                    m += 1
+                if k == l * size:
+                    l += 1
                     random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
                 current_state_lambda = row_sums_non_exc[current_state_index]
                 if current_state_lambda == 0:
@@ -297,12 +293,12 @@ def simulate_TCSPC(
                     break
                 not_broken = True
                 transition_time = (1 / current_state_lambda) * np.log(
-                    1 / random_numbers[k - (m - 1) * size, 0]
+                    1 / random_numbers[k - (l - 1) * size, 0]
                 )
                 time += transition_time
                 sorted_index = np.searchsorted(
                     cumsum_sorted_trm_non_exc[current_state_index],
-                    random_numbers[k - (m - 1) * size, 1],
+                    random_numbers[k - (l - 1) * size, 1],
                 )
 
                 next_transition = transition_matrix_sorted_indices_non_exc[
@@ -315,7 +311,7 @@ def simulate_TCSPC(
             current_state_index = next_transition
             if next_transition in emitting_transition_ids:
                 if (
-                    random_numbers[k - (m - 1) * size, 2]
+                    random_numbers[k - (l - 1) * size, 2]
                     < emitting_transition_ids[next_transition]
                 ):
                     if next_transition in et_transition_ids:
@@ -328,7 +324,7 @@ def simulate_TCSPC(
                         photon_collector[frame] += 1
                         if store_time_points:
                             time_points.append(time)
-                    except IndexError:
+                    except:
                         pass
 
     event_time_series = pd.Series(photon_collector, index=time_stamps, dtype=np.int64)
@@ -354,7 +350,7 @@ def simulate_TCSPC_detailed(
     number_pulses=1e5,
     pulse_duration=5e-11,
     time_between_pulses=25e-9,
-    excitation_rates=None,
+    excitation_rates={},
     frame_time="1ms",
     size=1e5,
     store_time_points=False,
@@ -364,10 +360,10 @@ def simulate_TCSPC_detailed(
     Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence lifetime
     measurement). Methodically the direct method of the gillespie algorithm.
     The simulation is bound to start at the state configuration where all fluorophores
-    are in the ground state. The fluorescence lifetimes are the time differences of
+    are in the ground state. The fluorescence lifetimes are the time differences of 
     photon emission to last laser pulse. This is the detailed version of the simulation,
-    meaning that it additionally provides a simulation object that contains all
-    transitions, their time points and the corresponding states. The simulation
+    meaning that it additionally provides a simulation object that contains all 
+    transitions, their time points and the corresponding states. The simulation 
     approximates laser pulses to be instantaneous. If multiple excitations occur at the
     same time point, the time points are spaced by a minimal amount.
 
@@ -417,7 +413,7 @@ def simulate_TCSPC_detailed(
     lifetimes_all : 1-D array_like
         Contains the fluorescence lifetimes of all detected emissions.
     simulation_object : fluopy.simulation.Simulation
-        Container for simulation-associated attributes and methods.
+        Container for simulation-associated attributes and methods. 
     """
     number_pulses = int(number_pulses)
     size = int(size)
@@ -432,8 +428,6 @@ def simulate_TCSPC_detailed(
     )
     cumsum_sorted_trm_non_exc = np.cumsum(sorted_transition_matrix_non_exc, axis=1)
     number_fluorophores = transition_set.fluorophore_system.count
-    if excitation_rates is None:
-        excitation_rates = {}
     for f in transition_set.fluorophore_system.fluorophores:
         if f.name not in excitation_rates:
             raise ValueError("excitation rates must be provided for all fluorophores.")
@@ -458,13 +452,11 @@ def simulate_TCSPC_detailed(
     if frames < 1:
         warnings.warn(
             f"Not enough laser pulses to completely simulate a single frame (requires "
-            f"at least {int(np.ceil(frame_time / time_between_pulses)):.1e} pulses).",
-            stacklevel=2,
+            f"at least {int(np.ceil(frame_time/time_between_pulses)):.1e} pulses)."
         )
     warnings.warn(
-        f"the last frame (of index {time_stamps[-1]}) has {frames - int(frames):.2e} "
-        "times the pulses of other frames.",
-        stacklevel=2,
+        f"the last frame (of index {time_stamps[-1]}) has {frames-int(frames):.2e} "
+        "times the pulses of other frames."
     )
     photon_collector = np.zeros(time_stamps.size)
     df = transition_set.combined_state_transitions_df
@@ -483,16 +475,16 @@ def simulate_TCSPC_detailed(
     i = 0
     j = 1
     k = 0
-    m = 1
+    l = 1
     S0 = 0
     S1 = 1
     # skip is True if next transition shall be the remembered one wihtout the chance of
-    # another transition that is not excitation to come before it
+    # another transition that is not excitation to come before it 
     skip = False
     # checked is True if next excitation oulse that excites a fluorophore happens before
     # a remembered transition
     checked = False
-    # not_broken is False if no excitable states AND no possible future transitions
+    # not_broken is False if no excitable states AND no possible future transitions 
     # (i.e., to differentiate between S0 and B since S0 leads to current_state_lambda=0)
     not_broken = True
     random_numbers_exc = rng.uniform(low=0, high=1, size=(size, excitable_indices.size))
@@ -598,8 +590,7 @@ def simulate_TCSPC_detailed(
             if not not_broken:
                 warnings.warn(
                     "All fluorophores underwent photobleaching or entered "
-                    "another Markov chain absorbing state.",
-                    stacklevel=2,
+                    "another Markov chain absorbing state."
                 )
                 return_values = prepare_return_values(
                     photon_collector,
@@ -615,12 +606,12 @@ def simulate_TCSPC_detailed(
                 )
 
                 return return_values
-
+            
             # note that not_broken will be set to False. The rembered transition will be
             # carried out and after that, if the transition was not to an all-absorbing
-            # state (i.e., current_state_lambda != 0), not_broken will be set to True.
+            # state (i.e., current_state_lambda != 0), not_broken will be set to True. 
             # current_state_lambda could also be 0 due to S0 states, but in that case,
-            # not_broken will be set to True since S0s.size != 0.
+            # not_broken will be set to True since S0s.size != 0. 
             elif remember[1] != np.inf and not checked:
                 skip = True
                 next_transition = remember[0]
@@ -636,8 +627,8 @@ def simulate_TCSPC_detailed(
         while time < next_pulse_time:
             if not skip:
                 k += 1
-                if k == m * size:
-                    m += 1
+                if k == l * size:
+                    l += 1
                     random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
                 current_state_lambda = row_sums_non_exc[current_state_index]
                 if current_state_lambda == 0:
@@ -645,12 +636,12 @@ def simulate_TCSPC_detailed(
                     break
                 not_broken = True
                 transition_time = (1 / current_state_lambda) * np.log(
-                    1 / random_numbers[k - (m - 1) * size, 0]
+                    1 / random_numbers[k - (l - 1) * size, 0]
                 )
                 time += transition_time
                 sorted_index = np.searchsorted(
                     cumsum_sorted_trm_non_exc[current_state_index],
-                    random_numbers[k - (m - 1) * size, 1],
+                    random_numbers[k - (l - 1) * size, 1],
                 )
 
                 next_transition = transition_matrix_sorted_indices_non_exc[
@@ -666,7 +657,7 @@ def simulate_TCSPC_detailed(
             time_series.append(time)
             if next_transition in emitting_transition_ids:
                 if (
-                    random_numbers[k - (m - 1) * size, 2]
+                    random_numbers[k - (l - 1) * size, 2]
                     < emitting_transition_ids[next_transition]
                 ):
                     if next_transition in et_transition_ids:
@@ -679,7 +670,7 @@ def simulate_TCSPC_detailed(
                         photon_collector[frame] += 1
                         if store_time_points:
                             time_points.append(time)
-                    except IndexError:
+                    except:
                         pass
 
     # if checked, the last simulated pulse is past the last existing pulse
@@ -709,12 +700,12 @@ def space_multiple_excitations(time_series):
     also creates space for transitions whose time was too small to be differentiated
     given the floating point precision. It is necessary to space excitations AND other
     transitions, otherwise a transition could appear at a time point smaller than the
-    previous one.
+    previous one. 
 
     Parameters
     ----------
     time_series : 1-D array_like
-        Contains the time points at which transitions occur. Transitions may occur at
+        Contains the time points at which transitions occur. Transitions may occur at 
         the same time point.
 
     Returns
@@ -723,14 +714,11 @@ def space_multiple_excitations(time_series):
         Contains the time points at which transitions occur. Transitions that occurred
         at the same time point are now spaced by a minimal amount.
     """
-    warnings.warn(
-        "Multiple excitations at the same time point are spaced by a minimal "
-        "amount. This also spaces other transitions whose time was too small "
-        "to be differentiated given the floating point precision. Hence, "
-        "transitions with mean time lower than expected will now have mean "
-        "time higher than expected.",
-        stacklevel=2,
-    )
+    warnings.warn('Multiple excitations at the same time point are spaced by a minimal '
+                  'amount. This also spaces other transitions whose time was too small '
+                  'to be differentiated given the floating point precision. Hence, '
+                  'transitions with mean time lower than expected will now have mean '
+                  'time higher than expected.')
     indices = np.unique(time_series, return_index=True)[1]
     while indices.size != time_series.size:
         mask = np.ones(time_series.shape, dtype=bool)
@@ -745,7 +733,7 @@ def insert_excitations(transition_series, transition_set, excitation_series):
     """
     Inserts the indices of the excitation transitions into the transition series in the
     correct order.
-
+    
     Parameters
     ----------
     transition_series : 1-D array_like
@@ -755,7 +743,7 @@ def insert_excitations(transition_series, transition_set, excitation_series):
         Collection of all relevant transitions and related attributes.
     excitation_series : 1-D array_like
         Contains the index of a fluorophore if excitation, -1 if other transition.
-
+    
     Returns
     -------
     transition_series_ad : 1-D array_like
@@ -769,16 +757,15 @@ def insert_excitations(transition_series, transition_set, excitation_series):
     # transitions that are not excitations
     diffs = np.diff(indices_transitions)
     diffs = np.insert(diffs, 0, indices_transitions[0] + 1)
-    # if diffs is > 1, there was an excitation
+    # if diffs is > 1, there was an excitation 
     number_fluorophores = transition_set.fluorophore_system.count
-    already_processed = None
 
     for i in range(number_fluorophores):
-        diff = i + 2
+        diff = i + 2  
         processing = np.where(diffs >= diff)[0]
         if processing.size == 0:
             break  # no more excitations to process
-        # get the index of the last fluorophore that was excited and not already
+        # get the index of the last fluorophore that was excited and not already 
         # included
         corresponding_excitations = excitation_series[
             indices_transitions[processing] - 1 - i
@@ -823,7 +810,7 @@ def insert_excitations(transition_series, transition_set, excitation_series):
         # these are the transition ids of the excitations that are to be inserted
         indices = np.array(merged["id"].tolist())
         # this determines the order in processing (the indices where the excitations
-        # should be inserted)
+        # should be inserted) 
         original_indices = np.array(merged["original_index"].tolist())
         transition_series_ad = np.insert(
             transition_series_ad, processing[original_indices], indices
@@ -841,8 +828,8 @@ def get_state_series(transition_set, transition_series):
     transition_set : fluopy.transitions.TransitionSet
         Collection of all relevant transitions and related attributes.
     transition_series : 1-D array_like
-        Contains the indices of the transitions that occur.
-
+        Contains the indices of the transitions that occur. 
+    
     Returns
     -------
     state_series : np.ndarray
@@ -859,7 +846,7 @@ def get_state_series(transition_set, transition_series):
     state_series[:, 0] = start_at
 
     for i, _ in enumerate(final_states[0]):
-        final_states_fluorophore = final_states.map(lambda x, i=i: x[i]).to_numpy(
+        final_states_fluorophore = final_states.map(lambda x: x[i]).to_numpy(
             dtype=np.int8
         )
         state_series[i][1:] = final_states_fluorophore[transition_series]
@@ -882,7 +869,7 @@ def prepare_return_values(
     """
     Prepares the return values for the detailed TCSPC simulation. This includes the
     conversion to numpy arrays, the insertion of excitation transitions, the spacing of
-    multiple excitations at the same point in time, and the creation of the state
+    multiple excitations at the same point in time, and the creation of the state 
     series. Subsequently, the Simulation object is created.
 
     Parameters
@@ -891,7 +878,7 @@ def prepare_return_values(
         Contains the number of detected emissions at the corresponding time points.
     time_stamps : 1-D array_like
         Contains the time points (increasing by a defined time interval).
-    time_points : 1-D array_like, None
+    time_points : 1-D array_like, None   
         The time points at which emissions are detected.
     lifetimes_DA : 1-D array_like
         Contains the fluorescence lifetimes of detected emissions when energy transfer
@@ -912,7 +899,7 @@ def prepare_return_values(
         Contains the index of a fluorophore if excitation, -1 if other transition.
     transition_set : fluopy.transitions.TransitionSet
         Collection of all relevant transitions and related attributes.
-
+    
     Returns
     -------
     event_time_series : pd.Series

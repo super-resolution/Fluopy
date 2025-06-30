@@ -4,11 +4,13 @@ Module routines
 
 import numpy as np
 import pandas as pd
-
-from . import emissions as em
-from . import fitting as fit
 from . import formulas as fo
+from . import fitting as fit
+from . import emissions as em
 from . import simulation as si
+
+
+__version__ = "0.1.0"
 
 
 def emission_post_processing(emis, rng):
@@ -21,7 +23,7 @@ def emission_post_processing(emis, rng):
         Container for emission-associated attributes.
     rng : None, int, BitGenerator, Generator
         A seed to initialize the BitGenerator.
-
+    
     Returns
     -------
     None
@@ -53,7 +55,7 @@ def get_bleaching_times(simulation):
         Times where photobleaching occurred.
     """
     df = simulation.transition_set.transition_df
-    bleached_states = df[df["absorbing"]]["final_state"]
+    bleached_states = df[df["absorbing"] == True]["final_state"]
     bleached_states = [x.value for x in bleached_states]
     if len(bleached_states) == 1:
         bleached_state = bleached_states[0]
@@ -93,7 +95,7 @@ def get_global_bleaching_rates(bleaching_times):
     global_bleaching_rates : 2-D array_like
         The two global bleaching rates and the mixing factor for each fluorophore.
     delta_bleaching_times_all : list of arrays
-        The arrival times of photons between bleaching events. The timer starts at the
+        The arrival times of photons between bleaching events. The timer starts at the 
         previous bleaching event.
     """
     global_bleaching_rates = []
@@ -160,8 +162,8 @@ def fingerprint_analysis(
         Times where photobleaching occurred. Each run is a row, each fluorophore a
         column). Each row is sorted, np.nan will be at the end.
     delta_times_photons_between_bleaching : list of lists
-        The arrival times of photons between bleaching events. The timer starts at the
-        previous bleaching event.
+        The arrival times of photons between bleaching events. The timer starts at the 
+        previous bleaching event. 
     """
     rng = np.random.default_rng(seed)
     fingerprint_data = pd.Series(
@@ -205,7 +207,7 @@ def fingerprint_analysis(
                     break
 
             emission_post_processing(emis, rng)
-            emis.event_time_series.name = i * batch_size + j
+            emis.event_time_series.name = i*batch_size + j
             if df is None:
                 df = emis.event_time_series
             else:
@@ -257,7 +259,8 @@ PARAMS_DSTORM = {
         "concentration": 100,
         "ph": 7.5,
     },
-    "energy_transfer_parameters": {"overwrite": {"off": [1, 1e-4]}, "exclude": ["s0"]},
+    'energy_transfer_parameters': {'overwrite': {'off': [1, 1e-4]}, 
+                                   'exclude': ['s0']}
 }
 
 
@@ -265,7 +268,7 @@ PARAMS_TROLOX = {
     "irradiance": 2.5,
     "wavelength": 640,
     "dstorm": False,
-    "energy_transfer_parameters": {"exclude": ["s0"]},
+    'energy_transfer_parameters': {'exclude': ['s0']}
 }
 
 
@@ -276,6 +279,6 @@ PARAMS_EMIS = {
 
 
 PARAMS_PULSE = {
-    "time_between_pulses": 1.25e-8,
-    "pulse_duration": 5e-11,
+    'time_between_pulses': 1.25e-8,
+    'pulse_duration': 5e-11,
 }

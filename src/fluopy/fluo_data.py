@@ -5,6 +5,9 @@ Module fluo_data
 from dataclasses import dataclass
 
 
+__version__ = "0.1.0"
+
+
 @dataclass
 class FluorophoreData:
     """
@@ -54,7 +57,6 @@ class Cy5_DNA(FluorophoreData):
     """
     The buffer is oxygen-depleted.
     """
-
     data_files: str = "cy5_data"
 
     QUANTUM_YIELD: float = 0.27
@@ -63,7 +65,7 @@ class Cy5_DNA(FluorophoreData):
     ISC_TS_RATE: float = 5e3
     RISC_RATE: float = 0
     STA_EFFICIENCY: float = 0
-    PHOTOBLEACH_T1_RATE: float = 1e1
+    PHOTOBLEACH_T1_RATE: float = 1e1  
     PHOTOBLEACH_T2_RATE: float = 0
 
     DSTORM_PET_T_RATE_MOL: float = 1e8

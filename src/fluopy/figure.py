@@ -2,12 +2,17 @@
 Module custom_plot
 """
 
+import io
+import cairosvg
+import numpy as np
+from PIL import Image
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-import numpy as np
 from matplotlib import rcParams, rcParamsDefault
-
 from .miscellaneous import format_axis_labels
+
+
+__version__ = "0.1.0"
 
 
 def universal_figure(
@@ -318,14 +323,14 @@ def universal_figure(
         case "boxplot":
             ax.boxplot(data, labels=label, **type_specific_kwargs)
         case _:
-            raise ValueError("Invalid type_ argument.")
+            raise ValueError('Invalid type_ argument.')
 
     # x-axis
     if xlim is not None:
         ax.set_xlim(xlim)
     if adjust_x is not None:
         ax.xaxis.set_major_formatter(
-            ticker.FuncFormatter(lambda old_x, _: f"{old_x * adjust_x:g}")
+            ticker.FuncFormatter(lambda old_x, _: "{0:g}".format(old_x * adjust_x))
         )
     if xscale is not None:
         ax.set_xscale(xscale)
@@ -349,7 +354,7 @@ def universal_figure(
         ax.set_ylim(ylim)
     if adjust_y is not None:
         ax.yaxis.set_major_formatter(
-            ticker.FuncFormatter(lambda old_y, _: f"{old_y * adjust_y:g}")
+            ticker.FuncFormatter(lambda old_y, _: "{0:g}".format(old_y * adjust_y))
         )
     if yscale is not None:
         ax.set_yscale(yscale)
@@ -438,3 +443,53 @@ def universal_figure(
     axes = axes.reshape(nrows, ncols)
 
     return axes
+
+
+def multi_plot(
+    svg_files,
+    dpi=300,
+    dims=None,
+    figsize=(10, 10),
+    width_ratios=None,
+    height_ratios=None,
+    spans=None,
+):
+    """
+    Constructs a figure with multiple plots.
+
+    Parameters
+    ----------
+    svg_files : list
+        List of .svg files to include in the figure.
+    dpi : int
+        Dots per inch.
+    dims : tuple
+        Dimensions of the grid. If None, the grid will be len(svg_files)/2 x 2.
+    figsize : tuple
+        Size of the figure.
+
+    Returns
+    -------
+    axes : np.ndarray
+        Contains matplotlib.axes.Axes.
+    """
+    images = []
+    for svg_file in svg_files:
+        image = cairosvg.svg2png(url=svg_file, dpi=dpi)
+        img = Image.open(io.BytesIO(image))
+        images.append(img)
+    if dims is None:
+        dims = (len(svg_files) // 2 + 1, 2)
+    gs = plt.GridSpec(
+        dims[0], dims[1], width_ratios=width_ratios, height_ratios=height_ratios
+    )
+    fig = plt.figure(figsize=figsize)
+    for i, img in enumerate(images):
+        if spans:
+            ax = fig.add_subplot(gs[spans[i][0] : spans[i][1]])
+        else:
+            ax = fig.add_subplot(gs[i])
+        ax.imshow(img)
+        ax.axis("off")
+
+    return fig

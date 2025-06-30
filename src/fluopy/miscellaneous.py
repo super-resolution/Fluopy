@@ -4,11 +4,13 @@ Module miscellaneous
 
 import re
 import reprlib
-from dataclasses import fields, is_dataclass
-
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+from dataclasses import is_dataclass, fields
+
+
+__version__ = "0.1.0"
 
 
 def delete_subplots(axes, keep_number=None, del_positions=None):
@@ -199,7 +201,7 @@ def find_key_in_list(row, key):
     int, None
         If key is in row['fluorophore_ids'], return the index of the row.
     """
-    if key in row["fluorophore_ids"]:
+    if key in row['fluorophore_ids']:
         return row.name
     return None
 
@@ -207,19 +209,19 @@ def find_key_in_list(row, key):
 def format_electronic_state(label):
     """
     Format label for LaTeX.
-
+    
     Parameters
     ----------
     label : str
         Label to format.
-
+    
     Returns
     -------
     label : str
         Formatted label.
     """
-    if re.match(r"^[A-Z]\d$", label):
-        return label[0] + r"$_{" + label[1:] + r"}$"
+    if re.match(r"^[A-Z]\d$", label): 
+        return label[0] + r"$_{" + label[1:] + r"}$"  
     return label
 
 
@@ -237,8 +239,8 @@ def format_transition(label):
     label : str
         Formatted label.
     """
-    if "_" in label:
-        parts = label.split("_", 1)
+    if '_' in label:
+        parts = label.split('_', 1)
         return parts[0] + r"$_{" + parts[1] + r"}$"
     return label
 
@@ -253,7 +255,7 @@ def format_axis_labels(label, offset):
         Label to format.
     offset : str
         Offset to multiply label with.
-
+    
     Returns
     -------
     label : str
