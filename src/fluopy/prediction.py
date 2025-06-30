@@ -4,14 +4,13 @@ Module prediction
 
 import re
 import warnings
-import numpy as np
+
 import matplotlib as mpl
+import numpy as np
 from scipy.stats import expon
+
 from . import figure as fi
 from .miscellaneous import format_electronic_state, format_transition
-
-
-__version__ = "0.1.0"
 
 
 class Prediction:
@@ -147,7 +146,7 @@ class Prediction:
             if "dist" in fluorophore_comb:
                 pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
                 match = re.match(pattern, fluorophore_comb)
-                d, a, dist = match.group(1), match.group(2), match.group(3)
+                d, _, _ = match.group(1), match.group(2), match.group(3)
             else:
                 d = fluorophore_comb
             if d in grouper:
@@ -155,7 +154,7 @@ class Prediction:
             else:
                 grouper[d] = group.index.get_level_values(1).tolist()
 
-        for fluorophore, indices in grouper.items():
+        for _, indices in grouper.items():
             frequency_transitions[indices] /= np.sum(frequency_transitions[indices])
 
         return frequency_transitions
@@ -210,7 +209,7 @@ class Prediction:
             if "dist" in fluorophore_comb:
                 pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
                 match = re.match(pattern, fluorophore_comb)
-                d, a, dist = match.group(1), match.group(2), match.group(3)
+                d, _, _ = match.group(1), match.group(2), match.group(3)
             else:
                 d = fluorophore_comb
             if d in grouper:
@@ -218,7 +217,7 @@ class Prediction:
             else:
                 grouper[d] = group.index.get_level_values(1).tolist()
 
-        for fluorophore, indices in grouper.items():
+        for _, indices in grouper.items():
             frequency_transitions[indices] /= np.sum(frequency_transitions[indices])
 
         return frequency_transitions
@@ -242,7 +241,7 @@ class Prediction:
             if "dist" in fluorophore_comb:
                 pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
                 match = re.match(pattern, fluorophore_comb)
-                d, a, dist = match.group(1), match.group(2), match.group(3)
+                d, a, _ = match.group(1), match.group(2), match.group(3)
                 single_states_a = single_states[a]
                 single_states_d = single_states[d]
                 factor = 1
@@ -672,8 +671,8 @@ class Prediction:
         kwargs.setdefault("ylabel", "PD")
         kwargs.setdefault(
             "title",
-            rf"""$\tau$ of {fluorophore} 
-            {self.transition_set.transition_df.loc[(fluorophore, transition_id), 
+            rf"""$\tau$ of {fluorophore}
+            {self.transition_set.transition_df.loc[(fluorophore, transition_id),
                                                    "abbreviation"]}""",
         )
         kwargs.setdefault("yscale", "log")

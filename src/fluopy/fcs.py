@@ -2,14 +2,12 @@
 Module fcs
 """
 
+import multipletau as mp
 import numba
 import numpy as np
 import pandas as pd
-import multipletau as mp
+
 from . import figure as fi
-
-
-__version__ = "0.1.0"
 
 
 class FCS:
@@ -273,7 +271,7 @@ def fit_triplet_cis(tau, k_isc, k_T, k_01, k_10, k_iso, k_biso_eff):
     k_isc_eff = k_01 / (k_01 + k_10) * k_isc
     k_iso_eff = k_01 / (k_01 + k_10) * k_iso
 
-    eigen_1 = 0
+    # eigen_1 = 0
 
     part_1 = (k_isc_eff + k_T + k_iso_eff + k_biso_eff) / 2
     part_2 = (

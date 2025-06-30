@@ -4,11 +4,9 @@ Module blinking
 
 import numpy as np
 import pandas as pd
+
 from . import figure as fi
 from . import transitions as tr
-
-
-__version__ = "0.1.0"
 
 
 class Blinking:

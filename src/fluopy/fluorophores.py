@@ -3,15 +3,13 @@ Module fluorophores
 """
 
 import warnings
-import numpy as np
-from typing import Optional
 from collections.abc import Collection
 from dataclasses import dataclass, field
+
+import numpy as np
+
 from . import figure as fi
 from . import fluo_data as fd
-
-
-__version__ = "0.1.0"
 
 
 @dataclass
@@ -36,7 +34,7 @@ class Fluorophore:
     identity: int = field(init=False)
     name: str = field()
     position: Collection[float, float] = field()
-    constants: Optional[fd.FluorophoreData] = None
+    constants: fd.FluorophoreData | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "identity", None)
@@ -54,7 +52,8 @@ class Fluorophore:
         elif len(class_name) == 0:
             warnings.warn(
                 f"Fluorophore {self.name} not known. Parameters have to be defined "
-                "manually."
+                "manually.",
+                stacklevel=2,
             )
         else:
             raise ValueError("Multiple fluorophore dataclasses found.")
@@ -136,15 +135,15 @@ class FluorophoreSystem:
             overwrite, exclude, include.
             Only used if energy_transfer is True.
             - overwrite : dict
-                Contains the type of acceptor state as key and a list with a factor for 
-                the rate as well as an efficiency (of not recylcing acceptor state) as 
+                Contains the type of acceptor state as key and a list with a factor for
+                the rate as well as an efficiency (of not recylcing acceptor state) as
                 value.
             - exclude : list
                 Contains the type of acceptor state (lowercase) to be excluded.
             - include : dict
-                Contains the type of acceptor state as key and a list of tuples as 
-                values. The tuples contain the transition type and an efficiency. If the 
-                summed efficiencies is e.g., 0.5, all other energy transfers affecting 
+                Contains the type of acceptor state as key and a list of tuples as
+                values. The tuples contain the transition type and an efficiency. If the
+                summed efficiencies is e.g., 0.5, all other energy transfers affecting
                 the acceptor state are multiplied by 1-0.5.
         dstorm_parameters : dict, optional
             May contain the following keys: reducing_agent, concentration, k_pet, ph.
@@ -158,8 +157,8 @@ class FluorophoreSystem:
         """
         transitions = {}
         from .transitions import (
-            derive_transitions,
             derive_energy_transfer_transitions,
+            derive_transitions,
         )
 
         skip_warnings = []
@@ -193,7 +192,8 @@ class FluorophoreSystem:
                     warnings.warn(
                         "'overwrite', 'exclude' or 'include' in "
                         "energy_transfer_parameters will effect all types of "
-                        "fluorophores."
+                        "fluorophores.",
+                        stacklevel=2,
                     )
         energy_transfer_parameters.setdefault("dipole_orientation_factor", 2 / 3)
         energy_transfer_parameters.setdefault("refractive_index", 1.33)
@@ -213,7 +213,8 @@ class FluorophoreSystem:
                     skip_warnings.append(fluorophore)
                     warnings.warn(
                         "load_transitions() not available for this kind of "
-                        f"fluorophore: {fluorophore.name}."
+                        f"fluorophore: {fluorophore.name}.",
+                        stacklevel=2,
                     )
                 else:
                     continue
@@ -237,7 +238,8 @@ class FluorophoreSystem:
                                 skip_warnings.append(acceptor)
                                 warnings.warn(
                                     "load_transitions() not available for this kind of "
-                                    f"fluorophore: {acceptor.name}."
+                                    f"fluorophore: {acceptor.name}.",
+                                    stacklevel=2,
                                 )
                             else:
                                 continue
@@ -394,7 +396,8 @@ def get_positions_from_distance(distance=1, count=1, shape="triangle"):
     else:
         warnings.warn(
             "If count is above 4, all fluorophores are positioned at the same"
-            " location. This indicates no support for energy transfers."
+            " location. This indicates no support for energy transfers.",
+            stacklevel=2,
         )
         positions = [[position_1[0], position_1[1] + i] for i in range(count)]
 

@@ -4,14 +4,13 @@ Module analysis
 
 import re
 import warnings
+
+import matplotlib as mpl
 import numpy as np
 import pandas as pd
-import matplotlib as mpl
+
 from . import figure as fi
 from .miscellaneous import format_electronic_state, format_transition
-
-
-__version__ = "0.1.0"
 
 
 class Analysis:
@@ -59,7 +58,8 @@ class Analysis:
             warnings.warn(
                 "if a fluorophore reaches its individual absorbing state, it has an "
                 "absolute state and transition frequency of 1, but the lifetime is nan "
-                "and the state occupation 0."
+                "and the state occupation 0.",
+                stacklevel=2,
             )
 
         self.frequency_transitions = self.get_transition_occurrences()
@@ -152,7 +152,7 @@ class Analysis:
             if "dist" in fluorophore_comb:
                 pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
                 match = re.match(pattern, fluorophore_comb)
-                d, a, dist = match.group(1), match.group(2), match.group(3)
+                d, _, _ = match.group(1), match.group(2), match.group(3)
             else:
                 d = fluorophore_comb
             if d in grouper:
@@ -160,7 +160,7 @@ class Analysis:
             else:
                 grouper[d] = group.index.get_level_values(1).tolist()
 
-        for fluorophore, indices in grouper.items():
+        for _, indices in grouper.items():
             frequency_transitions[indices] /= np.sum(frequency_transitions[indices])
 
         return frequency_transitions
@@ -451,7 +451,8 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 warnings.warn(
-                    "prediction is based on different TransitionSet than simulation."
+                    "prediction is based on different TransitionSet than simulation.",
+                    stacklevel=2,
                 )
             draw_marker = [np.arange(df.shape[0]), prediction.frequency_transitions]
 
@@ -511,7 +512,8 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 warnings.warn(
-                    "prediction is based on different TransitionSet than simulation."
+                    "prediction is based on different TransitionSet than simulation.",
+                    stacklevel=2,
                 )
             draw_marker = [
                 np.arange(xticks),
@@ -605,7 +607,8 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 warnings.warn(
-                    "prediction is based on different TransitionSet than simulation."
+                    "prediction is based on different TransitionSet than simulation.",
+                    stacklevel=2,
                 )
             if prediction.energy_transfer:
                 raise ValueError(
@@ -671,7 +674,8 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 warnings.warn(
-                    "prediction is based on different TransitionSet than simulation."
+                    "prediction is based on different TransitionSet than simulation.",
+                    stacklevel=2,
                 )
             if prediction.energy_transfer:
                 raise ValueError(
@@ -744,7 +748,8 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 warnings.warn(
-                    "prediction is based on different TransitionSet than simulation."
+                    "prediction is based on different TransitionSet than simulation.",
+                    stacklevel=2,
                 )
             if prediction.energy_transfer:
                 raise ValueError(
@@ -806,7 +811,8 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 warnings.warn(
-                    "prediction is based on different TransitionSet than simulation."
+                    "prediction is based on different TransitionSet than simulation.",
+                    stacklevel=2,
                 )
             if prediction.energy_transfer:
                 raise ValueError(
@@ -850,9 +856,9 @@ class Analysis:
         kwargs.setdefault("ylabel", "PD")
         kwargs.setdefault(
             "title",
-            rf"""$\tau$ of {fluorophore} 
-            {format_transition(self.simulation.transition_set.transition_df.loc[(fluorophore, 
-                                                               transition_id), 
+            rf"""$\tau$ of {fluorophore}
+            {format_transition(self.simulation.transition_set.transition_df.loc[(fluorophore,
+                                                               transition_id),
                                                                "abbreviation"])}""",
         )
         kwargs.setdefault("yscale", "log")
@@ -864,7 +870,8 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 warnings.warn(
-                    "prediction is based on different TransitionSet than simulation."
+                    "prediction is based on different TransitionSet than simulation.",
+                    stacklevel=2,
                 )
             if prediction.energy_transfer:
                 raise ValueError(

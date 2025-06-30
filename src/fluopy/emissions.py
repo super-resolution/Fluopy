@@ -4,16 +4,15 @@ Module emissions
 
 import os
 import warnings
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from scipy.stats import norm, poisson, gamma, binom
+from scipy.stats import binom, gamma, norm, poisson
+
 from . import figure as fi
+from .simulation import eval_floating_point_precision_error, simulate_experiment
 from .simulation_tcspc import simulate_TCSPC, simulate_TCSPC_detailed
-from .simulation import simulate_experiment, eval_floating_point_precision_error
-
-
-__version__ = "0.1.0"
 
 
 class Emissions:
@@ -204,7 +203,8 @@ class Emissions:
             warnings.warn(
                 "The irradiance used initially for excitation rates in\n"
                 " transition_set is now assumed to be the mean irradiance of\n"
-                " pulse and no pulse duration."
+                " pulse and no pulse duration.",
+                stacklevel=2,
             )
             # This assumes that the irradiance used for the excitation rates in
             # transition_set is the mean irradiance of pulse and no pulse duration.
@@ -326,7 +326,7 @@ class Emissions:
             emission_indices = np.concatenate(collect_emission_indices)
         else:
             df = simulation.transition_set.combined_state_transitions_df
-            emitting_transition_ids = df.loc[df["photon"] == True].index.to_numpy()
+            emitting_transition_ids = df.loc[df["photon"]].index.to_numpy()
             emission_indices = np.isin(
                 simulation.transition_series, emitting_transition_ids
             ).nonzero()[0]
@@ -779,7 +779,7 @@ def get_emitting_transition_ids(bandpass, transition_set):
                     emitting_transition_ids[emitting_transition_id] = p_passed
     else:
         df = transition_set.combined_state_transitions_df
-        emitting_transition_ids_ = df.loc[df["photon"] == True].index.to_numpy()
+        emitting_transition_ids_ = df.loc[df["photon"]].index.to_numpy()
         emitting_transition_ids = {identity: 1 for identity in emitting_transition_ids_}
 
     return emitting_transition_ids

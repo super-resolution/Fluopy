@@ -3,13 +3,11 @@ Module network
 """
 
 import re
-import numpy as np
-import networkx as nx
+
 import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
 from matplotlib import rcParams, rcParamsDefault
-
-
-__version__ = "0.1.0"
 
 
 def construct_state_graphs(transition_df):
@@ -36,7 +34,7 @@ def construct_state_graphs(transition_df):
         edges = []
         for (_, _), transition in f_transitions.iterrows():
             abbr = transition["abbreviation"]
-            if not "dist" in fluorophore:
+            if "dist" not in fluorophore:
                 source = transition["initial_state"].name
                 destination = transition["final_state"].name
                 edge = (
@@ -194,7 +192,7 @@ def plot_graph(G, graph_type="shell", colors=None, scale=1):
     labels = {}
     colormap = []
 
-    for i, node in enumerate(G):
+    for _, node in enumerate(G):
         if isinstance(node, str) and "(2)" in node:
             colormap.append(colors[1])
             labels[node] = node.replace("(2)", "")
