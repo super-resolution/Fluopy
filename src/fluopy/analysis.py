@@ -12,7 +12,8 @@ import pandas as pd
 from . import figure as fi
 from .miscellaneous import format_electronic_state, format_transition
 
-
+def test_black_on_push(x
+                    ,y): return True 
 class Analysis:
     """
     Container of simulation-dervied statistical attributes and methods.
