@@ -15,7 +15,7 @@ Tutorials are provided as Jupyter notebooks.
    :name: toc_tutorials_data
 
    Tutorial <./notebooks/tutorial>
-   Vincent's Tutorial <./notebooks/tutorial$CTVB$>
+   Vincent's Tutorial <./notebooks/tutorial$CTB$>
 
 
 .. toctree::
