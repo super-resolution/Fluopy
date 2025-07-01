@@ -561,6 +561,11 @@ def approximation(prediction, size, seed):
         occurrences = transition_indices.size
         rng.shuffle(transition_indices)
         follow_up_transitions = np.array(list(G.successors(transition)))
+        follow_up_transitions = follow_up_transitions[
+            ~prediction.transition_set.transition_df["absorbing"].loc[
+                (fluorophore, follow_up_transitions)
+            ]
+        ]
         rates = (
             prediction.transition_set.transition_df["rate"]
             .loc[(fluorophore, follow_up_transitions)]
