@@ -5,7 +5,6 @@ Module fluorophores
 import warnings
 from collections.abc import Collection
 from dataclasses import dataclass, field
-from typing import Optional
 
 import numpy as np
 
@@ -35,7 +34,7 @@ class Fluorophore:
     identity: int = field(init=False)
     name: str = field()
     position: Collection[float, float] = field()
-    constants: Optional[fd.FluorophoreData] = None
+    constants: fd.FluorophoreData | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "identity", None)
@@ -53,7 +52,8 @@ class Fluorophore:
         elif len(class_name) == 0:
             warnings.warn(
                 f"Fluorophore {self.name} not known. Parameters have to be defined "
-                "manually."
+                "manually.",
+                stacklevel=2,
             )
         else:
             raise ValueError("Multiple fluorophore dataclasses found.")
@@ -192,7 +192,8 @@ class FluorophoreSystem:
                     warnings.warn(
                         "'overwrite', 'exclude' or 'include' in "
                         "energy_transfer_parameters will effect all types of "
-                        "fluorophores."
+                        "fluorophores.",
+                        stacklevel=2,
                     )
         energy_transfer_parameters.setdefault("dipole_orientation_factor", 2 / 3)
         energy_transfer_parameters.setdefault("refractive_index", 1.33)
@@ -212,7 +213,8 @@ class FluorophoreSystem:
                     skip_warnings.append(fluorophore)
                     warnings.warn(
                         "load_transitions() not available for this kind of "
-                        f"fluorophore: {fluorophore.name}."
+                        f"fluorophore: {fluorophore.name}.",
+                        stacklevel=2,
                     )
                 else:
                     continue
@@ -236,7 +238,8 @@ class FluorophoreSystem:
                                 skip_warnings.append(acceptor)
                                 warnings.warn(
                                     "load_transitions() not available for this kind of "
-                                    f"fluorophore: {acceptor.name}."
+                                    f"fluorophore: {acceptor.name}.",
+                                    stacklevel=2,
                                 )
                             else:
                                 continue
@@ -393,7 +396,8 @@ def get_positions_from_distance(distance=1, count=1, shape="triangle"):
     else:
         warnings.warn(
             "If count is above 4, all fluorophores are positioned at the same"
-            " location. This indicates no support for energy transfers."
+            " location. This indicates no support for energy transfers.",
+            stacklevel=2,
         )
         positions = [[position_1[0], position_1[1] + i] for i in range(count)]
 

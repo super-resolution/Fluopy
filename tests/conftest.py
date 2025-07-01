@@ -1,4 +1,5 @@
 import pytest
+from pathlib import Path
 from fluopy import emissions as em
 from fluopy import prediction as pr
 from fluopy import simulation as si
@@ -260,9 +261,7 @@ def em_tr_set_et_2f_diff(sim_tr_set_et_2f_diff):
 @pytest.fixture()
 def em_large():
     emis = em.Emissions.load(
-        path=(
-            r"C:\Users\vie43sq\Desktop\GitHub\Photoswitching\src\tests"
-        ),
+        path=Path(__file__).parent,
         name_extension="_em_large",
     )
     return emis
@@ -271,9 +270,7 @@ def em_large():
 @pytest.fixture()
 def em_very_large():
     emis = em.Emissions.load(
-        path=(
-            r"C:\Users\vie43sq\Desktop\GitHub\Photoswitching\src\tests"
-        ),
+        path=Path(__file__).parent,
         name_extension="_em_very_large",
     )
     return emis

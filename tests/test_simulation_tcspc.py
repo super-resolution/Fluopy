@@ -5,9 +5,6 @@ from fluopy import transitions as tr
 from fluopy import simulation_tcspc as si
 
 
-pytestmark = pytest.mark.slow
-
-
 @pytest.mark.parametrize(
     "dirname, emitting_transition_ids, et_transition_ids, \
                          number_pulses, pulse_duration, time_between_pulses, \

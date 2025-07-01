@@ -1,9 +1,3 @@
-"""
-.. currentmodule:: fluopy
-
-Fluopy consists of the following modules:
-
-"""
 try:
     from fluopy._version import version as __version__
 except ImportError:

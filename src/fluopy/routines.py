@@ -53,7 +53,7 @@ def get_bleaching_times(simulation):
         Times where photobleaching occurred.
     """
     df = simulation.transition_set.transition_df
-    bleached_states = df[df["absorbing"] == True]["final_state"]
+    bleached_states = df[df["absorbing"]]["final_state"]
     bleached_states = [x.value for x in bleached_states]
     if len(bleached_states) == 1:
         bleached_state = bleached_states[0]

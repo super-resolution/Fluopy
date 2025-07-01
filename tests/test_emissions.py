@@ -20,7 +20,7 @@ from fluopy import fluorophores as fl
 )
 def test_get_p_filter(bandpass, expected):
     data_dir = os.path.join(
-        Path(__file__).parents[1], "fluopy", "fluorophore_collection"
+        Path(__file__).parents[1], "src", "fluopy", "fluorophore_collection"
     )
     fluorophore = fl.Fluorophore(name="testfluo_1", position=[0, 0])
     if expected == "ValueError1":

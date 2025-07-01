@@ -568,7 +568,7 @@ def test_derive_energy_transfer_transitions(
         for transition in transitions:
             if transition.initial_state == tr.PairedState.S1_T1:
                 assert_total_rate += transition.rate
-                if transition.abbreviation == "STAB":
+                if transition.abbreviation == "STA_B":
                     assert_rate = transition.rate
         assert assert_rate == 0.5 * assert_total_rate
 
