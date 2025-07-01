@@ -40,6 +40,7 @@ Run tests
 
 Use pytest to run tests from the source or tests directory::
 
+    pip install --group test
     pytest
 
 
