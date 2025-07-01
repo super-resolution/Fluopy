@@ -2,14 +2,12 @@
 Module fcs
 """
 
+import multipletau as mp
 import numba
 import numpy as np
 import pandas as pd
-import multipletau as mp
+
 from . import figure as fi
-
-
-__version__ = "0.1.0"
 
 
 class FCS:

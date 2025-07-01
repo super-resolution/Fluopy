@@ -5,13 +5,12 @@ Module simulation
 import gc
 import os
 import warnings
+
+import iteround as it
 import numpy as np
 import pandas as pd
-import iteround as it
+
 from . import network as net
-
-
-__version__ = "0.1.0"
 
 
 class Simulation:
@@ -91,8 +90,9 @@ class Simulation:
         size = int(size)
         df = self.transition_set.combined_state_transitions_df
         start_index = df[df["final_state"] == start_at].index[0]
-        eval_floating_point_precision_error(transition_set=self.transition_set, 
-                                            largest_number=end_time)
+        eval_floating_point_precision_error(
+            transition_set=self.transition_set, largest_number=end_time
+        )
         if end_time is None:
             self.time_series, self.transition_series = direct_method_steps(
                 transition_matrix=self.transition_set.transition_matrix,
@@ -163,8 +163,9 @@ class Simulation:
             )
         if prediction.absorbing_chain:
             warnings.warn("approximation ignors absorbing states, they will not occur.")
-        eval_floating_point_precision_error(transition_set=self.transition_set, 
-                                            largest_number=None)
+        eval_floating_point_precision_error(
+            transition_set=self.transition_set, largest_number=None
+        )
         self.time_series, self.transition_series = approximation(
             prediction=prediction, size=size, seed=seed
         )
@@ -746,16 +747,16 @@ def simulate_experiment(
 def eval_floating_point_precision_error(transition_set, largest_number=None):
     """
     Evaluates the floating point precision error of the transition_set. The larger the
-    rates, the more significant the error. 
-    
+    rates, the more significant the error.
+
     Parameters
     ----------
     transition_set : fluopy.transitions.TransitionSet
         Collection of all relevant transitions and related attributes.
     largest_number : None, float
-        The largest number used in the simulation. If None, the smallest increment is 
+        The largest number used in the simulation. If None, the smallest increment is
         calculated for a probability of 0.001.
-    
+
     Returns
     -------
     None

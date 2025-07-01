@@ -1,49 +1,65 @@
-# Overview
-Continuous time markov chains (CTMC) are used to model the emission behavior of fluorophores. \
-The number of fluorophores is limited (e.g., 4) due to exponentially scaling memory usage of the transition matrix. \
-The fluorophores are in fixed positions. 
-> [!NOTE]
-> This resembles e.g., a protein dimer labeled with two different fluorophores. Even though the protein is likely mobile, the relative positions of the fluorophores are expected to be constant. Rotational movement or restrictions of such can be handled with the dipole orientation factor &kappa;².
+![logo](./docs/_static/logo.png) Welcome to Fluopy
+==================================================
 
-The package offers: 
-- very detailed simulation (information about all transitions and states)
-- different simulation options depending on concerns
-  - detailed: ✔️ information ❌ time and memory
-  - frames: ✔️ low memory ❌ time, only emission data
-  - approx: ✔️ information, time ❌ statistically incorrect
-  - parallel: ✔️ via Ray ✔️ via GPU
-- virtually all transitions possible
-- unlimited amount of different energy transfers simultaneously
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5722472.svg)](https://doi.org/10.5281/zenodo.5722472)
+[![PyPI](https://img.shields.io/pypi/v/fluopy)](https://pypi.org/project/fluopy/)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/fluopy)](https://www.python.org/)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/super-resolution/Photoswitching)](https://github.com/super-resolution/Photoswitching)
+[![GitHub last commit](https://img.shields.io/github/last-commit/super-resolution/Photoswitching)](https://github.com/super-resolution/Photoswitching/commits/main)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Tests](https://github.com/super-resolution/Photoswitching/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/super-resolution/Photoswitching/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/super-resolution/Photoswitching/branch/main/graph/badge.svg?token=XTZRIIVOGE)](https://codecov.io/gh/super-resolution/Photoswitching)
+[![Documentation Status](https://readthedocs.org/projects/Photoswitching/badge/?version=latest)](https://locan.readthedocs.io/en/latest/?badge=latest)
 
-Parameters needed for accurate simulation:
-- emission and absorption data of involved fluorophores**
-- photophysical model (states, transitions, rates)
-- positions of the fluorophores
-- laser irradiance [W/m²], wavelength [m]
-- frame integration time [s]
-- bandpass range
-- EMCCD gain
-- photon collection rate objective
-- quantum efficiency detector
-- dark noise, readout noise
 
-**The data should contain all integer wavelengths between 200 and 1000 nm. Absorption data should contain absolute extinction coefficients.
-  
-> [!IMPORTANT]
-> Sometimes, a transition can 'partially' happen, meaning it depletes a certain initial state but doesn't end up in the intended final state. The same is true for energy transfers: if the acceptor is only roughly defined (e.g., with its name, but without electronic energy levels like S0, S1) it may be needed to define two transitions where one only depletes the donor. 
+Fluopy is a python-based library with code for simulating photophysical processes
+of organic dyes.
 
-> [!NOTE]
-> Markov chain topology and the photophysical context share some terms and one should be aware of the differences: due to computational advantage (explicit information), the photophysical transitions represent the Markovian states during simulation. The Markovian absorbing states correspond to the photophysically bleached states. 
+For details see [documentation](README_from_Vincent.md)
 
-*Code structure*
+Getting Started
+----------------
 
-![code structure](https://github.com/super-resolution/Photoswitching/blob/main/images/code_structure.png)
+To install the package please read the [instructions](./docs/source/installation.rst) or:
 
-# Customization
-The package provides spectroscopic data for some fluorophores. If the fluorophore of interest is not among them, add data files to src\fluorophore_collection (note the file names, see derive_energy_transfer_transitions) and create a fluorophore dataclass in fluo_data.py. \
-If needed transitions are not available, the following steps have to be taken: 
-- the rate constant has to be defined in fluo_data.FluorophoreData and in the specific fluorophore dataclass
-  - if the rate depends on other factors, define a function in formulas.py and call it within transitions.py\derive_transitions()
-- the involved photophysical states have to be available in transitions.py\SingleState, if not - add them
-  - if the transition is an energy transfer, the involved initial and final state combination has to available in transitions.py\PairedState
-- the transition has to be defined in transitions.py\TransitionType
+    pip install fluopy
+
+For details on usage and development please read the [documentation](https://locan.readthedocs.io).
+
+[Tutorials](https://fluopy.readthedocs.io/en/latest/tutorials/tutorials.html) are provided as Jupyter notebooks.
+
+
+Contributing
+------------
+
+Development takes place on the [Locan GitHub page](https://github.com/super-resolution/Photoswitching).
+
+Please use [GitHub issues](https://github.com/super-resolution/Photoswitching/issues) to report bugs and feature requests. 
+#Use [GitHub discussions](https://github.com/super-resolution/Photoswitching/discussions) for Q&A.
+
+Please read [documentation on development](https://locan.readthedocs.io/en/latest/source/development.html) for details on how to help develop this project further.
+
+Developers
+----------
+
+See the list of [contributors](https://locan.readthedocs.io/en/latest/source/contributions.html) who participated in this project.
+
+License
+-------
+
+This project is licensed under the BSD-3 License - see the [LICENSE](LICENSE.md) file for details.
+
+Citing
+-------
+
+If you want to acknowledge locan please cite the following publication:
+
+Sören Doose, LOCAN: a python library for analyzing single-molecule localization microscopy data, Bioinformatics 38(9), 2670–2672, 2022,
+https://doi.org/10.1093/bioinformatics/btac160
+
+Or cite this repository using the DOI provided by zenodo:
+
+[doi.org/10.5281/zenodo.5722472](https://doi.org/10.5281/zenodo.5722472)
+
+Note this DOI will resolve to all versions of locan. 
+To cite a specific version please find the DOI of that version on the zenodo page. 

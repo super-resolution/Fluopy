@@ -2,21 +2,20 @@
 Module transitions
 """
 
-import re
-import os
 import copy
+import os
+import re
+from dataclasses import asdict, dataclass, field
+from enum import Enum
+from itertools import product
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from enum import Enum
-from pathlib import Path
-from itertools import product
 from scipy import interpolate as itp
-from dataclasses import dataclass, field, asdict
-from . import network as net
+
 from . import formulas as fo
-
-
-__version__ = "0.1.0"
+from . import network as net
 
 
 class SingleState(Enum):

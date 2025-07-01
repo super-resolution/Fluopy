@@ -3,13 +3,11 @@ Module network
 """
 
 import re
-import numpy as np
-import networkx as nx
+
 import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
 from matplotlib import rcParams, rcParamsDefault
-
-
-__version__ = "0.1.0"
 
 
 def construct_state_graphs(transition_df):

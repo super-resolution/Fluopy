@@ -4,11 +4,9 @@ Module simulation_gpu
 
 import cupy as cp
 import numpy as np
-from torch import tensor, cuda, repeat_interleave
+from torch import cuda, repeat_interleave, tensor
+
 from . import network as net
-
-
-__version__ = "0.1.0"
 
 
 def list_devices():

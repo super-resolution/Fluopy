@@ -3,16 +3,15 @@ Module custom_plot
 """
 
 import io
+
 import cairosvg
-import numpy as np
-from PIL import Image
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import numpy as np
 from matplotlib import rcParams, rcParamsDefault
+from PIL import Image
+
 from .miscellaneous import format_axis_labels
-
-
-__version__ = "0.1.0"
 
 
 def universal_figure(
@@ -323,7 +322,7 @@ def universal_figure(
         case "boxplot":
             ax.boxplot(data, labels=label, **type_specific_kwargs)
         case _:
-            raise ValueError('Invalid type_ argument.')
+            raise ValueError("Invalid type_ argument.")
 
     # x-axis
     if xlim is not None:

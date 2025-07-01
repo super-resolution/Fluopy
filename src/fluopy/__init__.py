@@ -1,3 +1,14 @@
+"""
+.. currentmodule:: fluopy
+
+Fluopy consists of the following modules:
+
+"""
+try:
+    from fluopy._version import version as __version__
+except ImportError:
+    __version__ = "not-installed"
+
 from . import analysis
 from . import blinking
 from . import distributions
