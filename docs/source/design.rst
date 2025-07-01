@@ -16,5 +16,8 @@ The package provides:
 
 Outline
 ========
-
+.. image:: /_static/code_structure.png
+    :width: 100%
+    :align: center
+    :alt: Code structure of fluopy package
 ...
