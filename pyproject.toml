@@ -156,11 +156,11 @@ testpaths = [
     "src/fluopy/tests",
     "tests"
 ]
-addopts = "--import-mode=importlib"
+addopts = "--import-mode=importlib --strict-markers -m 'not gui and not visual and not slow'"
 markers = [
     "gui: marks tests that require user interaction (skipped by default)",
     "visual: marks tests that require visual inspection (skipped by default)",
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "slow: marks tests as slow (skipped by default)",
 ]
 
 
