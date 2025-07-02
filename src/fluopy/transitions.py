@@ -1,6 +1,7 @@
 """
 Module transitions
 """
+from __future__ import annotations
 
 import copy
 import os
@@ -9,6 +10,7 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from itertools import product
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -16,6 +18,9 @@ from scipy import interpolate as itp
 
 from . import formulas as fo
 from . import network as net
+
+if TYPE_CHECKING:
+    from fluopy.fluorophores import FluorophoreSystem
 
 
 class SingleState(Enum):
@@ -292,42 +297,44 @@ class TransitionSet:
 
     Attributes
     ----------
+    transitions : dict[str, list[Transition]]
+        Contains lists of transitions of type Transition with non-zero rate as values
+        and fluorophores or fluorophore-combinations as keys.
     fluorophore_system : fluopy.fluorophores.FluorophoreSystem
         Container for attributes of multiple, interrelated fluorophores.
+    combined_state_transitions_df : pd.DataFrame
+        Contains realizable combined_state_transitions with their id as index and their
+        other attributes as columns.
+    row_sums : np.ndarray
+        Contains the sum of each row of non-normalized transition rates, i.e., the sum
+        of rates of all possbile combined_state_transitions.
+    single_states : dict
+        Contains the values of all relevant SingleStates as values. Name of
+        fluorophores as keys.
     transition_df : pd.DataFrame
         Dataframe of all given transitions with non-zero rate containing their id as
         second level index and their other attributes as columns. Name of fluorophores
         as first level index.
-    transitions : dict
-        Contains lists of transitions of type Transition with non-zero rate as values
-        and fluorophores or fluorophore-combinations as keys.
-    single_states : dict
-        Contains the values of all relevant SingleStates as values. Name of
-        fluorophores as keys.
-    combined_state_transitions_df : pd.DataFrame
-        Contains realizable combined_state_transitions with their id as index and their
-        other attributes as columns.
     transition_matrix : np.ndarray
         Contains the normalized rate constants (i.e., point probabilities) for each
         possible combined_state_transition at the corresponding index pair.
-    row_sums : np.ndarray
-        Contains the sum of each row of non-normalized transition rates, i.e., the sum
-        of rates of all possbile combined_state_transitions.
     """
 
-    def __init__(self, transitions, fluorophore_system, keep_zero_rates=False):
+    def __init__(self, transitions: dict[str, list[Transition]], fluorophore_system: FluorophoreSystem, keep_zero_rates: bool=False):
         """
         Parameters
         ----------
-        transitions : dict
+        transitions
             Contains lists of transitions of type Transition as values and fluorophores
             or fluorophore-combinations as keys.
-        fluorophore_system : fluopy.fluorophores.FluorophoreSystem
+        fluorophore_system
             Container for attributes of multiple, interrelated fluorophores.
-        keep_zero_rates : bool
+        keep_zero_rates
             Whether to keep transitions with rate 0.
         """
+        self.transitions = transitions
         self.fluorophore_system = fluorophore_system
+
         self.transition_df = pd.DataFrame()
         i = 0
         for fluorophore_comb, f_transitions in transitions.items():
@@ -394,14 +401,31 @@ class TransitionSet:
                     {fluorophore_comb: transition_df}, names=["Fluorophore"]
                 )
                 self.transition_df = pd.concat([self.transition_df, transition_df])
-        self.transitions = transitions
 
         self.single_states = get_single_states(self.transitions, self.transition_df)
         # also assigns whether a transition leads to a Markovian absorbing state
 
-        self.combined_state_transitions_df = None
-        self.transition_matrix = None
-        self.row_sums = None
+        self._combined_state_transitions_df = None
+        self._row_sums = None
+        self._transition_matrix = None
+
+    @property
+    def combined_state_transitions_df(self):
+        if self._combined_state_transitions_df is None:
+            self.finalize()
+        return self._combined_state_transitions_df
+
+    @property
+    def row_sums(self):
+        if self._row_sums is None:
+            self.finalize()
+        return self._row_sums
+
+    @property
+    def transition_matrix(self):
+        if self._transition_matrix is None:
+            self.finalize()
+        return self._transition_matrix
 
     def filter_by_identity(self, remove_list=None):
         """
@@ -540,7 +564,7 @@ class TransitionSet:
             combined_state_transitions=combined_state_transitions,
         )
 
-        self.combined_state_transitions_df = pd.DataFrame(
+        self._combined_state_transitions_df = pd.DataFrame(
             combined_state_transitions_with_rates,
             columns=[
                 "initial_state",
@@ -552,10 +576,10 @@ class TransitionSet:
                 "photon",
             ],
         )
-        self.combined_state_transitions_df.index.name = "id"
+        self._combined_state_transitions_df.index.name = "id"
 
-        self.transition_matrix, self.row_sums = construct_transition_matrix(
-            combined_state_transitions_df=self.combined_state_transitions_df
+        self._transition_matrix, self._row_sums = construct_transition_matrix(
+            combined_state_transitions_df=self._combined_state_transitions_df
         )
 
         return self
