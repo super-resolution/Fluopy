@@ -1,26 +1,31 @@
 """
 Module transitions
 """
+
 from __future__ import annotations
 
 import copy
 import os
 import re
+from collections.abc import Collection
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from itertools import product
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from scipy import interpolate as itp
 
 from . import formulas as fo
 from . import network as net
+from .fluorophores import Fluorophore
 
 if TYPE_CHECKING:
     from fluopy.fluorophores import FluorophoreSystem
+    from fluopy.fluo_data import FluorophoreData
 
 
 class SingleState(Enum):
@@ -63,21 +68,21 @@ class PairedState(Enum):
     S0_B = [SingleState.S0, SingleState.B]
 
     @property
-    def single_state_values(self):
+    def single_state_values(self) -> tuple[int, int]:
         """
         Returns a tuple of SingleState values.
         """
         return self.value[0].value, self.value[1].value
 
     @property
-    def acceptor(self):
+    def acceptor(self) -> SingleState:
         """
         Returns the acceptor (second value).
         """
         return self.value[1]
 
     @property
-    def donor(self):
+    def donor(self) -> SingleState:
         """
         Returns the donor (first value).
         """
@@ -201,28 +206,28 @@ class TransitionType(Enum):
     )
 
     @property
-    def abbreviation(self):
+    def abbreviation(self) -> str:
         """
         Returns the abbreviation of type str.
         """
         return self.value.abbreviation
 
     @property
-    def initial_state(self):
+    def initial_state(self) -> SingleState | PairedState:
         """
         Returns the initial state of type SingleState or PairedState.
         """
         return self.value.initial_state
 
     @property
-    def final_state(self):
+    def final_state(self) -> SingleState | PairedState:
         """
         Returns the final state of type SingleState or PairedState.
         """
         return self.value.final_state
 
     @property
-    def photon(self):
+    def photon(self) -> bool:
         """
         Returns bool indicating whether the transition emits a photon.
         """
@@ -244,15 +249,15 @@ class Transition:
         The photophysical type of the transitions with its constant attributes.
     abbreviation : str
         The abbreviation of the transition.
-    initial_state : SingleState, PairedState
+    initial_state : SingleState | PairedState
         The initial state of the transition.
-    final_state : SingleState, PairedState
+    final_state : SingleState | PairedState
         The final state of the transition.
     rate : float
         The rate of the transition.
     photon : bool
         Whether the transition emits a photon.
-    fluorophore_ids : list
+    fluorophore_ids : list[int] | list[tuple[int, int]]
         Contains the identities of relevant fluorophores.
         If energy transfer, tuples of fluorophore pairs, where the first is the donor
         and the second is the acceptor.
@@ -265,9 +270,9 @@ class Transition:
     final_state: SingleState | PairedState = field(init=False)
     rate: float = field()
     photon: bool = field(init=False)
-    fluorophore_ids: list = field()
+    fluorophore_ids: list[int] | list[tuple[int, int]] = field()
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # __setattr__ needed if frozen=True
         object.__setattr__(self, "abbreviation", self.transition_type.abbreviation)
         object.__setattr__(self, "initial_state", self.transition_type.initial_state)
@@ -308,7 +313,7 @@ class TransitionSet:
     row_sums : np.ndarray
         Contains the sum of each row of non-normalized transition rates, i.e., the sum
         of rates of all possbile combined_state_transitions.
-    single_states : dict
+    single_states : dict[str, list[SingleState]]
         Contains the values of all relevant SingleStates as values. Name of
         fluorophores as keys.
     transition_df : pd.DataFrame
@@ -320,7 +325,12 @@ class TransitionSet:
         possible combined_state_transition at the corresponding index pair.
     """
 
-    def __init__(self, transitions: dict[str, list[Transition]], fluorophore_system: FluorophoreSystem, keep_zero_rates: bool=False):
+    def __init__(
+        self,
+        transitions: dict[str, list[Transition]],
+        fluorophore_system: FluorophoreSystem,
+        keep_zero_rates: bool = False,
+    ) -> None:
         """
         Parameters
         ----------
@@ -410,30 +420,30 @@ class TransitionSet:
         self._transition_matrix = None
 
     @property
-    def combined_state_transitions_df(self):
+    def combined_state_transitions_df(self) -> pd.DataFrame:
         if self._combined_state_transitions_df is None:
             self.finalize()
         return self._combined_state_transitions_df
 
     @property
-    def row_sums(self):
+    def row_sums(self) -> npt.NDArray[np.float64]:
         if self._row_sums is None:
             self.finalize()
         return self._row_sums
 
     @property
-    def transition_matrix(self):
+    def transition_matrix(self) -> npt.NDArray[np.float64]:
         if self._transition_matrix is None:
             self.finalize()
         return self._transition_matrix
 
-    def filter_by_identity(self, remove_list=None):
+    def filter_by_identity(self, remove_list: Collection = None) -> TransitionSet:
         """
         Returns another TransitionSet with transitions removed by their identity.
 
         Parameters
         ----------
-        remove_list : Collection
+        remove_list
             Contains identities of type int.
 
         Returns
@@ -458,7 +468,9 @@ class TransitionSet:
 
         return filtered
 
-    def adjust_rates(self, change_dict=None, keep_zero_rates=False):
+    def adjust_rates(
+        self, change_dict: dict[str, float] = None, keep_zero_rates: bool = False
+    ) -> TransitionSet:
         """
         Returns another TransitionSet with transition rates modified. Should be used
         as last modification step since other modifiers lack the keep_zero_rates
@@ -466,9 +478,9 @@ class TransitionSet:
 
         Parameters
         ----------
-        change_dict : dict
+        change_dict
             Contains identities of transitions as key and rates as values.
-        keep_zero_rates : bool
+        keep_zero_rates
             Whether to keep transitions with rate 0.
 
         Returns
@@ -492,13 +504,13 @@ class TransitionSet:
 
         return adjusted
 
-    def remove_absorbing_states(self):
+    def remove_absorbing_states(self) -> TransitionSet:
         """
         Returns another TransitionSet that contains no Markovian absorbing states.
 
         Returns
         -------
-        no_abs : TrasitionSet
+        no_abs : TransitionSet
             Re-initialization of the object with the modified transition collection.
         """
         transitions = copy.deepcopy(self.transitions)  # transitions are objects
@@ -521,7 +533,7 @@ class TransitionSet:
 
         return no_abs
 
-    def remove_energy_transfers(self):
+    def remove_energy_transfers(self) -> TransitionSet:
         """
         Return another TransitionSet that contains no transitions that are energy
         transfers.
@@ -544,7 +556,7 @@ class TransitionSet:
 
         return no_ets
 
-    def finalize(self):
+    def finalize(self) -> Self:
         """
         Construct combined_state_transitions_df, transition_matrix and row_sums.
 
@@ -584,17 +596,22 @@ class TransitionSet:
 
         return self
 
-    def plot(self, graph_type="shell", colors=None, scale=1):
+    def plot(
+        self,
+        graph_type: str = "shell",
+        colors: Collection | None = None,
+        scale: float = 1,
+    ) -> matplotlib.axes._subplots.AxesSubplot:
         """
         Plot photophysical system as network/graph.
 
         Parameters
         ----------
-        graph_type : str
+        graph_type
             Specifies network layout. One of 'shell', 'circular', 'planar' or 'kamada'.
-        colors : Collection
+        colors
             Contains two colors as Hex values of type str.
-        scale : float
+        scale
             Factor to scale the figure.
 
         Returns
@@ -606,7 +623,9 @@ class TransitionSet:
             net.plot_graph(G=graph, graph_type=graph_type, colors=colors, scale=scale)
 
 
-def get_single_states(transitions, transition_df):
+def get_single_states(
+    transitions: Collection[Transition], transition_df: pd.DataFrame
+) -> dict[str, npt.NDArray[SingleState]]:
     """
     Gets the values of SingleStates that occur in non-energy transfer transitions.
     Also assigns whether a transition leads to a Markovian absorbing state (note that
@@ -615,9 +634,9 @@ def get_single_states(transitions, transition_df):
 
     Parameters
     ----------
-    transitions : Collection
+    transitions
         Contains transitions of type Transition with non-zero rate.
-    transition_df : pd.DataFrame
+    transition_df
         Dataframe of all given transitions with non-zero rate containing their id as
         index and their other attributes as columns.
 
@@ -667,17 +686,20 @@ def get_single_states(transitions, transition_df):
     return single_states
 
 
-def get_state_combinations(single_states, fluorophores):
+def get_state_combinations(
+    single_states: dict[str, Collection[SingleState | int]],
+    fluorophores: Collection[Fluorophore],
+) -> list[tuple[int, ...]]:
     """
     Combines all given states with each other according to the amount and order of the
     respective fluorophore. Cartesian product, see itertools.product().
 
     Parameters
     ----------
-    states : dict
+    states
         Contains the values of all relevant SingleStates as values. Name of
         fluorophores as keys.
-    fluorophores : Collection
+    fluorophores
         Contains all given fluorophores of type Fluorophore.
 
     Returns
@@ -691,14 +713,16 @@ def get_state_combinations(single_states, fluorophores):
     return list(product(*single_states_fluorophores))
 
 
-def get_combined_state_transitions(state_combinations):
+def get_combined_state_transitions(
+    state_combinations: Collection[tuple[int, int]],
+) -> list[tuple[tuple[int, int], ...]]:
     """
     Combines all given state_combinations with themselves 2 times. Cartesian product,
     see itertools.product(). Each combination resembles a combined_state_transition.
 
     Parameters
     ----------
-    state_combinations : Collection
+    state_combinations
         state_combinations to be combined.
 
     Returns
@@ -710,8 +734,11 @@ def get_combined_state_transitions(state_combinations):
 
 
 def rate_assignment_standard(
-    transition, transition_id, transition_rate_list, combined_state_transitions
-):
+    transition: pd.Series,
+    transition_id: int,
+    transition_rate_list: list[float],
+    combined_state_transitions: Collection[tuple[int, ...]],
+) -> list[float]:
     """
     Adds a realizable combined_state_transition that is no energy transfer as a list to
     the transition_rate_list. Here, a combined_state_transition is realizable, if its
@@ -721,13 +748,13 @@ def rate_assignment_standard(
 
     Parameters
     ----------
-    transition : pd.Series
+    transition
         The transition to be assigned to combined_state_transitions.
-    transition_id : int
+    transition_id
         The identity of Transition.
-    transition_rate_list : Collection
+    transition_rate_list
         Destination of realizable combined_state_transitions.
-    combined_state_transitions : Collection
+    combined_state_transitions
         Contains combinations of state_combinations of type tuple.
 
     Returns
@@ -765,8 +792,11 @@ def rate_assignment_standard(
 
 
 def rate_assignment_energy_transfer(
-    transition, transition_id, transition_rate_list, combined_state_transitions
-):
+    transition: pd.Series,
+    transition_id: int,
+    transition_rate_list: list[float],
+    combined_state_transitions: Collection[tuple[int, ...]],
+) -> list[float]:
     """
     Adds a realizable combined_state_transition that is also an energy transfer as a
     list to the transition_rate_list. Here, a combined_state_transition is realizable,
@@ -777,13 +807,13 @@ def rate_assignment_energy_transfer(
 
     Parameters
     ----------
-    transition : pd.Series
+    transition
         The transition to be assigned to combined_state_transitions.
-    transition_id : int
+    transition_id
         The identity of Transition.
-    transition_rate_list : Collection
+    transition_rate_list
         Destination of realizable combined_state_transitions.
-    combined_state_transitions : Collection
+    combined_state_transitions
         Contains combinations of state_combinations of type tuple.
 
     Returns
@@ -831,7 +861,9 @@ def rate_assignment_energy_transfer(
     return transition_rate_list
 
 
-def construct_transition_rate_list(transition_df, combined_state_transitions):
+def construct_transition_rate_list(
+    transition_df: pd.DataFrame, combined_state_transitions: Collection[tuple[int, ...]]
+) -> list[tuple[int, ...]]:
     """
     Constructs a list that contains lists of each realizable combined_state_transition.
     The inner lists contain initial state_combination, final state_combination,
@@ -840,11 +872,11 @@ def construct_transition_rate_list(transition_df, combined_state_transitions):
 
     Parameters
     ----------
-    transition_df : pd.DataFrame
+    transition_df
         Dataframe of all given transitions with non-zero rate containing their id as
         second level index and their other attributes as columns. Name of fluorophores
         as first level index.
-    combined_state_transitions : Collection
+    combined_state_transitions
         Contains combinations of state_combinations of type tuple.
 
     Returns
@@ -872,7 +904,9 @@ def construct_transition_rate_list(transition_df, combined_state_transitions):
     return transition_rate_list
 
 
-def construct_transition_matrix(combined_state_transitions_df):
+def construct_transition_matrix(
+    combined_state_transitions_df: pd.DataFrame,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
     Constructs a matrix of shape (combined_state_transitions_df.index.size,
     combined_state_transitions_df.index.size). The matrix is non-zero at a position, if
@@ -883,7 +917,7 @@ def construct_transition_matrix(combined_state_transitions_df):
 
     Parameters
     ----------
-    combined_state_transitions_df : pd.DataFrame
+    combined_state_transitions_df
         Contains realizable combined_state_transitions with their id as index and their
         other attributes as columns.
 
@@ -922,16 +956,16 @@ def construct_transition_matrix(combined_state_transitions_df):
 
 
 def derive_energy_transfer_transitions(
-    donor_data,
-    acceptor_data,
-    fluorophore_ids,
-    dipole_orientation_factor,
-    distance,
-    refractive_index,
-    overwrite=None,
-    exclude=None,
-    include=None,
-):
+    donor_data: FluorophoreData,
+    acceptor_data: FluorophoreData,
+    fluorophore_ids: list[int],
+    dipole_orientation_factor: float,
+    distance: float,
+    refractive_index: float,
+    overwrite: dict[str, list[float]] | None = None,
+    exclude: list[str] | None = None,
+    include: dict[str, list[float]] | None = None,
+) -> list[Transition]:
     """
     Derive energy transfer transitions based on the experimental conditions and the
     fluorophore-combinations to be mimicked. The type of energy transfer is determined
@@ -939,25 +973,25 @@ def derive_energy_transfer_transitions(
 
     Parameters
     ----------
-    donor_data : FluorophoreData
+    donor_data
         Contains all constant photophysical attributes of the donor.
-    acceptor_data : FluorophoreData
+    acceptor_data
         Contains all constant photophysical attributes of the acceptor.
-    fluorophore_ids : list
+    fluorophore_ids
         Contains the identities of all fluorophore pairs the transitions apply to as
         tuples.
-    dipole_orientation_factor : float
+    dipole_orientation_factor
         The dipole orientation factor of the fluorophore pair.
-    distance : float
+    distance
         The distance between the fluorophores of the fluorophore pair.
-    refractive_index : float
+    refractive_index
         The refractive index of the medium.
-    overwrite : dict
+    overwrite
         Contains the type of acceptor state as key and a list with a factor for the rate
-        as well as an efficiency (of not recylcing acceptor state) as value.
-    exclude : list
+        as well as an efficiency (of not recycling acceptor state) as value.
+    exclude
         Contains the type of acceptor state (lowercase) to be excluded.
-    include : dict
+    include
         Contains the type of acceptor state as key and a list of tuples as values. The
         tuples contain the transition type and an efficiency. If the summed efficiencies
         is e.g., 0.5, all other energy transfers affecting the acceptor state are
@@ -965,7 +999,7 @@ def derive_energy_transfer_transitions(
 
     Returns
     -------
-    transitions : Collection
+    transitions : list[Transition]
         Contains energy transfer transitions of type Transition.
     """
     data_dir = os.path.join(Path(__file__).parent, "fluorophore_collection")
@@ -1093,40 +1127,40 @@ def derive_energy_transfer_transitions(
 
 
 def derive_transitions(
-    summarize=False,
-    fluorophore_data=None,
-    fluorophore_ids=None,
-    irradiance=2,
-    wavelength=640,
-    bleaching=False,
-    dstorm=True,
+    summarize: bool = False,
+    fluorophore_data: FluorophoreData | None = None,
+    fluorophore_ids: list[int] | None = None,
+    irradiance: float = 2,
+    wavelength: float = 640,
+    bleaching: bool = False,
+    dstorm: bool = True,
     **dstorm_parameters,
-):
+) -> list[Transition]:
     """
     Derive non-energy transfer transitions based on the experimental conditions and the
     fluorophore to be mimicked.
 
     Parameters
     ----------
-    summarize : bool
+    summarize
         Whether to summarize some transitions into fewer.
-    fluorophore_data : FluorophoreData
+    fluorophore_data
         Contains all constant photophysical attributes of the fluorophore.
-    fluorophore_ids : list
+    fluorophore_ids
         All identities of a fluorophore within a FluorophoreSystem.
-    irradiance : float
+    irradiance
         Irradiance in kW/cm².
-    wavelength : float
+    wavelength
         Wavelength in nm.
-    bleaching : bool
+    bleaching
         Whether to incooperate bleaching as a possible transition.
-    dstorm : bool
+    dstorm
         Whether to incooperate dstorm photoswitching as possible transitions.
     dstorm_parameters : fo.calculate_pet_rate arguments (except k_pet)
 
     Returns
     -------
-    transitions : Collection
+    transitions : list[Transition]
         Contains transitions of type Transition.
     """
     fd = fluorophore_data
@@ -1328,17 +1362,19 @@ def derive_transitions(
     return transitions
 
 
-def interpolate_data(minimum_wavelength, maximum_wavelength, data):
+def interpolate_data(
+    minimum_wavelength: int, maximum_wavelength: int, data: pd.DataFrame
+) -> npt.NDArray[np.float64]:
     """
     Interpolate missing data points from data.
 
     Parameters
     ----------
-    minimum_wavelength : int
+    minimum_wavelength
         The minimum wavelength the interpolated data should cover.
-    maximum_wavelength : int
+    maximum_wavelength
         The maximum wavelength the interpolated data should cover.
-    data : pd.DataFrame
+    data
         Contains emission or absorption data with columns 'Wavelength' and 'y'.
 
     Returns
