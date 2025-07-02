@@ -463,21 +463,20 @@ def test_emissions_add_poisson_noise(em_large):
     pd.testing.assert_series_equal(em_large.event_time_series, exp_event_time_series)
 
 
-def test_save_and_load(request):
+def test_save_and_load(request, tmp_path):
     with pytest.warns(UserWarning, match="Floating point precision error warning"):
         em_tr_set_1f_bl = request.getfixturevalue("em_tr_set_1f_bl")
-    path = os.path.join(os.path.dirname(__file__), "temp_data")
-    em_tr_set_1f_bl.save(path=path, name_extension="_test_extension")
-    assert os.path.isfile(os.path.join(path, "event_time_series_test_extension.csv"))
-    assert os.path.isfile(os.path.join(path, "event_time_points_test_extension.npy"))
-    emis = em.Emissions.load(path=path, name_extension="_test_extension")
+    em_tr_set_1f_bl.save(path=tmp_path, name_extension="_test_extension")
+    assert os.path.isfile(os.path.join(tmp_path, "event_time_series_test_extension.csv"))
+    assert os.path.isfile(os.path.join(tmp_path, "event_time_points_test_extension.npy"))
+    emis = em.Emissions.load(path=tmp_path, name_extension="_test_extension")
     assert type(emis.event_time_points) is np.ndarray
     assert type(emis.event_time_series) is pd.Series
-    os.remove(os.path.join(path, "event_time_series_test_extension.csv"))
-    os.remove(os.path.join(path, "event_time_points_test_extension.npy"))
+    os.remove(os.path.join(tmp_path, "event_time_series_test_extension.csv"))
+    os.remove(os.path.join(tmp_path, "event_time_points_test_extension.npy"))
     assert not os.path.isfile(
-        os.path.join(path, "event_time_series_test_extension.csv")
+        os.path.join(tmp_path, "event_time_series_test_extension.csv")
     )
     assert not os.path.isfile(
-        os.path.join(path, "event_time_points_test_extension.npy")
+        os.path.join(tmp_path, "event_time_points_test_extension.npy")
     )
