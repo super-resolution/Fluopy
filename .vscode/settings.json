@@ -1,0 +1,79 @@
+{
+    "folder-color.pathColors": [
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\0_0_graphical_abstract\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\0_1_introduction_figure\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\0_2_single_f_statistics\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\0_3_single_f_PFA\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_0_method_example\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_1_multi_f_no_et_statistics\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_2_single_f_pulsed_statistics\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_3_validations\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_4_single_f_PFA_gl_bl_times\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_5_single_f_PFA_add\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_6_PET_rate\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_7_multi_f_PFA_higher_exc\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_8_multi_f_PFA_RISC\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_10_multi_f_et_statistics\\",
+            "color": "foldercolorizer.color_0000ff"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_11_multi_f_et_irradiance\\",
+            "color": "foldercolorizer.color_0000ff"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\General\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_III\\",
+            "color": "foldercolorizer.color_009933"
+        }
+    ],
+    "git.decorations.enabled": false,
+    "editor.rulers": [
+        88
+    ],
+    "workbench.preferredLightColorTheme": "Atom One Light",
+    "workbench.preferredDarkColorTheme": "Monokai Dimmed",
+    "files.autoSave": "afterDelay",
+}
