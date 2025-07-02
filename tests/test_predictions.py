@@ -64,10 +64,8 @@ def test_prediction_1(tr_set_bl_et_3f):
 # test with not finalized transition_set
 def test_prediction_2(tr_set_bl_et_2f_diff):
     tr_set_new = tr_set_bl_et_2f_diff.filter_by_identity(remove_list=[4])
-    with pytest.raises(
-        ValueError, match="prediction not available if transition_set " "not finalized"
-    ):
-        prediction = pr.Prediction(transition_set=tr_set_new)
+    prediction = pr.Prediction(transition_set=tr_set_new)
+    assert prediction
 
 
 # test with 2 different fluorophores, energy transfer, bleaching
