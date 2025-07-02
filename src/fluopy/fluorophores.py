@@ -1,15 +1,21 @@
 """
 Module fluorophores
 """
+from __future__ import annotations
 
 import warnings
-from collections.abc import Collection
+from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Literal, Any
 
 import numpy as np
+import numpy.typing as npt
 
 from . import figure as fi
 from . import fluo_data as fd
+
+if TYPE_CHECKING:
+    import matplotlib.axes.Axes
 
 
 @dataclass
@@ -24,19 +30,19 @@ class Fluorophore:
         FluorophoreSystem.
     name : str
         Name of the fluorophore.
-    position : Collection
+    position : Sequence[float, float]
         The position of the fluorophore in 2D space.
-    constants : None, FluorophoreData
+    constants : FluorophoreData | None
         Not None if the fluorophore has a defined FluorophoreData
         dataclass.
     """
 
     identity: int = field(init=False)
     name: str = field()
-    position: Collection[float, float] = field()
+    position: Sequence[float] = field()
     constants: fd.FluorophoreData | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         object.__setattr__(self, "identity", None)
         object.__setattr__(self, "position", np.asarray(self.position))
         fluorophore_dataclasses = [
@@ -66,22 +72,22 @@ class FluorophoreSystem:
 
     Attributes
     ----------
-    fluorophores : Collection
+    fluorophores : Sequence[Fluorophore]
         Contains all given fluorophores of type Fluorophore.
     multi_type : bool
         Whether there are multiple types of fluorophores in the system.
-    distances : dict
+    distances :  dict[tuple[int, int], np.float64]
         Contains tuples of 2 fluorophore ids as keys and their distance as values.
     count : int
         The total number of fluorophores given.
     """
 
-    fluorophores: Collection[Fluorophore] = field()
+    fluorophores: Sequence[Fluorophore] = field()
     multi_type: bool = field(init=False)
-    distances: dict = field(init=False)
+    distances:  dict[tuple[int, int], np.float64] = field(init=False)
     count: int = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         for i, fluorophore in enumerate(self.fluorophores):
             fluorophore.identity = i
         if all(
@@ -105,32 +111,33 @@ class FluorophoreSystem:
 
     def load_transitions(
         self,
-        summarize=False,
-        irradiance=2,
-        wavelength=600,
-        bleaching=False,
-        energy_transfer=True,
-        dstorm=True,
-        energy_transfer_parameters=None,
-        dstorm_parameters=None,
-    ):
+        summarize: bool=False,
+        irradiance: float=2,
+        wavelength: float=600,
+        bleaching: bool=False,
+        energy_transfer: bool=True,
+        dstorm: bool=True,
+        energy_transfer_parameters: dict[Literal["dipole_orientation_factor", "refractive_index",
+            "overwrite", "exclude", "include"], Any] | None=None,
+        dstorm_parameters: dict[str, Any] | None=None,
+    ) -> dict[str, list[Any]]:
         """
         Derives transitions based on fluorophore and the experimental conditions to be
         mimicked.
 
         Parameters
         ----------
-        irradiance : float
+        irradiance
             Irradiance in kW/cm².
-        wavelength : float
+        wavelength
             Wavelength in nm.
-        bleaching : bool
+        bleaching
             Whether to incooperate bleaching as a possible transition.
-        energy_transfer : bool
+        energy_transfer
             Whether to incooperate energy transfers as possible transitions.
-        dstorm : bool
+        dstorm
             Whether to incooperate dstorm photoswitching as possible transitions.
-        energy_transfer_parameters : dict, optional
+        energy_transfer_parameters
             May contain the following keys: dipole_orientation_factor, refractive_index,
             overwrite, exclude, include.
             Only used if energy_transfer is True.
@@ -145,13 +152,13 @@ class FluorophoreSystem:
                 values. The tuples contain the transition type and an efficiency. If the
                 summed efficiencies is e.g., 0.5, all other energy transfers affecting
                 the acceptor state are multiplied by 1-0.5.
-        dstorm_parameters : dict, optional
+        dstorm_parameters
             May contain the following keys: reducing_agent, concentration, k_pet, ph.
             Only used if dstorm is True.
 
         Returns
         -------
-        transitions : dict
+        transitions : dict[str, list[Transition]]
             Contains lists of transitions of type Transition as values and fluorophores
             or fluorophore-combinations as keys.
         """
@@ -205,7 +212,7 @@ class FluorophoreSystem:
         dstorm_parameters.setdefault("ph", 7.5)
 
         for fluorophore in self.fluorophores:
-            fluorophore_ids = [
+            fluorophore_ids: list[int] | list[tuple[int, int]] = [
                 f.identity for f in self.fluorophores if f.name == fluorophore.name
             ]
             if fluorophore.constants is None:
@@ -231,29 +238,29 @@ class FluorophoreSystem:
                         **dstorm_parameters,
                     )
                 if energy_transfer:
-                    donor = fluorophore
-                    for acceptor in self.fluorophores:
-                        if acceptor.constants is None:
-                            if acceptor not in skip_warnings:
-                                skip_warnings.append(acceptor)
+                    donor_fluorophore = fluorophore
+                    for acceptor_fluorophore in self.fluorophores:
+                        if acceptor_fluorophore.constants is None:
+                            if acceptor_fluorophore not in skip_warnings:
+                                skip_warnings.append(acceptor_fluorophore)
                                 warnings.warn(
                                     "load_transitions() not available for this kind of "
-                                    f"fluorophore: {acceptor.name}.",
+                                    f"fluorophore: {acceptor_fluorophore.name}.",
                                     stacklevel=2,
                                 )
                             else:
                                 continue
-                        elif (donor.identity, acceptor.identity) in self.distances:
-                            distance = self.distances[donor.identity, acceptor.identity]
+                        elif (donor_fluorophore.identity, acceptor_fluorophore.identity) in self.distances:
+                            distance = self.distances[donor_fluorophore.identity, acceptor_fluorophore.identity]
                             fluorophore_ids = et_pairs[
-                                f"{donor.name}, {acceptor.name}, {distance}"
+                                f"{donor_fluorophore.name}, {acceptor_fluorophore.name}, {distance}"
                             ]
 
                             transitions[
-                                f"D: {donor.name}, A: {acceptor.name}, dist: {distance}"
+                                f"D: {donor_fluorophore.name}, A: {acceptor_fluorophore.name}, dist: {distance}"
                             ] = derive_energy_transfer_transitions(
-                                donor_data=donor.constants,
-                                acceptor_data=acceptor.constants,
+                                donor_data=donor_fluorophore.constants,
+                                acceptor_data=acceptor_fluorophore.constants,
                                 fluorophore_ids=fluorophore_ids,
                                 distance=distance,
                                 **energy_transfer_parameters,
@@ -261,19 +268,20 @@ class FluorophoreSystem:
 
         return transitions
 
-    def plot(self, quadratic=True, **kwargs):
+    def plot(self, quadratic: bool=True, **kwargs) -> npt.NDArray[matplotlib.axes.Axes]:
         """
         Plot the positions of fluorophores.
 
         Parameters
         ----------
-        quadratic : bool
+        quadratic
             Whether to display the plot with same x and y axis scaling.
-        kwargs : fluopy.figure.universal_figure arguments
+        kwargs
+            fluopy.figure.universal_figure arguments
 
         Returns
         -------
-        axes : np.ndarray
+        axes : npt.NDArray[matplotlib.axes.Axes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         positions = np.empty(shape=(2, self.count))
@@ -294,18 +302,18 @@ class FluorophoreSystem:
         return axes
 
 
-def get_distances(positions):
+def get_distances(positions: Sequence[Sequence[float]]) -> dict[tuple[int, int], np.float64]:
     """
     Gets distances between positions.
 
     Parameters
     ----------
-    positions : Collection
+    positions
         Contains coordinate pairs (2D).
 
     Returns
     -------
-    distances : dict
+    distances : dict[tuple[int, int], np.float64]
         Contains tuples of ids (order as positions) as keys and their distance as
         values.
     """
@@ -316,10 +324,10 @@ def get_distances(positions):
             if i != j and (i, j) not in distances:
                 distances[(i, j)] = np.round(np.linalg.norm(position_1 - position_2), 3)
 
-    return distances
+    return distances  # type: ignore[return-value]
 
 
-def triangle_third_position(position_1=None, position_2=None):
+def triangle_third_position(position_1: npt.ArrayLike | None=None, position_2: npt.ArrayLike | None=None) -> npt.NDArray[np.float64]:
     """
     Get the third position of an equilateral triangle based on positions of two
     vertices. There are two solutions to such a position but only one is considered
@@ -339,8 +347,12 @@ def triangle_third_position(position_1=None, position_2=None):
     """
     if position_1 is None:
         position_1 = np.array([0, 0])
+    else:
+        position_1 = np.asarray(position_1)
     if position_2 is None:
         position_2 = np.array([0, 10])
+    else:
+        position_2 = np.asarray(position_2)
     x1, y1 = position_1
     x2, y2 = position_2
     x3 = (x1 + x2 + np.sqrt(3) * (y1 - y2)) / 2
@@ -350,7 +362,7 @@ def triangle_third_position(position_1=None, position_2=None):
     return position_3
 
 
-def get_positions_from_distance(distance=1, count=1, shape="triangle"):
+def get_positions_from_distance(distance: float=1, count: int=1, shape: Literal["triangle", "square"]="triangle") -> npt.NDArray[np.float64]:
     """
     Gets positions of up to 4 fluorophores based on a single distance. If it is 3
     fluorophores, they are positioned either in an equilateral triangle or in a square
@@ -358,16 +370,16 @@ def get_positions_from_distance(distance=1, count=1, shape="triangle"):
 
     Parameters
     ----------
-    distance : float
+    distance
         Minimum distance between fluorophores.
-    count : int
+    count
         Number of fluorophores.
-    shape : str
+    shape
         One of 'triangle', 'square'. Only needed if count is 3.
 
     Returns
     -------
-    positions : np.ndarray
+    positions : npt.NDArray[np.float64]
         Contains np.ndarrays of x and y for each fluorophore.
     """
     position_1 = np.array([0, 0])
@@ -389,7 +401,7 @@ def get_positions_from_distance(distance=1, count=1, shape="triangle"):
                     f"shape {shape} not known. Can either be 'triangle' or 'square'."
                 )
             positions = np.array([position_1, position_2, position_3])
-        elif count == 4:
+        else:  # count == 4:
             position_3 = np.array([0, distance])
             position_4 = np.array([distance, distance])
             positions = np.array([position_1, position_2, position_3, position_4])
@@ -399,29 +411,29 @@ def get_positions_from_distance(distance=1, count=1, shape="triangle"):
             " location. This indicates no support for energy transfers.",
             stacklevel=2,
         )
-        positions = [[position_1[0], position_1[1] + i] for i in range(count)]
+        positions = np.array([[position_1[0], position_1[1] + i] for i in range(count)])
 
     return positions
 
 
-def construct_fluorophores(name="cy5", distance=10, count=3, shape="triangle"):
+def construct_fluorophores(name: str="cy5", distance: float=10, count: int=3, shape: Literal["triangle", "square"]="triangle") -> list[Fluorophore]:
     """
-    Constructs a collection of fluorophores of up to 4 fluorophores of the same kind.
+    Constructs up to 4 fluorophores of the same kind.
 
     Parameters
     ----------
-    name : str
+    name
         Name of the fluorophore.
-    distance : float
+    distance
         Minimum distance between fluorophores.
-    count : int
+    count
         Number of fluorophores.
-    shape : str
+    shape
         One of 'triangle', 'square'. Only needed if count is 3.
 
     Returns
     -------
-    fluorophores : Collection
+    fluorophores : list[Fluorophore]
         Contains fluorophores of type Fluorophore.
     """
     positions = get_positions_from_distance(distance=distance, count=count, shape=shape)
