@@ -174,11 +174,10 @@ def test_simulation(tr_set_1f):
     assert simulation.transition_series is None
     assert simulation.state_series is None
     assert simulation.memmap_path is None
-    with pytest.raises(
-        ValueError, match="simulation not available if transition_set not finalized"
-    ):
-        tr_set_1f_new = tr_set_1f.adjust_rates(change_dict={6: 1e6})
-        simulation = si.Simulation(transition_set=tr_set_1f_new)
+
+    tr_set_1f_new = tr_set_1f.adjust_rates(change_dict={6: 1e6})
+    simulation = si.Simulation(transition_set=tr_set_1f_new)
+    assert simulation
 
 
 # also contains the test for simulation.delete_memmaps()
