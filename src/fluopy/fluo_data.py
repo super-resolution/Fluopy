@@ -13,7 +13,7 @@ class FluorophoreData:
     """
 
     # spectra
-    data_files: str = None
+    data_files: str | None = None
 
     # general
     QUANTUM_YIELD: float = 0
