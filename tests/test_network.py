@@ -1,4 +1,5 @@
 import pytest
+import matplotlib.pyplot as plt
 import networkx as nx
 from fluopy import network as net
 
@@ -189,3 +190,34 @@ def test_determine_node_order():
     exp_node_order = [2, 3, 4, 1]
     for i, node in enumerate(node_order):
         assert node == exp_node_order[i]
+
+
+def test_plot_graph():
+    G = nx.MultiDiGraph()
+    ax = net.plot_graph(G=G, graph_type="shell", colors=None, scale=1)
+    assert ax
+
+
+@pytest.mark.visual
+def test_plot_graph():
+    G = nx.MultiDiGraph()
+    ax = net.plot_graph(G=G, graph_type="shell", colors=None, scale=1)
+    assert ax
+    plt.show()
+
+
+def test_draw_networkx_curved_edge_labels():
+    # todo: change return value
+    G = nx.MultiDiGraph()
+    pos = {}
+    ax = net.draw_networkx_curved_edge_labels(G=G, pos=pos, ax=None, edge_labels=None, rad=0)
+    assert ax is None
+
+
+@pytest.mark.visual
+def test_draw_networkx_curved_edge_labels():
+    G = nx.MultiDiGraph()
+    pos = {}
+    ax = net.draw_networkx_curved_edge_labels(G=G, pos=pos, ax=None, edge_labels=None, rad=0)
+    assert ax
+    plt.show()
