@@ -65,7 +65,7 @@ def universal_figure(
     plot_distribution: rv_frozen | None=None,
     plot_distribution_label: str | None=None,
     axes: npt.NDArray[mplAxes] | None=None,
-    **type_specific_kwargs: dict[str, Any],
+    **type_specific_kwargs: Any,
 ) -> npt.NDArray[mplAxes]:
     """
     Constructs a figure or modifies axes.
