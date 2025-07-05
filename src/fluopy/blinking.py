@@ -2,11 +2,21 @@
 Module blinking
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Iterable, Literal
+
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 from . import figure as fi
 from . import transitions as tr
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes as mplAxes
+    from fluopy.emissions import Emissions
+    from fluopy.simulation import Simulation
 
 
 class Blinking:
@@ -17,25 +27,27 @@ class Blinking:
     ----------
     emissions : fluopy.emissions.Emissions
         Container for emission-associated attributes.
-    on_periods : np.ndarray
+    on_periods : npt.NDArray[np.int64]
         Contains the durations of each ON period (in frames).
-    off_periods : np.ndarray
+    off_periods : npt.NDArray[np.int64]
         Contains the durations of each OFF period (in frames).
-    on_periods_frames : np.ndarray
+    on_periods_frames : npt.NDArray[np.int64]
         Contains the first frame of each ON period.
-    off_periods_frames : np.ndarray
+    off_periods_frames : npt.NDArray[np.int64]
         Contains the first frame of each OFF period.
     """
 
-    def __init__(self, emissions, threshold=0, memory=0):
+    def __init__(
+        self, emissions: Emissions, threshold: int = 0, memory: int = 0
+    ) -> None:
         """
         Parameters
         ----------
-        emissions : fluopy.emissions.Emissions
+        emissions
             Container for emission-associated attributes.
-        threshold : int
+        threshold
             Maximum value of photons per frame to be considered an OFF frame.
-        memory : int
+        memory
             Number of OFF frames to be neglected. They are included in the ON times.
         """
         self.emissions = emissions
@@ -50,7 +62,13 @@ class Blinking:
             memory=memory,
         )
 
-    def plot(self, mode="off_histogram", **kwargs):
+    def plot(
+        self,
+        mode: Literal[
+            "on_histogram", "off_histogram", "on_frame_series", "off_frame_series"
+        ] = "off_histogram",
+        **kwargs: Any,
+    ) -> npt.NDArray[mplAxes]:
         """
         Plot histogram or frame series of ON or OFF periods.
 
@@ -59,11 +77,12 @@ class Blinking:
         mode : str
             One of 'on_histogram', 'off_histogram', 'on_frame_series',
             'off_frame_series'.
-        kwargs : fluopy.figure.universal_figure arguments
+        kwargs
+            fluopy.figure.universal_figure arguments
 
         Returns
         -------
-        axes : np.ndarray
+        npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         sec_per_frame = (
@@ -102,7 +121,14 @@ class Blinking:
         return axes
 
 
-def get_blinking_statistics(event_time_series, threshold=0, memory=0):
+def get_blinking_statistics(
+    event_time_series: pd.Series, threshold: int = 0, memory: int = 0
+) -> tuple[
+    npt.NDArray[np.int64],
+    npt.NDArray[np.int64],
+    npt.NDArray[np.int64],
+    npt.NDArray[np.int64],
+]:
     """
     Determines ON and OFF times of event_time_series given that each entry represents
     the collected photons of one frame. The ending period (doesn't matter whether it is
@@ -111,24 +137,24 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0):
 
     Parameters
     ----------
-    event_time_series : pd.Series
+    event_time_series
         The return value of construct_event
         Contains the time points in seconds as index (time steps in between resemble
         frames) and the number of events (i.e., detected photons) as values.
-    threshold : int
+    threshold
         Maximum value of photons per frame to be considered an OFF frame.
-    memory : int
+    memory
         Number of OFF frames to be neglected. They are included in the ON times.
 
     Returns
     -------
-    on_periods : np.ndarray
+    on_periods : npt.NDArray[np.int64]
         Contains the durations of each ON period (in frames).
-    off_periods : np.ndarray
+    off_periods : npt.NDArray[np.int64]
         Contains the durations of each OFF period (in frames).
-    on_periods_frames : np.ndarray
+    on_periods_frames : npt.NDArray[np.int64]
         Contains the first frame of each ON period.
-    off_periods_frames : np.ndarray
+    off_periods_frames : npt.NDArray[np.int64]
         Contains the first frame of each OFF period.
     """
     df = pd.DataFrame(
@@ -226,7 +252,9 @@ def get_blinking_statistics(event_time_series, threshold=0, memory=0):
     return on_periods, off_periods, on_periods_frames, off_periods_frames
 
 
-def get_off_statistics(simulation, index):
+def get_off_statistics(
+    simulation: Simulation, index: int
+) -> tuple[npt.NDArray[np.int64], npt.NDArray[np.int64]]:
     """
     Determines ON and OFF intervals of a single fluorophore, where the OFF interval is
     defined as the fluorophore's time spend in off state, whilst the ON interval is the
@@ -236,16 +264,16 @@ def get_off_statistics(simulation, index):
 
     Parameters
     ----------
-    simulation : fluopy.simulation.Simulation
+    simulation
         Container of simulation-associated attributes and methods.
-    index : int
+    index
         Determines the fluorophore to be looked at.
 
     Returns
     -------
-    on_off_times : 1-D array_like
+    on_off_times : npt.NDArray[np.int64]
         Contains time points at which ON and OFF intervals start and end.
-    on_off_values : 1-D array_like
+    on_off_values : npt.NDArray[np.int64]
         Values that correspond to on_off_times. 0 if time is associated with OFF, 1
         otherwise.
     """
@@ -281,29 +309,38 @@ def get_off_statistics(simulation, index):
     return on_off_times, on_off_values
 
 
-def get_analytical_off_statistics(off_frames, off_periods, on_frames, frame_time):
+def get_analytical_off_statistics(
+    off_frames: npt.ArrayLike,
+    off_periods: npt.ArrayLike,
+    on_frames: npt.ArrayLike,
+    frame_time: str,
+) -> tuple[npt.NDArray[np.int64], npt.NDArray[np.int64]]:
     """
     Intended to be used for visualizing analytical ON and OFF periods in time.
 
     Parameters
     ----------
-    off_frames : np.ndarray
+    off_frames
         Contains the first frame of each OFF period.
-    off_periods : np.ndarray
+    off_periods
         Contains the durations of each OFF period (in frames).
-    on_frames : np.ndarray
+    on_frames
         Contains the first frame of each ON period.
-    frame_time : str
+    frame_time
         For possible input values, see
         https://pandas.pydata.org/docs/user_guide/timeseries.html -> Offset aliases.
 
     Returns
     -------
-    on_off_times : 1-D array_like
+    on_off_times : npt.NDArray[np.int64]
         Contains time points at which ON and OFF intervals start and end.
-    on_off_values : 1-D array_like
+    on_off_values : npt.NDArray[np.int64]
         Corresponding values of on_off_frames. 1 if ON, 0 if OFF.
     """
+    off_frames = np.asarray(off_frames)
+    off_periods = np.asarray(off_periods)
+    on_frames = np.asarray(on_frames)
+
     if on_frames.size != 0:
         if on_frames[0] != 0:
             off_frames = np.insert(off_frames, 0, 0)
@@ -324,21 +361,25 @@ def get_analytical_off_statistics(off_frames, off_periods, on_frames, frame_time
     return on_off_times, on_off_values
 
 
-def plot_off_statistics(on_off_times, on_off_values, **kwargs):
+def plot_off_statistics(
+    on_off_times: npt.ArrayLike, on_off_values: npt.ArrayLike, **kwargs: Any
+) -> npt.NDArray[mplAxes]:
     """
     Plot the photophysical OFF/ON of one fluorophore.
 
     Parameters
     ----------
-    on_off_times : 1-D array_like
+    on_off_times
         Contains time points at which ON and OFF intervals start and end.
-    on_off_values : 1-D array_like
+    on_off_values
         Values that correspond to all_times. 0 if time is associated with OFF, 1
         otherwise.
+    kwargs
+        kwargs for fluopy.figure.universal_figure arguments
 
     Returns
     -------
-    axes : np.ndarray
+    npt.NDArray[mplAxes]
         Contains matplotlib.axes._subplots.AxesSubplots.
     """
     kwargs.setdefault("type_", "line")
@@ -353,36 +394,38 @@ def plot_off_statistics(on_off_times, on_off_values, **kwargs):
 
 
 def plot_histogram(
-    data,
-    mode="OFF",
-    density=True,
-    display_mean=True,
-    as_time=None,
-    sec_per_frame=None,
-    **kwargs,
-):
+    data: npt.ArrayLike,
+    mode: Literal["ON", "OFF"] = "OFF",
+    density: bool = True,
+    display_mean: bool = True,
+    as_time: str | None = None,
+    sec_per_frame: float | None = None,
+    **kwargs: Any,
+) -> npt.NDArray[mplAxes]:
     """
     Plot histogram of ON or OFF periods.
 
     Parameters
     ----------
-    data : 1-D array_like
-    mode : str
+    data
+        The data
+    mode
         One of 'ON' or 'OFF'.
-    density : bool
+    density
         Whether to display the histogram as probability densities. Else, probabilities.
-    display_mean : bool
+    display_mean
         Whether to display the mean inside the plot. The unit corresponds to the unit
         of the x-axis.
-    as_time : None, str
+    as_time
         If not None, display the x-axis as time in unit as_time.
-    sec_per_frame : float
+    sec_per_frame
         Duration of a frame in seconds.
-    kwargs : fluopy.figure.universal_figure arguments
+    kwargs
+        kwargs for fluopy.figure.universal_figure arguments
 
     Returns
     -------
-    axes : np.ndarray
+    npt.NDArray[mplAxes]
         Contains matplotlib.axes._subplots.AxesSubplots.
     """
     kwargs.setdefault("type_", "hist")
@@ -422,23 +465,32 @@ def plot_histogram(
     return axes
 
 
-def plot_boxplot(data, mode="OFF", as_time=None, sec_per_frame=None, **kwargs):
+def plot_boxplot(
+    data: npt.ArrayLike,
+    mode: Literal["ON", "OFF"] = "OFF",
+    as_time: str | None = None,
+    sec_per_frame: float | None = None,
+    **kwargs: Any,
+) -> npt.NDArray[mplAxes]:
     """
     Plot boxplot of ON or OFF periods.
 
     Parameters
     ----------
-    data : 1-D array_like
-    mode : str
+    data
+        The data
+    mode
         One of 'ON' or 'OFF'.
-    as_time : None, str
+    as_time
         If not None, display the y-axis as time in unit as_time.
-    sec_per_frame : float
+    sec_per_frame
         Duration of a frame in seconds.
+    kwargs
+        kwargs for fluopy.figure.universal_figure arguments
 
     Returns
     -------
-    axes : np.ndarray
+    npt.NDArray[mplAxes]
         Contains matplotlib.axes._subplots.AxesSubplots.
     """
     kwargs.setdefault("type_", "boxplot")
@@ -459,21 +511,24 @@ def plot_boxplot(data, mode="OFF", as_time=None, sec_per_frame=None, **kwargs):
     return axes
 
 
-def plot_frame_series(data, mode="OFF", **kwargs):
+def plot_frame_series(
+    data: npt.ArrayLike, mode: Literal["ON", "OFF"] = "OFF", **kwargs: Any
+) -> npt.NDArray[mplAxes]:
     """
     Plot frame series of ON or OFF periods.
 
     Parameters
     ----------
-    data : 2-D array_like
-        Contains x and y data.
-    mode : str
+    data
+        Contains x and y data (2D).
+    mode
         One of 'ON' or 'OFF'.
-    kwargs : fluopy.figure.universal_figure arguments
+    kwargs
+        kwargs for fluopy.figure.universal_figure arguments
 
     Returns
     -------
-    axes : np.ndarray
+    npt.NDArray[mplAxes]
         Contains matplotlib.axes._subplots.AxesSubplots.
     """
     kwargs.setdefault("type_", "line")
