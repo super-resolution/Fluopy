@@ -4,7 +4,7 @@ Module blinking
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterable, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import numpy.typing as npt
@@ -15,6 +15,7 @@ from . import transitions as tr
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
+
     from fluopy.emissions import Emissions
     from fluopy.simulation import Simulation
 
