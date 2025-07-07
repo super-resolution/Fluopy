@@ -1,158 +1,170 @@
 """
 Module custom_plot
+
+A universal figure is defined for plotting simulation results with matplotlib.
 """
+from __future__ import annotations
+
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
+import numpy.typing as npt
 from matplotlib import rcParams, rcParamsDefault
 
 from .miscellaneous import format_axis_labels
 
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes as mplAxes
+    from scipy.stats.distributions import rv_frozen
+
 
 def universal_figure(
-    nrows=1,
-    ncols=1,
-    fig_width=6,
-    fig_height=3,
-    scale=1,
-    rc_linewidth=2,
-    type_="line",
-    data=(0, 0),
-    label=None,
-    color="blue",
-    title=None,
-    xlabel="x",
-    ylabel="y",
-    ylabelcolor="black",
-    xlim=None,
-    ylim=None,
-    xscale=None,
-    yscale=None,
-    xminor=False,
-    yminor=False,
-    adjust_x=None,
-    adjust_y=None,
-    xticks=None,
-    yticks=None,
-    xticklabels=None,
-    yticklabels=None,
-    tick_params=None,
-    tick_spacing_x=None,
-    tick_spacing_y=None,
-    tick_style_x=None,
-    tick_style_y=None,
-    second_axis_x=False,
-    second_axis_y=False,
-    fontsize=21,
-    legend=False,
-    legendhandles=None,
-    legendcolor="black",
-    legendargs=None,
-    draw_marker=None,
-    draw_marker_param=None,
-    plot_distribution=None,
-    plot_distribution_label=None,
-    axes=None,
-    **type_specific_kwargs,
-):
+    nrows: int=1,
+    ncols: int=1,
+    fig_width: float=6,
+    fig_height: float=3,
+    scale: float=1,
+    rc_linewidth: float=2,
+    type_: str="line",
+    data: npt.ArrayLike | Sequence[Any]=(0, 0),
+    label: str | list[str] | None=None,
+    color: str | list[str] | Callable[Any, Any]="blue",
+    title: str | None=None,
+    xlabel: str="x",
+    ylabel: str="y",
+    ylabelcolor: str="black",
+    xlim: tuple[float, float] | None=None,
+    ylim: tuple[float, float] | None=None,
+    xscale: str | None=None,
+    yscale: str | None=None,
+    xminor: bool=False,
+    yminor: bool=False,
+    adjust_x: float | None=None,
+    adjust_y: float | None=None,
+    xticks: npt.ArrayLike | None=None,
+    yticks: npt.ArrayLike | None=None,
+    xticklabels: dict[str, Any] | None=None,
+    yticklabels: dict[str, Any] | None=None,
+    tick_params: dict[str, Any] | None=None,
+    tick_spacing_x: float | None=None,
+    tick_spacing_y: float | None=None,
+    tick_style_x: str | None=None,
+    tick_style_y: str | None=None,
+    second_axis_x: bool=False,
+    second_axis_y: bool=False,
+    fontsize: float=21,
+    legend: bool=False,
+    legendhandles: Sequence[Any] | None=None,
+    legendcolor: str="black",
+    legendargs: dict[str, Any] | None=None,
+    draw_marker: Sequence[Any] | None=None,
+    draw_marker_param: dict[str, Any] | None=None,
+    plot_distribution: rv_frozen | None=None,
+    plot_distribution_label: str | None=None,
+    axes: npt.NDArray[mplAxes] | None=None,
+    **type_specific_kwargs: Any,
+) -> npt.NDArray[mplAxes]:
     """
     Constructs a figure or modifies axes.
 
     Parameters
     ----------
-    nrows : int
+    nrows
         Number of rows of plt.subplots.
-    ncols : int
+    ncols
         Number of columns of plt.subplots.
-    fig_width : float
+    fig_width
         Width of the figure.
-    fig_height : float
+    fig_height
         Height of the figure.
-    scale : float
+    scale
         Factor to scale the figure.
-    type_ : str
+    type_
         Type of the plot. One of "hist", "multiple_hist", "bar", "line",
         "multiple_line", "scatter", "errorbar", "step".
-    data : np.ndarray, Collection
+    data
         Data to be plotted. Required formation depends on input parameter type_.
-    label : str, list
+    label
         Label to pass to legend.
-    color : str, list, callable
+    color
         Color.
-    title : str
+    title
         The title of the plot.
-    xlabel : str
+    xlabel
         The label text of the x-axis.
-    ylabel : str
+    ylabel
         The label text of the y-axis.
-    ylabelcolor : str
+    ylabelcolor
         The color of the y-axis label.
-    xlim : float, Collection
+    xlim
         Left and right limit of the x-axis.
-    ylim : float, Collection
+    ylim
         Lower and upper limit of the y-axis.
-    xscale : str
+    xscale
         One of "linear", "log", "symlog", "logit".
-    yscale : str
+    yscale
         One of "linear", "log", "symlog", "logit".
-    xminor : bool
+    xminor
         Whether to plot minor ticks on the x-axis.
-    yminor : bool
+    yminor
         Whether to plot minor ticks on the y-axis.
-    adjust_x : float
+    adjust_x
         Factor with which the x data is multiplicated.
-    adjust_y : float
+    adjust_y
         Factor with which the y data is multiplicated.
-    xticks : array-like
+    xticks
         xtick locations.
-    yticks : array-like
+    yticks
         ytick locations.
-    xticklabels : dict
+    xticklabels
         Keyword 'labels' with labels to place at the given tick locations. Keyword
         'rotation' to rotate text.
-    yticklabels : dict
+    yticklabels
         Keyword 'labels' with labels to place at the given tick locations. Keyword
         'rotation' to rotate text.
-    tick_params : dict
+    tick_params
         Parameters to pass to .tick_params().
-    tick_spacing_x : float
+    tick_spacing_x
         Set a tick on each integer multiple of tick_spacing_x.
-    tick_spacing_y : float
+    tick_spacing_y
         Set a tick on each integer multiple of tick_spacing_y.
-    tick_style_x : str
+    tick_style_x
         One of "sci", "plain".
-    tick_style_y : str
+    tick_style_y
         One of "sci", "plain".
-    second_axis_x : bool
+    second_axis_x
         Whether to plot a second x-axis.
-    second_axis_y : bool
+    second_axis_y
         Whether to plot a second y-axis.
-    fontsize : float
+    fontsize
         Size of font.
-    legend : bool
+    legend
         Whether to display a legend.
-    legendhandles : Collection
+    legendhandles
         If not None, collection of handles (e.g., matplotlib.patches.Patch).
-    legendcolor : str
+    legendcolor
         Color of text in legend.
-    legendargs : dict
+    legendargs
         Additional arguments to pass to legend.
-    draw_marker : Collection
+    draw_marker
         The data positions, consists of x and y.
-    draw_marker_param : dict
+    draw_marker_param
         Parameters to pass to .scatter
-    plot_distribution : distr.rv_frozen
+    plot_distribution
         Additional distribution to be plotted.
-    plot_distribution_label : str
+    plot_distribution_label
         Label of plot_distribution.
-    axes : np.ndarray
+    axes
         Contains matplotlib.axes.Axes objects.
-    type_specific_kwargs : type_ properties
+    type_specific_kwargs
+        type_ properties
 
     Returns
     -------
-    axes : np.ndarray
+    npt.NDArray[matplotlib.axes.Axes]
         Contains matplotlib.axes.Axes.
     """
     # initialize figure

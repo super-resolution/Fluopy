@@ -1,21 +1,28 @@
 """
 Module analysis
 """
+from __future__ import annotations
 
 import re
 import warnings
+from typing import TYPE_CHECKING, Any, Iterable
 
 import matplotlib as mpl
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 from . import figure as fi
 from .miscellaneous import format_electronic_state, format_transition
 
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes as mplAxes
+    from fluopy.simulation import Simulation
+    from fluopy.prediction import Prediction
 
 class Analysis:
     """
-    Container of simulation-dervied statistical attributes and methods.
+    Container of simulation-derived statistical attributes and methods.
 
     Attributes
     ----------
@@ -41,11 +48,11 @@ class Analysis:
         occupied at any given point in time (array) as values.
     """
 
-    def __init__(self, simulation):
+    def __init__(self, simulation: Simulation) -> None:
         """
         Parameters
         ----------
-        simulation : fluopy.simulation.Simulation
+        simulation
             Container for simulation-associated attributes.
         """
         if simulation.transition_series is None:
@@ -79,13 +86,13 @@ class Analysis:
         )
         self.mean_lifetimes, self.state_occupations = self.infer_stats()
 
-    def check_absorbing(self):
+    def check_absorbing(self) -> bool:
         """
         Check whether fluorophores reached Markovian absorbing states.
 
         Returns
         -------
-        absorbing : bool
+        bool
             Whether at least one of the fluorophores has reached a Markovian absorbing
             state.
         """
@@ -122,13 +129,13 @@ class Analysis:
 
         return absorbing
 
-    def get_transition_occurrences(self):
+    def get_transition_occurrences(self) -> npt.NDArray[np.float64]:
         """
         Get the relative frequencies of transitions.
 
         Returns
         -------
-        frequency_transitions : 1-D array_like
+        frequency_transitions : npt.NDArray[np.float64]
             Simulated relative frequencies of each transition.
         """
         all_transition_occurrences = np.zeros(
@@ -165,13 +172,13 @@ class Analysis:
 
         return frequency_transitions
 
-    def get_state_occurrences(self):
+    def get_state_occurrences(self) -> dict[str, npt.NDArray[np.float64]]:
         """
         Get the relative frequencies of states.
 
         Returns
         -------
-        frequency_states : dict
+        frequency_states : dict[str, npt.NDArray[np.float64]]
             Name of fluorophores as keys and their state's simulated relative
             frequencies (array) as values.
         """
@@ -204,7 +211,7 @@ class Analysis:
 
         return frequency_states
 
-    def get_lifetimes(self):
+    def get_lifetimes(self) -> tuple[list[npt.NDArray[np.float64]], dict[str, npt.NDArray[np.float64]]]:
         """
         Get the lifetime distributions of states and the time until occurrence
         distributions of transitions.
@@ -213,9 +220,9 @@ class Analysis:
 
         Returns
         -------
-        transition_time_distributions : Collection
+        transition_time_distributions : list[npt.NDArray[np.float64]]
             Contains 1-D array_like for each transition (time until the transition).
-        lifetime_distributions : dict
+        lifetime_distributions : dict[str, npt.NDArray[np.float64]]
             Name of fluorophores as keys and collections of their state's simulated
             lifetimes (1-D array_like) as values.
         """
@@ -272,16 +279,16 @@ class Analysis:
 
         return transition_time_distributions, lifetime_distributions
 
-    def infer_stats(self):
+    def infer_stats(self) -> tuple[dict[str, npt.NDArray[np.float64]], dict[str, npt.NDArray[np.float64]]]:
         """
         Infers statistics of states based on lifetime distributions and frequencies.
 
         Returns
         -------
-        mean_lifetimes : dict
+        mean_lifetimes : dict[str, npt.NDArray[np.float64]]
             Name of fluorophores as keys and their state's simulated lifetime means
             (array) as values.
-        state_occupations : dict
+        state_occupations : dict[str, npt.NDArray[np.float64]]
             Name of fluorophores as keys and their state's simulated probability of
             being occupied at any given point in time (array) as values.
         """
@@ -304,18 +311,18 @@ class Analysis:
 
         return mean_lifetimes, state_occupations
 
-    def get_fluorescence_lifetimes(self, fluorophore=None):
+    def get_fluorescence_lifetimes(self, fluorophore: str | None=None) -> npt.NDArray[np.float64]:
         """
         Get the fluorescence lifetime (i.e., S1 lifetime) of the specified fluorophore.
 
         Parameters
         ----------
-        fluorophore : str, optional
+        fluorophore
             The name of the fluorophore whose fluorescence lifetime is to be returned.
 
         Returns
         -------
-        fluorescence_lifetimes : np.ndarray
+        fluorescence_lifetimes : npt.NDArray[np.float64]
             The fluorescence lifetimes of the specified fluorophore.
         """
         s1_value = 1  # hardcoded but covered by tests
@@ -341,19 +348,19 @@ class Analysis:
 
         return fluorescence_lifetimes
 
-    def get_emitting_transition_lifetimes(self, fluorophore=None):
+    def get_emitting_transition_lifetimes(self, fluorophore: str | None=None) -> npt.NDArray[np.float64]:
         """
         Get the lifetimes of the emitting transitions (i.e., S1 deexcitation via photon
         emission) of the specified fluorophore.
 
         Parameters
         ----------
-        fluorophore : str, optional
+        fluorophore
             The name of the fluorophore whose fluorescence lifetime is to be returned.
 
         Returns
         -------
-        exp_fluorescence_lifetimes : np.ndarray
+        exp_fluorescence_lifetimes : npt.NDArray[np.float64]
             The fluorescence lifetimes (photon emssion) of the specified fluorophore.
         """
         fluorophores = []
@@ -382,18 +389,20 @@ class Analysis:
 
         return exp_fluorescence_lifetimes
 
-    def plot_frequency_transitions(self, prediction=None, diff_dist=True, **kwargs):
+    def plot_frequency_transitions(self, prediction: Prediction | None=None, diff_dist: bool=True, **kwargs: Any) -> npt.NDArray[mplAxes]:
         """
         Plot frequencies of transitions.
 
         Parameters
         ----------
-        prediction : fluopy.prediction.Prediction
+        prediction
             Container of mathematically derived statistical attributes and methods.
+        diff_dist
+            Whether to plot energy transfers distance-specific or not.
 
         Returns
         -------
-        axes : np.ndarray
+        npt.NDArray[matplotlib.axes.Axes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         df = self.simulation.transition_set.transition_df
@@ -460,18 +469,20 @@ class Analysis:
 
         return axes
 
-    def plot_frequency_states(self, prediction=None, **kwargs):
+    def plot_frequency_states(self, prediction: Prediction | None=None, **kwargs: Any) -> npt.NDArray[mplAxes]:
         """
         Plot frequencies of states.
 
         Parameters
         ----------
-        prediction : fluopy.prediction.Prediction
+        prediction
             Container of mathematically derived statistical attributes and methods.
+        kwargs
+            kwargs to universal_figure
 
         Returns
         -------
-        axes : np.ndarray
+        npt.NDArray[matplotlib.axes.Axes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         from .transitions import SingleState
@@ -529,20 +540,22 @@ class Analysis:
 
         return axes
 
-    def plot_mean_transition_times(self, prediction=None, diff_dist=True, **kwargs):
+    def plot_mean_transition_times(self, prediction: Prediction | None=None, diff_dist: bool=True, **kwargs: Any) -> npt.NDArray[mplAxes]:
         """
         Plot mean times until transitions occur.
 
         Parameters
         ----------
-        prediction : fluopy.prediction.Prediction
+        prediction
             Container of mathematically derived statistical attributes and methods.
-        diff_dist : bool
+        diff_dist
             Whether to plot energy transfers distance-specific or not.
+        kwargs
+            kwargs to universal_figure
 
         Returns
         -------
-        axes : np.ndarray
+        npt.NDArray[matplotlib.axes.Axes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         df = self.simulation.transition_set.transition_df
@@ -621,18 +634,20 @@ class Analysis:
 
         return axes
 
-    def plot_mean_lifetimes(self, prediction=None, **kwargs):
+    def plot_mean_lifetimes(self, prediction: Prediction | None = None, **kwargs: Any) -> npt.NDArray[mplAxes]:
         """
         Plot mean lifetimes of states.
 
         Parameters
         ----------
-        prediction : fluopy.prediction.Prediction
+        prediction
             Container of mathematically derived statistical attributes and methods.
+        kwargs
+            kwargs to universal_figure
 
         Returns
         -------
-        axes : np.ndarray
+        npt.NDArray[matplotlib.axes.Axes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         from .transitions import SingleState
@@ -696,18 +711,20 @@ class Analysis:
 
         return axes
 
-    def plot_state_occupations(self, prediction=None, **kwargs):
+    def plot_state_occupations(self, prediction: Prediction | None = None, **kwargs: Any) -> npt.NDArray[mplAxes]:
         """
         Plot state occupation times (relative total time spent in state).
 
         Parameters
         ----------
-        prediction : fluopy.prediction.Prediction
+        prediction
             Container of mathematically derived statistical attributes and methods.
+        kwargs
+            kwargs to universal_figure
 
         Returns
         -------
-        axes : np.ndarray
+        npt.NDArray[matplotlib.axes.Axes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         from .transitions import SingleState
@@ -771,23 +788,24 @@ class Analysis:
         return axes
 
     def plot_lifetime_distributions(
-        self, fluorophore, state_identity, prediction=None, **kwargs
-    ):
+        self, fluorophore: str, state_identity: int, prediction: Prediction | None = None, **kwargs: Any) -> npt.NDArray[mplAxes]:
         """
         Plot lifetime distributions of states.
 
         Parameters
         ----------
-        fluorophore : str
+        fluorophore
             The name of the fluorophore whose state's distribution is to be shown.
-        state_identity : int
+        state_identity
             The identity of the state whose distribution is to be shown.
-        prediction : fluopy.prediction.Prediction
+        prediction
             Container of mathematically derived statistical attributes and methods.
+        kwargs
+            kwargs to universal_figure
 
         Returns
         -------
-        axes : np.ndarray
+        npt.NDArray[matplotlib.axes.Axes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         from .transitions import SingleState
@@ -833,23 +851,24 @@ class Analysis:
         return axes
 
     def plot_transition_time_distributions(
-        self, fluorophore, transition_id, prediction=None, **kwargs
-    ):
+        self, fluorophore: str, transition_id: int, prediction: Prediction | None = None, **kwargs: Any) -> npt.NDArray[mplAxes]:
         """
         Plot distributions of time until transition occurs.
 
         Parameters
         ----------
-        fluorophore : str
+        fluorophore
             The name of the fluorophore whose transition's distribution is to be shown.
-        transition_id : int
+        transition_id
             The identity of the transition whose distribution is to be shown.
-        prediction : fluopy.prediction.Prediction
+        prediction
             Container of mathematically derived statistical attributes and methods.
+        kwargs
+            kwargs to universal_figure
 
         Returns
         -------
-        axes : np.ndarray
+        npt.NDArray[matplotlib.axes.Axes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         kwargs.setdefault("type_", "hist")
@@ -892,28 +911,28 @@ class Analysis:
         return axes
 
 
-def no_diff_dist(transition_df, fluorophores):
+def no_diff_dist(transition_df: pd.DataFrame, fluorophores: Iterable[str]) -> tuple[pd.DataFrame, dict[str, Any], npt.NDArray[np.float64]]:
     """
     Get a transition_df which only contains one distance for each type of energy
     transfer.
 
     Parameters
     ----------
-    transition_df : pd.DataFrame
+    transition_df
         Dataframe of all given transitions with non-zero rate containing their id as
         second level index and their other attributes as columns. Name of fluorophores
         as first level index.
-    fluorophores : list
-        List of fluorophores (str).
+    fluorophores
+        Names of fluorophores.
 
     Returns
     -------
     df2 : pd.DataFrame
         Altered transition_df.
-    dict2 : dict
+    dict2 : dict[str, Any]
         New indices of type of energy transfer as keys and the old indices of distance-
         dependent duplices as values.
-    dict2_vals : np.ndarray
+    dict2_vals : npt.NDArray[np.float64]
         Flattened array of the values of dict2.
     """
     df2 = transition_df.copy()

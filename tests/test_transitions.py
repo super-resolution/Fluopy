@@ -92,231 +92,280 @@ def test_transition(transition_type, fluorophore_ids, expected):
         assert transition.fluorophore_ids == fluorophore_ids
 
 
-@pytest.mark.parametrize(
-    "transition_type, fluorophore_ids, fluo_comb, expected",
-    [
-        [tr.TransitionType.FRET, [(0, 1)], "testfluo_1-testfluo_1", "ValueError1"],
-        [
-            tr.TransitionType.FRET,
-            [(2, 1)],
-            "D: testfluo_1, A: testfluo_1, dist: 1.0",
-            "ValueError2",
-        ],
-        [
-            tr.TransitionType.FRET,
-            [(1, 2)],
-            "D: testfluo_1, A: testfluo_1, dist: 1.0",
-            "ValueError3",
-        ],
-        [
-            tr.TransitionType.FRET,
-            [(1, 0)],
-            "D: testfluo_1, A: testfluo_1, dist: 2.0",
-            "ValueError4",
-        ],
-        [tr.TransitionType.EXCITATION, [1], "testfluo_2", "ValueError5"],
-    ],
-)
-def test_transition_set_errors(
-    transition_type, fluorophore_ids, fluo_comb, expected, request
-):
-    transitions = {
-        fluo_comb: [
-            tr.Transition(
-                transition_type=transition_type, rate=1, fluorophore_ids=fluorophore_ids
-            )
-        ]
-    }
-    fluorophore_system = request.getfixturevalue("flu_sys_2xcy5_1xatto643")
-    if expected == "ValueError1":
-        with pytest.raises(
-            ValueError,
-            match="energy transfers have to be defined in transitions with the "
-            "key 'D: {name of donor}, A: {name of acceptor}, dist: "
-            "{distance between them}'",
-        ):
-            transition_set = tr.TransitionSet(
-                transitions=transitions, fluorophore_system=fluorophore_system
-            )
-    elif expected == "ValueError2":
-        with pytest.raises(
-            ValueError,
-            match="testfluo_1 indicated to be at identity 2, testfluo_2 found.",
-        ):
-            transition_set = tr.TransitionSet(
-                transitions=transitions, fluorophore_system=fluorophore_system
-            )
-    elif expected == "ValueError3":
-        # looks similar to ValueError2 but tests different Error
-        with pytest.raises(
-            ValueError,
-            match="testfluo_1 indicated to be at identity 2, testfluo_2 found.",
-        ):
-            transition_set = tr.TransitionSet(
-                transitions=transitions, fluorophore_system=fluorophore_system
-            )
-    elif expected == "ValueError4":
-        with pytest.raises(ValueError, match="2.0 nm indicated, 1.0 nm found."):
-            transition_set = tr.TransitionSet(
-                transitions=transitions, fluorophore_system=fluorophore_system
-            )
-    elif expected == "ValueError5":
-        with pytest.raises(
-            ValueError,
-            match="testfluo_2 indicated to be at identity 1, testfluo_1 found.",
-        ):
-            transition_set = tr.TransitionSet(
-                transitions=transitions, fluorophore_system=fluorophore_system
-            )
+class TestTransitionSet:
 
+    def test_init_empty(self, flu_sys_cy5):
+        with pytest.raises(TypeError):
+            tr.TransitionSet()
 
-# get_single_states is tested indirectly within test_transition_set
-def test_transition_set(request):
-    zero_rate_transition = tr.Transition(
-        transition_type=tr.TransitionType.INTERNAL_CONVERSION_S,
-        rate=0,
-        fluorophore_ids=[0, 1],
-    )
-    transitions = {
-        "testfluo_1": [
-            tr.Transition(
-                transition_type=tr.TransitionType.EXCITATION,
-                rate=1,
-                fluorophore_ids=[0, 1],
-            ),
-            tr.Transition(
-                transition_type=tr.TransitionType.FLUORESCENT_EMISSION,
-                rate=1e-1,
-                fluorophore_ids=[0, 1],
-            ),
-            zero_rate_transition,
-            tr.Transition(
-                transition_type=tr.TransitionType.INTERSYSTEM_CROSSING_ST,
-                rate=1,
-                fluorophore_ids=[0, 1],
-            ),
-        ],
-        "D: testfluo_1, A: testfluo_1, dist: 1.0": [
-            tr.Transition(
-                transition_type=tr.TransitionType.FRET,
-                rate=1,
-                fluorophore_ids=[(0, 1), (1, 0)],
-            )
-        ],
-        "D: testfluo_1, A: testfluo_2, dist: 2.0": [
-            tr.Transition(
-                transition_type=tr.TransitionType.FRET, rate=1, fluorophore_ids=[(0, 2)]
-            )
-        ],
-        "testfluo_2": [
-            tr.Transition(
-                transition_type=tr.TransitionType.EXCITATION,
-                rate=1,
-                fluorophore_ids=[2],
-            ),
-            tr.Transition(
-                transition_type=tr.TransitionType.FLUORESCENT_EMISSION,
-                rate=1e-1,
-                fluorophore_ids=[2],
-            ),
-        ],
-    }
-    fluorophore_system = request.getfixturevalue("flu_sys_2xcy5_1xatto643")
-    transition_set = tr.TransitionSet(
-        transitions=transitions, fluorophore_system=fluorophore_system
-    )
-    i = 0
-    for transition_collection in transition_set.transitions.values():
-        for transition in transition_collection:
-            assert transition.identity == i
-            i += 1
-            assert transition.abbreviation != "IC"
-    assert transition_set.fluorophore_system == fluorophore_system
-    assert transition_set.transitions == transitions
-    assert list(transition_set.transition_df.columns) == [
-        "transition_type",
-        "abbreviation",
-        "initial_state",
-        "final_state",
-        "rate",
-        "photon",
-        "fluorophore_ids",
-        "absorbing",
-    ]
-    assert (
-        transition_set.transition_df.loc[
-            transition_set.transition_df["absorbing"], "abbreviation"
-        ]
-    ).tolist() == ["ISC_ST"]
-    test_single_states = {
-        "testfluo_1": np.array([0, 1, 3]),
-        "testfluo_2": np.array([0, 1]),
-    }
-    for key in transition_set.single_states:
-        assert key in test_single_states
-        assert np.array_equal(
-            transition_set.single_states[key], test_single_states[key]
+    def test_init(self, flu_sys_cy5):
+        transition_1 = tr.Transition(
+            tr.TransitionType.EXCITATION, rate=1e6, fluorophore_ids=[0]
         )
-    assert transition_set.combined_state_transitions_df is None
-    assert transition_set.transition_matrix is None
-    assert transition_set.row_sums is None
+        transition_2 = tr.Transition(
+            tr.TransitionType.FLUORESCENT_EMISSION, rate=1e9, fluorophore_ids=[0]
+        )
+        transitions = {
+            "testfluo_1": [transition_1, transition_2],
+        }
+        fluorophore_system = flu_sys_cy5
+        transition_set = tr.TransitionSet(
+            transitions=transitions,
+            fluorophore_system=fluorophore_system
+        )
+        assert transition_set.transitions == transitions
+        assert transition_set.fluorophore_system == fluorophore_system
+        assert isinstance(transition_set.combined_state_transitions_df, pd.DataFrame)
+        assert len(transition_set.row_sums) == 2
+        assert list(transition_set.single_states.keys()) == ['testfluo_1']
+        assert isinstance(transition_set.transition_df, pd.DataFrame)
+        assert len(transition_set.transition_df) == 2
+        assert transition_set.transition_matrix.shape == (2, 2)
 
+        transition_set = tr.TransitionSet(
+            transitions=transitions,
+            fluorophore_system=fluorophore_system
+        )
+        transition_set.finalize()
 
-def test_transition_set_filter_by_identity(tr_set_bl_et_3f):
-    assert (
-        tr_set_bl_et_3f.transition_df.index.get_level_values(1).tolist()
-        == (np.arange(0, 22, 1, dtype=int)).tolist()
+        assert transition_set.transitions == transitions
+        assert transition_set.fluorophore_system == fluorophore_system
+        assert isinstance(transition_set.combined_state_transitions_df, pd.DataFrame)
+        assert len(transition_set.row_sums) == 2
+        assert list(transition_set.single_states.keys()) == ['testfluo_1']
+        assert isinstance(transition_set.transition_df, pd.DataFrame)
+        assert len(transition_set.transition_df) == 2
+        assert transition_set.transition_matrix.shape == (2, 2)
+
+    @pytest.mark.parametrize(
+        "transition_type, fluorophore_ids, fluo_comb, expected",
+        [
+            [tr.TransitionType.FRET, [(0, 1)], "testfluo_1-testfluo_1", "ValueError1"],
+            [
+                tr.TransitionType.FRET,
+                [(2, 1)],
+                "D: testfluo_1, A: testfluo_1, dist: 1.0",
+                "ValueError2",
+            ],
+            [
+                tr.TransitionType.FRET,
+                [(1, 2)],
+                "D: testfluo_1, A: testfluo_1, dist: 1.0",
+                "ValueError3",
+            ],
+            [
+                tr.TransitionType.FRET,
+                [(1, 0)],
+                "D: testfluo_1, A: testfluo_1, dist: 2.0",
+                "ValueError4",
+            ],
+            [tr.TransitionType.EXCITATION, [1], "testfluo_2", "ValueError5"],
+        ],
     )
-    assert (
-        "D: testfluo_1, A: testfluo_2, dist: 2.0"
-        in tr_set_bl_et_3f.transition_df.index.get_level_values(0).tolist()
-    )
-    tr_set_bl_et_filtered = tr_set_bl_et_3f.filter_by_identity(remove_list=[4, 10])
-    assert (
-        tr_set_bl_et_filtered.transition_df.index.get_level_values(1).tolist()
-        == (np.arange(0, 20, 1, dtype=int)).tolist()
-    )
-    assert (
-        "D: testfluo_1, A: testfluo_2, dist: 2.0"
-        not in tr_set_bl_et_filtered.transition_df.index.get_level_values(0).tolist()
-    )
+    def test_transition_set_errors(
+        self, transition_type, fluorophore_ids, fluo_comb, expected, request
+    ):
+        transitions = {
+            fluo_comb: [
+                tr.Transition(
+                    transition_type=transition_type, rate=1, fluorophore_ids=fluorophore_ids
+                )
+            ]
+        }
+        fluorophore_system = request.getfixturevalue("flu_sys_2xcy5_1xatto643")
+        if expected == "ValueError1":
+            with pytest.raises(
+                ValueError,
+                match="energy transfers have to be defined in transitions with the "
+                "key 'D: {name of donor}, A: {name of acceptor}, dist: "
+                "{distance between them}'",
+            ):
+                transition_set = tr.TransitionSet(
+                    transitions=transitions, fluorophore_system=fluorophore_system
+                )
+        elif expected == "ValueError2":
+            with pytest.raises(
+                ValueError,
+                match="testfluo_1 indicated to be at identity 2, testfluo_2 found.",
+            ):
+                transition_set = tr.TransitionSet(
+                    transitions=transitions, fluorophore_system=fluorophore_system
+                )
+        elif expected == "ValueError3":
+            # looks similar to ValueError2 but tests different Error
+            with pytest.raises(
+                ValueError,
+                match="testfluo_1 indicated to be at identity 2, testfluo_2 found.",
+            ):
+                transition_set = tr.TransitionSet(
+                    transitions=transitions, fluorophore_system=fluorophore_system
+                )
+        elif expected == "ValueError4":
+            with pytest.raises(ValueError, match="2.0 nm indicated, 1.0 nm found."):
+                transition_set = tr.TransitionSet(
+                    transitions=transitions, fluorophore_system=fluorophore_system
+                )
+        elif expected == "ValueError5":
+            with pytest.raises(
+                ValueError,
+                match="testfluo_2 indicated to be at identity 1, testfluo_1 found.",
+            ):
+                transition_set = tr.TransitionSet(
+                    transitions=transitions, fluorophore_system=fluorophore_system
+                )
 
 
-def test_transition_set_adjust_rates(tr_set_bl_et_3f):
-    assert tr_set_bl_et_3f.transition_df["rate"].tolist()[:6] == [
-        5815700.439305622,
-        270000000.0,
-        830000.0,
-        5000.0,
-        20000000.0,
-        109542.37650972935,
-    ]
-    tr_set_bl_et_adjusted = tr_set_bl_et_3f.adjust_rates(change_dict={4: 1})
-    assert tr_set_bl_et_adjusted.transition_df["rate"].tolist()[:6] == [
-        5815700.439305622,
-        270000000.0,
-        830000.0,
-        5000.0,
-        1.0,
-        109542.37650972935,
-    ]
+    # get_single_states is tested indirectly within test_transition_set
+    def test_transition_set(self, request):
+        zero_rate_transition = tr.Transition(
+            transition_type=tr.TransitionType.INTERNAL_CONVERSION_S,
+            rate=0,
+            fluorophore_ids=[0, 1],
+        )
+        transitions = {
+            "testfluo_1": [
+                tr.Transition(
+                    transition_type=tr.TransitionType.EXCITATION,
+                    rate=1,
+                    fluorophore_ids=[0, 1],
+                ),
+                tr.Transition(
+                    transition_type=tr.TransitionType.FLUORESCENT_EMISSION,
+                    rate=1e-1,
+                    fluorophore_ids=[0, 1],
+                ),
+                zero_rate_transition,
+                tr.Transition(
+                    transition_type=tr.TransitionType.INTERSYSTEM_CROSSING_ST,
+                    rate=1,
+                    fluorophore_ids=[0, 1],
+                ),
+            ],
+            "D: testfluo_1, A: testfluo_1, dist: 1.0": [
+                tr.Transition(
+                    transition_type=tr.TransitionType.FRET,
+                    rate=1,
+                    fluorophore_ids=[(0, 1), (1, 0)],
+                )
+            ],
+            "D: testfluo_1, A: testfluo_2, dist: 2.0": [
+                tr.Transition(
+                    transition_type=tr.TransitionType.FRET, rate=1, fluorophore_ids=[(0, 2)]
+                )
+            ],
+            "testfluo_2": [
+                tr.Transition(
+                    transition_type=tr.TransitionType.EXCITATION,
+                    rate=1,
+                    fluorophore_ids=[2],
+                ),
+                tr.Transition(
+                    transition_type=tr.TransitionType.FLUORESCENT_EMISSION,
+                    rate=1e-1,
+                    fluorophore_ids=[2],
+                ),
+            ],
+        }
+        fluorophore_system = request.getfixturevalue("flu_sys_2xcy5_1xatto643")
+        transition_set = tr.TransitionSet(
+            transitions=transitions, fluorophore_system=fluorophore_system
+        )
+        i = 0
+        for transition_collection in transition_set.transitions.values():
+            for transition in transition_collection:
+                assert transition.identity == i
+                i += 1
+                assert transition.abbreviation != "IC"
+        assert transition_set.fluorophore_system == fluorophore_system
+        assert transition_set.transitions == transitions
+        assert list(transition_set.transition_df.columns) == [
+            "transition_type",
+            "abbreviation",
+            "initial_state",
+            "final_state",
+            "rate",
+            "photon",
+            "fluorophore_ids",
+            "absorbing",
+        ]
+        assert (
+            transition_set.transition_df.loc[
+                transition_set.transition_df["absorbing"], "abbreviation"
+            ]
+        ).tolist() == ["ISC_ST"]
+        test_single_states = {
+            "testfluo_1": np.array([0, 1, 3]),
+            "testfluo_2": np.array([0, 1]),
+        }
+        for key in transition_set.single_states:
+            assert key in test_single_states
+            assert np.array_equal(
+                transition_set.single_states[key], test_single_states[key]
+            )
+
+        assert isinstance(transition_set.combined_state_transitions_df, pd.DataFrame)
+        assert len(transition_set.row_sums) == 61
+        assert list(transition_set.single_states.keys()) == ['testfluo_1', 'testfluo_2']
+        assert isinstance(transition_set.transition_df, pd.DataFrame)
+        assert len(transition_set.transition_df) == 7
+        assert transition_set.transition_matrix.shape == (61, 61)
 
 
-def test_transition_set_remove_absorbing_states(tr_set_bl_et_3f):
-    assert tr_set_bl_et_3f.transition_df["absorbing"].any()
-    tr_set_et = tr_set_bl_et_3f.remove_absorbing_states()
-    assert not tr_set_et.transition_df["absorbing"].any()
+    def test_transition_set_filter_by_identity(self, tr_set_bl_et_3f):
+        assert (
+            tr_set_bl_et_3f.transition_df.index.get_level_values(1).tolist()
+            == (np.arange(0, 22, 1, dtype=int)).tolist()
+        )
+        assert (
+            "D: testfluo_1, A: testfluo_2, dist: 2.0"
+            in tr_set_bl_et_3f.transition_df.index.get_level_values(0).tolist()
+        )
+        tr_set_bl_et_filtered = tr_set_bl_et_3f.filter_by_identity(remove_list=[4, 10])
+        assert (
+            tr_set_bl_et_filtered.transition_df.index.get_level_values(1).tolist()
+            == (np.arange(0, 20, 1, dtype=int)).tolist()
+        )
+        assert (
+            "D: testfluo_1, A: testfluo_2, dist: 2.0"
+            not in tr_set_bl_et_filtered.transition_df.index.get_level_values(0).tolist()
+        )
 
 
-def test_transition_set_remove_energy_transfers(tr_set_bl_et_3f):
-    assert any(
-        "dist" in s
-        for s in tr_set_bl_et_3f.transition_df.index.get_level_values(0).tolist()
-    )
-    tr_set_bl = tr_set_bl_et_3f.remove_energy_transfers()
-    assert not any(
-        "dist" in s for s in tr_set_bl.transition_df.index.get_level_values(0).tolist()
-    )
+    def test_transition_set_adjust_rates(self, tr_set_bl_et_3f):
+        assert tr_set_bl_et_3f.transition_df["rate"].tolist()[:6] == [
+            5815700.439305622,
+            270000000.0,
+            830000.0,
+            5000.0,
+            20000000.0,
+            109542.37650972935,
+        ]
+        tr_set_bl_et_adjusted = tr_set_bl_et_3f.adjust_rates(change_dict={4: 1})
+        assert tr_set_bl_et_adjusted.transition_df["rate"].tolist()[:6] == [
+            5815700.439305622,
+            270000000.0,
+            830000.0,
+            5000.0,
+            1.0,
+            109542.37650972935,
+        ]
+
+
+    def test_transition_set_remove_absorbing_states(self, tr_set_bl_et_3f):
+        assert tr_set_bl_et_3f.transition_df["absorbing"].any()
+        tr_set_et = tr_set_bl_et_3f.remove_absorbing_states()
+        assert not tr_set_et.transition_df["absorbing"].any()
+
+
+    def test_transition_set_remove_energy_transfers(self, tr_set_bl_et_3f):
+        assert any(
+            "dist" in s
+            for s in tr_set_bl_et_3f.transition_df.index.get_level_values(0).tolist()
+        )
+        tr_set_bl = tr_set_bl_et_3f.remove_energy_transfers()
+        assert not any(
+            "dist" in s for s in tr_set_bl.transition_df.index.get_level_values(0).tolist()
+        )
 
 
 @pytest.mark.parametrize(

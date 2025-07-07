@@ -2,24 +2,35 @@
 Module fitting
 """
 
+from __future__ import annotations
+
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
+import numpy.typing as npt
 from scipy.optimize import Bounds, LinearConstraint, differential_evolution, minimize
 from scipy.stats import expon
 
 from . import distributions as dist
 
+if TYPE_CHECKING:
+    from scipy.optimize import OptimizeResult
 
-def ps_fingerprint_cdf_fit_1f(x, y, **diff_ev):
+
+def ps_fingerprint_cdf_fit_1f(
+    x: npt.ArrayLike, y: npt.ArrayLike, **diff_ev: Any
+) -> OptimizeResult:
     """
     Fit a 1f distribution to the data using the differential evolution algorithm.
 
     Parameters
     ----------
-    x : np.ndarray
+    x
         The x values of the data.
-    y : np.ndarray
+    y
         The y values of the data.
-    diff_ev : dict
+    diff_ev
         Additional parameters for the differential evolution algorithm.
 
     Returns
@@ -50,17 +61,19 @@ def ps_fingerprint_cdf_fit_1f(x, y, **diff_ev):
     return result
 
 
-def ps_fingerprint_cdf_fit_2f(x, y, **diff_ev):
+def ps_fingerprint_cdf_fit_2f(
+    x: npt.ArrayLike, y: npt.ArrayLike, **diff_ev: Any
+) -> OptimizeResult:
     """
     Fit a 2f distribution to the data using the differential evolution algorithm.
 
     Parameters
     ----------
-    x : np.ndarray
+    x
         The x values of the data.
-    y : np.ndarray
+    y
         The y values of the data.
-    diff_ev : dict
+    diff_ev
         Additional parameters for the differential evolution algorithm.
 
     Returns
@@ -94,17 +107,19 @@ def ps_fingerprint_cdf_fit_2f(x, y, **diff_ev):
     return result
 
 
-def ps_fingerprint_cdf_fit_3f(x, y, **diff_ev):
+def ps_fingerprint_cdf_fit_3f(
+    x: npt.ArrayLike, y: npt.ArrayLike, **diff_ev: Any
+) -> OptimizeResult:
     """
     Fit a 3f distribution to the data using the differential evolution algorithm.
 
     Parameters
     ----------
-    x : np.ndarray
+    x
         The x values of the data.
-    y : np.ndarray
+    y
         The y values of the data.
-    diff_ev : dict
+    diff_ev
         Additional parameters for the differential evolution algorithm.
 
     Returns
@@ -145,17 +160,19 @@ def ps_fingerprint_cdf_fit_3f(x, y, **diff_ev):
     return result
 
 
-def ps_fingerprint_cdf_fit_4f(x, y, **diff_ev):
+def ps_fingerprint_cdf_fit_4f(
+    x: npt.ArrayLike, y: npt.ArrayLike, **diff_ev: Any
+) -> OptimizeResult:
     """
     Fit a 4f distribution to the data using the differential evolution algorithm.
 
     Parameters
     ----------
-    x : np.ndarray
+    x
         The x values of the data.
-    y : np.ndarray
+    y
         The y values of the data.
-    diff_ev : dict
+    diff_ev
         Additional parameters for the differential evolution algorithm.
 
     Returns
@@ -233,27 +250,31 @@ def ps_fingerprint_cdf_fit_4f(x, y, **diff_ev):
 
 
 def mixture_log_likelihood(
-    params, data, truncation_low, truncation_up, number_no_events=0
-):
+    params: Iterable,
+    data: npt.ArrayLike,
+    truncation_low: float,
+    truncation_up: float,
+    number_no_events: int = 0,
+) -> float:
     """
     Negative log-likelihood of a mixture of two exponential distributions (pdf).
 
     Parameters
     ----------
-    params : list
+    params
         Parameters of the mixture distribution.
-    data : np.ndarray
+    data
         Sample.
-    truncation_low : float
+    truncation_low
         Lower truncation of the distribution.
-    truncation_up : float
+    truncation_up
         Upper truncation of the distribution.
-    number_no_events : int
+    number_no_events
         Number of runs without events.
 
     Returns
     -------
-    negative_log_likelihood : float
+    float
         Negative log-likelihood to be minimized.
     """
     pi, lambda1, lambda2 = params
@@ -286,33 +307,33 @@ def mixture_log_likelihood(
 
 
 def estimate_mixture_parameters(
-    data,
-    initial_guess,
-    bounds,
-    truncation_low=0,
-    truncation_up=300,
-    number_no_events=0,
-    method="L-BFGS-B",
-):
+    data: npt.ArrayLike,
+    initial_guess: npt.ArrayLike,
+    bounds: Iterable,
+    truncation_low: float = 0,
+    truncation_up: float = 300,
+    number_no_events: int = 0,
+    method: str = "L-BFGS-B",
+) -> tuple[float, float, float]:
     """
     Estimate the parameters of a mixture of two exponential distributions (pdf).
 
     Parameters
     ----------
-    data : np.ndarray
+    data
         Sample.
-    initial_guess : list
+    initial_guess
         Initial guess for the optimization. For parameters, see return values.
-    bounds : list
+    bounds
         Bounds for the optimization. For parameters, see return values.
-    truncation_low : float
+    truncation_low
         Lower truncation of the distribution.
-    truncation_up : float
+    truncation_up
         Upper truncation of the distribution.
-    number_no_events : int
+    number_no_events
         Number of runs without events. Set to 0 if all runs produced events or if no
         influence of log-likelihood of no events is desired.
-    method : str
+    method
         Optimization method.
 
     Returns

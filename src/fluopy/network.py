@@ -3,28 +3,34 @@ Module network
 """
 
 import re
+from collections.abc import Generator, Sequence
+from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from matplotlib import rcParams, rcParamsDefault
 
+if TYPE_CHECKING:
+    import pandas as pd
+    from matplotlib.axes import Axes as mplAxes
 
-def construct_state_graphs(transition_df):
+
+def construct_state_graphs(transition_df: pd.DataFrame) -> list[nx.MultiDiGraph]:
     """
     Constructs graphs of states (nodes) and their transitions (edges). Each fluorophore
     or fluorophore combination gets a separate graph.
 
     Parameters
     ----------
-    transition_df : pd.DataFrame
+    transition_df
         Dataframe of all given transitions with non-zero rate containing their id as
         second level index and their other attributes as columns. Name of fluorophores
         as first level index.
 
     Returns
     -------
-    graphs : list
+    graphs : list[nx.MultiDiGraph]
         Contains objects of type nx.MultiDiGraph.
     """
     graphs = []
@@ -60,13 +66,13 @@ def construct_state_graphs(transition_df):
     return graphs
 
 
-def construct_transition_graph(transition_df):
+def construct_transition_graph(transition_df: pd.DataFrame) -> nx.MultiDiGraph:
     """
     Constructs a graph of transitions (nodes) and their involved states (edges).
 
     Parameters
     ----------
-    transition_df : pd.DataFrame
+    transition_df
         Dataframe of all given transitions with non-zero rate containing their id as
         second level index and their other attributes as columns. Name of fluorophores
         as first level index.
@@ -96,16 +102,18 @@ def construct_transition_graph(transition_df):
     return G
 
 
-def check_graph_suitable(G, starting_node):
+def check_graph_suitable(
+    G: nx.MultiDiGraph, starting_node: int
+) -> tuple[bool, list[Any]]:
     """
     Checks whether a Markov chain is suitable for an approximation of its development
     in time. This means being acyclic (except cycles that include the starting node).
 
     Parameters
     ----------
-    G : nx.MultiDiGraph
+    G
         Markov Chain representation by nodes and edges.
-    starting_node : int
+    starting_node
         Numeric value representing the starting node (i.e., state).
 
     Returns
@@ -125,7 +133,9 @@ def check_graph_suitable(G, starting_node):
     return graph_suited, cycles
 
 
-def determine_node_order(G, starting_node):
+def determine_node_order(
+    G: nx.MultiDiGraph, starting_node: int
+) -> Generator[Any, None, None]:
     """
     Determine the order of nodes of a graph such that each node that leads to another
     node has been visited before the other node. Requires the graph to be a DAG
@@ -134,9 +144,9 @@ def determine_node_order(G, starting_node):
 
     Parameters
     ----------
-    G : nx.MultiDiGraph
+    G
         Markov Chain representation by nodes and edges.
-    starting_node : int
+    starting_node
         Numeric value representing the starting node (i.e., state).
 
     Returns
@@ -155,7 +165,12 @@ def determine_node_order(G, starting_node):
     return node_order
 
 
-def plot_graph(G, graph_type="shell", colors=None, scale=1):
+def plot_graph(
+    G: nx.MultiDiGraph,
+    graph_type: str = "shell",
+    colors: Sequence[str] = None,
+    scale: float = 1,
+) -> mplAxes:
     """
     Plot graph.
     Adapted from https://stackoverflow.com/questions/22785849/drawing-multiple-edges-
@@ -163,13 +178,13 @@ def plot_graph(G, graph_type="shell", colors=None, scale=1):
 
     Parameters
     ----------
-    G : nx.MultiDiGraph
+    G
         Markov Chain representation by nodes and edges.
-    graph_type : str
+    graph_type
         Specifies network layout. One of 'shell', 'circular', 'planar' or 'kamada'.
-    colors : Collection
+    colors
         Contains two colors as Hex values of type str.
-    scale : float
+    scale
         Factor to scale the figure.
 
     Returns
@@ -261,7 +276,13 @@ def plot_graph(G, graph_type="shell", colors=None, scale=1):
     return ax
 
 
-def draw_networkx_curved_edge_labels(G, pos, ax=None, edge_labels=None, rad=0):
+def draw_networkx_curved_edge_labels(
+    G: nx.Graph,
+    pos: dict[Any, Any],
+    ax: mplAxes | None = None,
+    edge_labels: dict[Any, Any] = None,
+    rad: float = 0,
+) -> None:
     """
     Draws labels to curved edges.
     Adapted from https://stackoverflow.com/questions/22785849/drawing-multiple-edges-
@@ -269,14 +290,15 @@ def draw_networkx_curved_edge_labels(G, pos, ax=None, edge_labels=None, rad=0):
 
     Parameters
     ----------
-    G : graph
+    G
         A networkx graph.
-    pos : dict
+    pos
         Nodes as keys and positions as values.
-    ax : matplotlib.axes._subplots.AxesSubplot
-    edge_labels : dict
+    ax
+        Axis to plot on.
+    edge_labels
         Edges (tuples) as keys and labels as values.
-    rad : float
+    rad
         Rounding radius of curved edge.
 
     Returns

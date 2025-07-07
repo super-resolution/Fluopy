@@ -2,15 +2,32 @@
 Module distributions
 """
 
+from __future__ import annotations
+
 import inspect
+from collections.abc import Callable, Iterable, Sequence
 from itertools import product
+from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 from scipy.special import i1
 from scipy.stats import expon, rv_discrete
 
+# type definition for random number generator seed
+RandomGeneratorSeed = (
+    None
+    | int
+    | Sequence[int]
+    | np.random.SeedSequence
+    | np.random.BitGenerator
+    | np.random.Generator
+)
 
-def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100):
+
+def high_gain_amplification_noise_distribution(
+    x_min: int = 1, x_max: int = 100, v: float = 1, gain: float = 100
+) -> rv_discrete:
     """
     The high gain amplification noise distribution as proposed in
     https://doi.org/10.1117/12.2004621 with the adjustment of not considering 0 as a
@@ -23,14 +40,14 @@ def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100
 
     Parameters
     ----------
-    x_min : int
+    x_min
         Minimum support value.
-    x_max : int
+    x_max
         Maximum support value.
-    v : float
+    v
         The mean of the non-amplified (nearly) poissonian photon count distribution.
         Has to include 0 counts.
-    gain : float
+    gain
         The gain applied to the photon counts.
 
     Returns
@@ -58,20 +75,22 @@ def high_gain_amplification_noise_distribution(x_min=1, x_max=100, v=1, gain=100
     return distribution
 
 
-def hypoexponential_distribution_cdf(x, *args):
+def hypoexponential_distribution_cdf(
+    x: float | npt.ArrayLike, *args: Any
+) -> float | npt.NDArray[np.float64]:
     """
     CDF of the hypoexponential distribution.
 
     Parameters
     ----------
-    x : float, 1-D array_like
+    x
         Sample.
     args : float, 1-D array_like
         Parameters (lambdas) of the hypoexponential distribution.
 
     Returns
     -------
-    cdf : float, 1-D array_like
+    float | npt.NDArray[np.float64]
         CDF of the hypoexponential distribution.
     """
     cdf = 1
@@ -82,20 +101,22 @@ def hypoexponential_distribution_cdf(x, *args):
     return cdf
 
 
-def hypoexponential_distribution_pdf(x, *args):
+def hypoexponential_distribution_pdf(
+    x: float | npt.ArrayLike, *args: Any
+) -> float | npt.NDArray[np.float64]:
     """
     PDF of the hypoexponential distribution.
 
     Parameters
     ----------
-    x : float, 1-D array_like
+    x
         Sample.
     args : float, 1-D array_like
         Parameters (lambdas) of the hypoexponential distribution.
 
     Returns
     -------
-    pdf : float, 1-D array_like
+    float | npt.NDArray[np.float64]
         PDF of the hypoexponential distribution.
     """
     all_args = np.array(args)
@@ -107,20 +128,22 @@ def hypoexponential_distribution_pdf(x, *args):
     return pdf
 
 
-def hypoexponential_distribution_pdf_1st_order_derivative(x, *args):
+def hypoexponential_distribution_pdf_1st_order_derivative(
+    x: float | npt.ArrayLike, *args: Any
+) -> float | npt.NDArray[np.float64]:
     """
     First order derivative of the PDF of the hypoexponential distribution.
 
     Parameters
     ----------
-    x : float, 1-D array_like
+    x
         Sample.
     args : float, 1-D array_like
         Parameters (lambdas) of the hypoexponential distribution.
 
     Returns
     -------
-    pdf_1st_order_derivative : float, 1-D array_like
+    pdf_1st_order_derivative : float | npt.NDArray[np.float64]
         First order derivative of the PDF of the hypoexponential distribution.
     """
     all_args = np.array(args)
@@ -134,20 +157,22 @@ def hypoexponential_distribution_pdf_1st_order_derivative(x, *args):
     return pdf_1st_order_derivative
 
 
-def hypoexponential_distribution_pdf_2nd_order_derivative(x, *args):
+def hypoexponential_distribution_pdf_2nd_order_derivative(
+    x: float | npt.ArrayLike, *args: Any
+) -> float | npt.NDArray[np.float64]:
     """
     Second order derivative of the PDF of the hypoexponential distribution.
 
     Parameters
     ----------
-    x : float, 1-D array_like
+    x
         Sample.
     args : float, 1-D array_like
         Parameters (lambdas) of the hypoexponential distribution.
 
     Returns
     -------
-    pdf_2nd_order_derivative : float, 1-D array_like
+    pdf_2nd_order_derivative : float | npt.NDArray[np.float64]
         Second order derivative of the PDF of the hypoexponential distribution.
     """
     all_args = np.array(args)
@@ -167,15 +192,20 @@ class Photoswitching_fingerprint_model:
     is bias in time (e.g., increased probability of ON in the beginning).
     """
 
-    def __init__(self, lambdas, pis_orig, domain=(0, np.inf)):
+    def __init__(
+        self,
+        lambdas: float | npt.ArrayLike,
+        pis_orig: float | npt.ArrayLike,
+        domain: tuple[float, float] = (0, np.inf),
+    ) -> None:
         """
         Parameters
         ----------
-        lambdas : float, 2-D array_like
-            Rates of the underlying exponential distributions.
-        pis_orig : float, 1-D array_like
-            Weights of the underlying exponential distributions.
-        domain : tuple
+        lambdas
+            Rates of the underlying exponential distributions (2D).
+        pis_orig
+            Weights of the underlying exponential distributions (1D).
+        domain
             Domain of the model. Default is (0, np.inf).
         """
         self.lambdas = np.asarray(lambdas)
@@ -183,20 +213,22 @@ class Photoswitching_fingerprint_model:
         self.pis_orig = np.array([pis_orig, 1 - pis_orig])
         self.domain = domain
 
-    def pdf(self, x, order=0):
+    def pdf(
+        self, x: float | npt.ArrayLike, order: int = 0
+    ) -> float | npt.NDArray[np.float64]:
         """
         PDF
 
         Parameters
         ----------
-        x : float, 1-D array_like
+        x
             Sample.
         order : int
             Order of the derivative of the PDF to be calculated.
 
         Returns
         -------
-        pdf : float, 1-D array_like
+        pdf : float | npt.NDArray[np.float64]
             Model output.
         """
         if order == 0:
@@ -241,18 +273,22 @@ class Photoswitching_fingerprint_model:
 
         return pdf
 
-    def cdf(self, x, extra=False):
+    def cdf(
+        self, x: float | npt.ArrayLike, extra: bool = False
+    ) -> float | npt.NDArray[np.float64]:
         """
         CDF
 
         Parameters
         ----------
-        x : float, 1-D array_like
+        x
             Sample.
+        extra
+            ...
 
         Returns
         -------
-        cdf : float, 1-D array_like
+        cdf : float | npt.NDArray[np.float64]
             Model output.
         """
         n = self.lambdas.shape[1]
@@ -284,7 +320,7 @@ class Photoswitching_fingerprint_model:
 
         return cdf
 
-    def dpdf(self, x):
+    def dpdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """
         first derivate of PDF
         """
@@ -292,7 +328,7 @@ class Photoswitching_fingerprint_model:
 
         return dpdf
 
-    def ddpdf(self, x):
+    def ddpdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """
         second derivate of PDF
         """
@@ -300,7 +336,7 @@ class Photoswitching_fingerprint_model:
 
         return ddpdf
 
-    def logp(self, x):
+    def logp(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """
         Logarithm of the PDF
         """
@@ -309,7 +345,7 @@ class Photoswitching_fingerprint_model:
 
         return logp
 
-    def quantile_function():
+    def quantile_function(self) -> None:
         """
         Quantile function
         """
@@ -319,7 +355,9 @@ class Photoswitching_fingerprint_model:
         )
 
 
-def photoswitching_fingerprint_prepare(n, pis):
+def photoswitching_fingerprint_prepare(
+    n: int, pis: npt.ArrayLike
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
     Get indices for valid lambda combinations for the photoswitching fingerprint model.
     Modifies the weights of the underlying exponential distributions by converting
@@ -327,9 +365,9 @@ def photoswitching_fingerprint_prepare(n, pis):
 
     Parameters
     ----------
-    n : int
+    n
         Number of fluorophores.
-    pis : 2-D array_like
+    pis
         Weights of the underlying exponential distributions.
 
     Returns
@@ -355,7 +393,13 @@ def photoswitching_fingerprint_prepare(n, pis):
     return valid_combinations, pis
 
 
-def ps_fingerprint_cdf_1f(x, lam1_1, lam1_2, pi1, domain):
+def ps_fingerprint_cdf_1f(
+    x: float | npt.ArrayLike,
+    lam1_1: float,
+    lam1_2: float,
+    pi1: float,
+    domain: tuple[float, float],
+) -> float | npt.NDArray[np.float64]:
     """
     Cumulative distribution function of the photoswitching fingerprint model with one
     fluorophore.
@@ -364,16 +408,18 @@ def ps_fingerprint_cdf_1f(x, lam1_1, lam1_2, pi1, domain):
     ----------
     x : float, 1-D array_like
         Sample.
-    lam1_1 : float
+    lam1_1
         Rate of the first (biased) exponential distribution.
-    lam1_2 : float
+    lam1_2
         Rate of the second (non-biased) exponential distribution.
-    pi1 : float
+    pi1
         Weight of the first exponential distribution.
+    domain
+        Domain of the model.
 
     Returns
     -------
-    cdf : float, 1-D array_like
+    float | npt.NDArray[np.float64]
         CDF of the photoswitching fingerprint model.
     """
     cdf = Photoswitching_fingerprint_model(
@@ -385,31 +431,42 @@ def ps_fingerprint_cdf_1f(x, lam1_1, lam1_2, pi1, domain):
     return cdf
 
 
-def ps_fingerprint_cdf_2f(x, lam1_1, lam2_1, lam1_2, lam2_2, pi1, pi2, domain):
+def ps_fingerprint_cdf_2f(
+    x: float | npt.ArrayLike,
+    lam1_1: float,
+    lam2_1: float,
+    lam1_2: float,
+    lam2_2: float,
+    pi1: float,
+    pi2: float,
+    domain,
+) -> float | npt.NDArray[np.float64]:
     """
     Cumulative distribution function of the photoswitching fingerprint model with two
     fluorophores.
 
     Parameters
     ----------
-    x : float, 1-D array_like
+    x
         Sample.
-    lam1_1 : float
+    lam1_1
         Rate of the first (biased) exponential distribution of the first fluorophore.
-    lam2_1 : float
+    lam2_1
         Rate of the first (biased) exponential distribution of the second fluorophore.
-    lam1_2 : float
+    lam1_2
         Rate of the second (non-biased) exponential distribution of the first fluorophore.
-    lam2_2 : float
+    lam2_2
         Rate of the second (non-biased) exponential distribution of the second fluorophore.
-    pi1 : float
+    pi1
         Weight of the first exponential distribution of the first fluorophore.
-    pi2 : float
+    pi2
         Weight of the first exponential distribution of the second fluorophore.
+    domain
+        Domain of the model.
 
     Returns
     -------
-    cdf : float, 1-D array_like
+    float | npt.NDArray[np.float64]
         CDF of the photoswitching fingerprint model.
     """
     cdf = Photoswitching_fingerprint_model(
@@ -422,38 +479,50 @@ def ps_fingerprint_cdf_2f(x, lam1_1, lam2_1, lam1_2, lam2_2, pi1, pi2, domain):
 
 
 def ps_fingerprint_cdf_3f(
-    x, lam1_1, lam2_1, lam3_1, lam1_2, lam2_2, lam3_2, pi1, pi2, pi3, domain
-):
+    x: float | npt.ArrayLike,
+    lam1_1: float,
+    lam2_1: float,
+    lam3_1: float,
+    lam1_2: float,
+    lam2_2: float,
+    lam3_2: float,
+    pi1: float,
+    pi2: float,
+    pi3: float,
+    domain: tuple[float, float],
+) -> float | npt.NDArray[np.float64]:
     """
     Cumulative distribution function of the photoswitching fingerprint model with three
     fluorophores.
 
     Parameters
     ----------
-    x : float, 1-D array_like
+    x
         Sample.
-    lam1_1 : float
+    lam1_1
         Rate of the first (biased) exponential distribution of the first fluorophore.
-    lam2_1 : float
+    lam2_1
         Rate of the first (biased) exponential distribution of the second fluorophore.
-    lam3_1 : float
+    lam3_1
         Rate of the first (biased) exponential distribution of the third fluorophore.
-    lam1_2 : float
+    lam1_2
         Rate of the second (non-biased) exponential distribution of the first fluorophore.
-    lam2_2 : float
+    lam2_2
         Rate of the second (non-biased) exponential distribution of the second fluorophore.
-    lam3_2 : float
+    lam3_2
         Rate of the second (non-biased) exponential distribution of the third fluorophore.
-    pi1 : float
+    pi1
         Weight of the first exponential distribution of the first fluorophore.
-    pi2 : float
+    pi2
         Weight of the first exponential distribution of the second fluorophore.
-    pi3 : float
+    pi3
         Weight of the first exponential distribution of the third fluorophore.
+    domain
+        Domain of the model.
 
     Returns
     -------
-    cdf : float, 1-D array_like
+    float | npt.NDArray[np.float64]
         CDF of the photoswitching fingerprint model.
     """
     cdf = Photoswitching_fingerprint_model(
@@ -466,57 +535,59 @@ def ps_fingerprint_cdf_3f(
 
 
 def ps_fingerprint_cdf_4f(
-    x,
-    lam1_1,
-    lam2_1,
-    lam3_1,
-    lam4_1,
-    lam1_2,
-    lam2_2,
-    lam3_2,
-    lam4_2,
-    pi1,
-    pi2,
-    pi3,
-    pi4,
-    domain,
-):
+    x: float | npt.ArrayLike,
+    lam1_1: float,
+    lam2_1: float,
+    lam3_1: float,
+    lam4_1: float,
+    lam1_2: float,
+    lam2_2: float,
+    lam3_2: float,
+    lam4_2: float,
+    pi1: float,
+    pi2: float,
+    pi3: float,
+    pi4: float,
+    domain: tuple[float, float],
+) -> float | npt.NDArray[np.float64]:
     """
     Cumulative distribution function of the photoswitching fingerprint model with four
     fluorophores.
 
     Parameters
     ----------
-    x : float, 1-D array_like
+    x
         Sample.
-    lam1_1 : float
+    lam1_1
         Rate of the first (biased) exponential distribution of the first fluorophore.
-    lam2_1 : float
+    lam2_1
         Rate of the first (biased) exponential distribution of the second fluorophore.
-    lam3_1 : float
+    lam3_1
         Rate of the first (biased) exponential distribution of the third fluorophore.
-    lam4_1 : float
+    lam4_1
         Rate of the first (biased) exponential distribution of the fourth fluorophore.
-    lam1_2 : float
+    lam1_2
         Rate of the second (non-biased) exponential distribution of the first fluorophore.
-    lam2_2 : float
+    lam2_2
         Rate of the second (non-biased) exponential distribution of the second fluorophore.
-    lam3_2 : float
+    lam3_2
         Rate of the second (non-biased) exponential distribution of the third fluorophore.
-    lam4_2 : float
+    lam4_2
         Rate of the second (non-biased) exponential distribution of the fourth fluorophore.
-    pi1 : float
+    pi1
         Weight of the first exponential distribution of the first fluorophore.
-    pi2 : float
+    pi2
         Weight of the first exponential distribution of the second fluorophore.
-    pi3 : float
+    pi3
         Weight of the first exponential distribution of the third fluorophore.
-    pi4 : float
+    pi4
         Weight of the first exponential distribution of the fourth fluorophore.
+    domain
+        Domain of the model.
 
     Returns
     -------
-    cdf : float, 1-D array_like
+    float | npt.NDArray[np.float64]
         CDF of the photoswitching fingerprint model.
     """
     cdf = Photoswitching_fingerprint_model(
@@ -528,24 +599,26 @@ def ps_fingerprint_cdf_4f(
     return cdf
 
 
-def two_expon_mixture_cdf(x, lambda1, lambda2, p):
+def two_expon_mixture_cdf(
+    x: float | npt.ArrayLike, lambda1: float, lambda2: float, p: float
+) -> float | npt.NDArray[np.float64]:
     """
     Cumulative distribution function of a mixture of two exponential distributions.
 
     Parameters
     ----------
-    x : float, 1-D array_like
+    x
         Sample.
-    lambda1 : float
+    lambda1
         Rate of the first exponential distribution.
-    lambda2 : float
+    lambda2
         Rate of the second exponential distribution.
-    p : float
+    p
         Weight of the first exponential distribution.
 
     Returns
     -------
-    cdf : float, 1-D array_like
+    float | npt.NDArray[np.float64]
         CDF of two exponential mixture distribution.
     """
     cdf = p * expon.cdf(x, scale=1 / lambda1) + (1 - p) * expon.cdf(
@@ -557,24 +630,26 @@ def two_expon_mixture_cdf(x, lambda1, lambda2, p):
     return cdf
 
 
-def two_expon_mixture_pdf(x, lambda1, lambda2, p):
+def two_expon_mixture_pdf(
+    x: float | npt.ArrayLike, lambda1: float, lambda2: float, p: float
+) -> float | npt.NDArray[np.float64]:
     """
     Probability density function of a mixture of two exponential distributions.
 
     Parameters
     ----------
-    x : float, 1-D array_like
+    x
         Sample.
-    lambda1 : float
+    lambda1
         Rate of the first exponential distribution.
-    lambda2 : float
+    lambda2
         Rate of the second exponential distribution.
-    p : float
+    p
         Weight of the first exponential distribution.
 
     Returns
     -------
-    pdf : float, 1-D array_like
+    float | npt.NDArray[np.float64]
         PDF of two exponential mixture distribution.
     """
     pdf = p * expon.pdf(x, scale=1 / lambda1) + (1 - p) * expon.pdf(
@@ -589,7 +664,17 @@ def two_expon_mixture_pdf(x, lambda1, lambda2, p):
     return pdf
 
 
-def rejection_sampling(pdf, x_min, x_max, y_min, y_max, batch, size, parameters, seed):
+def rejection_sampling(
+    pdf: Callable[Any, Any],
+    x_min: float,
+    x_max: float,
+    y_min: float,
+    y_max: float,
+    batch: int,
+    size: int,
+    parameters: Iterable[Any],
+    seed: RandomGeneratorSeed,
+):
     """
     Technique to sample from a distribution with a known PDF.
     Adapted from https://cosmiccoding.com.au/tutorials/rejection_sampling/.
@@ -597,23 +682,23 @@ def rejection_sampling(pdf, x_min, x_max, y_min, y_max, batch, size, parameters,
 
     Parameters
     ----------
-    pdf : callable
+    pdf
         Probability density function of distribution of interest.
-    x_min : float
+    x_min
         Sample space lower bound.
-    x_max : float
+    x_max
         Sample space upper bound.
-    y_min : float
+    y_min
         Probability density lower bound.
-    y_max : float
+    y_max
         Probability density upper bound.
-    batch : int
+    batch
         Number of possible samples tested simultaneously.
-    size : int
+    size
         Number of samples to be generated.
-    parameters : list
+    parameters
         Parameters to be passed to pdf in corresponding order.
-    seed : None, int, BitGenerator, Generator
+    seed
         A seed to initialize the BitGenerator.
 
     Returns
