@@ -1001,7 +1001,7 @@ def derive_energy_transfer_transitions(
     transitions : list[Transition]
         Contains energy transfer transitions of type Transition.
     """
-    data_dir = os.path.join(Path(__file__).parent, "fluorophore_collection")
+    data_dir = os.path.join(Path(__file__).parent, "fluorophore_spectra")
     donor_emission = pd.read_csv(
         os.path.join(data_dir, donor_data.data_files, "emission.csv")
     )
@@ -1167,7 +1167,7 @@ def derive_transitions(
     photon_flux = fo.calculate_photon_flux(irradiance=irradiance, frequency=frequency)
     path_absorption = os.path.join(
         Path(__file__).parent,
-        "fluorophore_collection",
+        "fluorophore_spectra",
         fd.data_files,
         "absorption_s0.csv",
     )

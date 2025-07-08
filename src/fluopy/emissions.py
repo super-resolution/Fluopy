@@ -294,7 +294,7 @@ class Emissions:
             rng = np.random.default_rng(seed)
             processed = []
             collect_emission_indices = []
-            data_dir = os.path.join(Path(__file__).parent, "fluorophore_collection")
+            data_dir = os.path.join(Path(__file__).parent, "fluorophore_spectra")
 
             for (
                 fluorophore
@@ -769,7 +769,7 @@ def get_emitting_transition_ids(bandpass: tuple[float, float], transition_set: T
     emitting_transition_ids = {}
     if bandpass is not None:
         processed = []
-        data_dir = os.path.join(Path(__file__).parent, "fluorophore_collection")
+        data_dir = os.path.join(Path(__file__).parent, "fluorophore_spectra")
         for fluorophore in transition_set.fluorophore_system.fluorophores:
             if fluorophore.constants is None:
                 raise ValueError(
