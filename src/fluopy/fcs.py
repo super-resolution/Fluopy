@@ -1,9 +1,10 @@
 """
 Module fcs
 """
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Self, Any
+from typing import TYPE_CHECKING, Any, Self
 
 import multipletau as mp
 import numba
@@ -46,7 +47,12 @@ class FCS:
         self.tau = None
 
     def autocorrelate_time_points(
-        self, exp_min: int=-8, exp_max: int=2, points_per_base: int=4, base: int=10, normalize: bool=True
+        self,
+        exp_min: int = -8,
+        exp_max: int = 2,
+        points_per_base: int = 4,
+        base: int = 10,
+        normalize: bool = True,
     ) -> Self:
         """
         Autocorrelation of emissions.event_time_points. Generally much faster than
@@ -90,7 +96,9 @@ class FCS:
 
         return self
 
-    def autocorrelate_time_series(self, log: bool=True, m: int=4, normalize: bool=True) -> Self:
+    def autocorrelate_time_series(
+        self, log: bool = True, m: int = 4, normalize: bool = True
+    ) -> Self:
         """
         Autocorrelation of emissions.event_time_series. The minimum lag time is equal
         to resample value of series.
@@ -159,7 +167,9 @@ class FCS:
 
         return self
 
-    def plot(self, normalize_to: int | None=None, unit: str="s", **kwargs: Any) -> npt.NDArray[mplAxes]:
+    def plot(
+        self, normalize_to: int | None = None, unit: str = "s", **kwargs: Any
+    ) -> npt.NDArray[mplAxes]:
         """
         Plot FCS data.
 
@@ -194,7 +204,9 @@ class FCS:
         return axes
 
 
-def fit_dark(tau: npt.ArrayLike, dark_lifetime: float, dark_occupation: float) -> tuple[npt.NDArray[np.float64], float]:
+def fit_dark(
+    tau: npt.ArrayLike, dark_lifetime: float, dark_occupation: float
+) -> tuple[npt.NDArray[np.float64], float]:
     """
     Fit function of dark states (e.g., triplet).
 
@@ -223,7 +235,9 @@ def fit_dark(tau: npt.ArrayLike, dark_lifetime: float, dark_occupation: float) -
     return autocorrelation, norm
 
 
-def fit_antibunching(tau: npt.ArrayLike, excitation_rate: float, s1_lifetime: float) -> npt.NDArray[np.float64]:
+def fit_antibunching(
+    tau: npt.ArrayLike, excitation_rate: float, s1_lifetime: float
+) -> npt.NDArray[np.float64]:
     """
     Fit function of antibunching.
 
@@ -248,7 +262,15 @@ def fit_antibunching(tau: npt.ArrayLike, excitation_rate: float, s1_lifetime: fl
     return autocorrelation
 
 
-def fit_triplet_cis(tau: npt.ArrayLike, k_isc: float, k_T: float, k_01: float, k_10: float, k_iso: float, k_biso_eff: float) -> tuple[npt.NDArray[np.float64], float]:
+def fit_triplet_cis(
+    tau: npt.ArrayLike,
+    k_isc: float,
+    k_T: float,
+    k_01: float,
+    k_10: float,
+    k_iso: float,
+    k_biso_eff: float,
+) -> tuple[npt.NDArray[np.float64], float]:
     """
     Fit function of triplet and cis as two non-independent dark states.
 
@@ -315,7 +337,13 @@ def fit_triplet_cis(tau: npt.ArrayLike, k_isc: float, k_T: float, k_01: float, k
     return autocorrelation, norm
 
 
-def make_loglags(exp_min: int, exp_max: int, points_per_base: int, base: int=10, return_int: bool=False) -> npt.NDArray[Any]:
+def make_loglags(
+    exp_min: int,
+    exp_max: int,
+    points_per_base: int,
+    base: int = 10,
+    return_int: bool = False,
+) -> npt.NDArray[Any]:
     """Make a log-spaced array useful as lag bins for cross-correlation.
 
     This function creates an arrays of log-spaced time-lag bins to be used
@@ -376,7 +404,9 @@ def make_loglags(exp_min: int, exp_max: int, points_per_base: int, base: int=10,
 
 
 @numba.jit(nopython=True)
-def pcorrelate(t: npt.ArrayLike, u: npt.ArrayLike, bins: npt.ArrayLike, normalize: bool=False) -> npt.NDArray[np.float64]:
+def pcorrelate(
+    t: npt.ArrayLike, u: npt.ArrayLike, bins: npt.ArrayLike, normalize: bool = False
+) -> npt.NDArray[np.float64]:
     """Compute correlation of two arrays of discrete events (Point-process).
 
     The input arrays need to be values of a point process, such as
@@ -452,7 +482,9 @@ def pcorrelate(t: npt.ArrayLike, u: npt.ArrayLike, bins: npt.ArrayLike, normaliz
 
 
 @numba.jit(nopython=True)
-def pnormalize(G: npt.ArrayLike, t: npt.ArrayLike, u: npt.ArrayLike, bins: npt.ArrayLike) -> npt.NDArray[np.float64]:
+def pnormalize(
+    G: npt.ArrayLike, t: npt.ArrayLike, u: npt.ArrayLike, bins: npt.ArrayLike
+) -> npt.NDArray[np.float64]:
     r"""Normalize point-process cross-correlation function.
 
     This normalization is usually employed for fluorescence correlation
@@ -491,7 +523,12 @@ def pnormalize(G: npt.ArrayLike, t: npt.ArrayLike, u: npt.ArrayLike, bins: npt.A
     return Gn
 
 
-def coincidence(photon_arrival_times: npt.ArrayLike, tau_max: float, bin_width: float, seed: RandomGeneratorSeed=1) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+def coincidence(
+    photon_arrival_times: npt.ArrayLike,
+    tau_max: float,
+    bin_width: float,
+    seed: RandomGeneratorSeed = 1,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
     Compute the coincidence histogram of photon arrival times. Here, the Hanbury Brown
     Twiss experiment is mimicked by randomly splitting the photon arrival times into two
