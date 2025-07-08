@@ -2,15 +2,24 @@
 Module simulation
 """
 
+from __future__ import annotations
+
 import gc
 import os
 import warnings
+from typing import TYPE_CHECKING, Any
 
 import iteround as it
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 from . import network as net
+
+if TYPE_CHECKING:
+    from .fluopy_types import RandomGeneratorSeed
+    from .prediction import Prediction
+    from .transitions import TransitionSet
 
 
 class Simulation:
@@ -34,12 +43,18 @@ class Simulation:
         The path where memmaps are stored.
     """
 
-    def __init__(self, transition_set):
+    def __init__(self, transition_set: TransitionSet) -> None:
         """
+        Set up a simulation
+
         Parameters
         ----------
-        transition_set : fluopy.transitions.TransitionSet
+        transition_set
             Collection of all relevant transitions and related attributes.
+
+        Returns
+        -------
+        None
         """
         if transition_set.transition_matrix is None:
             raise ValueError(
@@ -51,7 +66,14 @@ class Simulation:
         self.state_series = None
         self.memmap_path = None
 
-    def run(self, start_at=None, size=1e5, end_time=None, seed=None, use_memmap=None):
+    def run(
+        self,
+        start_at: tuple[float, ...] | None = None,
+        size: int = 1e5,
+        end_time: float | None = None,
+        seed: RandomGeneratorSeed = None,
+        use_memmap: str | os.PathLike[Any] | None = None,
+    ) -> None:
         """
         Runs a simulation based on the direct method of the gillespie algorithm (i.e.,
         stochastic simulation algorithm). Can either be based on maximum number of
@@ -59,18 +81,18 @@ class Simulation:
 
         Parameters
         ----------
-        start_at : None, tuple
+        start_at
             If None, tuple of as many zeros as number of fluorophores.
             Can be any combination (size of number of fluorophores) of possible
             SingleState values. See transition_set.single_states.
-        size : int
+        size
             If end_time is None, serves as maximum number of simulation steps.
             If end_time is not None, serves as size of random_numbers drawn at once.
-        end_time : None, float
+        end_time
             If not None, time at which simulation ends in s.
-        seed : None, int, BitGenerator, Generator
+        seed
             A seed to initialize the BitGenerator.
-        use_memmap : None, str
+        use_memmap
             Determines the path where memmaps shall be stored. If empty str, saved in
             current working directory.
 
@@ -138,7 +160,9 @@ class Simulation:
         if use_memmap is not None:
             self.state_series.flush()
 
-    def approximate(self, prediction, size, seed):
+    def approximate(
+        self, prediction: Prediction, size: float, seed: RandomGeneratorSeed
+    ) -> None:
         """
         Approximates stochastic data based on the limiting distribution of a Markov
         chain. Only suitable for single fluorophore systems. Absorbing states are not
@@ -146,12 +170,16 @@ class Simulation:
 
         Parameters
         ----------
-        prediction : fluopy.prediction.Prediction
+        prediction
             Container of mathematically derived statistical attributes and methods.
-        size : float
+        size
             Maximum number of steps. Due to rounding, actual size might vary.
-        seed : None, int, BitGenerator, Generator
+        seed
             A seed to initialize the BitGenerator.
+
+        Returns
+        -------
+        None
         """
         if self.transition_set is not prediction.transition_set:
             raise ValueError(
@@ -186,7 +214,7 @@ class Simulation:
         self.state_series[1:] = final_states.iloc[self.transition_series]
         self.state_series = np.expand_dims(self.state_series, axis=0)
 
-    def delete_memmaps(self):
+    def delete_memmaps(self) -> None:
         """
         Delete the memmap variables and files. Note: if the memmaps are attempted to be
         accessed after deletion, python crashes.
@@ -209,8 +237,13 @@ class Simulation:
 
 
 def direct_method_steps(
-    transition_matrix, row_sums, start_index=0, size=10, seed=None, use_memmap=None
-):
+    transition_matrix: npt.ArrayLike,
+    row_sums: npt.ArrayLike,
+    start_index: int = 0,
+    size: int = 10,
+    seed: RandomGeneratorSeed = None,
+    use_memmap: str | os.PathLike[Any] | None = None,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
     """
     The direct method of the gillespie algorithm (i.e., stochastic simulation #
     algorithm). Here, the propensities are equal to the rate constants because the
@@ -220,29 +253,29 @@ def direct_method_steps(
 
     Parameters
     ----------
-    transition_matrix : np.ndarray
+    transition_matrix
         Contains the normalized rate constants (i.e., point probabilities) for each
         possible combined_state_transition at the corresponding index pair.
-    row_sums : np.ndarray
+    row_sums
         Contains the sum of each row of non-normalized transition rates, i.e., the sum
         of rates of all possible combined_state_transitions.
-    start_index : int
+    start_index
         Starting index. The final state of the transition indexed is the starting state
         configuration.
-    size : int
+    size
         Maximum number of simulation steps.
-    seed : None, int, BitGenerator, Generator
+    seed
         A seed to initialize the BitGenerator.
-    use_memmap : None, str
+    use_memmap
         Determines the path where memmaps shall be stored. If empty str, saved in
         current working directory.
 
     Returns
     -------
-    time_series : 1-D array_like
+    time_series : npt.NDArray[np.float64]
         The simulated time points. At index i, they correspond to
         transition_series[i - 1].
-    transition_series : 1-D array_like
+    transition_series : npt.NDArray[np.int64]
         The simulated transitions. At index i, they correspond to time_series[i + 1].
     """
     rng = np.random.default_rng(seed)
@@ -350,14 +383,14 @@ def direct_method_steps(
 
 
 def direct_method_time(
-    transition_matrix,
-    row_sums,
-    start_index=0,
-    size=10,
-    end_time=10,
-    seed=None,
-    use_memmap=None,
-):
+    transition_matrix: npt.ArrayLike,
+    row_sums: npt.ArrayLike,
+    start_index: int = 0,
+    size: int = 10,
+    end_time: float = 10,
+    seed: RandomGeneratorSeed = None,
+    use_memmap: str | os.PathLike[Any] | None = None,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
     """
     The direct method of the gillespie algorithm (i.e., stochastic simulation
     algorithm). Here, the propensities are equal to the rate constants because the
@@ -367,32 +400,32 @@ def direct_method_time(
 
     Parameters
     ----------
-    transition_matrix : np.ndarray
+    transition_matrix
         Contains the normalized rate constants (i.e., point probabilities) for each
         possible combined_state_transition at the corresponding index pair.
-    row_sums : np.ndarray
+    row_sums
         Contains the sum of each row of non-normalized transition rates, i.e., the sum
         of rates of all possible combined_state_transitions.
-    start_index : int
+    start_index
         Starting index. The final state of the transition indexed is the starting state
         configuration.
-    size : int
+    size
         Size of random_numbers drawn at once.
-    end_time : float
+    end_time
         Time at which simulation ends in s.
-    seed : None, int, BitGenerator, Generator
+    seed
         A seed to initialize the BitGenerator.
-    use_memmap : None, str
+    use_memmap
         Determines the path where memmaps shall be stored. If empty str, saved in
         current working directory.
 
     Returns
     -------
-    time_series : 1-D array_like
+    time_series : npt.NDArray[np.float64]
         The simulated time points. At index i, they correspond to
         transition_series[i - 1]. Includes end_time at index -1 that does not
         correspond to any of transition_series.
-    transition_series : 1-D array_like
+    transition_series : npt.NDArray[np.int64]
         The simulated transitions. At index i, they correspond to time_series[i + 1].
     """
     rng = np.random.default_rng(seed)
@@ -508,7 +541,9 @@ def direct_method_time(
     return time_series, transition_series
 
 
-def approximation(prediction, size, seed):
+def approximation(
+    prediction: Prediction, size: float, seed: RandomGeneratorSeed
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
     """
     Approximates stochastic data based on the limiting distribution of a Markov chain.
     The transitions are ordered via a topological sort and processed accordingly.
@@ -519,19 +554,19 @@ def approximation(prediction, size, seed):
 
     Parameters
     ----------
-    prediction : fluopy.prediction.Prediction
+    prediction
         Container of mathematically derived statistical attributes and methods.
-    size : float
+    size
         Maximum number of steps. Due to rounding, actual size might vary.
-    seed : None, int, BitGenerator, Generator
-        A seed to initialize the BitGenerator.#
+    seed
+        A seed to initialize the BitGenerator.
 
     Returns
     -------
-    time_series : 1-D array_like
+    time_series : npt.NDArray[np.float64]
         The simulated (approximated) time points. At index i, they correspond to
         transition_series[i - 1].
-    transition_series : 1-D array_like
+    transition_series : npt.NDArray[np.int64]
         The simulated (approximated) transitions. At index i, they correspond to
         time_series[i + 1].
     """
@@ -612,16 +647,16 @@ def approximation(prediction, size, seed):
 
 
 def simulate_experiment(
-    transition_matrix,
-    row_sums,
-    emitting_transition_ids,
-    start_index=0,
-    size=1e5,
-    frames=10,
-    frame_time="5ms",
-    store_time_points=False,
-    seed=None,
-):
+    transition_matrix: npt.ArrayLike,
+    row_sums: npt.ArrayLike,
+    emitting_transition_ids: dict[int, float],
+    start_index: int = 0,
+    size: int = 1e5,
+    frames: int = 10,
+    frame_time: str = "5ms",
+    store_time_points: bool = False,
+    seed: RandomGeneratorSeed = None,
+) -> tuple[npt.NDArray[np.float64], pd.Series]:
     """
     Simulates experimental data (i.e., number of photons per frame). Methodically the
     direct method of the gillespie algorithm. Stores only the number of photons per
@@ -629,34 +664,34 @@ def simulate_experiment(
 
     Parameters
     ----------
-    transition_matrix : np.ndarray
+    transition_matrix
         Contains the normalized rate constants (i.e., point probabilities) for each
         possible combined_state_transition at the corresponding index pair.
-    row_sums : np.ndarray
+    row_sums
         Contains the sum of each row of non-normalized transition rates, i.e., the sum
         of rates of all possible combined_state_transitions.
-    emitting_transition_ids : dict
+    emitting_transition_ids
         Contains the combined_state_transition indices as keys and their probability of
         passing a bandpass filter as values.
-    start_index : int
+    start_index
         Starting index. The final state of the transition indexed is the starting state
         configuration.
-    size : int
+    size
         Size of random_numbers drawn at once.
-    frames : int
+    frames
         Total number of frames to be simulated.
-    frame_time : str
+    frame_time
         For possible input values, see
         https://pandas.pydata.org/docs/user_guide/timeseries.html -> Offset aliases.
-    store_time_points : bool
+    store_time_points
         Whether to also create an array which contains the time points at which photons
         are detected.
-    seed : None, int, BitGenerator, Generator
+    seed
         A seed to initialize the BitGenerator.
 
     Returns
     -------
-    event_time_points : 1-D array_like
+    event_time_points : npt.NDArray[np.float64]
         The time points at which emissions are detected.
     event_time_series : pd.Series
         Contains the time points (increasing by a defined time interval) as index and
@@ -753,16 +788,18 @@ def simulate_experiment(
     return event_time_points, event_time_series
 
 
-def eval_floating_point_precision_error(transition_set, largest_number=None):
+def eval_floating_point_precision_error(
+    transition_set: TransitionSet, largest_number: float | None = None
+) -> None:
     """
     Evaluates the floating point precision error of the transition_set. The larger the
     rates, the more significant the error.
 
     Parameters
     ----------
-    transition_set : fluopy.transitions.TransitionSet
+    transition_set
         Collection of all relevant transitions and related attributes.
-    largest_number : None, float
+    largest_number
         The largest number used in the simulation. If None, the smallest increment is
         calculated for a probability of 0.001.
 
