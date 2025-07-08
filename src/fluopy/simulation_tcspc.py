@@ -1,13 +1,14 @@
 """
 Module simulation_tcspc
 """
-
-import warnings
+import logging
 
 import numpy as np
 import pandas as pd
 
 from . import simulation as si
+
+logger = logging.getLogger(__name__)
 
 
 def simulate_TCSPC(
@@ -115,12 +116,12 @@ def simulate_TCSPC(
     time_stamps = np.linspace(0, np.ceil(frames) * frame_time, int(np.ceil(frames)) + 1)
     time_stamps = np.round(time_stamps, decimals=12)
     if frames < 1:
-        warnings.warn(
+        logger.warning(
             f"Not enough laser pulses to completely simulate a single frame (requires "
             f"at least {int(np.ceil(frame_time / time_between_pulses)):.1e} pulses).",
             stacklevel=2,
         )
-    warnings.warn(
+    logger.warning(
         f"the last frame (of index {time_stamps[-1]}) has {frames - int(frames):.2e} "
         "times the pulses of other frames.",
         stacklevel=2,
@@ -248,7 +249,7 @@ def simulate_TCSPC(
             # current_state_lambda above 0. This means that the Markov chain has
             # encountered an absorbing state that is not excitable S0.
             if not not_broken:
-                warnings.warn(
+                logger.warning(
                     "All fluorophores underwent photobleaching or entered "
                     "another Markov chain absorbing state.",
                     stacklevel=2,
@@ -456,12 +457,12 @@ def simulate_TCSPC_detailed(
     time_stamps = np.linspace(0, np.ceil(frames) * frame_time, int(np.ceil(frames)) + 1)
     time_stamps = np.round(time_stamps, decimals=12)
     if frames < 1:
-        warnings.warn(
+        logger.warning(
             f"Not enough laser pulses to completely simulate a single frame (requires "
             f"at least {int(np.ceil(frame_time / time_between_pulses)):.1e} pulses).",
             stacklevel=2,
         )
-    warnings.warn(
+    logger.warning(
         f"the last frame (of index {time_stamps[-1]}) has {frames - int(frames):.2e} "
         "times the pulses of other frames.",
         stacklevel=2,
@@ -596,7 +597,7 @@ def simulate_TCSPC_detailed(
             # current_state_lambda above 0. This means that the Markov chain has
             # encountered an absorbing state that is not excitable S0.
             if not not_broken:
-                warnings.warn(
+                logger.warning(
                     "All fluorophores underwent photobleaching or entered "
                     "another Markov chain absorbing state.",
                     stacklevel=2,
@@ -723,7 +724,7 @@ def space_multiple_excitations(time_series):
         Contains the time points at which transitions occur. Transitions that occurred
         at the same time point are now spaced by a minimal amount.
     """
-    warnings.warn(
+    logger.warning(
         "Multiple excitations at the same time point are spaced by a minimal "
         "amount. This also spaces other transitions whose time was too small "
         "to be differentiated given the floating point precision. Hence, "

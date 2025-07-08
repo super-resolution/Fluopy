@@ -5,8 +5,8 @@ Module simulation
 from __future__ import annotations
 
 import gc
+import logging
 import os
-import warnings
 from typing import TYPE_CHECKING, Any
 
 import iteround as it
@@ -20,6 +20,8 @@ if TYPE_CHECKING:
     from .fluopy_types import RandomGeneratorSeed
     from .prediction import Prediction
     from .transitions import TransitionSet
+
+logger = logging.getLogger(__name__)
 
 
 class Simulation:
@@ -190,7 +192,7 @@ class Simulation:
                 "approximation only available to single fluorophore systems."
             )
         if prediction.absorbing_chain:
-            warnings.warn(
+            logger.warning(
                 "approximation ignors absorbing states, they will not occur.",
                 stacklevel=2,
             )
@@ -734,7 +736,7 @@ def simulate_experiment(
                     event_time_series = pd.Series(
                         photon_collector, index=time_stamps, dtype=np.int64
                     )
-                    warnings.warn(
+                    logger.warning(
                         "All fluorophores underwent photobleaching or entered "
                         "another Markov chain absorbing state.",
                         stacklevel=2,
@@ -814,14 +816,12 @@ def eval_floating_point_precision_error(
     ]
     states = [int(state) for state in states]
 
-    warnings.simplefilter("always", UserWarning)
-
     if largest_number is not None:
         smallest_increment = np.nextafter(largest_number, np.inf) - largest_number
 
         probability_smallest_increment = 1 - np.exp(-max_rate * smallest_increment)
 
-        warnings.warn(
+        logger.warning(
             "Floating point precision error warning:\n "
             f"The smallest safe increment is {smallest_increment:.2e}."
             "\n Everything drawn below this number might be rounded to zero\n when "
@@ -841,7 +841,7 @@ def eval_floating_point_precision_error(
             if np.nextafter(large_number, np.inf) - large_number < smallest_increment:
                 continue
             else:
-                warnings.warn(
+                logger.warning(
                     "Floating point precision error warning:\n "
                     f"The higher limit of smallest increment with a probability of "
                     f"{probability_to_check:.2e} is {smallest_increment:.2e}."

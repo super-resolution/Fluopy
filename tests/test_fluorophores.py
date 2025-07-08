@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 import numpy as np
 from fluopy import fluorophores as fl
@@ -20,14 +22,13 @@ from fluopy.fluo_data import TestFluo_1, TestFluo_2
     ],
 )
 def test_fluorophore(
-    name, position, exp_identity, exp_name, exp_position, exp_constants
+    name, position, exp_identity, exp_name, exp_position, exp_constants, caplog
 ):
     if name == "aa":
-        with pytest.warns(
-            UserWarning,
-            match="Fluorophore aa not known. Parameters have to be defined manually.",
-        ):
+        with caplog.at_level(logging.WARNING):
             fluorophore = fl.Fluorophore(name=name, position=position)
+            assert "Fluorophore aa not known. Parameters have to be defined manually." in caplog.text
+        caplog.clear()
     else:
         fluorophore = fl.Fluorophore(name=name, position=position)
     assert fluorophore.identity == exp_identity
@@ -84,13 +85,12 @@ def test_get_distances(positions, expected):
         ],
     ],
 )
-def test_fluorophore_system(dirnames, request, exp_distances, exp_count, multi_type):
+def test_fluorophore_system(dirnames, request, exp_distances, exp_count, multi_type, caplog):
     if "flu_obj_unknown" in dirnames:
-        with pytest.warns(
-            UserWarning,
-            match="Fluorophore aa not known. Parameters have to be defined manually.",
-        ):
+        with caplog.at_level(logging.WARNING):
             fluorophores = [request.getfixturevalue(dirname) for dirname in dirnames]
+            assert "Fluorophore aa not known. Parameters have to be defined manually." in caplog.text
+        caplog.clear()
     else:
         fluorophores = [request.getfixturevalue(dirname) for dirname in dirnames]
     if exp_distances == "ValueError1":
@@ -145,34 +145,30 @@ def test_fluorophore_system_load_transitions(
     expected_warnings,
     energy_transfer,
     energy_transfer_parameters,
+    caplog,
 ):
     if expected_warnings:
-        with pytest.warns(
-            UserWarning,
-            match="Fluorophore aa not known. Parameters have to be defined manually.",
-        ):
+        with caplog.at_level(logging.WARNING):
             fluorophore_system = request.getfixturevalue(dirname)
+            assert "Fluorophore aa not known. Parameters have to be defined manually." in caplog.text
+        caplog.clear()
     else:
         fluorophore_system = request.getfixturevalue(dirname)
     if expected_warnings:
-        with pytest.warns(
-            UserWarning,
-            match="load_transitions\\(\\) not available for this kind of fluorophore: "
-            "aa.",
-        ):
+        with caplog.at_level(logging.WARNING):
             transitions = fluorophore_system.load_transitions(
                 energy_transfer=energy_transfer
             )
+            assert "load_transitions() not available for this kind of fluorophore: aa." in caplog.text
+        caplog.clear()
     elif energy_transfer_parameters is not None:
-        with pytest.warns(
-            UserWarning,
-            match="'overwrite', 'exclude' or 'include' in energy_transfer_parameters "
-            "will effect all types of fluorophores.",
-        ):
+        with caplog.at_level(logging.WARNING):
             transitions = fluorophore_system.load_transitions(
                 energy_transfer=energy_transfer,
                 energy_transfer_parameters=energy_transfer_parameters,
             )
+            assert "'overwrite', 'exclude' or 'include' in energy_transfer_parameters will effect all types of fluorophores." in caplog.text
+        caplog.clear()
     else:
         transitions = fluorophore_system.load_transitions(
             energy_transfer=energy_transfer
@@ -210,7 +206,7 @@ def test_triangle_third_position(position_1, position_2, expected):
         [5, 5, None, "Warning1"],
     ],
 )
-def test_get_positions_from_distance(distance, count, shape, expected):
+def test_get_positions_from_distance(distance, count, shape, expected, caplog):
     if isinstance(expected, str):
         if expected == "ValueError1":
             with pytest.raises(
@@ -221,12 +217,12 @@ def test_get_positions_from_distance(distance, count, shape, expected):
                     distance=distance, count=count, shape=shape
                 )
         elif expected == "Warning1":
-            with pytest.warns(
-                UserWarning, match="If count is above 4"
-            ):
+            with caplog.at_level(logging.WARNING):
                 fl.get_positions_from_distance(
                     distance=distance, count=count, shape=shape
                 )
+                assert "If count is above 4" in caplog.text
+            caplog.clear()
     else:
         np.testing.assert_allclose(
             fl.get_positions_from_distance(distance=distance, count=count, shape=shape),
@@ -242,14 +238,13 @@ def test_get_positions_from_distance(distance, count, shape, expected):
         ["aa", 1, 2, [[0, 0], [1, 0]]],
     ],
 )
-def test_construct_fluorophores(name, distance, count, expected):
+def test_construct_fluorophores(name, distance, count, expected, caplog):
     expected = np.asarray(expected)
     if name == "aa":
-        with pytest.warns(
-            UserWarning,
-            match="Fluorophore aa not known. Parameters have to be defined manually.",
-        ):
+        with caplog.at_level(logging.WARNING):
             fluorophores = fl.construct_fluorophores(name, distance, count)
+            assert "Fluorophore aa not known. Parameters have to be defined manually." in caplog.text
+        caplog.clear()
     else:
         fluorophores = fl.construct_fluorophores(name, distance, count)
     assert len(fluorophores) == count

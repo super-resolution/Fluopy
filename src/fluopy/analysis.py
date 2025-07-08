@@ -3,8 +3,8 @@ Module analysis
 """
 from __future__ import annotations
 
+import logging
 import re
-import warnings
 from typing import TYPE_CHECKING, Any, Iterable
 
 import matplotlib as mpl
@@ -19,6 +19,9 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
     from fluopy.simulation import Simulation
     from fluopy.prediction import Prediction
+
+logger = logging.getLogger(__name__)
+
 
 class Analysis:
     """
@@ -62,7 +65,7 @@ class Analysis:
 
         absorbing = self.is_absorbing()
         if absorbing:
-            warnings.warn(
+            logger.warning(
                 "if a fluorophore reaches its individual absorbing state, it has an "
                 "absolute state and transition frequency of 1, but the lifetime is nan "
                 "and the state occupation 0.",
@@ -459,7 +462,7 @@ class Analysis:
         draw_marker = None
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
-                warnings.warn(
+                logger.warning(
                     "prediction is based on different TransitionSet than simulation.",
                     stacklevel=2,
                 )
@@ -522,7 +525,7 @@ class Analysis:
         draw_marker = None
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
-                warnings.warn(
+                logger.warning(
                     "prediction is based on different TransitionSet than simulation.",
                     stacklevel=2,
                 )
@@ -619,7 +622,7 @@ class Analysis:
         draw_marker = None
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
-                warnings.warn(
+                logger.warning(
                     "prediction is based on different TransitionSet than simulation.",
                     stacklevel=2,
                 )
@@ -688,7 +691,7 @@ class Analysis:
         draw_marker = None
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
-                warnings.warn(
+                logger.warning(
                     "prediction is based on different TransitionSet than simulation.",
                     stacklevel=2,
                 )
@@ -764,7 +767,7 @@ class Analysis:
         draw_marker = None
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
-                warnings.warn(
+                logger.warning(
                     "prediction is based on different TransitionSet than simulation.",
                     stacklevel=2,
                 )
@@ -828,7 +831,7 @@ class Analysis:
         plot_distribution_label = None
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
-                warnings.warn(
+                logger.warning(
                     "prediction is based on different TransitionSet than simulation.",
                     stacklevel=2,
                 )
@@ -888,7 +891,7 @@ class Analysis:
         plot_distribution_label = None
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
-                warnings.warn(
+                logger.warning(
                     "prediction is based on different TransitionSet than simulation.",
                     stacklevel=2,
                 )

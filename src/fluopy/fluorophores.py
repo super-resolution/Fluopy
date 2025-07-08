@@ -3,7 +3,7 @@ Module fluorophores
 """
 from __future__ import annotations
 
-import warnings
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal, Any
@@ -20,6 +20,8 @@ from .transitions import (
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -60,7 +62,7 @@ class Fluorophore:
         if len(class_name) == 1:
             object.__setattr__(self, "constants", getattr(fd, class_name[0])())
         elif len(class_name) == 0:
-            warnings.warn(
+            logger.warning(
                 f"Fluorophore {self.name} not known. Parameters have to be defined "
                 "manually.",
                 stacklevel=2,
@@ -196,7 +198,7 @@ class FluorophoreSystem:
                 for key in ["overwrite", "exclude", "include"]
             ):
                 if self.multi_type:
-                    warnings.warn(
+                    logger.warning(
                         "'overwrite', 'exclude' or 'include' in "
                         "energy_transfer_parameters will effect all types of "
                         "fluorophores.",
@@ -218,7 +220,7 @@ class FluorophoreSystem:
             if fluorophore.constants is None:
                 if fluorophore not in skip_warnings:
                     skip_warnings.append(fluorophore)
-                    warnings.warn(
+                    logger.warning(
                         "load_transitions() not available for this kind of "
                         f"fluorophore: {fluorophore.name}.",
                         stacklevel=2,
@@ -243,7 +245,7 @@ class FluorophoreSystem:
                         if acceptor_fluorophore.constants is None:
                             if acceptor_fluorophore not in skip_warnings:
                                 skip_warnings.append(acceptor_fluorophore)
-                                warnings.warn(
+                                logger.warning(
                                     "load_transitions() not available for this kind of "
                                     f"fluorophore: {acceptor_fluorophore.name}.",
                                     stacklevel=2,
@@ -406,7 +408,7 @@ def get_positions_from_distance(distance: float=1, count: int=1, shape: Literal[
             position_4 = np.array([distance, distance])
             positions = np.array([position_1, position_2, position_3, position_4])
     else:
-        warnings.warn(
+        logger.warning(
             "If count is above 4, all fluorophores are positioned at the same"
             " location. This indicates no support for energy transfers.",
             stacklevel=2,

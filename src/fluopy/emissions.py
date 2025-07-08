@@ -3,8 +3,8 @@ Module emissions
 """
 from __future__ import annotations
 
+import logging
 import os
-import warnings
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -23,6 +23,8 @@ from .transitions import TransitionSet
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
     from fluopy.fluopy_types import RandomGeneratorSeed
+
+logger = logging.getLogger(__name__)
 
 
 class Emissions:
@@ -210,7 +212,7 @@ class Emissions:
         transition_set.finalize()
 
         if excitation_rates is None:
-            warnings.warn(
+            logger.warning(
                 "The irradiance used initially for excitation rates in\n"
                 " transition_set is now assumed to be the mean irradiance of\n"
                 " pulse and no pulse duration.",

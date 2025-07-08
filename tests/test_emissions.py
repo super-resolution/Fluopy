@@ -1,4 +1,6 @@
+import logging
 import os
+
 import pytest
 import numpy as np
 import pandas as pd
@@ -103,10 +105,13 @@ def test_emissions():
         ["sim_tr_set_et_2f_diff", "5ms", None, 2],
     ],
 )
-def test_emissions_extract(dirname, request, frame_time, bandpass, expected):
+def test_emissions_extract(dirname, request, frame_time, bandpass, expected, caplog):
     emis = em.Emissions(frame_time=frame_time, bandpass=bandpass, seed=1)
-    with pytest.warns(UserWarning, match="Floating point precision error warning"):
+    with caplog.at_level(logging.WARNING):
         simulation = request.getfixturevalue(dirname)
+        assert "Floating point precision error warning" in caplog.text
+    caplog.clear()
+
     emis.extract(simulation=simulation)
     assert emis.event_time_points.size == expected
     if frame_time == "10us":
@@ -155,14 +160,14 @@ def test_emissions_simulate(tr_set_1f_bl):
         ["tr_set_bl_et_2f_same", {"testfluo_1": 1e10}, 1],
     ],
 )
-def test_emissions_tcspc(dirname, request, excitation_rates, expected):
+def test_emissions_tcspc(dirname, request, excitation_rates, expected, caplog):
     tr_set = request.getfixturevalue(dirname)
     if expected == 1:
         ets = [j for h, j in tr_set.transition_df.index if "dist" in h]
         tr_set = tr_set.adjust_rates({identity: 1e10 for identity in ets})
         tr_set.finalize()
     emis = em.Emissions(frame_time="100us", bandpass=(650, 700), seed=1)
-    with pytest.warns(UserWarning, match="the last frame"):
+    with caplog.at_level(logging.WARNING):
         lifetimes_DA, _, _ = emis.tcspc(
             transition_set=tr_set,
             number_pulses=1e4,
@@ -172,6 +177,9 @@ def test_emissions_tcspc(dirname, request, excitation_rates, expected):
             size=1e3,
             store_time_points=True,
         )
+        assert "the last frame" in caplog.text
+    caplog.clear()
+
     if expected == 1:
         assert lifetimes_DA.size > 0
     else:
@@ -463,9 +471,12 @@ def test_emissions_add_poisson_noise(em_large):
     pd.testing.assert_series_equal(em_large.event_time_series, exp_event_time_series)
 
 
-def test_save_and_load(request, tmp_path):
-    with pytest.warns(UserWarning, match="Floating point precision error warning"):
+def test_save_and_load(request, tmp_path, caplog):
+    with caplog.at_level(logging.WARNING):
         em_tr_set_1f_bl = request.getfixturevalue("em_tr_set_1f_bl")
+        assert "Floating point precision error warning" in caplog.text
+    caplog.clear()
+
     em_tr_set_1f_bl.save(path=tmp_path, name_extension="_test_extension")
     assert os.path.isfile(os.path.join(tmp_path, "event_time_series_test_extension.csv"))
     assert os.path.isfile(os.path.join(tmp_path, "event_time_points_test_extension.npy"))

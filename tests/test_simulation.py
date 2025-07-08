@@ -1,3 +1,4 @@
+import logging
 import os
 import pytest
 import numpy as np
@@ -296,7 +297,8 @@ def test_simulation_run(
     exp_transition_series,
     exp_state_series,
     tr_set_1f,
-    tmp_path
+    tmp_path,
+    caplog,
 ):
     if use_memmap is not None:
         memmap_path = tmp_path
@@ -305,10 +307,13 @@ def test_simulation_run(
 
     size = 10
     simulation = si.Simulation(transition_set=tr_set_1f)
-    with pytest.warns(UserWarning, match="Floating point precision error warning"):
+    with caplog.at_level(logging.WARNING):
         simulation.run(
             start_at=(0,), size=size, end_time=end_time, seed=1, use_memmap=memmap_path
         )
+        assert "Floating point precision error warning" in caplog.text
+    caplog.clear()
+
     np.testing.assert_array_almost_equal(simulation.time_series, exp_time_series)
     np.testing.assert_array_equal(simulation.transition_series, exp_transition_series)
     np.testing.assert_array_equal(simulation.state_series, exp_state_series)
@@ -369,7 +374,7 @@ def test_simulation_run(
         ["tr_set_2f_diff", "ValueError2"],
     ],
 )
-def test_simulation_approximate(dirname, request, expected):
+def test_simulation_approximate(dirname, request, expected, caplog):
     tr_set = request.getfixturevalue(dirname)
     pred = pr.Prediction(transition_set=tr_set)
     size = 10
@@ -391,10 +396,11 @@ def test_simulation_approximate(dirname, request, expected):
             ):
                 simulation.approximate(prediction=pred, size=size, seed=1)
         else:
-            with pytest.warns(
-                UserWarning, match="Floating point precision error warning"
-            ):
+            with caplog.at_level(logging.WARNING):
                 simulation.approximate(prediction=pred, size=size, seed=1)
+                assert "Floating point precision error warning" in caplog.text
+            caplog.clear()
+
             exp_time_series = np.array(
                 [
                     0.00000000e00,

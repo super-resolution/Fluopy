@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 import numpy as np
 import scipy.stats as stats
@@ -69,17 +71,14 @@ def test_prediction_2(tr_set_bl_et_2f_diff):
 
 
 # test with 2 different fluorophores, energy transfer, bleaching
-def test_prediction_3(tr_set_bl_et_2f_diff):
-    with pytest.warns(UserWarning) as record:
+def test_prediction_3(tr_set_bl_et_2f_diff, caplog):
+    with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_bl_et_2f_diff)
-        assert str(record[0].message) == (
-            "prediction accuracy of energy transfers more difficult to tune. Only "
-            "frequencies available, lifetimes and occupations not available."
-        )
-        assert str(record[1].message) == (
-            "absorbing states have a lifetime of inf and a frequency / occupation "
-            "of 0. Absorbing transitions have a frequency of 0."
-        )
+        assert "prediction accuracy of energy transfers more difficult to tune." in caplog.text
+        assert "Only frequencies available, lifetimes and occupations not available." in caplog.text
+        assert "absorbing states have a lifetime of inf and a frequency / occupation of 0. Absorbing transitions have a frequency of 0." in caplog.text
+    caplog.clear()
+
     assert prediction.energy_transfer
     assert prediction.absorbing_chain
     assert prediction.transition_set == tr_set_bl_et_2f_diff
@@ -123,17 +122,14 @@ def test_prediction_3(tr_set_bl_et_2f_diff):
 
 
 # test with 2 same fluorophores, energy transfer, bleaching
-def test_prediction_4(tr_set_bl_et_2f_same):
-    with pytest.warns(UserWarning) as record:
+def test_prediction_4(tr_set_bl_et_2f_same, caplog):
+    with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_bl_et_2f_same)
-        assert str(record[0].message) == (
-            "prediction accuracy of energy transfers more difficult to tune. Only "
-            "frequencies available, lifetimes and occupations not available."
-        )
-        assert str(record[1].message) == (
-            "absorbing states have a lifetime of inf and a frequency / occupation "
-            "of 0. Absorbing transitions have a frequency of 0."
-        )
+        assert "prediction accuracy of energy transfers more difficult to tune." in caplog.text
+        assert "Only frequencies available, lifetimes and occupations not available." in caplog.text
+        assert "absorbing states have a lifetime of inf and a frequency / occupation of 0. Absorbing transitions have a frequency of 0." in caplog.text
+    caplog.clear()
+
     assert prediction.energy_transfer
     assert prediction.absorbing_chain
     assert prediction.transition_set == tr_set_bl_et_2f_same
@@ -169,13 +165,13 @@ def test_prediction_4(tr_set_bl_et_2f_same):
 
 
 # test with 2 different fluorophores, energy transfer, no bleaching
-def test_prediction_5(tr_set_et_2f_diff):
-    with pytest.warns(
-        UserWarning,
-        match="prediction accuracy of energy transfers more difficult to tune. Only "
-        "frequencies available, lifetimes and occupations not available.",
-    ):
+def test_prediction_5(tr_set_et_2f_diff, caplog):
+    with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_et_2f_diff)
+        assert "prediction accuracy of energy transfers more difficult to tune." in caplog.text
+        assert "Only frequencies available, lifetimes and occupations not available." in caplog.text
+        caplog.clear()
+
     assert prediction.energy_transfer
     assert not prediction.absorbing_chain
     assert prediction.transition_set == tr_set_et_2f_diff
@@ -291,13 +287,12 @@ def test_prediction_6(tr_set_2f_diff):
 
 
 # test with 1 fluorophore, with bleaching
-def test_prediction_7(tr_set_1f_bl):
-    with pytest.warns(
-        UserWarning,
-        match="absorbing states have a lifetime of inf and a frequency / occupation "
-        "of 0. Absorbing transitions have a frequency of 0.",
-    ):
+def test_prediction_7(tr_set_1f_bl, caplog):
+    with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_1f_bl)
+        assert "absorbing states have a lifetime of inf and a frequency / occupation of 0. Absorbing transitions have a frequency of 0." in caplog.text
+        caplog.clear()
+
     assert not prediction.energy_transfer
     assert prediction.absorbing_chain
     assert prediction.transition_set == tr_set_1f_bl
