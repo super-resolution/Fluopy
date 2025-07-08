@@ -1,13 +1,23 @@
 """
 Module fcs
 """
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Self, Any
 
 import multipletau as mp
 import numba
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 from . import figure as fi
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes as mplAxes
+
+    from fluopy.emissions import Emissions
+    from fluopy.fluopy_types import RandomGeneratorSeed
 
 
 class FCS:
@@ -18,17 +28,17 @@ class FCS:
     ----------
     emissions : fluopy.emissions.Emissions
         Container for emission-associated attributes.
-    autocorrelation : 1-D array_like
+    autocorrelation : npt.NDArray[np.foat64]
         Autocorrelation values.
-    tau : 1-D array_like
+    tau : npt.NDArray[np.foat64]
         Time differences (i.e., τ, lag times).
     """
 
-    def __init__(self, emissions):
+    def __init__(self, emissions: Emissions):
         """
         Parameters
         ----------
-        emissions : fluopy.emissions.Emissions
+        emissions
             Container for emission-associated attributes.
         """
         self.emissions = emissions
@@ -36,8 +46,8 @@ class FCS:
         self.tau = None
 
     def autocorrelate_time_points(
-        self, exp_min=-8, exp_max=2, points_per_base=4, base=10, normalize=True
-    ):
+        self, exp_min: int=-8, exp_max: int=2, points_per_base: int=4, base: int=10, normalize: bool=True
+    ) -> Self:
         """
         Autocorrelation of emissions.event_time_points. Generally much faster than
         autocorrelation based on emissions.event_time_series.
@@ -45,20 +55,20 @@ class FCS:
 
         Parameters
         ----------
-        exp_min : int
+        exp_min
             Exponent of the minimum value.
-        exp_max : int
+        exp_max
             Exponent of the maximum value.
-        points_per_base : int
+        points_per_base
             Number of points per base.
-        base : int
+        base
             The base of the exponentiation.
-        normalize : bool
+        normalize
             Whether to normalize the autocorrelation.
 
         Returns
         -------
-        self
+        Self
         """
         if self.emissions.event_time_points is None:
             raise ValueError("event_time_points is None.")
@@ -80,27 +90,27 @@ class FCS:
 
         return self
 
-    def autocorrelate_time_series(self, log=True, m=4, normalize=True):
+    def autocorrelate_time_series(self, log: bool=True, m: int=4, normalize: bool=True) -> Self:
         """
         Autocorrelation of emissions.event_time_series. The minimum lag time is equal
         to resample value of series.
 
         Parameters
         ----------
-        log : bool
+        log
             Whether to compute the autocorrelation on a logarithmic scale. As time
             steps increase, correlation signals are getting noisier, fluctuating around
             0. Hence, log should usually be True.
-        m : int
+        m
             Defines the number of points on each log level. E.g., m=4 leads to
             |1, 2, 3, 4| |2, 4, 6, 8| |4, 8, 12, 16| ..., hence
             |1, 2, 3, 4, 6, 8, 12, 16, ...|. Only used if log ist True.
-        normalize : bool
+        normalize
             Whether to normalize the autocorrelation.
 
         Returns
         -------
-        self
+        Self
         """
         if self.emissions.event_time_series is None:
             raise ValueError("event_time_series is None.")
@@ -149,21 +159,22 @@ class FCS:
 
         return self
 
-    def plot(self, normalize_to=None, unit="s", **kwargs):
+    def plot(self, normalize_to: int | None=None, unit: str="s", **kwargs: Any) -> npt.NDArray[mplAxes]:
         """
         Plot FCS data.
 
         Parameters
         ----------
-        normalize_to : None, int
+        normalize_to
             Index of datapoint to which the data is normalized.
-        unit : str
+        unit
             One of 's', 'ms', 'us'. Influences the unit of the x-axis.
-        kwargs : fluopy.figure.universal_figure arguments
+        kwargs
+            fluopy.figure.universal_figure arguments
 
         Returns
         -------
-        axes : np.ndarray
+        npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         tau_data, correl_data = np.copy(self.tau), np.copy(self.autocorrelation)
@@ -183,22 +194,22 @@ class FCS:
         return axes
 
 
-def fit_dark(tau, dark_lifetime, dark_occupation):
+def fit_dark(tau: npt.ArrayLike, dark_lifetime: float, dark_occupation: float) -> tuple[npt.NDArray[np.float64], float]:
     """
     Fit function of dark states (e.g., triplet).
 
     Parameters
     ----------
-    tau : 1-D array_like
+    tau
         Time differences (i.e., τ, lag times).
-    dark_lifetime : float
+    dark_lifetime
         Mean lifetime of the dark state.
-    dark_occupation : float
+    dark_occupation
         Steady state fraction of the dark state. Number between 0 and 1.
 
     Returns
     -------
-    autocorrelation : 1-D array_like
+    autocorrelation : : npt.NDArray[np.float64]
         Autocorrelation values.
     norm : float
         Steady state fraction of other states. Number between 0 and 1.
@@ -212,22 +223,22 @@ def fit_dark(tau, dark_lifetime, dark_occupation):
     return autocorrelation, norm
 
 
-def fit_antibunching(tau, excitation_rate, s1_lifetime):
+def fit_antibunching(tau: npt.ArrayLike, excitation_rate: float, s1_lifetime: float) -> npt.NDArray[np.float64]:
     """
     Fit function of antibunching.
 
     Parameters
     ----------
-    tau : 1-D array_like
+    tau
         Time differences (i.e., τ, lag times).
-    excitation_rate : float
+    excitation_rate
         Rate constant of excitation.
-    s1_lifetime : float
+    s1_lifetime
         Mean lifetime of the S1 state.
 
     Returns
     -------
-    autocorrelation : 1-D array_like
+    npt.NDArray[np.float64]
         Autocorrelation values.
     """
     tau = np.asarray(tau)
@@ -237,32 +248,32 @@ def fit_antibunching(tau, excitation_rate, s1_lifetime):
     return autocorrelation
 
 
-def fit_triplet_cis(tau, k_isc, k_T, k_01, k_10, k_iso, k_biso_eff):
+def fit_triplet_cis(tau: npt.ArrayLike, k_isc: float, k_T: float, k_01: float, k_10: float, k_iso: float, k_biso_eff: float) -> tuple[npt.NDArray[np.float64], float]:
     """
     Fit function of triplet and cis as two non-independent dark states.
 
     Parameters
     ----------
-    tau : 1-D array_like
+    tau
         Time differences (i.e., τ, lag times).
-    k_isc : float
+    k_isc
         Rate constant of intersystem crossing to the triplet state.
-    k_T : float
+    k_T
         Rate constant of intersystem crossing out of the triplet state.
-    k_01 : float
+    k_01
         Rate constant of excitation.
-    k_10 : float
+    k_10
         Inverse of fluorescence lifetime considering all rates from S1 (not just IC and
         FL). Note: in the PAPER it is not clear which one they mean but the fit is
         significantly better if using this version.
-    k_iso : float
+    k_iso
         Rate constant of isomerization from trans to cis.
-    k_biso_eff : float
+    k_biso_eff
         Rate constant of back isomerization from cis to trans.
 
     Returns
     -------
-    autocorrelation : 1-D array_like
+    autocorrelation : tuple[npt.NDArray[np.float64]
         Autocorrelation values.
     norm : float
         Steady state fraction of other states. Number between 0 and 1.
@@ -304,26 +315,13 @@ def fit_triplet_cis(tau, k_isc, k_T, k_01, k_10, k_iso, k_biso_eff):
     return autocorrelation, norm
 
 
-def make_loglags(exp_min, exp_max, points_per_base, base=10, return_int=False):
+def make_loglags(exp_min: int, exp_max: int, points_per_base: int, base: int=10, return_int: bool=False) -> npt.NDArray[Any]:
     """Make a log-spaced array useful as lag bins for cross-correlation.
 
     This function creates an arrays of log-spaced time-lag bins to be used
     with :func:`pcorrelate`. By default it returns integer time-lag bins
     to avoid floating point inaccuracies in the correlation
     (showing up as higher noise at small time-lags).
-
-    Arguments:
-        exp_min (int): exponent of the minimum value
-        exp_max (int): exponent of the maximum value
-        points_per_base (int): number of points per base
-            (i.e. in a decade when `base = 10`)
-        base (int): base of the exponent. Default 10.
-        return_int (bool): if True (default) return integer bin edges
-            to avoid floating point inaccuracies. If False, returned bin
-            edges are float.
-
-    Returns:
-        Array of log-spaced values with specified range and spacing.
 
     Example:
 
@@ -345,8 +343,29 @@ def make_loglags(exp_min, exp_max, points_per_base, base=10, return_int=False):
                      3.16227766e+00,   1.00000000e+01,   3.16227766e+01,
                      1.00000000e+02,   3.16227766e+02,   1.00000000e+03])
 
-    See also:
-        :func:`pcorrelate`
+    See Also
+    ---------
+    :func:`pcorrelate`
+
+    Parameters
+    ----------
+    exp_min
+        exponent of the minimum value
+    exp_max
+        exponent of the maximum value
+    points_per_base
+        number of points per base
+        (i.e. in a decade when `base = 10`)
+    base
+        base of the exponent. Default 10.
+    return_int
+        if True return integer bin edges to avoid floating point inaccuracies.
+        If False, returned bin edges are float.
+
+    Returns
+    --------
+    npt.NDArray[Any]
+        Array of log-spaced values with specified range and spacing.
     """
     num_points = points_per_base * (exp_max - exp_min) + 1
     bins = np.logspace(exp_min, exp_max, num_points, base=base)
@@ -357,7 +376,7 @@ def make_loglags(exp_min, exp_max, points_per_base, base=10, return_int=False):
 
 
 @numba.jit(nopython=True)
-def pcorrelate(t, u, bins, normalize=False):
+def pcorrelate(t: npt.ArrayLike, u: npt.ArrayLike, bins: npt.ArrayLike, normalize: bool=False) -> npt.NDArray[np.float64]:
     """Compute correlation of two arrays of discrete events (Point-process).
 
     The input arrays need to be values of a point process, such as
@@ -368,22 +387,30 @@ def pcorrelate(t, u, bins, normalize=False):
     This function implements the algorithm described in
     `(Laurence 2006) <https://doi.org/10.1364/OL.31.000829>`__.
 
-    Arguments:
-        t (array): first array of "points" to correlate. The array needs
-            to be monothonically increasing.
-        u (array): second array of "points" to correlate. The array needs
-            to be monothonically increasing.
-        bins (array): bin edges for lags where correlation is computed.
-        normalize (bool): if True, normalize the correlation function
-            as typically done in FCS using :func:`pnormalize`. If False,
-            return the unnormalized correlation function.
+    See Also
+    ---------
+    :func:`make_loglags` to genetate log-spaced lag bins.
 
-    Returns:
+    Parameters
+    ----------
+    t
+        first array of "points" to correlate. The array needs
+        to be monothonically increasing.
+    u
+        second array of "points" to correlate. The array needs
+        to be monothonically increasing.
+    bins
+        bin edges for lags where correlation is computed.
+    normalize
+        if True, normalize the correlation function
+        as typically done in FCS using :func:`pnormalize`. If False,
+        return the unnormalized correlation function.
+
+    Returns
+    --------
+    npt.NDArray[np.float64]
         Array containing the correlation of `t` and `u`.
         The size is `len(bins) - 1`.
-
-    See also:
-        :func:`make_loglags` to genetate log-spaced lag bins.
     """
     nbins = len(bins) - 1
 
@@ -425,7 +452,7 @@ def pcorrelate(t, u, bins, normalize=False):
 
 
 @numba.jit(nopython=True)
-def pnormalize(G, t, u, bins):
+def pnormalize(G: npt.ArrayLike, t: npt.ArrayLike, u: npt.ArrayLike, bins: npt.ArrayLike) -> npt.NDArray[np.float64]:
     r"""Normalize point-process cross-correlation function.
 
     This normalization is usually employed for fluorescence correlation
@@ -441,14 +468,17 @@ def pnormalize(G, t, u, bins):
     are the input arrays of the correlation, *τ* is the time lag and *T*
     is the measurement duration.
 
-    Arguments:
+    Parameters
+    ----------
         G (array): raw cross-correlation to be normalized.
         t (array): first input array of "points" used to compute `G`.
         u (array): second input array of "points" used to compute `G`.
         bins (array): array of bins used to compute `G`. Needs to have the
             same units as input arguments `t` and `u`.
 
-    Returns:
+    Returns
+    --------
+    npt.NDArray[np.float64]
         Array of normalized values for the cross-correlation function,
         same size as the input argument `G`.
     """
@@ -461,7 +491,7 @@ def pnormalize(G, t, u, bins):
     return Gn
 
 
-def coincidence(photon_arrival_times, tau_max, bin_width, seed=1):
+def coincidence(photon_arrival_times: npt.ArrayLike, tau_max: float, bin_width: float, seed: RandomGeneratorSeed=1) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
     Compute the coincidence histogram of photon arrival times. Here, the Hanbury Brown
     Twiss experiment is mimicked by randomly splitting the photon arrival times into two
@@ -470,20 +500,20 @@ def coincidence(photon_arrival_times, tau_max, bin_width, seed=1):
 
     Parameters
     ----------
-    photon_arrival_times : 1-D array_like
+    photon_arrival_times
         Photon arrival times.
-    tau_max : float
+    tau_max
         Maximum time difference to consider for the histogram.
-    bin_width : float
+    bin_width
         Width of the histogram bins.
-    seed : None, int, BitGenerator, Generator
+    seed
         A seed to initialize the BitGenerator.
 
     Returns
     -------
-    hist : 1-D array_like
+    hist : npt.NDArray[np.float64]
         Coincidence histogram.
-    bins : 1-D array_like
+    bins : npt.NDArray[np.float64]
         Bin edges of the histogram.
     """
     rng = np.random.default_rng(seed)

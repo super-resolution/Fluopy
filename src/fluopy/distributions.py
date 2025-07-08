@@ -5,24 +5,17 @@ Module distributions
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable
 from itertools import product
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
 from scipy.special import i1
 from scipy.stats import expon, rv_discrete
 
-# type definition for random number generator seed
-RandomGeneratorSeed = (
-    None
-    | int
-    | Sequence[int]
-    | np.random.SeedSequence
-    | np.random.BitGenerator
-    | np.random.Generator
-)
+if TYPE_CHECKING:
+    from fluopy.fluopy_types import RandomGeneratorSeed
 
 
 def high_gain_amplification_noise_distribution(

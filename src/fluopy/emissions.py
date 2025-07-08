@@ -22,16 +22,8 @@ from .transitions import TransitionSet
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
+    from fluopy.fluopy_types import RandomGeneratorSeed
 
-# type definition for random number generator seed
-RandomGeneratorSeed = (
-    None
-    | int
-    | Sequence[int]
-    | np.random.SeedSequence
-    | np.random.BitGenerator
-    | np.random.Generator
-)
 
 class Emissions:
     """
