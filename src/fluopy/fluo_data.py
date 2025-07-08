@@ -92,16 +92,16 @@ class Atto643(FluorophoreData):
 
     QUANTUM_YIELD: float = 0.6
     FLUORESCENCE_LIFETIME: float = 3e-9
-    S1_QUENCH_RATE: float = 0  # TBU
-    ISC_ST_RATE: float = 1e6  # TBU
-    ISC_TS_RATE: float = 1e5  # TBU
-    RISC_RATE: float = 0  # TBU
-    PHOTOBLEACH_T1_RATE: float = 1  # TBU
+    S1_QUENCH_RATE: float = 0  # to be updated
+    ISC_ST_RATE: float = 1e6  # to be updated
+    ISC_TS_RATE: float = 1e5  # to be updated
+    RISC_RATE: float = 0  # to be updated
+    PHOTOBLEACH_T1_RATE: float = 1  # to be updated
     PHOTOBLEACH_T2_RATE: float = 0
 
-    H2O_ATTACK_S: float = 3e4  # TBU
-    H2O_ATTACK_T: float = 0  # TBU
-    BACK_REACTION: float = 1e-1  # TBU
+    H2O_ATTACK_S: float = 3e4  # to be updated
+    H2O_ATTACK_T: float = 0  # to be updated
+    BACK_REACTION: float = 1e-1  # to be updated
 
 
 @dataclass
@@ -144,13 +144,13 @@ class TestFluo_2(FluorophoreData):
 
     QUANTUM_YIELD: float = 0.6
     FLUORESCENCE_LIFETIME: float = 3e-9
-    S1_QUENCH_RATE: float = 0  # TBU
-    ISC_ST_RATE: float = 1e6  # TBU
-    ISC_TS_RATE: float = 1e5  # TBU
-    RISC_RATE: float = 0  # TBU
-    PHOTOBLEACH_T1_RATE: float = 1  # TBU
+    S1_QUENCH_RATE: float = 0  # to be updated
+    ISC_ST_RATE: float = 1e6  # to be updated
+    ISC_TS_RATE: float = 1e5  # to be updated
+    RISC_RATE: float = 0  # to be updated
+    PHOTOBLEACH_T1_RATE: float = 1  # to be updated
     PHOTOBLEACH_T2_RATE: float = 0
 
-    H2O_ATTACK_S: float = 3e4  # TBU
-    H2O_ATTACK_T: float = 0  # TBU
-    BACK_REACTION: float = 1e-1  # TBU
+    H2O_ATTACK_S: float = 3e4  # to be updated
+    H2O_ATTACK_T: float = 0  # to be updated
+    BACK_REACTION: float = 1e-1  # to be updated
