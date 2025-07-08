@@ -6,7 +6,7 @@ from fluopy import transitions as tr
 
 
 # test_analysis_# includes testing of...
-# ...check_absorbing()
+# ...is_absorbing()
 # ...get_transition_occurrences()
 # ...get_state_occurrences()
 # ...get_lifetimes()

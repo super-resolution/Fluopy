@@ -60,7 +60,7 @@ class Analysis:
 
         self.simulation = simulation
 
-        absorbing = self.check_absorbing()
+        absorbing = self.is_absorbing()
         if absorbing:
             warnings.warn(
                 "if a fluorophore reaches its individual absorbing state, it has an "
@@ -86,7 +86,7 @@ class Analysis:
         )
         self.mean_lifetimes, self.state_occupations = self.infer_stats()
 
-    def check_absorbing(self) -> bool:
+    def is_absorbing(self) -> bool:
         """
         Check whether fluorophores reached Markovian absorbing states.
 
