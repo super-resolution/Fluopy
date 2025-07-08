@@ -13,9 +13,13 @@ import numpy.typing as npt
 
 from . import figure as fi
 from . import fluo_data as fd
+from .transitions import (
+    derive_energy_transfer_transitions,
+    derive_transitions,
+)
 
 if TYPE_CHECKING:
-    import matplotlib.axes.Axes
+    from matplotlib.axes import Axes as mplAxes
 
 
 @dataclass
@@ -163,10 +167,6 @@ class FluorophoreSystem:
             or fluorophore-combinations as keys.
         """
         transitions = {}
-        from .transitions import (
-            derive_energy_transfer_transitions,
-            derive_transitions,
-        )
 
         skip_warnings = []
         et_pairs = {}
@@ -268,7 +268,7 @@ class FluorophoreSystem:
 
         return transitions
 
-    def plot(self, quadratic: bool=True, **kwargs) -> npt.NDArray[matplotlib.axes.Axes]:
+    def plot(self, quadratic: bool=True, **kwargs) -> npt.NDArray[mplAxes]:
         """
         Plot the positions of fluorophores.
 

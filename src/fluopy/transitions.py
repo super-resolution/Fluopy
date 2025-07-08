@@ -21,11 +21,10 @@ from scipy import interpolate as itp
 
 from . import formulas as fo
 from . import network as net
-from .fluorophores import Fluorophore
 
 if TYPE_CHECKING:
-    from fluopy.fluorophores import FluorophoreSystem
     from fluopy.fluo_data import FluorophoreData
+    from fluopy.fluorophores import Fluorophore, FluorophoreSystem
 
 
 class SingleState(Enum):
@@ -601,7 +600,7 @@ class TransitionSet:
         graph_type: str = "shell",
         colors: Collection | None = None,
         scale: float = 1,
-    ) -> matplotlib.axes._subplots.AxesSubplot:
+    ) -> None:
         """
         Plot photophysical system as network/graph.
 
@@ -616,7 +615,7 @@ class TransitionSet:
 
         Returns
         -------
-        ax : matplotlib.axes._subplots.AxesSubplot
+        None
         """
         graphs = net.construct_state_graphs(transition_df=self.transition_df)
         for graph in graphs:
