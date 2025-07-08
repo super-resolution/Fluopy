@@ -35,6 +35,35 @@ def test_direct_method_steps(tr_set_1f):
     np.testing.assert_array_equal(transition_series, exp_transition_series)
 
 
+def test_direct_method_steps_with_memmap(tr_set_1f, tmp_path):
+    time_series, transition_series = si.direct_method_steps(
+        transition_matrix=tr_set_1f.transition_matrix,
+        row_sums=tr_set_1f.row_sums,
+        start_index=0,
+        size=10,
+        seed=1,
+        use_memmap=tmp_path,
+    )
+    exp_time_series = np.array(
+        [
+            0.00000000e00,
+            6.69779121e-10,
+            3.33705195e-07,
+            3.34870488e-07,
+            3.67386152e-07,
+            3.67984729e-07,
+            4.16647630e-07,
+            4.17757106e-07,
+            6.22956746e-07,
+            6.24966350e-07,
+            8.98761261e-07,
+        ]
+    )
+    exp_transition_series = np.array([6, 0, 6, 0, 1, 0, 6, 0, 6, 0])
+    np.testing.assert_array_almost_equal(time_series, exp_time_series)
+    np.testing.assert_array_equal(transition_series, exp_transition_series)
+
+
 def test_direct_method_time(tr_set_1f):
     time_series, transition_series = si.direct_method_time(
         transition_matrix=tr_set_1f.transition_matrix,
@@ -44,6 +73,38 @@ def test_direct_method_time(tr_set_1f):
         end_time=1e-6,
         seed=1,
         use_memmap=None,
+    )
+    exp_time_series = np.array(
+        [
+            0.00000000e00,
+            6.69779104e-10,
+            3.33705188e-07,
+            3.34870480e-07,
+            3.67386146e-07,
+            3.67984722e-07,
+            4.16647625e-07,
+            4.17757101e-07,
+            6.22956748e-07,
+            6.24966353e-07,
+            8.98761274e-07,
+            8.99048470e-07,
+            1.00000000e-06,
+        ]
+    )
+    exp_transition_series = np.array([6, 0, 6, 0, 1, 0, 6, 0, 6, 0, 1])
+    np.testing.assert_array_almost_equal(time_series, exp_time_series)
+    np.testing.assert_array_equal(transition_series, exp_transition_series)
+
+
+def test_direct_method_time_with_memmap(tr_set_1f, tmp_path):
+    time_series, transition_series = si.direct_method_time(
+        transition_matrix=tr_set_1f.transition_matrix,
+        row_sums=tr_set_1f.row_sums,
+        start_index=0,
+        size=10,
+        end_time=1e-6,
+        seed=1,
+        use_memmap=tmp_path,
     )
     exp_time_series = np.array(
         [
@@ -181,7 +242,7 @@ def test_simulation(tr_set_1f):
 
 
 # also contains the test for simulation.delete_memmaps()
-@pytest.mark.parametrize("use_memmap", [[None], [""]])
+@pytest.mark.parametrize("use_memmap", [[None], ["tmp_path"]])
 @pytest.mark.parametrize(
     "end_time, exp_time_series, exp_transition_series, exp_state_series",
     [
@@ -235,9 +296,10 @@ def test_simulation_run(
     exp_transition_series,
     exp_state_series,
     tr_set_1f,
+    tmp_path
 ):
     if use_memmap is not None:
-        memmap_path = os.path.join(os.path.dirname(__file__), "temp_data")
+        memmap_path = tmp_path
     else:
         memmap_path = None
 
