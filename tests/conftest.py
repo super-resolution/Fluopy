@@ -1,10 +1,12 @@
-import pytest
 from pathlib import Path
+
+import pytest
+
 from fluopy import emissions as em
+from fluopy import fluorophores as fl
 from fluopy import prediction as pr
 from fluopy import simulation as si
 from fluopy import transitions as tr
-from fluopy import fluorophores as fl
 
 
 @pytest.fixture()

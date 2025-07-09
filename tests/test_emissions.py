@@ -1,11 +1,12 @@
 import logging
 import os
-
-import pytest
-import numpy as np
-import pandas as pd
 from pathlib import Path
 from unittest.mock import patch
+
+import numpy as np
+import pandas as pd
+import pytest
+
 from fluopy import emissions as em
 from fluopy import fluorophores as fl
 
@@ -119,8 +120,8 @@ def test_emissions_extract(dirname, request, frame_time, bandpass, expected, cap
             # fmt: off
             np.array(
                 [
-                    0, 11, 4, 5, 9, 9, 7, 10, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 4, 3, 5, 
+                    0, 11, 4, 5, 9, 9, 7, 10, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 4, 3, 5,
                     7,
                 ],
                 dtype=np.int32,
@@ -229,12 +230,12 @@ def test_emissions_add_photon_collection_objective(p, em_large, expected):
     # fmt: off
     exp_values_prev = np.array(
         [
-            49135, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0,
+            49135, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 49692, 7458, 0, 0, 0, 0, 0, 0, 66619, 75942,
             35871, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        ], 
+        ],
         dtype=np.int64)
     # fmt: on
     exp_index = np.linspace(0, 9.9, 100)
@@ -279,12 +280,12 @@ def test_emissions_add_quantum_efficiency(em_large, p, expected):
     # fmt: off
     exp_values_prev = np.array(
         [
-            49135, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0,
+            49135, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 49692, 7458, 0, 0, 0, 0, 0, 0, 66619, 75942,
             35871, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        ], 
+        ],
         dtype=np.int64)
     # fmt: on
     exp_index = np.linspace(0, 9.9, 100)
@@ -311,7 +312,7 @@ def test_emissions_add_quantum_efficiency(em_large, p, expected):
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            ], 
+            ],
             dtype=np.int64)
         # fmt: on
 
@@ -329,12 +330,12 @@ def test_emissions_add_transmittance(em_large, p, expected):
     # fmt: off
     exp_values_prev = np.array(
         [
-            49135, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0,
+            49135, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 49692, 7458, 0, 0, 0, 0, 0, 0, 66619, 75942,
             35871, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        ], 
+        ],
         dtype=np.int64)
     # fmt: on
     exp_index = np.linspace(0, 9.9, 100)
@@ -361,7 +362,7 @@ def test_emissions_add_transmittance(em_large, p, expected):
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            ], 
+            ],
             dtype=np.int64)
         # fmt: on
 
@@ -375,12 +376,12 @@ def test_emissions_add_emccd_gain(em_large):
     # fmt: off
     exp_values_prev = np.array(
         [
-            49135, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0,
+            49135, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 49692, 7458, 0, 0, 0, 0, 0, 0, 66619, 75942,
             35871, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        ], 
+        ],
         dtype=np.int64)
     # fmt: on
     exp_index = np.linspace(0, 9.9, 100)
@@ -396,7 +397,7 @@ def test_emissions_add_emccd_gain(em_large):
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 497653, 75361, 0, 0, 0, 0, 0, 0, 664801,
             760421, 358760, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         ],
         dtype=np.int64)
     # fmt: on
@@ -408,12 +409,12 @@ def test_emissions_add_gaussian_noise(em_large):
     # fmt: off
     exp_values_prev = np.array(
         [
-            49135, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0,
+            49135, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 49692, 7458, 0, 0, 0, 0, 0, 0, 66619, 75942,
             35871, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        ], 
+        ],
         dtype=np.int64)
     # fmt: on
     exp_index = np.linspace(0, 9.9, 100)
@@ -425,10 +426,10 @@ def test_emissions_add_gaussian_noise(em_large):
     # fmt: off
     exp_values = np.array(
         [
-            49135, 11, 14, 11, 3, 14, 12, 7, 12, 11, 11, 10, 12, 6, 9, 7, 12, 10, 8, 6, 
-            8, 10, 49700, 7474, 15, 0, 0, 9, 7, 11, 66630, 75962, 35875, 8, 20, 13, 13, 
-            7, 1, 10, 10, 3, 6, 9, 5, 9, 10, 10, 7, 12, 14, 11, 5, 13, 7, 14, 4, 14, 9, 
-            3, 8, 10, 11, 5, 4, 10, 7, 11, 13, 1, 11, 16, 8, 5, 13, 11, 14, 8, 2, 9, 7, 
+            49135, 11, 14, 11, 3, 14, 12, 7, 12, 11, 11, 10, 12, 6, 9, 7, 12, 10, 8, 6,
+            8, 10, 49700, 7474, 15, 0, 0, 9, 7, 11, 66630, 75962, 35875, 8, 20, 13, 13,
+            7, 1, 10, 10, 3, 6, 9, 5, 9, 10, 10, 7, 12, 14, 11, 5, 13, 7, 14, 4, 14, 9,
+            3, 8, 10, 11, 5, 4, 10, 7, 11, 13, 1, 11, 16, 8, 5, 13, 11, 14, 8, 2, 9, 7,
             13, 10, 1, 4, 14, 13, 6, 9, 12, 12, 14, 11, 9, 8, 15, 0, 9, 10, 2
         ],
         dtype=np.int64,
@@ -442,12 +443,12 @@ def test_emissions_add_poisson_noise(em_large):
     # fmt: off
     exp_values_prev = np.array(
         [
-            49135, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0,
+            49135, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 49692, 7458, 0, 0, 0, 0, 0, 0, 66619, 75942,
             35871, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        ], 
+        ],
         dtype=np.int64)
     # fmt: on
     exp_index = np.linspace(0, 9.9, 100)
@@ -459,12 +460,12 @@ def test_emissions_add_poisson_noise(em_large):
     # fmt: off
     exp_values = np.array(
         [
-            49135, 8, 13, 10, 13, 8, 8, 6, 7, 12, 10, 10, 11, 10, 11, 11, 14, 10, 7, 7, 
-            14, 8, 49703, 7472, 7, 6, 15, 11, 12, 13, 66633, 75955, 35880, 12, 9, 8, 5, 
-            9, 11, 14, 13, 10, 7, 7, 12, 9, 12, 11, 12, 9, 5, 8, 8, 12, 4, 7, 10, 8, 10, 
-            18, 8, 6, 7, 11, 10, 13, 11, 9, 20, 12, 14, 13, 9, 9, 6, 11, 13, 11, 13, 10, 
+            49135, 8, 13, 10, 13, 8, 8, 6, 7, 12, 10, 10, 11, 10, 11, 11, 14, 10, 7, 7,
+            14, 8, 49703, 7472, 7, 6, 15, 11, 12, 13, 66633, 75955, 35880, 12, 9, 8, 5,
+            9, 11, 14, 13, 10, 7, 7, 12, 9, 12, 11, 12, 9, 5, 8, 8, 12, 4, 7, 10, 8, 10,
+            18, 8, 6, 7, 11, 10, 13, 11, 9, 20, 12, 14, 13, 9, 9, 6, 11, 13, 11, 13, 10,
             10, 12, 6, 6, 8, 3, 7, 17, 16, 5, 5, 7, 8, 12, 11, 9, 6, 7, 10, 8
-        ], 
+        ],
         np.int64)
     # fmt: on
     exp_event_time_series = pd.Series(exp_values, index=exp_index)
@@ -478,8 +479,12 @@ def test_save_and_load(request, tmp_path, caplog):
     caplog.clear()
 
     em_tr_set_1f_bl.save(path=tmp_path, name_extension="_test_extension")
-    assert os.path.isfile(os.path.join(tmp_path, "event_time_series_test_extension.csv"))
-    assert os.path.isfile(os.path.join(tmp_path, "event_time_points_test_extension.npy"))
+    assert os.path.isfile(
+        os.path.join(tmp_path, "event_time_series_test_extension.csv")
+    )
+    assert os.path.isfile(
+        os.path.join(tmp_path, "event_time_points_test_extension.npy")
+    )
     emis = em.Emissions.load(path=tmp_path, name_extension="_test_extension")
     assert type(emis.event_time_points) is np.ndarray
     assert type(emis.event_time_series) is pd.Series

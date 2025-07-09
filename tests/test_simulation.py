@@ -1,8 +1,10 @@
 import logging
 import os
-import pytest
+
 import numpy as np
 import pandas as pd
+import pytest
+
 from fluopy import prediction as pr
 from fluopy import simulation as si
 

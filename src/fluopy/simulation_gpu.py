@@ -51,7 +51,7 @@ def sort_by_diff(array, rounded_array, keep_track, reverse):
     return rounded_array[sorted], keep_track[sorted]
 
 
-def fill_individual_transitions(prediction, transitions, size, seed):
+def fill_individual_transitions(prediction, transitions, size):
 
     transition_occurrences = prediction.stationary_distribution_transitions * size
     transition_occurrences = transition_occurrences.astype(cp.int64)
@@ -73,11 +73,10 @@ def fill_individual_transitions(prediction, transitions, size, seed):
     )
 
     all_rates = cp.array(transitions.transition_df["rate"])
-    rng = cp.random.default_rng(seed)
     transition_series = cp.full(
         transition_occurrences[maximum_transition_index], starting_transition
     )
-    for i, transition in enumerate(transition_order):
+    for _, transition in enumerate(transition_order):
         transition_indices = cp.where(transition_series == transition)[0]
         occurrences = transition_indices.size
         cp.random.shuffle(transition_indices)

@@ -1,6 +1,7 @@
 """
 Module prediction
 """
+
 import logging
 import re
 
@@ -12,6 +13,7 @@ from . import figure as fi
 from .miscellaneous import format_electronic_state, format_transition
 
 logger = logging.getLogger(__name__)
+
 
 class Prediction:
     """

@@ -1,11 +1,11 @@
 import logging
 
-import pytest
 import numpy as np
 import pandas as pd
+import pytest
+
 from fluopy import analysis as an
 from fluopy import transitions as tr
-
 
 # test_analysis_# includes testing of...
 # ...is_absorbing()
@@ -20,8 +20,10 @@ def test_analysis_1(request, caplog):
     with caplog.at_level(logging.WARNING):
         pred_bl = request.getfixturevalue("pred_tr_set_1f_bl")
         pred_bl_2 = request.getfixturevalue("pred_tr_set_1f_bl_2")
-        assert "absorbing states have a lifetime of inf and a frequency / occupation "
-        "of 0. Absorbing transitions have a frequency of 0." in caplog.text
+        assert (
+            "absorbing states have a lifetime of inf and a frequency / occupation "
+            "of 0. Absorbing transitions have a frequency of 0."
+        ) in caplog.text
     caplog.clear()
 
     with caplog.at_level(logging.WARNING):
@@ -40,7 +42,7 @@ def test_analysis_1(request, caplog):
         np.testing.assert_array_almost_equal(freq, exp_freq_states[fluorophore])
     for time_distribution in analysis.transition_time_distributions:
         assert isinstance(time_distribution, np.ndarray)
-    for fluorophore, distr_col in analysis.lifetime_distributions.items():
+    for _, distr_col in analysis.lifetime_distributions.items():
         for distr in distr_col:
             assert isinstance(distr, np.ndarray)
     exp_mean_trans_times = np.array(
@@ -75,35 +77,50 @@ def test_analysis_1(request, caplog):
 
     with caplog.at_level(logging.WARNING):
         analysis.plot_frequency_transitions(prediction=pred_bl_2)
-        assert "prediction is based on different TransitionSet than simulation." in caplog.text
+        assert (
+            "prediction is based on different TransitionSet than simulation."
+            in caplog.text
+        )
     caplog.clear()
 
     analysis.plot_frequency_transitions(prediction=pred_bl)
 
     with caplog.at_level(logging.WARNING):
         analysis.plot_frequency_states(prediction=pred_bl_2)
-        assert "prediction is based on different TransitionSet than simulation." in caplog.text
+        assert (
+            "prediction is based on different TransitionSet than simulation."
+            in caplog.text
+        )
     caplog.clear()
 
     analysis.plot_frequency_states(prediction=pred_bl)
 
     with caplog.at_level(logging.WARNING):
         analysis.plot_mean_transition_times(prediction=pred_bl_2)
-        assert "prediction is based on different TransitionSet than simulation." in caplog.text
+        assert (
+            "prediction is based on different TransitionSet than simulation."
+            in caplog.text
+        )
     caplog.clear()
 
     analysis.plot_mean_transition_times(prediction=pred_bl)
 
     with caplog.at_level(logging.WARNING):
         analysis.plot_mean_lifetimes(prediction=pred_bl_2)
-        assert "prediction is based on different TransitionSet than simulation." in caplog.text
+        assert (
+            "prediction is based on different TransitionSet than simulation."
+            in caplog.text
+        )
     caplog.clear()
 
     analysis.plot_mean_lifetimes(prediction=pred_bl)
 
     with caplog.at_level(logging.WARNING):
         analysis.plot_state_occupations(prediction=pred_bl_2)
-        assert "prediction is based on different TransitionSet than simulation." in caplog.text
+        assert (
+            "prediction is based on different TransitionSet than simulation."
+            in caplog.text
+        )
     caplog.clear()
 
     analysis.plot_state_occupations(prediction=pred_bl)
@@ -112,7 +129,10 @@ def test_analysis_1(request, caplog):
         analysis.plot_lifetime_distributions(
             fluorophore="testfluo_1", state_identity=0, prediction=pred_bl_2
         )
-        assert "prediction is based on different TransitionSet than simulation." in caplog.text
+        assert (
+            "prediction is based on different TransitionSet than simulation."
+            in caplog.text
+        )
     caplog.clear()
 
     analysis.plot_lifetime_distributions(
@@ -123,7 +143,10 @@ def test_analysis_1(request, caplog):
         analysis.plot_transition_time_distributions(
             fluorophore="testfluo_1", transition_id=0, prediction=pred_bl_2
         )
-        assert "prediction is based on different TransitionSet than simulation." in caplog.text
+        assert (
+            "prediction is based on different TransitionSet than simulation."
+            in caplog.text
+        )
     caplog.clear()
 
     analysis.plot_transition_time_distributions(
@@ -168,7 +191,7 @@ def test_analysis_2(request, caplog):
         np.testing.assert_array_almost_equal(freq, exp_freq_states[fluorophore])
     for time_distribution in analysis.transition_time_distributions:
         assert isinstance(time_distribution, np.ndarray)
-    for fluorophore, distr_col in analysis.lifetime_distributions.items():
+    for _, distr_col in analysis.lifetime_distributions.items():
         for distr in distr_col:
             assert isinstance(distr, np.ndarray)
     exp_mean_trans_times = np.array(
@@ -243,7 +266,7 @@ def test_analysis_3(request, caplog):
         np.testing.assert_array_almost_equal(freq, exp_freq_states[fluorophore])
     for time_distribution in analysis.transition_time_distributions:
         assert isinstance(time_distribution, np.ndarray)
-    for fluorophore, distr_col in analysis.lifetime_distributions.items():
+    for _, distr_col in analysis.lifetime_distributions.items():
         for distr in distr_col:
             assert isinstance(distr, np.ndarray)
     exp_mean_trans_times = np.array(
@@ -396,7 +419,8 @@ def test_no_diff_dist():
     ]
     index = pd.MultiIndex.from_tuples(list(zip(*arrays)), names=["Group", "Number"])
 
-    data = np.random.randn(16, 3)
+    rng = np.random.default_rng(42)
+    data = rng.standard_normal((16, 3))
     df = pd.DataFrame(data, index=index, columns=["X", "Y", "Z"])
 
     df2, dict2, dict2_vals = an.no_diff_dist(df, ["Cy5", "H"])
@@ -416,5 +440,5 @@ def test_no_diff_dist():
     assert dict2.keys() == dict2_exp.keys()
     for key in dict2_exp:
         pd.testing.assert_index_equal(dict2[key], dict2_exp[key])
-    dict2_vals_exp = np.array([5, 7, 6, 8, 14 ,15])
+    dict2_vals_exp = np.array([5, 7, 6, 8, 14, 15])
     np.testing.assert_array_equal(dict2_vals, dict2_vals_exp)

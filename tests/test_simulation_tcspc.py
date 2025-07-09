@@ -1,10 +1,10 @@
 import logging
-import re
-import pytest
-import numpy as np
-from fluopy import transitions as tr
-from fluopy import simulation_tcspc as si
 
+import numpy as np
+import pytest
+
+from fluopy import simulation_tcspc as si
+from fluopy import transitions as tr
 
 pytestmark = pytest.mark.slow
 
@@ -337,7 +337,7 @@ def test_simulate_TCSPC(
                 store_time_points=store_time_points,
                 seed=1,
             )
-            assert "???" in caplog.text
+            assert "Not enough laser pulses to completely" in caplog.text
         caplog.clear()
 
         assert event_time_series.size == int(
@@ -378,7 +378,7 @@ def test_simulate_TCSPC(
                 store_time_points=store_time_points,
                 seed=1,
             )
-            assert "???" in caplog.text
+            assert "the last frame (of index" in caplog.text
         caplog.clear()
 
         assert event_time_series.size == int(
@@ -427,7 +427,7 @@ def test_simulate_TCSPC(
                 store_time_points=store_time_points,
                 seed=1,
             )
-            assert "???" in caplog.text
+            assert "the last frame (of index" in caplog.text
         caplog.clear()
 
         assert event_time_series.size == int(
@@ -463,7 +463,7 @@ def test_simulate_TCSPC(
                 store_time_points=store_time_points,
                 seed=1,
             )
-            assert "???" in caplog.text
+            assert "the last frame (of index" in caplog.text
         caplog.clear()
 
         np.testing.assert_allclose(event_time_series.values.sum(), 2e4, rtol=1e-1)
@@ -495,7 +495,7 @@ def test_simulate_TCSPC(
                 store_time_points=store_time_points,
                 seed=1,
             )
-            assert "???" in caplog.text
+            assert "the last frame (of index" in caplog.text
         caplog.clear()
 
         np.testing.assert_allclose(event_time_series.values.sum(), 4e4 + 1e4, rtol=1e-1)
@@ -529,7 +529,7 @@ def test_simulate_TCSPC_detailed(request, caplog):
             store_time_points=store_time_points,
             seed=1,
         )
-        assert "???" in caplog.text
+        assert "the last frame (of index" in caplog.text
     caplog.clear()
 
     # test whether each transition is followed by a correct transition
@@ -563,7 +563,7 @@ def test_space_multiple_excitations(caplog):
     assert np.unique(time_series).size != time_series.size
     with caplog.at_level(logging.WARNING):
         time_series_adjusted = si.space_multiple_excitations(time_series)
-        assert "???" in caplog.text
+        assert "Multiple excitations at the same time point" in caplog.text
     caplog.clear()
 
     assert np.unique(time_series_adjusted).size == time_series_adjusted.size

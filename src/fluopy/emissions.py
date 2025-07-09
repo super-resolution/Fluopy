@@ -1,11 +1,11 @@
 """
 Module emissions
 """
+
 from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -16,12 +16,17 @@ from scipy.stats import binom, gamma, norm, poisson
 
 from . import figure as fi
 from .fluorophores import Fluorophore
-from .simulation import Simulation, eval_floating_point_precision_error, simulate_experiment
+from .simulation import (
+    Simulation,
+    eval_floating_point_precision_error,
+    simulate_experiment,
+)
 from .simulation_tcspc import simulate_TCSPC, simulate_TCSPC_detailed
 from .transitions import TransitionSet
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
+
     from fluopy.fluopy_types import RandomGeneratorSeed
 
 logger = logging.getLogger(__name__)
@@ -45,7 +50,12 @@ class Emissions:
         represent emissions effected by obstacles introduced by the optical path.
     """
 
-    def __init__(self, frame_time: str="5ms", bandpass: tuple[float, float] | None=None, seed: RandomGeneratorSeed=1) -> None:
+    def __init__(
+        self,
+        frame_time: str = "5ms",
+        bandpass: tuple[float, float] | None = None,
+        seed: RandomGeneratorSeed = 1,
+    ) -> None:
         """
         Parameters
         ----------
@@ -91,10 +101,10 @@ class Emissions:
     def simulate(
         self,
         transition_set: TransitionSet,
-        start_at: tuple[int, ...] | None=None,
-        size: int=1e5,
-        frames: int=10,
-        store_time_points: bool=False,
+        start_at: tuple[int, ...] | None = None,
+        size: int = 1e5,
+        frames: int = 10,
+        store_time_points: bool = False,
     ) -> None:
         """
         Simulates events per time.
@@ -149,14 +159,19 @@ class Emissions:
     def tcspc(
         self,
         transition_set: TransitionSet,
-        number_pulses: int=1e4,
-        pulse_duration: float=5e-11,
-        time_between_pulses: float=1e-7,
-        excitation_rates: dict[str, float] | None=None,
-        size: int=1e5,
-        store_time_points: bool=False,
-        details: bool=False,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], Simulation]:
+        number_pulses: int = 1e4,
+        pulse_duration: float = 5e-11,
+        time_between_pulses: float = 1e-7,
+        excitation_rates: dict[str, float] | None = None,
+        size: int = 1e5,
+        store_time_points: bool = False,
+        details: bool = False,
+    ) -> tuple[
+        npt.NDArray[np.float64],
+        npt.NDArray[np.float64],
+        npt.NDArray[np.float64],
+        Simulation,
+    ]:
         """
         Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence
         lifetime measurements). The return value lifetimes_DA contains the fluorescence
@@ -272,7 +287,12 @@ class Emissions:
         else:
             return lifetimes_DA, lifetimes_D, lifetimes_all
 
-    def get_emission_indices(self, simulation: Simulation, bandpass: tuple[float, float], seed: RandomGeneratorSeed) -> npt.NDArray[np.int64]:
+    def get_emission_indices(
+        self,
+        simulation: Simulation,
+        bandpass: tuple[float, float],
+        seed: RandomGeneratorSeed,
+    ) -> npt.NDArray[np.int64]:
         """
         Get indices to apply to simulation.transition_series to yield emitting
         transitions.
@@ -345,7 +365,9 @@ class Emissions:
 
         return emission_indices
 
-    def construct_event_time_series(self, simulation: Simulation, resample: str="5ms") -> None:
+    def construct_event_time_series(
+        self, simulation: Simulation, resample: str = "5ms"
+    ) -> None:
         """
         Counts events within a time interval (resample).
 
@@ -393,7 +415,9 @@ class Emissions:
 
         self.event_time_series = event_time_series_r
 
-    def add_photon_collection_objective(self, p: float, seed: RandomGeneratorSeed=None) -> None:
+    def add_photon_collection_objective(
+        self, p: float, seed: RandomGeneratorSeed = None
+    ) -> None:
         """
         Adds the effect of photon collection of the objective.
 
@@ -416,7 +440,9 @@ class Emissions:
             n=self.event_time_series.values[nonzero], p=p, random_state=rng
         )
 
-    def add_quantum_efficiency(self, p: float, seed: RandomGeneratorSeed=None) -> None:
+    def add_quantum_efficiency(
+        self, p: float, seed: RandomGeneratorSeed = None
+    ) -> None:
         """
         Adds the effect of quantum efficiency of the EMCCD.
 
@@ -439,7 +465,7 @@ class Emissions:
             n=self.event_time_series.values[nonzero], p=p, random_state=rng
         )
 
-    def add_transmittance(self, p: float, seed: RandomGeneratorSeed=None) -> None:
+    def add_transmittance(self, p: float, seed: RandomGeneratorSeed = None) -> None:
         """
         Adds the effect of transmittance of a component of the optical path.
 
@@ -462,7 +488,9 @@ class Emissions:
             n=self.event_time_series.values[nonzero], p=p, random_state=rng
         )
 
-    def add_emccd_gain(self, emccd_gain: float, seed: RandomGeneratorSeed=None) -> None:
+    def add_emccd_gain(
+        self, emccd_gain: float, seed: RandomGeneratorSeed = None
+    ) -> None:
         """
         Add the effect of the gain of the EMCCD.
 
@@ -483,7 +511,9 @@ class Emissions:
             a=self.event_time_series.values[nonzero], scale=emccd_gain, random_state=rng
         )
 
-    def add_gaussian_noise(self, mean: float, std: float, seed: RandomGeneratorSeed=None) -> None:
+    def add_gaussian_noise(
+        self, mean: float, std: float, seed: RandomGeneratorSeed = None
+    ) -> None:
         """
         Add artificial noise to the events. The noise is normal distributed and can
         represent readout noise (insigificant in the case of EMCCD).
@@ -508,7 +538,7 @@ class Emissions:
         self.event_time_series.values[1:] = self.event_time_series.values[1:] + variates
         self.event_time_series.clip(lower=0, inplace=True)
 
-    def add_poisson_noise(self, rate: float, seed: RandomGeneratorSeed=None) -> None:
+    def add_poisson_noise(self, rate: float, seed: RandomGeneratorSeed = None) -> None:
         """
         Add Poisson noise to the events. The noise is Poisson distributed and can
         represent dark current noise.
@@ -568,7 +598,11 @@ class Emissions:
         return axes
 
     def plot_histogram(
-        self, density: bool=True, display_mean: bool=False, include_0: bool=False, **kwargs: Any
+        self,
+        density: bool = True,
+        display_mean: bool = False,
+        include_0: bool = False,
+        **kwargs: Any,
     ) -> npt.NDArray[mplAxes]:
         """
         Plot histogram of events.
@@ -645,7 +679,7 @@ class Emissions:
 
         return axes
 
-    def save(self, path: str | os.PathLike[Any], name_extension: str="") -> None:
+    def save(self, path: str | os.PathLike[Any], name_extension: str = "") -> None:
         """
         Saves event_time_series and event_time_points to a file.
 
@@ -668,7 +702,7 @@ class Emissions:
         np.save(time_points_file, self.event_time_points)
 
     @classmethod
-    def load(cls, path: str | os.PathLike[Any], name_extension: str="") -> Emissions:
+    def load(cls, path: str | os.PathLike[Any], name_extension: str = "") -> Emissions:
         """
         Load event_time_series and event_time_points from file.
         Adapted from an unpopular answer of
@@ -705,7 +739,11 @@ class Emissions:
         return obj
 
 
-def get_p_filter(data_dir: str | os.PathLike[Any], fluorophore: Fluorophore, bandpass: tuple[float, float]) -> float:
+def get_p_filter(
+    data_dir: str | os.PathLike[Any],
+    fluorophore: Fluorophore,
+    bandpass: tuple[float, float],
+) -> float:
     """
     Get the probability of a photon emitted by fluorophore passing the bandpass filter.
 
@@ -748,7 +786,9 @@ def get_p_filter(data_dir: str | os.PathLike[Any], fluorophore: Fluorophore, ban
     return p_passed
 
 
-def get_emitting_transition_ids(bandpass: tuple[float, float], transition_set: TransitionSet) -> dict[int, float]:
+def get_emitting_transition_ids(
+    bandpass: tuple[float, float], transition_set: TransitionSet
+) -> dict[int, float]:
     """
     Get a dictionary with ids of emitting transitions as keys and probabilities of
     passing the bandpass filter as values. If bandpass is None, all emitting transitions

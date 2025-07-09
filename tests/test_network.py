@@ -1,6 +1,7 @@
-import pytest
 import matplotlib.pyplot as plt
 import networkx as nx
+import pytest
+
 from fluopy import network as net
 
 
@@ -199,7 +200,7 @@ def test_plot_graph():
 
 
 @pytest.mark.visual
-def test_plot_graph():
+def test_plot_graph_visual():
     G = nx.MultiDiGraph()
     ax = net.plot_graph(G=G, graph_type="shell", colors=None, scale=1)
     assert ax
@@ -207,17 +208,20 @@ def test_plot_graph():
 
 
 def test_draw_networkx_curved_edge_labels():
-    # todo: change return value
     G = nx.MultiDiGraph()
     pos = {}
-    ax = net.draw_networkx_curved_edge_labels(G=G, pos=pos, ax=None, edge_labels=None, rad=0)
-    assert ax is None
+    ax = net.draw_networkx_curved_edge_labels(
+        G=G, pos=pos, ax=None, edge_labels=None, rad=0
+    )
+    assert ax
 
 
 @pytest.mark.visual
-def test_draw_networkx_curved_edge_labels():
+def test_draw_networkx_curved_edge_labels_visual():
     G = nx.MultiDiGraph()
     pos = {}
-    ax = net.draw_networkx_curved_edge_labels(G=G, pos=pos, ax=None, edge_labels=None, rad=0)
+    ax = net.draw_networkx_curved_edge_labels(
+        G=G, pos=pos, ax=None, edge_labels=None, rad=0
+    )
     assert ax
     plt.show()

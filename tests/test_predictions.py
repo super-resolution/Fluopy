@@ -1,8 +1,9 @@
 import logging
 
-import pytest
 import numpy as np
+import pytest
 import scipy.stats as stats
+
 from fluopy import prediction as pr
 
 
@@ -58,9 +59,9 @@ def test_get_N():
 # test with 3 fluorophores
 def test_prediction_1(tr_set_bl_et_3f):
     with pytest.raises(
-        ValueError, match="prediction not available for more than 2 " "fluorophores"
+        ValueError, match="prediction not available for more than 2 fluorophores"
     ):
-        prediction = pr.Prediction(transition_set=tr_set_bl_et_3f)
+        pr.Prediction(transition_set=tr_set_bl_et_3f)
 
 
 # test with not finalized transition_set
@@ -74,9 +75,18 @@ def test_prediction_2(tr_set_bl_et_2f_diff):
 def test_prediction_3(tr_set_bl_et_2f_diff, caplog):
     with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_bl_et_2f_diff)
-        assert "prediction accuracy of energy transfers more difficult to tune." in caplog.text
-        assert "Only frequencies available, lifetimes and occupations not available." in caplog.text
-        assert "absorbing states have a lifetime of inf and a frequency / occupation of 0. Absorbing transitions have a frequency of 0." in caplog.text
+        assert (
+            "prediction accuracy of energy transfers more difficult to tune."
+            in caplog.text
+        )
+        assert (
+            "Only frequencies available, lifetimes and occupations not available."
+            in caplog.text
+        )
+        assert (
+            "absorbing states have a lifetime of inf and a frequency / occupation of 0. Absorbing transitions have a frequency of 0."
+            in caplog.text
+        )
     caplog.clear()
 
     assert prediction.energy_transfer
@@ -125,9 +135,18 @@ def test_prediction_3(tr_set_bl_et_2f_diff, caplog):
 def test_prediction_4(tr_set_bl_et_2f_same, caplog):
     with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_bl_et_2f_same)
-        assert "prediction accuracy of energy transfers more difficult to tune." in caplog.text
-        assert "Only frequencies available, lifetimes and occupations not available." in caplog.text
-        assert "absorbing states have a lifetime of inf and a frequency / occupation of 0. Absorbing transitions have a frequency of 0." in caplog.text
+        assert (
+            "prediction accuracy of energy transfers more difficult to tune."
+            in caplog.text
+        )
+        assert (
+            "Only frequencies available, lifetimes and occupations not available."
+            in caplog.text
+        )
+        assert (
+            "absorbing states have a lifetime of inf and a frequency / occupation of 0. Absorbing transitions have a frequency of 0."
+            in caplog.text
+        )
     caplog.clear()
 
     assert prediction.energy_transfer
@@ -168,8 +187,14 @@ def test_prediction_4(tr_set_bl_et_2f_same, caplog):
 def test_prediction_5(tr_set_et_2f_diff, caplog):
     with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_et_2f_diff)
-        assert "prediction accuracy of energy transfers more difficult to tune." in caplog.text
-        assert "Only frequencies available, lifetimes and occupations not available." in caplog.text
+        assert (
+            "prediction accuracy of energy transfers more difficult to tune."
+            in caplog.text
+        )
+        assert (
+            "Only frequencies available, lifetimes and occupations not available."
+            in caplog.text
+        )
         caplog.clear()
 
     assert prediction.energy_transfer
@@ -247,7 +272,7 @@ def test_prediction_6(tr_set_2f_diff):
         np.testing.assert_allclose(freq, exp_freq_states[fluorophore], rtol=1e-5)
     for distr in prediction.transition_time_distributions:
         assert isinstance(distr, stats._distn_infrastructure.rv_continuous_frozen)
-    for fluorophore, distr_col in prediction.lifetime_distributions.items():
+    for _, distr_col in prediction.lifetime_distributions.items():
         for distr in distr_col:
             assert isinstance(distr, stats._distn_infrastructure.rv_continuous_frozen)
 
@@ -290,7 +315,10 @@ def test_prediction_6(tr_set_2f_diff):
 def test_prediction_7(tr_set_1f_bl, caplog):
     with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_1f_bl)
-        assert "absorbing states have a lifetime of inf and a frequency / occupation of 0. Absorbing transitions have a frequency of 0." in caplog.text
+        assert (
+            "absorbing states have a lifetime of inf and a frequency / occupation of 0. Absorbing transitions have a frequency of 0."
+            in caplog.text
+        )
         caplog.clear()
 
     assert not prediction.energy_transfer
@@ -326,7 +354,7 @@ def test_prediction_7(tr_set_1f_bl, caplog):
         np.testing.assert_allclose(freq, exp_freq_states[fluorophore], rtol=1e-6)
     for distr in prediction.transition_time_distributions:
         assert isinstance(distr, stats._distn_infrastructure.rv_continuous_frozen)
-    for fluorophore, distr_col in prediction.lifetime_distributions.items():
+    for _, distr_col in prediction.lifetime_distributions.items():
         for distr in distr_col:
             assert (
                 isinstance(distr, stats._distn_infrastructure.rv_continuous_frozen)
@@ -390,7 +418,7 @@ def test_prediction_8(tr_set_1f):
         np.testing.assert_allclose(freq, exp_freq_states[fluorophore], rtol=1e-6)
     for distr in prediction.transition_time_distributions:
         assert isinstance(distr, stats._distn_infrastructure.rv_continuous_frozen)
-    for fluorophore, distr_col in prediction.lifetime_distributions.items():
+    for _, distr_col in prediction.lifetime_distributions.items():
         for distr in distr_col:
             assert isinstance(distr, stats._distn_infrastructure.rv_continuous_frozen)
     exp_mean_trans_times = np.array(

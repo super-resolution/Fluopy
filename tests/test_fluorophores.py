@@ -1,7 +1,8 @@
 import logging
 
-import pytest
 import numpy as np
+import pytest
+
 from fluopy import fluorophores as fl
 from fluopy.fluo_data import TestFluo_1, TestFluo_2
 
@@ -27,7 +28,10 @@ def test_fluorophore(
     if name == "aa":
         with caplog.at_level(logging.WARNING):
             fluorophore = fl.Fluorophore(name=name, position=position)
-            assert "Fluorophore aa not known. Parameters have to be defined manually." in caplog.text
+            assert (
+                "Fluorophore aa not known. Parameters have to be defined manually."
+                in caplog.text
+            )
         caplog.clear()
     else:
         fluorophore = fl.Fluorophore(name=name, position=position)
@@ -85,11 +89,16 @@ def test_get_distances(positions, expected):
         ],
     ],
 )
-def test_fluorophore_system(dirnames, request, exp_distances, exp_count, multi_type, caplog):
+def test_fluorophore_system(
+    dirnames, request, exp_distances, exp_count, multi_type, caplog
+):
     if "flu_obj_unknown" in dirnames:
         with caplog.at_level(logging.WARNING):
             fluorophores = [request.getfixturevalue(dirname) for dirname in dirnames]
-            assert "Fluorophore aa not known. Parameters have to be defined manually." in caplog.text
+            assert (
+                "Fluorophore aa not known. Parameters have to be defined manually."
+                in caplog.text
+            )
         caplog.clear()
     else:
         fluorophores = [request.getfixturevalue(dirname) for dirname in dirnames]
@@ -150,7 +159,10 @@ def test_fluorophore_system_load_transitions(
     if expected_warnings:
         with caplog.at_level(logging.WARNING):
             fluorophore_system = request.getfixturevalue(dirname)
-            assert "Fluorophore aa not known. Parameters have to be defined manually." in caplog.text
+            assert (
+                "Fluorophore aa not known. Parameters have to be defined manually."
+                in caplog.text
+            )
         caplog.clear()
     else:
         fluorophore_system = request.getfixturevalue(dirname)
@@ -159,7 +171,10 @@ def test_fluorophore_system_load_transitions(
             transitions = fluorophore_system.load_transitions(
                 energy_transfer=energy_transfer
             )
-            assert "load_transitions() not available for this kind of fluorophore: aa." in caplog.text
+            assert (
+                "load_transitions() not available for this kind of fluorophore: aa."
+                in caplog.text
+            )
         caplog.clear()
     elif energy_transfer_parameters is not None:
         with caplog.at_level(logging.WARNING):
@@ -167,7 +182,10 @@ def test_fluorophore_system_load_transitions(
                 energy_transfer=energy_transfer,
                 energy_transfer_parameters=energy_transfer_parameters,
             )
-            assert "'overwrite', 'exclude' or 'include' in energy_transfer_parameters will effect all types of fluorophores." in caplog.text
+            assert (
+                "'overwrite', 'exclude' or 'include' in energy_transfer_parameters will effect all types of fluorophores."
+                in caplog.text
+            )
         caplog.clear()
     else:
         transitions = fluorophore_system.load_transitions(
@@ -243,7 +261,10 @@ def test_construct_fluorophores(name, distance, count, expected, caplog):
     if name == "aa":
         with caplog.at_level(logging.WARNING):
             fluorophores = fl.construct_fluorophores(name, distance, count)
-            assert "Fluorophore aa not known. Parameters have to be defined manually." in caplog.text
+            assert (
+                "Fluorophore aa not known. Parameters have to be defined manually."
+                in caplog.text
+            )
         caplog.clear()
     else:
         fluorophores = fl.construct_fluorophores(name, distance, count)

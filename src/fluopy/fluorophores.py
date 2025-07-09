@@ -1,12 +1,13 @@
 """
 Module fluorophores
 """
+
 from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import numpy.typing as npt
@@ -90,7 +91,7 @@ class FluorophoreSystem:
 
     fluorophores: Sequence[Fluorophore] = field()
     multi_type: bool = field(init=False)
-    distances:  dict[tuple[int, int], np.float64] = field(init=False)
+    distances: dict[tuple[int, int], np.float64] = field(init=False)
     count: int = field(init=False)
 
     def __post_init__(self) -> None:
@@ -117,15 +118,26 @@ class FluorophoreSystem:
 
     def load_transitions(
         self,
-        summarize: bool=False,
-        irradiance: float=2,
-        wavelength: float=600,
-        bleaching: bool=False,
-        energy_transfer: bool=True,
-        dstorm: bool=True,
-        energy_transfer_parameters: dict[Literal["dipole_orientation_factor", "refractive_index",
-            "overwrite", "exclude", "include"], Any] | None=None,
-        dstorm_parameters: dict[str, Any] | None=None,
+        summarize: bool = False,
+        irradiance: float = 2,
+        wavelength: float = 600,
+        bleaching: bool = False,
+        energy_transfer: bool = True,
+        dstorm: bool = True,
+        energy_transfer_parameters: (
+            dict[
+                Literal[
+                    "dipole_orientation_factor",
+                    "refractive_index",
+                    "overwrite",
+                    "exclude",
+                    "include",
+                ],
+                Any,
+            ]
+            | None
+        ) = None,
+        dstorm_parameters: dict[str, Any] | None = None,
     ) -> dict[str, list[Any]]:
         """
         Derives transitions based on fluorophore and the experimental conditions to be
@@ -252,8 +264,14 @@ class FluorophoreSystem:
                                 )
                             else:
                                 continue
-                        elif (donor_fluorophore.identity, acceptor_fluorophore.identity) in self.distances:
-                            distance = self.distances[donor_fluorophore.identity, acceptor_fluorophore.identity]
+                        elif (
+                            donor_fluorophore.identity,
+                            acceptor_fluorophore.identity,
+                        ) in self.distances:
+                            distance = self.distances[
+                                donor_fluorophore.identity,
+                                acceptor_fluorophore.identity,
+                            ]
                             fluorophore_ids = et_pairs[
                                 f"{donor_fluorophore.name}, {acceptor_fluorophore.name}, {distance}"
                             ]
@@ -270,7 +288,7 @@ class FluorophoreSystem:
 
         return transitions
 
-    def plot(self, quadratic: bool=True, **kwargs) -> npt.NDArray[mplAxes]:
+    def plot(self, quadratic: bool = True, **kwargs) -> npt.NDArray[mplAxes]:
         """
         Plot the positions of fluorophores.
 
@@ -304,7 +322,9 @@ class FluorophoreSystem:
         return axes
 
 
-def get_distances(positions: Sequence[Sequence[float]]) -> dict[tuple[int, int], np.float64]:
+def get_distances(
+    positions: Sequence[Sequence[float]],
+) -> dict[tuple[int, int], np.float64]:
     """
     Gets distances between positions.
 
@@ -329,7 +349,9 @@ def get_distances(positions: Sequence[Sequence[float]]) -> dict[tuple[int, int],
     return distances  # type: ignore[return-value]
 
 
-def triangle_third_position(position_1: npt.ArrayLike | None=None, position_2: npt.ArrayLike | None=None) -> npt.NDArray[np.float64]:
+def triangle_third_position(
+    position_1: npt.ArrayLike | None = None, position_2: npt.ArrayLike | None = None
+) -> npt.NDArray[np.float64]:
     """
     Get the third position of an equilateral triangle based on positions of two
     vertices. There are two solutions to such a position but only one is considered
@@ -364,7 +386,11 @@ def triangle_third_position(position_1: npt.ArrayLike | None=None, position_2: n
     return position_3
 
 
-def get_positions_from_distance(distance: float=1, count: int=1, shape: Literal["triangle", "square"]="triangle") -> npt.NDArray[np.float64]:
+def get_positions_from_distance(
+    distance: float = 1,
+    count: int = 1,
+    shape: Literal["triangle", "square"] = "triangle",
+) -> npt.NDArray[np.float64]:
     """
     Gets positions of up to 4 fluorophores based on a single distance. If it is 3
     fluorophores, they are positioned either in an equilateral triangle or in a square
@@ -418,7 +444,12 @@ def get_positions_from_distance(distance: float=1, count: int=1, shape: Literal[
     return positions
 
 
-def construct_fluorophores(name: str="cy5", distance: float=10, count: int=3, shape: Literal["triangle", "square"]="triangle") -> list[Fluorophore]:
+def construct_fluorophores(
+    name: str = "cy5",
+    distance: float = 10,
+    count: int = 3,
+    shape: Literal["triangle", "square"] = "triangle",
+) -> list[Fluorophore]:
     """
     Constructs up to 4 fluorophores of the same kind.
 

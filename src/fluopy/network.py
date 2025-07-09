@@ -1,7 +1,6 @@
 """
 Module network
 """
-from __future__ import annotations
 
 from __future__ import annotations
 
@@ -285,7 +284,7 @@ def draw_networkx_curved_edge_labels(
     ax: mplAxes | None = None,
     edge_labels: dict[Any, Any] = None,
     rad: float = 0,
-) -> None:
+) -> mplAxes:
     """
     Draws labels to curved edges.
     Adapted from https://stackoverflow.com/questions/22785849/drawing-multiple-edges-
@@ -306,7 +305,7 @@ def draw_networkx_curved_edge_labels(
 
     Returns
     -------
-    None
+    ax : matplotlib.axes._subplots.AxesSubplot
     """
     if ax is None:
         ax = plt.gca()
@@ -360,3 +359,5 @@ def draw_networkx_curved_edge_labels(
         labelbottom=False,
         labelleft=False,
     )
+
+    return ax

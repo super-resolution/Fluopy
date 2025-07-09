@@ -51,15 +51,13 @@ def rotational_diffusion_step(v, dt, tau_rot, seed=None):
         The rotated vector(s), normalized to be unit vector(s).
     """
     rng = np.random.default_rng(seed)
+
     if v.ndim == 1:
         v = v.reshape(1, -1)
-        squeeze_output = True
-    else:
-        squeeze_output = False
 
     n_vectors = v.shape[0]
     angles = rng.normal(0, np.sqrt(2 * dt / tau_rot), size=n_vectors)
-    axes = random_unit_vector(size=n_vectors, seed=seed)
+    axes = random_unit_vector(size=n_vectors, seed=rng)
 
     cos_angles = np.cos(angles).reshape(-1, 1)
     sin_angles = np.sin(angles).reshape(-1, 1)
@@ -71,9 +69,6 @@ def rotational_diffusion_step(v, dt, tau_rot, seed=None):
     )
     norms = np.linalg.norm(v_rot, axis=1).reshape(-1, 1)
     v_rot = v_rot / norms
-
-    if squeeze_output:
-        return v_rot.squeeze()
 
     return v_rot
 
@@ -98,14 +93,15 @@ def simulate_rotational_motion(tau_rot, tau_life, dt=1e-12, seed=None):
     tuple of np.ndarray
         Two arrays containing the dipole orientations over time for two dipoles.
     """
+    rng = np.random.default_rng(seed)
     n_steps = int(tau_life / dt)
-    v1 = random_unit_vector(size=1, seed=seed)[0]  # Get 1D vector
-    v2 = random_unit_vector(size=1, seed=seed)[0]  # Get 1D vector
+    v1 = random_unit_vector(size=1, seed=rng)[0]  # Get 1D vector
+    v2 = random_unit_vector(size=1, seed=rng)[0]  # Get 1D vector
     traj1 = [v1]
     traj2 = [v2]
     for _ in range(n_steps):
-        v1 = rotational_diffusion_step(v1, dt, tau_rot, seed=seed)
-        v2 = rotational_diffusion_step(v2, dt, tau_rot, seed=seed)
+        v1 = rotational_diffusion_step(v1, dt, tau_rot, seed=rng)[0]
+        v2 = rotational_diffusion_step(v2, dt, tau_rot, seed=rng)[0]
         traj1.append(v1)
         traj2.append(v2)
 

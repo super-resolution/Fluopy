@@ -1,11 +1,13 @@
 """
 Module analysis
 """
+
 from __future__ import annotations
 
 import logging
 import re
-from typing import TYPE_CHECKING, Any, Iterable
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any
 
 import matplotlib as mpl
 import numpy as np
@@ -17,8 +19,9 @@ from .miscellaneous import format_electronic_state, format_transition
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
-    from fluopy.simulation import Simulation
+
     from fluopy.prediction import Prediction
+    from fluopy.simulation import Simulation
 
 logger = logging.getLogger(__name__)
 
@@ -214,7 +217,9 @@ class Analysis:
 
         return frequency_states
 
-    def get_lifetimes(self) -> tuple[list[npt.NDArray[np.float64]], dict[str, npt.NDArray[np.float64]]]:
+    def get_lifetimes(
+        self,
+    ) -> tuple[list[npt.NDArray[np.float64]], dict[str, npt.NDArray[np.float64]]]:
         """
         Get the lifetime distributions of states and the time until occurrence
         distributions of transitions.
@@ -282,7 +287,9 @@ class Analysis:
 
         return transition_time_distributions, lifetime_distributions
 
-    def infer_stats(self) -> tuple[dict[str, npt.NDArray[np.float64]], dict[str, npt.NDArray[np.float64]]]:
+    def infer_stats(
+        self,
+    ) -> tuple[dict[str, npt.NDArray[np.float64]], dict[str, npt.NDArray[np.float64]]]:
         """
         Infers statistics of states based on lifetime distributions and frequencies.
 
@@ -314,7 +321,9 @@ class Analysis:
 
         return mean_lifetimes, state_occupations
 
-    def get_fluorescence_lifetimes(self, fluorophore: str | None=None) -> npt.NDArray[np.float64]:
+    def get_fluorescence_lifetimes(
+        self, fluorophore: str | None = None
+    ) -> npt.NDArray[np.float64]:
         """
         Get the fluorescence lifetime (i.e., S1 lifetime) of the specified fluorophore.
 
@@ -351,7 +360,9 @@ class Analysis:
 
         return fluorescence_lifetimes
 
-    def get_emitting_transition_lifetimes(self, fluorophore: str | None=None) -> npt.NDArray[np.float64]:
+    def get_emitting_transition_lifetimes(
+        self, fluorophore: str | None = None
+    ) -> npt.NDArray[np.float64]:
         """
         Get the lifetimes of the emitting transitions (i.e., S1 deexcitation via photon
         emission) of the specified fluorophore.
@@ -392,7 +403,12 @@ class Analysis:
 
         return exp_fluorescence_lifetimes
 
-    def plot_frequency_transitions(self, prediction: Prediction | None=None, diff_dist: bool=True, **kwargs: Any) -> npt.NDArray[mplAxes]:
+    def plot_frequency_transitions(
+        self,
+        prediction: Prediction | None = None,
+        diff_dist: bool = True,
+        **kwargs: Any,
+    ) -> npt.NDArray[mplAxes]:
         """
         Plot frequencies of transitions.
 
@@ -472,7 +488,9 @@ class Analysis:
 
         return axes
 
-    def plot_frequency_states(self, prediction: Prediction | None=None, **kwargs: Any) -> npt.NDArray[mplAxes]:
+    def plot_frequency_states(
+        self, prediction: Prediction | None = None, **kwargs: Any
+    ) -> npt.NDArray[mplAxes]:
         """
         Plot frequencies of states.
 
@@ -543,7 +561,12 @@ class Analysis:
 
         return axes
 
-    def plot_mean_transition_times(self, prediction: Prediction | None=None, diff_dist: bool=True, **kwargs: Any) -> npt.NDArray[mplAxes]:
+    def plot_mean_transition_times(
+        self,
+        prediction: Prediction | None = None,
+        diff_dist: bool = True,
+        **kwargs: Any,
+    ) -> npt.NDArray[mplAxes]:
         """
         Plot mean times until transitions occur.
 
@@ -637,7 +660,9 @@ class Analysis:
 
         return axes
 
-    def plot_mean_lifetimes(self, prediction: Prediction | None = None, **kwargs: Any) -> npt.NDArray[mplAxes]:
+    def plot_mean_lifetimes(
+        self, prediction: Prediction | None = None, **kwargs: Any
+    ) -> npt.NDArray[mplAxes]:
         """
         Plot mean lifetimes of states.
 
@@ -714,7 +739,9 @@ class Analysis:
 
         return axes
 
-    def plot_state_occupations(self, prediction: Prediction | None = None, **kwargs: Any) -> npt.NDArray[mplAxes]:
+    def plot_state_occupations(
+        self, prediction: Prediction | None = None, **kwargs: Any
+    ) -> npt.NDArray[mplAxes]:
         """
         Plot state occupation times (relative total time spent in state).
 
@@ -791,7 +818,12 @@ class Analysis:
         return axes
 
     def plot_lifetime_distributions(
-        self, fluorophore: str, state_identity: int, prediction: Prediction | None = None, **kwargs: Any) -> npt.NDArray[mplAxes]:
+        self,
+        fluorophore: str,
+        state_identity: int,
+        prediction: Prediction | None = None,
+        **kwargs: Any,
+    ) -> npt.NDArray[mplAxes]:
         """
         Plot lifetime distributions of states.
 
@@ -854,7 +886,12 @@ class Analysis:
         return axes
 
     def plot_transition_time_distributions(
-        self, fluorophore: str, transition_id: int, prediction: Prediction | None = None, **kwargs: Any) -> npt.NDArray[mplAxes]:
+        self,
+        fluorophore: str,
+        transition_id: int,
+        prediction: Prediction | None = None,
+        **kwargs: Any,
+    ) -> npt.NDArray[mplAxes]:
         """
         Plot distributions of time until transition occurs.
 
@@ -914,7 +951,9 @@ class Analysis:
         return axes
 
 
-def no_diff_dist(transition_df: pd.DataFrame, fluorophores: Iterable[str]) -> tuple[pd.DataFrame, dict[str, Any], npt.NDArray[np.float64]]:
+def no_diff_dist(
+    transition_df: pd.DataFrame, fluorophores: Iterable[str]
+) -> tuple[pd.DataFrame, dict[str, Any], npt.NDArray[np.float64]]:
     """
     Get a transition_df which only contains one distance for each type of energy
     transfer.

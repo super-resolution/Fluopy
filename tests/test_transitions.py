@@ -1,7 +1,9 @@
-import pytest
+from dataclasses import asdict
+
 import numpy as np
 import pandas as pd
-from dataclasses import asdict
+import pytest
+
 from fluopy import transitions as tr
 
 
@@ -110,21 +112,19 @@ class TestTransitionSet:
         }
         fluorophore_system = flu_sys_cy5
         transition_set = tr.TransitionSet(
-            transitions=transitions,
-            fluorophore_system=fluorophore_system
+            transitions=transitions, fluorophore_system=fluorophore_system
         )
         assert transition_set.transitions == transitions
         assert transition_set.fluorophore_system == fluorophore_system
         assert isinstance(transition_set.combined_state_transitions_df, pd.DataFrame)
         assert len(transition_set.row_sums) == 2
-        assert list(transition_set.single_states.keys()) == ['testfluo_1']
+        assert list(transition_set.single_states.keys()) == ["testfluo_1"]
         assert isinstance(transition_set.transition_df, pd.DataFrame)
         assert len(transition_set.transition_df) == 2
         assert transition_set.transition_matrix.shape == (2, 2)
 
         transition_set = tr.TransitionSet(
-            transitions=transitions,
-            fluorophore_system=fluorophore_system
+            transitions=transitions, fluorophore_system=fluorophore_system
         )
         transition_set.finalize()
 
@@ -132,7 +132,7 @@ class TestTransitionSet:
         assert transition_set.fluorophore_system == fluorophore_system
         assert isinstance(transition_set.combined_state_transitions_df, pd.DataFrame)
         assert len(transition_set.row_sums) == 2
-        assert list(transition_set.single_states.keys()) == ['testfluo_1']
+        assert list(transition_set.single_states.keys()) == ["testfluo_1"]
         assert isinstance(transition_set.transition_df, pd.DataFrame)
         assert len(transition_set.transition_df) == 2
         assert transition_set.transition_matrix.shape == (2, 2)
@@ -168,7 +168,9 @@ class TestTransitionSet:
         transitions = {
             fluo_comb: [
                 tr.Transition(
-                    transition_type=transition_type, rate=1, fluorophore_ids=fluorophore_ids
+                    transition_type=transition_type,
+                    rate=1,
+                    fluorophore_ids=fluorophore_ids,
                 )
             ]
         }
@@ -180,7 +182,7 @@ class TestTransitionSet:
                 "key 'D: {name of donor}, A: {name of acceptor}, dist: "
                 "{distance between them}'",
             ):
-                transition_set = tr.TransitionSet(
+                tr.TransitionSet(
                     transitions=transitions, fluorophore_system=fluorophore_system
                 )
         elif expected == "ValueError2":
@@ -188,7 +190,7 @@ class TestTransitionSet:
                 ValueError,
                 match="testfluo_1 indicated to be at identity 2, testfluo_2 found.",
             ):
-                transition_set = tr.TransitionSet(
+                tr.TransitionSet(
                     transitions=transitions, fluorophore_system=fluorophore_system
                 )
         elif expected == "ValueError3":
@@ -197,12 +199,12 @@ class TestTransitionSet:
                 ValueError,
                 match="testfluo_1 indicated to be at identity 2, testfluo_2 found.",
             ):
-                transition_set = tr.TransitionSet(
+                tr.TransitionSet(
                     transitions=transitions, fluorophore_system=fluorophore_system
                 )
         elif expected == "ValueError4":
             with pytest.raises(ValueError, match="2.0 nm indicated, 1.0 nm found."):
-                transition_set = tr.TransitionSet(
+                tr.TransitionSet(
                     transitions=transitions, fluorophore_system=fluorophore_system
                 )
         elif expected == "ValueError5":
@@ -210,10 +212,9 @@ class TestTransitionSet:
                 ValueError,
                 match="testfluo_2 indicated to be at identity 1, testfluo_1 found.",
             ):
-                transition_set = tr.TransitionSet(
+                tr.TransitionSet(
                     transitions=transitions, fluorophore_system=fluorophore_system
                 )
-
 
     # get_single_states is tested indirectly within test_transition_set
     def test_transition_set(self, request):
@@ -250,7 +251,9 @@ class TestTransitionSet:
             ],
             "D: testfluo_1, A: testfluo_2, dist: 2.0": [
                 tr.Transition(
-                    transition_type=tr.TransitionType.FRET, rate=1, fluorophore_ids=[(0, 2)]
+                    transition_type=tr.TransitionType.FRET,
+                    rate=1,
+                    fluorophore_ids=[(0, 2)],
                 )
             ],
             "testfluo_2": [
@@ -305,11 +308,10 @@ class TestTransitionSet:
 
         assert isinstance(transition_set.combined_state_transitions_df, pd.DataFrame)
         assert len(transition_set.row_sums) == 61
-        assert list(transition_set.single_states.keys()) == ['testfluo_1', 'testfluo_2']
+        assert list(transition_set.single_states.keys()) == ["testfluo_1", "testfluo_2"]
         assert isinstance(transition_set.transition_df, pd.DataFrame)
         assert len(transition_set.transition_df) == 7
         assert transition_set.transition_matrix.shape == (61, 61)
-
 
     def test_transition_set_filter_by_identity(self, tr_set_bl_et_3f):
         assert (
@@ -327,9 +329,10 @@ class TestTransitionSet:
         )
         assert (
             "D: testfluo_1, A: testfluo_2, dist: 2.0"
-            not in tr_set_bl_et_filtered.transition_df.index.get_level_values(0).tolist()
+            not in tr_set_bl_et_filtered.transition_df.index.get_level_values(
+                0
+            ).tolist()
         )
-
 
     def test_transition_set_adjust_rates(self, tr_set_bl_et_3f):
         assert tr_set_bl_et_3f.transition_df["rate"].tolist()[:6] == [
@@ -350,12 +353,10 @@ class TestTransitionSet:
             109542.37650972935,
         ]
 
-
     def test_transition_set_remove_absorbing_states(self, tr_set_bl_et_3f):
         assert tr_set_bl_et_3f.transition_df["absorbing"].any()
         tr_set_et = tr_set_bl_et_3f.remove_absorbing_states()
         assert not tr_set_et.transition_df["absorbing"].any()
-
 
     def test_transition_set_remove_energy_transfers(self, tr_set_bl_et_3f):
         assert any(
@@ -364,7 +365,8 @@ class TestTransitionSet:
         )
         tr_set_bl = tr_set_bl_et_3f.remove_energy_transfers()
         assert not any(
-            "dist" in s for s in tr_set_bl.transition_df.index.get_level_values(0).tolist()
+            "dist" in s
+            for s in tr_set_bl.transition_df.index.get_level_values(0).tolist()
         )
 
 
