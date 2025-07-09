@@ -574,6 +574,7 @@ def first_reaction_method(
     tau_rot: float = 5e-10,
     tau_flu: float = 1e-9,
     dt: float = 1e-12,
+    accuracy: int = 1000,
     fret_indices: npt.NDArray[np.int64] | None = None,
     start_index: int = 0,
     size: int = 10,
@@ -606,6 +607,9 @@ def first_reaction_method(
         if dipole orientation factor kappa_squared is not constant.
     dt
         Time step in seconds. The smaller the more accurate the rotational motion.
+    accuracy
+        Number of rotational motion steps to average over. The larger the more accurate
+        the rotational motion and corresponding kappa_squared.
     fret_indices
         Indices of transitions that are FRET transitions.
     start_index
@@ -660,7 +664,7 @@ def first_reaction_method(
 
     # simulation of rotational motion
     kappa_squared = []
-    for _ in range(100):
+    for _ in range(accuracy):
         traj1, traj2 = kappa_sq.simulate_rotational_motion(
             tau_rot=tau_rot,
             tau_life=tau_flu,

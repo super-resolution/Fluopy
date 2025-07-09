@@ -131,6 +131,54 @@ def test_direct_method_time_with_memmap(tr_set_1f, tmp_path):
     np.testing.assert_array_equal(transition_series, exp_transition_series)
 
 
+def test_first_reaction_method(tr_set_bl_et_2f_diff):
+    df = tr_set_bl_et_2f_diff.combined_state_transitions_df
+    et_indices = df.index[df["fluorophore_ids"].apply(len) > 1]
+    time_series, transition_series = si.first_reaction_method(
+        transition_matrix=tr_set_bl_et_2f_diff.transition_matrix,
+        row_sums=tr_set_bl_et_2f_diff.row_sums,
+        tau_rot=1e-10,
+        tau_flu=1e-9,
+        dt=1e-12,
+        accuracy=10,
+        fret_indices=et_indices,
+        start_index=0,
+        size=4,
+        seed=1,
+        use_memmap=None,
+    )
+    exp_time_series = np.array(
+        [0, 1.119799e-12, 1.136906e-12, 1.252144e-12, 1.647635e-12]
+    )
+    exp_transition_series = np.array([32, 63, 32, 63])
+    np.testing.assert_array_almost_equal(time_series, exp_time_series, decimal=14)
+    np.testing.assert_array_equal(transition_series, exp_transition_series)
+
+
+def test_first_reaction_method_with_memmap(tr_set_bl_et_2f_diff, tmp_path):
+    df = tr_set_bl_et_2f_diff.combined_state_transitions_df
+    et_indices = df.index[df["fluorophore_ids"].apply(len) > 1]
+    time_series, transition_series = si.first_reaction_method(
+        transition_matrix=tr_set_bl_et_2f_diff.transition_matrix,
+        row_sums=tr_set_bl_et_2f_diff.row_sums,
+        tau_rot=1e-10,
+        tau_flu=1e-9,
+        dt=1e-12,
+        accuracy=10,
+        fret_indices=et_indices,
+        start_index=0,
+        size=4,
+        seed=1,
+        use_memmap=tmp_path,
+    )
+    exp_time_series = np.array(
+        [0, 1.119799e-12, 1.136906e-12, 1.252144e-12, 1.647635e-12]
+    )
+    exp_transition_series = np.array([32, 63, 32, 63])
+    np.testing.assert_array_almost_equal(time_series, exp_time_series, decimal=14)
+    np.testing.assert_array_equal(transition_series, exp_transition_series)
+
+
 def test_approximation(pred_tr_set_1f):
     time_series, transition_series = si.approximation(
         prediction=pred_tr_set_1f, size=20, seed=1
@@ -247,10 +295,11 @@ def test_simulation(tr_set_1f):
 # also contains the test for simulation.delete_memmaps()
 @pytest.mark.parametrize("use_memmap", [[None], ["tmp_path"]])
 @pytest.mark.parametrize(
-    "end_time, exp_time_series, exp_transition_series, exp_state_series",
+    "end_time, kap_sq_var, exp_time_series, exp_transition_series, exp_state_series",
     [
         [
             None,
+            False,
             np.array(
                 [
                     0.00000000e00,
@@ -271,6 +320,7 @@ def test_simulation(tr_set_1f):
         ],
         [
             1e-6,
+            False,
             np.array(
                 [
                     0.00000000e00,
@@ -290,10 +340,39 @@ def test_simulation(tr_set_1f):
             np.array([0, 6, 0, 6, 0, 6, 0, 6, 0, 1]),
             np.array([[0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]]),
         ],
+        [
+            None,
+            True,
+            np.array(
+                [
+                    0,
+                    1.63886397786e-7,
+                    1.64386854962e-7,
+                    1.97511621891e-7,
+                    1.98163896126e-7,
+                    3.40598497128e-7,
+                    3.40679277976e-7,
+                    5.12709333954e-7,
+                    5.13257443067e-7,
+                    5.71178268537e-7,
+                    5.72831184452e-7,
+                ]
+            ),
+            np.array([0, 6, 0, 6, 0, 6, 0, 6, 0, 6]),
+            np.array([[0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]]),
+        ],
+        [
+            1e4,
+            True,
+            None,
+            None,
+            None,
+        ],
     ],
 )
 def test_simulation_run(
     end_time,
+    kap_sq_var,
     use_memmap,
     exp_time_series,
     exp_transition_series,
@@ -309,14 +388,37 @@ def test_simulation_run(
 
     size = 10
     simulation = si.Simulation(transition_set=tr_set_1f)
+    if kap_sq_var and end_time is not None:
+        with pytest.raises(
+            ValueError,
+            match="end_time is not None but kap_sq_var is True. Not implemented.",
+        ):
+            simulation.run(
+                start_at=(0,),
+                size=size,
+                end_time=end_time,
+                kap_sq_var=kap_sq_var,
+                seed=1,
+                use_memmap=memmap_path,
+            )
+        return
+
     with caplog.at_level(logging.WARNING):
         simulation.run(
-            start_at=(0,), size=size, end_time=end_time, seed=1, use_memmap=memmap_path
-        )
+            start_at=(0,),
+            size=size,
+            end_time=end_time,
+            kap_sq_var=kap_sq_var,
+            seed=1,
+            use_memmap=memmap_path,
+            accuracy=10,
+        )  # accuracy only if kap_sq_var=True
         assert "Floating point precision error warning" in caplog.text
     caplog.clear()
 
-    np.testing.assert_array_almost_equal(simulation.time_series, exp_time_series)
+    np.testing.assert_array_almost_equal(
+        simulation.time_series, exp_time_series, decimal=11
+    )
     np.testing.assert_array_equal(simulation.transition_series, exp_transition_series)
     np.testing.assert_array_equal(simulation.state_series, exp_state_series)
 
@@ -330,6 +432,9 @@ def test_simulation_run(
         assert simulation.time_series[-1] == end_time
 
     if use_memmap is not None:
+        assert isinstance(simulation.time_series, np.memmap)
+        assert isinstance(simulation.transition_series, np.memmap)
+        assert isinstance(simulation.state_series, np.memmap)
         assert simulation.memmap_path == memmap_path
         assert len(simulation.time_series.base) == exp_time_series.size * 64 / 8
         assert (
@@ -358,6 +463,9 @@ def test_simulation_run(
 
     else:
         assert simulation.memmap_path is None
+        assert not isinstance(simulation.time_series, np.memmap)
+        assert not isinstance(simulation.transition_series, np.memmap)
+        assert not isinstance(simulation.state_series, np.memmap)
 
     with pytest.raises(
         ValueError,
