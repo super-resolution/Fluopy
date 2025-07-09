@@ -95,7 +95,7 @@ class Simulation:
             If end_time is not None, serves as size of random_numbers drawn at once.
         end_time
             If not None, time at which simulation ends in s.
-        kap_sq_var : bool
+        kap_sq_var
             If True, the first reaction method is used to simulate the data. This takes
             much longer but allows to vary the dipole orientation factor for different
             S1 states. If False, the direct method is used.
