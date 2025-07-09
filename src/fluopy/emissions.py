@@ -3,8 +3,8 @@ Module emissions
 """
 from __future__ import annotations
 
+import logging
 import os
-import warnings
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -22,16 +22,10 @@ from .transitions import TransitionSet
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
+    from fluopy.fluopy_types import RandomGeneratorSeed
 
-# type definition for random number generator seed
-RandomGeneratorSeed = (
-    None
-    | int
-    | Sequence[int]
-    | np.random.SeedSequence
-    | np.random.BitGenerator
-    | np.random.Generator
-)
+logger = logging.getLogger(__name__)
+
 
 class Emissions:
     """
@@ -218,7 +212,7 @@ class Emissions:
         transition_set.finalize()
 
         if excitation_rates is None:
-            warnings.warn(
+            logger.warning(
                 "The irradiance used initially for excitation rates in\n"
                 " transition_set is now assumed to be the mean irradiance of\n"
                 " pulse and no pulse duration.",
@@ -302,7 +296,7 @@ class Emissions:
             rng = np.random.default_rng(seed)
             processed = []
             collect_emission_indices = []
-            data_dir = os.path.join(Path(__file__).parent, "fluorophore_collection")
+            data_dir = os.path.join(Path(__file__).parent, "fluorophore_spectra")
 
             for (
                 fluorophore
@@ -777,7 +771,7 @@ def get_emitting_transition_ids(bandpass: tuple[float, float], transition_set: T
     emitting_transition_ids = {}
     if bandpass is not None:
         processed = []
-        data_dir = os.path.join(Path(__file__).parent, "fluorophore_collection")
+        data_dir = os.path.join(Path(__file__).parent, "fluorophore_spectra")
         for fluorophore in transition_set.fluorophore_system.fluorophores:
             if fluorophore.constants is None:
                 raise ValueError(

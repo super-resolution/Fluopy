@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 import numpy as np
 import pandas as pd
@@ -6,7 +8,7 @@ from fluopy import transitions as tr
 
 
 # test_analysis_# includes testing of...
-# ...check_absorbing()
+# ...is_absorbing()
 # ...get_transition_occurrences()
 # ...get_state_occurrences()
 # ...get_lifetimes()
@@ -14,16 +16,19 @@ from fluopy import transitions as tr
 
 
 # test with 1 fluorophore, with bleaching
-def test_analysis_1(request):
-    with pytest.warns(
-        UserWarning,
-        match="absorbing states have a lifetime of inf and a frequency / occupation "
-        "of 0. Absorbing transitions have a frequency of 0.",
-    ):
+def test_analysis_1(request, caplog):
+    with caplog.at_level(logging.WARNING):
         pred_bl = request.getfixturevalue("pred_tr_set_1f_bl")
         pred_bl_2 = request.getfixturevalue("pred_tr_set_1f_bl_2")
-    with pytest.warns(UserWarning, match="Floating point precision error warning"):
+        assert "absorbing states have a lifetime of inf and a frequency / occupation "
+        "of 0. Absorbing transitions have a frequency of 0." in caplog.text
+    caplog.clear()
+
+    with caplog.at_level(logging.WARNING):
         sim_tr_set_1f_bl = request.getfixturevalue("sim_tr_set_1f_bl")
+        assert "Floating point precision error warning" in caplog.text
+    caplog.clear()
+
     analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
     assert analysis.simulation == sim_tr_set_1f_bl
     exp_freq_trans = np.array([0.496, 0.147, 0.001, 0.001, 0.008, 0.008, 0.339, 0.0])
@@ -67,62 +72,72 @@ def test_analysis_1(request):
     }
     for fluorophore, state_occ in analysis.state_occupations.items():
         np.testing.assert_array_almost_equal(state_occ, exp_state_occ[fluorophore])
-    with pytest.warns(
-        UserWarning,
-        match="prediction is based on different TransitionSet than simulation.",
-    ):
+
+    with caplog.at_level(logging.WARNING):
         analysis.plot_frequency_transitions(prediction=pred_bl_2)
+        assert "prediction is based on different TransitionSet than simulation." in caplog.text
+    caplog.clear()
+
     analysis.plot_frequency_transitions(prediction=pred_bl)
-    with pytest.warns(
-        UserWarning,
-        match="prediction is based on different TransitionSet than simulation.",
-    ):
+
+    with caplog.at_level(logging.WARNING):
         analysis.plot_frequency_states(prediction=pred_bl_2)
+        assert "prediction is based on different TransitionSet than simulation." in caplog.text
+    caplog.clear()
+
     analysis.plot_frequency_states(prediction=pred_bl)
-    with pytest.warns(
-        UserWarning,
-        match="prediction is based on different TransitionSet than simulation.",
-    ):
+
+    with caplog.at_level(logging.WARNING):
         analysis.plot_mean_transition_times(prediction=pred_bl_2)
+        assert "prediction is based on different TransitionSet than simulation." in caplog.text
+    caplog.clear()
+
     analysis.plot_mean_transition_times(prediction=pred_bl)
-    with pytest.warns(
-        UserWarning,
-        match="prediction is based on different TransitionSet than simulation.",
-    ):
+
+    with caplog.at_level(logging.WARNING):
         analysis.plot_mean_lifetimes(prediction=pred_bl_2)
+        assert "prediction is based on different TransitionSet than simulation." in caplog.text
+    caplog.clear()
+
     analysis.plot_mean_lifetimes(prediction=pred_bl)
-    with pytest.warns(
-        UserWarning,
-        match="prediction is based on different TransitionSet than simulation.",
-    ):
+
+    with caplog.at_level(logging.WARNING):
         analysis.plot_state_occupations(prediction=pred_bl_2)
+        assert "prediction is based on different TransitionSet than simulation." in caplog.text
+    caplog.clear()
+
     analysis.plot_state_occupations(prediction=pred_bl)
-    with pytest.warns(
-        UserWarning,
-        match="prediction is based on different TransitionSet than simulation.",
-    ):
+
+    with caplog.at_level(logging.WARNING):
         analysis.plot_lifetime_distributions(
             fluorophore="testfluo_1", state_identity=0, prediction=pred_bl_2
         )
+        assert "prediction is based on different TransitionSet than simulation." in caplog.text
+    caplog.clear()
+
     analysis.plot_lifetime_distributions(
         fluorophore="testfluo_1", state_identity=0, prediction=pred_bl
     )
-    with pytest.warns(
-        UserWarning,
-        match="prediction is based on different TransitionSet than simulation.",
-    ):
+
+    with caplog.at_level(logging.WARNING):
         analysis.plot_transition_time_distributions(
             fluorophore="testfluo_1", transition_id=0, prediction=pred_bl_2
         )
+        assert "prediction is based on different TransitionSet than simulation." in caplog.text
+    caplog.clear()
+
     analysis.plot_transition_time_distributions(
         fluorophore="testfluo_1", transition_id=0, prediction=pred_bl
     )
 
 
 # test with 2 fluorophores, with energy transfer
-def test_analysis_2(request):
-    with pytest.warns(UserWarning, match="Floating point precision error warning"):
+def test_analysis_2(request, caplog):
+    with caplog.at_level(logging.WARNING):
         sim_tr_set_et_2f_diff = request.getfixturevalue("sim_tr_set_et_2f_diff")
+        assert "Floating point precision error" in caplog.text
+    caplog.clear()
+
     analysis = an.Analysis(simulation=sim_tr_set_et_2f_diff)
     assert analysis.simulation == sim_tr_set_et_2f_diff
     exp_freq_trans = np.array(
@@ -195,9 +210,12 @@ def test_analysis_2(request):
 
 
 # test with 2 fluorophores, without energy transfer
-def test_analysis_3(request):
-    with pytest.warns(UserWarning, match="Floating point precision error warning"):
+def test_analysis_3(request, caplog):
+    with caplog.at_level(logging.WARNING):
         sim_tr_set_2f_diff = request.getfixturevalue("sim_tr_set_2f_diff")
+        assert "Floating point precision error" in caplog.text
+    caplog.clear()
+
     analysis = an.Analysis(simulation=sim_tr_set_2f_diff)
     assert analysis.simulation == sim_tr_set_2f_diff
     exp_freq_trans = np.array(
@@ -265,10 +283,12 @@ def test_analysis_3(request):
         np.testing.assert_array_almost_equal(state_occ, exp_state_occ[fluorophore])
 
 
-def test_get_fluorescence_lifetimes(request):
-    with pytest.warns(UserWarning, match="Floating point precision error warning"):
+def test_get_fluorescence_lifetimes(request, caplog):
+    with caplog.at_level(logging.WARNING):
         sim_tr_set_1f_bl = request.getfixturevalue("sim_tr_set_1f_bl")
         sim_tr_set_2f_diff = request.getfixturevalue("sim_tr_set_2f_diff")
+        assert "Floating point precision error" in caplog.text
+
     assert tr.SingleState.S1.value == 1  # if it fails, check
     # analysis.get_fluorescence_lifetimes
     analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
@@ -292,11 +312,14 @@ def test_get_fluorescence_lifetimes(request):
             ]
         ),
     )
+
     with pytest.raises(
         ValueError, match="fluorophore wrong_name not found in lifetime_distributions."
     ):
         analysis.get_fluorescence_lifetimes(fluorophore="wrong_name")
+
     analysis = an.Analysis(simulation=sim_tr_set_2f_diff)
+
     with pytest.raises(
         ValueError,
         match="if multiple fluorophores are present, fluorophore must be specified.",
@@ -305,10 +328,12 @@ def test_get_fluorescence_lifetimes(request):
     analysis.get_fluorescence_lifetimes("testfluo_1")
 
 
-def test_get_emitting_transition_lifetimes(request):
-    with pytest.warns(UserWarning, match="Floating point precision error warning"):
+def test_get_emitting_transition_lifetimes(request, caplog):
+    with caplog.at_level(logging.WARNING):
         sim_tr_set_1f_bl = request.getfixturevalue("sim_tr_set_1f_bl")
         sim_tr_set_2f_diff = request.getfixturevalue("sim_tr_set_2f_diff")
+        assert "Floating point precision error" in caplog.text
+
     analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
     exp_fluorescence_lifetimes = analysis.get_emitting_transition_lifetimes()
     np.testing.assert_array_almost_equal(
@@ -330,16 +355,20 @@ def test_get_emitting_transition_lifetimes(request):
             ]
         ),
     )
+
     with pytest.raises(
         ValueError, match="fluorophore wrong_name not found in transition dataframe."
     ):
         analysis.get_emitting_transition_lifetimes(fluorophore="wrong_name")
+
     analysis = an.Analysis(simulation=sim_tr_set_2f_diff)
+
     with pytest.raises(
         ValueError,
         match="if multiple fluorophores are present, fluorophore must be specified.",
     ):
         analysis.get_emitting_transition_lifetimes()
+
     analysis.get_emitting_transition_lifetimes("testfluo_1")
 
 

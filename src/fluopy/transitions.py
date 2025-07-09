@@ -21,11 +21,10 @@ from scipy import interpolate as itp
 
 from . import formulas as fo
 from . import network as net
-from .fluorophores import Fluorophore
 
 if TYPE_CHECKING:
-    from fluopy.fluorophores import FluorophoreSystem
     from fluopy.fluo_data import FluorophoreData
+    from fluopy.fluorophores import Fluorophore, FluorophoreSystem
 
 
 class SingleState(Enum):
@@ -601,7 +600,7 @@ class TransitionSet:
         graph_type: str = "shell",
         colors: Collection | None = None,
         scale: float = 1,
-    ) -> matplotlib.axes._subplots.AxesSubplot:
+    ) -> None:
         """
         Plot photophysical system as network/graph.
 
@@ -616,7 +615,7 @@ class TransitionSet:
 
         Returns
         -------
-        ax : matplotlib.axes._subplots.AxesSubplot
+        None
         """
         graphs = net.construct_state_graphs(transition_df=self.transition_df)
         for graph in graphs:
@@ -1002,7 +1001,7 @@ def derive_energy_transfer_transitions(
     transitions : list[Transition]
         Contains energy transfer transitions of type Transition.
     """
-    data_dir = os.path.join(Path(__file__).parent, "fluorophore_collection")
+    data_dir = os.path.join(Path(__file__).parent, "fluorophore_spectra")
     donor_emission = pd.read_csv(
         os.path.join(data_dir, donor_data.data_files, "emission.csv")
     )
@@ -1168,7 +1167,7 @@ def derive_transitions(
     photon_flux = fo.calculate_photon_flux(irradiance=irradiance, frequency=frequency)
     path_absorption = os.path.join(
         Path(__file__).parent,
-        "fluorophore_collection",
+        "fluorophore_spectra",
         fd.data_files,
         "absorption_s0.csv",
     )

@@ -1,3 +1,4 @@
+import logging
 import re
 import pytest
 import numpy as np
@@ -129,6 +130,7 @@ def test_simulate_TCSPC(
     store_time_points,
     request,
     expected,
+    caplog,
 ):
     tr_set = request.getfixturevalue(dirname)
 
@@ -138,13 +140,7 @@ def test_simulate_TCSPC(
         assert tr.SingleState.S0.value == 0
         tr_set = tr_set.adjust_rates({0: 0}, keep_zero_rates=True)
         tr_set.finalize()
-        with pytest.warns(
-            UserWarning,
-            match=re.escape(
-                "the last frame (of index 0.002) has 2.50e-02 times the pulses of "
-                "other frames."
-            ),
-        ):
+        with caplog.at_level(logging.WARNING):
             (
                 event_time_series,
                 event_time_points,
@@ -163,6 +159,12 @@ def test_simulate_TCSPC(
                 store_time_points=store_time_points,
                 seed=1,
             )
+            assert (
+                "the last frame (of index 0.002) has 2.50e-02 times the pulses of other frames."
+                in caplog.text
+            )
+        caplog.clear()
+
         assert (
             event_time_series.values.sum()
             == event_time_points.size
@@ -181,7 +183,7 @@ def test_simulate_TCSPC(
     elif expected == 1:
         tr_set = tr_set.adjust_rates({0: 0}, keep_zero_rates=True)
         tr_set.finalize()
-        with pytest.warns(UserWarning) as record:
+        with caplog.at_level(logging.WARNING):
             (
                 event_time_series,
                 event_time_points,
@@ -200,12 +202,14 @@ def test_simulate_TCSPC(
                 store_time_points=store_time_points,
                 seed=1,
             )
+            assert (
+                "the last frame (of index 0.103) has 5.00e-01 times the pulses of other frames."
+                in caplog.text
+            )
+        caplog.clear()
+
         assert event_time_series.size == int(
             np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
-        )
-        assert str(record[0].message) == (
-            "the last frame (of index 0.103) has 5.00e-01 times the pulses of other "
-            "frames."
         )
         assert event_time_series.values.sum() == lifetimes_D.size
         assert event_time_points is None
@@ -216,7 +220,7 @@ def test_simulate_TCSPC(
     elif expected == 2:
         tr_set = tr_set.adjust_rates({0: 0, 8: 2e10}, keep_zero_rates=True)
         tr_set.finalize()
-        with pytest.warns(UserWarning) as record:
+        with caplog.at_level(logging.WARNING):
             (
                 event_time_series,
                 event_time_points,
@@ -235,16 +239,18 @@ def test_simulate_TCSPC(
                 store_time_points=store_time_points,
                 seed=1,
             )
+            assert (
+                "Not enough laser pulses to completely simulate a single frame "
+                "(requires at least 1.0e+05 pulses)."
+            ) in caplog.text
+            assert (
+                "the last frame (of index 0.001) has 8.00e-01 times the pulses of other "
+                "frames."
+            ) in caplog.text
+        caplog.clear()
+
         assert event_time_series.size == int(
             np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
-        )
-        assert str(record[0].message) == (
-            "Not enough laser pulses to completely simulate a single frame "
-            "(requires at least 1.0e+05 pulses)."
-        )
-        assert str(record[1].message) == (
-            "the last frame (of index 0.001) has 8.00e-01 times the pulses of other "
-            "frames."
         )
         assert (
             event_time_series.values.sum()
@@ -258,13 +264,7 @@ def test_simulate_TCSPC(
         tr_set = tr_set.filter_by_identity([9])  # filter triplet et
         tr_set = tr_set.adjust_rates({0: 0, 8: 2e10}, keep_zero_rates=True)
         tr_set.finalize()
-        with pytest.warns(
-            UserWarning,
-            match=re.escape(
-                "the last frame (of index 4000.0) has 0.00e+00 times the pulses of "
-                "other frames."
-            ),
-        ):
+        with caplog.at_level(logging.WARNING):
             (
                 event_time_series,
                 event_time_points,
@@ -283,6 +283,12 @@ def test_simulate_TCSPC(
                 store_time_points=store_time_points,
                 seed=1,
             )
+            assert (
+                "the last frame (of index 4000.0) has 0.00e+00 times the pulses of other frames."
+                in caplog.text
+            )
+        caplog.clear()
+
         assert event_time_series.size == int(
             np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
         )
@@ -312,7 +318,7 @@ def test_simulate_TCSPC(
     elif expected == 4:
         tr_set = tr_set.adjust_rates({0: 0, 8: 2e10}, keep_zero_rates=True)
         tr_set.finalize()
-        with pytest.warns(UserWarning) as record:
+        with caplog.at_level(logging.WARNING):
             (
                 event_time_series,
                 event_time_points,
@@ -331,6 +337,9 @@ def test_simulate_TCSPC(
                 store_time_points=store_time_points,
                 seed=1,
             )
+            assert "???" in caplog.text
+        caplog.clear()
+
         assert event_time_series.size == int(
             np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
         )
@@ -350,7 +359,7 @@ def test_simulate_TCSPC(
         # the energy transfer of the second to the first fluorophore is set to 0
         tr_set = tr_set.adjust_rates({0: 0, 8: 1e10, 9: 0, 15: 0}, keep_zero_rates=True)
         tr_set.finalize()
-        with pytest.warns(UserWarning) as record:
+        with caplog.at_level(logging.WARNING):
             (
                 event_time_series,
                 event_time_points,
@@ -369,6 +378,9 @@ def test_simulate_TCSPC(
                 store_time_points=store_time_points,
                 seed=1,
             )
+            assert "???" in caplog.text
+        caplog.clear()
+
         assert event_time_series.size == int(
             np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
         )
@@ -396,7 +408,7 @@ def test_simulate_TCSPC(
             {0: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0}, keep_zero_rates=True
         )
         tr_set.finalize()
-        with pytest.warns(UserWarning) as record:
+        with caplog.at_level(logging.WARNING):
             (
                 event_time_series,
                 event_time_points,
@@ -415,6 +427,9 @@ def test_simulate_TCSPC(
                 store_time_points=store_time_points,
                 seed=1,
             )
+            assert "???" in caplog.text
+        caplog.clear()
+
         assert event_time_series.size == int(
             np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
         )
@@ -429,7 +444,7 @@ def test_simulate_TCSPC(
         excitation_rates = {
             "testfluo_1": 1.4e10
         }  # corresponds to excitation probability of ~0.5
-        with pytest.warns(UserWarning) as record:
+        with caplog.at_level(logging.WARNING):
             (
                 event_time_series,
                 event_time_points,
@@ -448,6 +463,9 @@ def test_simulate_TCSPC(
                 store_time_points=store_time_points,
                 seed=1,
             )
+            assert "???" in caplog.text
+        caplog.clear()
+
         np.testing.assert_allclose(event_time_series.values.sum(), 2e4, rtol=1e-1)
 
     # here, the excitation probability of one fluorophore is 1, the other 0.5, and the
@@ -458,7 +476,7 @@ def test_simulate_TCSPC(
         tr_set = tr_set.filter_by_identity([2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15])
         tr_set = tr_set.adjust_rates({0: 0, 2: 0}, keep_zero_rates=True)
         tr_set.finalize()
-        with pytest.warns(UserWarning) as record:
+        with caplog.at_level(logging.WARNING):
             (
                 event_time_series,
                 event_time_points,
@@ -477,10 +495,13 @@ def test_simulate_TCSPC(
                 store_time_points=store_time_points,
                 seed=1,
             )
+            assert "???" in caplog.text
+        caplog.clear()
+
         np.testing.assert_allclose(event_time_series.values.sum(), 4e4 + 1e4, rtol=1e-1)
 
 
-def test_simulate_TCSPC_detailed(request):
+def test_simulate_TCSPC_detailed(request, caplog):
     transition_set = request.getfixturevalue("tr_set_bl_et_2f_diff")
     transition_set = transition_set.filter_by_identity(
         [2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15]
@@ -495,7 +516,7 @@ def test_simulate_TCSPC_detailed(request):
     excitation_rates = {"testfluo_1": 1e12, "testfluo_2": 1.4e10}
     frame_time = "1ms"
     store_time_points = True
-    with pytest.warns(UserWarning) as record:
+    with caplog.at_level(logging.WARNING):
         return_values = si.simulate_TCSPC_detailed(
             transition_set=transition_set,
             emitting_transition_ids=emitting_transition_ids,
@@ -508,6 +529,9 @@ def test_simulate_TCSPC_detailed(request):
             store_time_points=store_time_points,
             seed=1,
         )
+        assert "???" in caplog.text
+    caplog.clear()
+
     # test whether each transition is followed by a correct transition
     df = transition_set.combined_state_transitions_df
     arr = return_values[-1].transition_series
@@ -534,11 +558,14 @@ def test_simulate_TCSPC_detailed(request):
     )
 
 
-def test_space_multiple_excitations():
+def test_space_multiple_excitations(caplog):
     time_series = np.array([0, 0, 1, 1, 1, 2], dtype=np.float64)
     assert np.unique(time_series).size != time_series.size
-    with pytest.warns(UserWarning) as record:
+    with caplog.at_level(logging.WARNING):
         time_series_adjusted = si.space_multiple_excitations(time_series)
+        assert "???" in caplog.text
+    caplog.clear()
+
     assert np.unique(time_series_adjusted).size == time_series_adjusted.size
 
 

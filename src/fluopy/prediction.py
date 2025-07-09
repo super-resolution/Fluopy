@@ -1,9 +1,8 @@
 """
 Module prediction
 """
-
+import logging
 import re
-import warnings
 
 import matplotlib as mpl
 import numpy as np
@@ -12,6 +11,7 @@ from scipy.stats import expon
 from . import figure as fi
 from .miscellaneous import format_electronic_state, format_transition
 
+logger = logging.getLogger(__name__)
 
 class Prediction:
     """
@@ -71,14 +71,14 @@ class Prediction:
                 0
             )
         ):
-            warnings.warn(
+            logger.warning(
                 "prediction accuracy of energy transfers more difficult to tune. Only "
                 "frequencies available, lifetimes and occupations not available.",
                 stacklevel=2,
             )
             self.energy_transfer = True
         if transition_set.transition_df["absorbing"].any():
-            warnings.warn(
+            logger.warning(
                 "absorbing states have a lifetime of inf and a frequency / occupation "
                 "of 0. Absorbing transitions have a frequency of 0.",
                 stacklevel=2,

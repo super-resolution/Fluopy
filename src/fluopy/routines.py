@@ -11,7 +11,7 @@ from . import formulas as fo
 from . import simulation as si
 
 
-def emission_post_processing(emis, rng):
+def emission_post_processing(emis, seed):
     """
     Post-processing of the emission data.
 
@@ -19,13 +19,14 @@ def emission_post_processing(emis, rng):
     ----------
     emis : fluopy.emissions.Emissions
         Container for emission-associated attributes.
-    rng : None, int, BitGenerator, Generator
+    seed : None, int, BitGenerator, Generator
         A seed to initialize the BitGenerator.
 
     Returns
     -------
     None
     """
+    rng = np.random.default_rng(seed)
     photon_collection_rate = fo.calculate_photon_collection_rate(NA=1.45, n1=1.51)
     emis.add_photon_collection_objective(p=photon_collection_rate, seed=rng)
     emis.add_transmittance(p=0.9, seed=rng)  # mirror 90/100
