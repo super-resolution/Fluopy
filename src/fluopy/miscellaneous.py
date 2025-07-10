@@ -2,27 +2,40 @@
 Module miscellaneous
 """
 
+from __future__ import annotations
+
 import re
 import reprlib
+from collections.abc import Sequence
 from dataclasses import fields, is_dataclass
+from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes as mplAxes
+    from matplotlib.figure import Figure as mplFigure
 
-def delete_subplots(axes, keep_number=None, del_positions=None):
+
+def delete_subplots(
+    axes: npt.NDArray[mplAxes],
+    keep_number: int | None = None,
+    del_positions: npt.ArrayLike = None,
+) -> None:
     """
     Deletes subplots from figure object.
 
     Parameters
     ----------
-    axes : np.ndarray
+    axes
         Contains matplotlib.axes._subplots.AxesSubplots.
-    keep_number : None, int
+    keep_number
         Number of subplots to keep. Assumes them to be in the first keep_number
         positions of the flattened ax array.
-    del_positions : None, np.ndarray
+    del_positions
         An array that contains a 1-D array of shape (2,) for each ax to be deleted like
         [row, column].
 
@@ -40,19 +53,24 @@ def delete_subplots(axes, keep_number=None, del_positions=None):
             fig.delaxes(axes[position[0], position[1]])
 
 
-def create_row_subtitles(axes, nrows=1, ncols=1, titles=None):
+def create_row_subtitles(
+    axes: npt.NDArray[mplAxes],
+    nrows: int = 1,
+    ncols: int = 1,
+    titles: Sequence[str] = None,
+) -> None:
     """
     Creates subtitles of figure displayed in the middle of each row.
 
     Parameters
     ----------
-    axes : np.ndarray
+    axes
         Contains matplotlib.axes._subplots.AxesSubplots.
-    nrows : int
+    nrows
         Number of rows in the figure.
-    ncols : int
+    ncols
         Number of columns in the figure.
-    titles : collection
+    titles
         Containes elements of type str. Must have the same length as nrows.
 
     Returns
@@ -71,31 +89,39 @@ def create_row_subtitles(axes, nrows=1, ncols=1, titles=None):
         row.axis("off")
 
 
-def add_table(axes, data, labels=None, grid=111, xscale=1, yscale=1, fontsize=12):
+def add_table(
+    axes: npt.NDArray[mplAxes],
+    data: npt.ArrayLike | pd.Series,
+    labels: npt.ArrayLike | None = None,
+    grid: int = 111,
+    xscale: float = 1,
+    yscale: float = 1,
+    fontsize: float = 12,
+) -> None:
     """
     Adds a table to a subplot figure.
 
     Parameters
     ----------
-    axes : np.ndarray
+    axes
         matplotlib.axes._subplots.AxesSubplots.
-    data : 2-D array_like, pd.Series
+    data
         If pd.Series, values to display in table with index as labels.
-    labels : None, 1-D array_like
+    labels
         Labels of table rows.
         Only used if data is not pd.Series.
-    grid : int
+    grid
         Divide the figure subplots into an a x b grid. Choose a position c for the
         table such that it corresponds to the index + 1 of the flattened grid.
         Example: suppose a subplot with 2 rows and 3 columns. The table should span the
         entire lower row, hence half of the figure. Divide the figure into 2 rows and 1
         column (a = 2, b = 1). The position c is 2. The value to use for grid is abc,
         hence in the example 212.
-    xscale : float
+    xscale
         Scale table in x direction.
-    yscale : float
+    yscale
         Scale table in y direction.
-    fontsize : float
+    fontsize
         Set the font size.
 
     Returns
@@ -116,14 +142,14 @@ def add_table(axes, data, labels=None, grid=111, xscale=1, yscale=1, fontsize=12
     table.set_fontsize(size=fontsize)
 
 
-def get_figure(axes):
+def get_figure(axes: mplAxes | npt.NDArray[mplAxes]) -> mplFigure:
     """
     Get the figure object based on axes, where axes is either an axes object or a
     np.ndarray.
 
     Parameters
     ----------
-    axes : matplotlib.axes._subplots.AxesSubplots, np.ndarray
+    axes
         In the case of axes being np.ndarray, it contains
         matplotlib.axes._subplots.AxesSubplots
 
@@ -142,13 +168,13 @@ def get_figure(axes):
     return fig
 
 
-def print_class(class_instance, class_name):
+def print_class(class_instance: Any, class_name) -> None:
     """
     Print all class attributes.
 
     Parameters
     ----------
-    class_instance : object
+    class_instance
         Instance of a class.
     class_name : str
         Name of the class.
@@ -186,13 +212,13 @@ def print_class(class_instance, class_name):
     print("\n")
 
 
-def find_key_in_list(row, key):
+def find_key_in_list(row: pd.Series, key: Any) -> int | None:
     """
     Parameters
     ----------
-    row : pd.Series
+    row
         Row of a DataFrame.
-    key : any type
+    key
         Key to search for in row['fluorophore_ids'].
     Returns
     -------
@@ -204,18 +230,18 @@ def find_key_in_list(row, key):
     return None
 
 
-def format_electronic_state(label):
+def format_electronic_state(label: str) -> str:
     """
     Format label for LaTeX.
 
     Parameters
     ----------
-    label : str
+    label
         Label to format.
 
     Returns
     -------
-    label : str
+    str
         Formatted label.
     """
     if re.match(r"^[A-Z]\d$", label):
@@ -223,18 +249,18 @@ def format_electronic_state(label):
     return label
 
 
-def format_transition(label):
+def format_transition(label: str) -> str:
     """
     Format label for LaTeX.
 
     Parameters
     ----------
-    label : str
+    label
         Label to format.
 
     Returns
     -------
-    label : str
+    str
         Formatted label.
     """
     if "_" in label:
@@ -243,20 +269,20 @@ def format_transition(label):
     return label
 
 
-def format_axis_labels(label, offset):
+def format_axis_labels(label: str, offset: str) -> str:
     """
     Format axis labels for LaTeX.
 
     Parameters
     ----------
-    label : str
+    label
         Label to format.
-    offset : str
+    offset
         Offset to multiply label with.
 
     Returns
     -------
-    label : str
+    str
         Formatted label
     """
     _, exponent = offset.split("e")
