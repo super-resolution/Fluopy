@@ -148,7 +148,13 @@ def test_first_reaction_method(tr_set_bl_et_2f_diff):
         use_memmap=None,
     )
     exp_time_series = np.array(
-        [0, 1.119799e-12, 1.136906e-12, 1.252144e-12, 1.647635e-12]
+        [
+            0,
+            1.03999849097175e-12,
+            1.75348022777091e-12,
+            3.99671143619731e-12,
+            4.12916020277841e-12,
+        ]
     )
     exp_transition_series = np.array([32, 63, 32, 63])
     np.testing.assert_array_almost_equal(time_series, exp_time_series, decimal=14)
@@ -172,7 +178,13 @@ def test_first_reaction_method_with_memmap(tr_set_bl_et_2f_diff, tmp_path):
         use_memmap=tmp_path,
     )
     exp_time_series = np.array(
-        [0, 1.119799e-12, 1.136906e-12, 1.252144e-12, 1.647635e-12]
+        [
+            0,
+            1.03999849097175e-12,
+            1.75348022777091e-12,
+            3.99671143619731e-12,
+            4.12916020277841e-12,
+        ]
     )
     exp_transition_series = np.array([32, 63, 32, 63])
     np.testing.assert_array_almost_equal(time_series, exp_time_series, decimal=14)
@@ -346,19 +358,19 @@ def test_simulation(tr_set_1f):
             np.array(
                 [
                     0,
-                    1.63886397786e-7,
-                    1.64386854962e-7,
-                    1.97511621891e-7,
-                    1.98163896126e-7,
-                    3.40598497128e-7,
-                    3.40679277976e-7,
-                    5.12709333954e-7,
-                    5.13257443067e-7,
-                    5.71178268537e-7,
-                    5.72831184452e-7,
+                    4.91424785309e-08,
+                    5.09508820690e-08,
+                    2.30533495738e-07,
+                    2.31105151571e-07,
+                    4.89238079937e-07,
+                    4.90429360234e-07,
+                    5.45429911902e-07,
+                    5.45721774603e-07,
+                    8.38009639625e-07,
+                    8.38490725352e-07,
                 ]
             ),
-            np.array([0, 6, 0, 6, 0, 6, 0, 6, 0, 6]),
+            np.array([0, 6, 0, 1, 0, 6, 0, 6, 0, 6]),
             np.array([[0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]]),
         ],
         [

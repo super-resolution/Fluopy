@@ -3,6 +3,7 @@ Module kappa_squared
 """
 
 import numpy as np
+from scipy.spatial.transform import Rotation
 from scipy.special import expit, logit
 from scipy.stats import gaussian_kde
 
@@ -23,11 +24,12 @@ def random_unit_vector(size=1, seed=None):
     np.ndarray
         An array of shape (size, 3) containing random unit vectors.
     """
-    rng = np.random.default_rng(seed)
-    vec = rng.normal(size=(size, 3))
-    norm = np.linalg.norm(vec, axis=1).reshape(-1, 1)
+    rotations = Rotation.random(size, random_state=seed)
+    unit_vectors = rotations.apply([1, 0, 0])
 
-    return vec / norm
+    if size == 1:
+        return unit_vectors.reshape(1, -1)
+    return unit_vectors
 
 
 def rotational_diffusion_step(v, dt, tau_rot, seed=None):
@@ -42,8 +44,8 @@ def rotational_diffusion_step(v, dt, tau_rot, seed=None):
         The time step for the simulation in s.
     tau_rot : float
         The rotational diffusion time constant in s.
-    seed : int, optional
-        Seed for the random number generator for reproducibility (default is None).
+    seed : int
+        Seed.
 
     Returns
     -------
@@ -56,17 +58,11 @@ def rotational_diffusion_step(v, dt, tau_rot, seed=None):
         v = v.reshape(1, -1)
 
     n_vectors = v.shape[0]
-    angles = rng.normal(0, np.sqrt(2 * dt / tau_rot), size=n_vectors)
+    angles = rng.normal(0, np.sqrt(dt / (3 * tau_rot)), size=n_vectors)
     axes = random_unit_vector(size=n_vectors, seed=rng)
-
-    cos_angles = np.cos(angles).reshape(-1, 1)
-    sin_angles = np.sin(angles).reshape(-1, 1)
-    one_minus_cos = (1 - np.cos(angles)).reshape(-1, 1)
-    axis_dot_v = np.sum(axes * v, axis=1).reshape(-1, 1)
-    axis_cross_v = np.cross(axes, v)
-    v_rot = (
-        v * cos_angles + axis_cross_v * sin_angles + axes * axis_dot_v * one_minus_cos
-    )
+    rotation_vectors = axes * angles.reshape(-1, 1)
+    rotations = Rotation.from_rotvec(rotation_vectors)
+    v_rot = rotations.apply(v)
     norms = np.linalg.norm(v_rot, axis=1).reshape(-1, 1)
     v_rot = v_rot / norms
 
@@ -86,7 +82,7 @@ def simulate_rotational_motion(tau_rot, tau_life, dt=1e-12, seed=None):
     dt : float, optional
         The time step for the simulation in s.
     seed : int, optional
-        Seed for the random number generator for reproducibility (default is None).
+        Seed.
 
     Returns
     -------
