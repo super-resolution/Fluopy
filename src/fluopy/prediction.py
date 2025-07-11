@@ -2,15 +2,24 @@
 Module prediction
 """
 
+from __future__ import annotations
+
 import logging
 import re
+from typing import TYPE_CHECKING, Any
 
 import matplotlib as mpl
 import numpy as np
+import numpy.typing as npt
 from scipy.stats import expon
 
 from . import figure as fi
 from .miscellaneous import format_electronic_state, format_transition
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes as mplAxes
+
+    from .transitions import TransitionSet
 
 logger = logging.getLogger(__name__)
 
@@ -27,34 +36,34 @@ class Prediction:
         Whether the prediction was carried out on an absorbing Markov chain.
     transition_set : fluopy.transitions.TransitionSet
         Collection of all relevant transitions and related attributes.
-    frequency_transitions : 1-D array_like
+    frequency_transitions : npt.NDArray[np.float64]
         Expected relative frequencies of each transition.
-    frequency_states : dict
+    frequency_states : dict[str, float]
         Name of fluorophores as keys and their state's expected relative frequencies
         (array) as values.
-    transition_time_distributions : 1-D array_like
+    transition_time_distributions : npt.NDArray[np.float64]
         Expected distributions of time until transition.
         Contains objects of type scipy.stats.*.rv_frozen for each transition.
-    lifetime_distributions : dict
+    lifetime_distributions : dict[str, Any]
         Name of fluorophores as keys and their state's expected lifetime distributions
         (objects of type scipy.stats.*.rv_frozen) (array) as values.
-    mean_transition_times : 1-D array_like
+    mean_transition_times : npt.NDArray[np.float64]
         Expected means of time until transition.
-    mean_lifetimes : dict
+    mean_lifetimes : dict[str, npt.NDArray[np.float64]]
         Name of fluorophores as keys and their state's expected lifetime means (array)
         as values.
-    state_occupations : dict
+    state_occupations : dict[str, npt.NDArray[np.float64]]
         Name of fluorophores as keys and their state's expected probability of being
         occupied at any given point in time (array) as values.
     """
 
-    def __init__(self, transition_set, accuracy=1e9):
+    def __init__(self, transition_set: TransitionSet, accuracy: float = 1e9) -> None:
         """
         Parameters
         ----------
-        transition_set : fluopy.transitions.TransitionSet
+        transition_set
             Collection of all relevant transitions and related attributes.
-        accuracy : float
+        accuracy
             Determines the exponent of matrix power. The higher, the more accurate up
             to the point floating point precision impairs the result.
         """
@@ -113,19 +122,19 @@ class Prediction:
                 self.state_occupations,
             ) = (None, None, None, None, None)
 
-    def predict_transition_occurrences(self, accuracy):
+    def predict_transition_occurrences(self, accuracy: int) -> npt.NDArray[np.float64]:
         """
         Predict the relative frequencies of transitions.
 
         Parameters
         ----------
-        accuracy : int
+        accuracy
             Determines the exponent of matrix power. The higher, the more accurate up
             to the point floating point precision impairs the result.
 
         Returns
         -------
-        frequency_transitions : 1-D array_like
+         npt.NDArray[np.float64]
             Expected relative frequencies of each transition.
         """
         matrix_power = np.linalg.matrix_power(
@@ -161,14 +170,14 @@ class Prediction:
 
         return frequency_transitions
 
-    def predict_transition_occurrences_abs(self):
+    def predict_transition_occurrences_abs(self) -> npt.NDArray[np.float64]:
         """
         Predict the relative frequencies of transitions. Absorbing transitions will
         have the value 0.
 
         Returns
         -------
-        frequency_transitions : 1-D array_like
+        npt.NDArray[np.float64]
             Expected relative frequencies of each transition.
         """
         transition_abs = self.transition_set.transition_df["absorbing"]
@@ -224,13 +233,13 @@ class Prediction:
 
         return frequency_transitions
 
-    def predict_state_occurrences(self):
+    def predict_state_occurrences(self) -> dict[str, npt.NDArray[np.float64]]:
         """
         Predict the relative frequencies of states.
 
         Returns
         -------
-        frequency_states : dict
+        frequency_states : dict[str, npt.NDArray[np.float64]]
             Name of fluorophores as keys and their state's expected relative
             frequencies (array) as values.
         """
@@ -278,17 +287,19 @@ class Prediction:
 
         return frequency_states
 
-    def predict_lifetimes(self):
+    def predict_lifetimes(
+        self,
+    ) -> tuple[npt.NDArray[np.float64], dict[str, npt.NDArray[np.float64]]]:
         """
         Predict the lifetime distributions of states and the time until occurrence
         distributions of transitions.
 
         Returns
         -------
-        transition_time_distributions : 1-D array_like
+        transition_time_distributions : npt.NDArray[np.float64]
             Expected distributions of time until transition.
             Contains objects of type scipy.stats.*.rv_frozen for each transition.
-        lifetime_distributions : dict
+        lifetime_distributions : dict[str, npt.NDArray[np.float64]]
             Name of fluorophores as keys and their state's expected lifetime
             distributions (objects of type scipy.stats.*.rv_frozen) (array) as values.
         """
@@ -322,16 +333,18 @@ class Prediction:
 
         return transition_time_distributions, lifetime_distributions
 
-    def infer_stats(self):
+    def infer_stats(
+        self,
+    ) -> tuple[dict[str, npt.NDArray[np.float64]], dict[str, npt.NDArray[np.float64]]]:
         """
         Infers statistics of states based on lifetime distributions and frequencies.
 
         Returns
         -------
-        mean_lifetimes : dict
+        mean_lifetimes : dict[str, npt.NDArray[np.float64]]
             Name of fluorophores as keys and their state's expected lifetime means
             (array) as values.
-        state_occupations : dict
+        state_occupations : dict[str, npt.NDArray[np.float64]]
             Name of fluorophores as keys and their state's expected probability of
             being occupied at any given point in time (array) as values.
         """
@@ -351,13 +364,13 @@ class Prediction:
 
         return mean_lifetimes, state_occupations
 
-    def plot_frequency_transitions(self, **kwargs):
+    def plot_frequency_transitions(self, **kwargs: Any) -> npt.NDArray[mplAxes]:
         """
         Plot frequencies of transitions.
 
         Returns
         -------
-        axes : np.ndarray
+        npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         df = self.transition_set.transition_df
@@ -398,13 +411,13 @@ class Prediction:
 
         return axes
 
-    def plot_frequency_states(self, **kwargs):
+    def plot_frequency_states(self, **kwargs: Any) -> npt.NDArray[mplAxes]:
         """
         Plot frequencies of states.
 
         Returns
         -------
-        axes : np.ndarray
+        npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         from .transitions import SingleState
@@ -444,13 +457,13 @@ class Prediction:
 
         return axes
 
-    def plot_mean_transition_times(self, **kwargs):
+    def plot_mean_transition_times(self, **kwargs: Any) -> npt.NDArray[mplAxes]:
         """
         Plot mean times until transitions occur.
 
         Returns
         -------
-        axes : np.ndarray
+        npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         if self.energy_transfer:
@@ -495,13 +508,13 @@ class Prediction:
 
         return axes
 
-    def plot_mean_lifetimes(self, **kwargs):
+    def plot_mean_lifetimes(self, **kwargs: Any) -> npt.NDArray[mplAxes]:
         """
         Plot mean lifetimes of states.
 
         Returns
         -------
-        axes : np.ndarray
+        npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         if self.energy_transfer:
@@ -546,13 +559,13 @@ class Prediction:
 
         return axes
 
-    def plot_state_occupations(self, **kwargs):
+    def plot_state_occupations(self, **kwargs: Any) -> npt.NDArray[mplAxes]:
         """
         Plot state occupation times (relative total time spent in state).
 
         Returns
         -------
-        axes : np.ndarray
+        npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         if self.energy_transfer:
@@ -597,22 +610,26 @@ class Prediction:
         return axes
 
     def plot_lifetime_distributions(
-        self, fluorophore, state_identity, x=None, **kwargs
-    ):
+        self,
+        fluorophore: str,
+        state_identity: int,
+        x: npt.ArrayLike | None = None,
+        **kwargs: Any,
+    ) -> npt.NDArray[mplAxes]:
         """
         Plot lifetime distributions of states.
 
         Parameters
         ----------
-        fluorophore : str
+        fluorophore
             The name of the fluorophore whose state's distribution is to be shown.
-        state_identity : int
+        state_identity
             The identity of the state whose distribution is to be shown.
-        x : 1-D array_like
+        x
             The x values for which the distribution is to be shown.
         Returns
         -------
-        axes : np.ndarray
+        npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         if self.energy_transfer:
@@ -645,23 +662,27 @@ class Prediction:
         return axes
 
     def plot_transition_time_distributions(
-        self, fluorophore, transition_id, x=None, **kwargs
-    ):
+        self,
+        fluorophore: str,
+        transition_id: int,
+        x: npt.ArrayLike | None = None,
+        **kwargs: Any,
+    ) -> npt.NDArray[mplAxes]:
         """
         Plot distributions of time until transition occurs.
 
         Parameters
         ----------
-        fluorophore : str
+        fluorophore
             The name of the fluorophore whose transition's distribution is to be shown.
-        transition_id : int
+        transition_id
             The identity of the transition whose distribution is to be shown.
-        x : 1-D array_like
+        x
             The x values for which the distribution is to be shown.
 
         Returns
         -------
-        axes : np.ndarray
+        npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         if self.energy_transfer:
@@ -688,21 +709,23 @@ class Prediction:
         return axes
 
 
-def get_Q(P, drop_transitions):
+def get_Q(
+    P: npt.ArrayLike, drop_transitions: int | npt.ArrayLike
+) -> npt.NDArray[np.int64]:
     """
     Q describes the probability of transitioning from some transient state to another.
 
     Parameters
     ----------
-    P : np.ndarray
+    P
         Transition matrix with transient states t and absorbing state r.
-    drop_transitions : int or array of ints
+    drop_transitions
         Index of absorbing state (i.e., photophysical transition with no return).
 
     Returns
     -------
-    Q : np.ndarray
-        Transition matrix with transient states t.
+    npt.NDArray[np.int64]
+        Transition matrix Q with transient states t.
     """
     # Q takes the original transition matrix into account, because within Q the state
     # that leads to the absorbing state has to take on the probability GIVEN the
@@ -713,26 +736,26 @@ def get_Q(P, drop_transitions):
     return Q
 
 
-def get_I_t(Q):
+def get_I_t(Q: npt.ArrayLike) -> npt.NDArray[np.int64]:
     """
     I_t is the identity matrix of Q.
 
     Parameters
     ----------
-    Q : np.ndarray
+    Q
         Transition matrix with transient states t.
 
     Returns
     -------
-    I_t : np.ndarray
-        Identity matrix of Q.
+    npt.NDArray[np.int64]
+        Identity matrix I_t of Q.
     """
     I_t = np.identity(Q.shape[0])
 
     return I_t
 
 
-def get_N(I_t, Q):
+def get_N(I_t: npt.ArrayLike, Q: npt.ArrayLike) -> npt.NDArray[np.int64]:
     """
     N is the fundamental matrix. At entry (i, j) it contains the expected number
     of visits to a transient state j starting from transient state i before being
@@ -740,15 +763,15 @@ def get_N(I_t, Q):
 
     Parameters
     ----------
-    I_t : np.ndarray
+    I_t
         Identity matrix of Q.
-    Q : np.ndarray
+    Q
         Transition matrix with transient states t.
 
     Returns
     -------
-    N : np.ndarray
-        Fundamental matrix of absorbing Markov chain.
+    npt.NDArray[np.int64]
+        Fundamental matrix N of absorbing Markov chain.
     """
     N = np.linalg.inv(I_t - Q)
 
