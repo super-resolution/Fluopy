@@ -43,7 +43,7 @@ def delete_subplots(
     -------
     None
     """
-    flattened = axes.flatten()
+    flattened = axes.ravel()
     fig = flattened[0].get_figure()
     if keep_number is not None:
         for i in range(flattened.size - keep_number):
@@ -90,14 +90,14 @@ def create_row_subtitles(
 
 
 def add_table(
-    axes: npt.NDArray[mplAxes],
+    axes: mplAxes,
     data: npt.ArrayLike | pd.Series,
     labels: npt.ArrayLike | None = None,
     grid: int = 111,
     xscale: float = 1,
     yscale: float = 1,
     fontsize: float = 12,
-) -> None:
+) -> mplAxes:
     """
     Adds a table to a subplot figure.
 
@@ -128,6 +128,9 @@ def add_table(
     -------
     None
     """
+    if axes is None:
+        axes = plt.gca()
+
     if isinstance(data, pd.Series):
         cells = data.values[:, np.newaxis]
         labels = data.index
@@ -141,8 +144,10 @@ def add_table(
     table.scale(xscale=xscale, yscale=yscale)
     table.set_fontsize(size=fontsize)
 
+    return axes
 
-def get_figure(axes: mplAxes | npt.NDArray[mplAxes]) -> mplFigure:
+
+def get_figure(axes: mplAxes | npt.NDArray[mplAxes] | None = None) -> mplFigure:
     """
     Get the figure object based on axes, where axes is either an axes object or a
     np.ndarray.
@@ -155,11 +160,13 @@ def get_figure(axes: mplAxes | npt.NDArray[mplAxes]) -> mplFigure:
 
     Returns
     -------
-    fig : matplotlib.figure.Figure
+    matplotlib.figure.Figure
         The figure object that corresponds to axes.
     """
-    if isinstance(axes, np.ndarray):
-        flattened = axes.flatten()
+    if axes is None:
+        ax = plt.gca()
+    elif isinstance(axes, np.ndarray):
+        flattened = axes.ravel()
         ax = flattened[0]
     else:
         ax = axes
@@ -168,7 +175,7 @@ def get_figure(axes: mplAxes | npt.NDArray[mplAxes]) -> mplFigure:
     return fig
 
 
-def print_class(class_instance: Any, class_name) -> None:
+def print_class(class_instance: Any) -> None:
     """
     Print all class attributes.
 
@@ -176,8 +183,6 @@ def print_class(class_instance: Any, class_name) -> None:
     ----------
     class_instance
         Instance of a class.
-    class_name : str
-        Name of the class.
     """
     aRepr = reprlib.Repr()
     aRepr.maxlevel = 6
@@ -192,7 +197,7 @@ def print_class(class_instance: Any, class_name) -> None:
     aRepr.maxlong = 40
     aRepr.maxother = 100
 
-    print(f"Attributes of {class_name}:")
+    print(f"Attributes of {class_instance}:")
     print("." * 65)
 
     if is_dataclass(class_instance):
@@ -214,16 +219,18 @@ def print_class(class_instance: Any, class_name) -> None:
 
 def find_key_in_list(row: pd.Series, key: Any) -> int | None:
     """
+    If key is in row['fluorophore_ids'], return the index of the row.
+
     Parameters
     ----------
     row
         Row of a DataFrame.
     key
         Key to search for in row['fluorophore_ids'].
+
     Returns
     -------
-    int, None
-        If key is in row['fluorophore_ids'], return the index of the row.
+    int | None
     """
     if key in row["fluorophore_ids"]:
         return row.name
