@@ -263,7 +263,7 @@ def em_tr_set_et_2f_diff(sim_tr_set_et_2f_diff):
 @pytest.fixture()
 def em_large():
     emis = em.Emissions.load(
-        path=Path(__file__).parent,
+        path=Path(__file__).parent / "test_data",
         name_extension="_em_large",
     )
     return emis
@@ -272,7 +272,7 @@ def em_large():
 @pytest.fixture()
 def em_very_large():
     emis = em.Emissions.load(
-        path=Path(__file__).parent,
+        path=Path(__file__).parent / "test_data",
         name_extension="_em_very_large",
     )
     return emis
