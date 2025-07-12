@@ -2,26 +2,36 @@
 Module kappa_squared
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
+import numpy.typing as npt
 from scipy.spatial.transform import Rotation
 from scipy.special import expit, logit
 from scipy.stats import gaussian_kde
 
+if TYPE_CHECKING:
+    from .fluopy_types import RandomGeneratorSeed
 
-def random_unit_vector(size=1, seed=None):
+
+def random_unit_vector(
+    size: int = 1, seed: RandomGeneratorSeed = None
+) -> npt.NDArray[np.float64]:
     """
     Generate random 3D unit vectors.
 
     Parameters
     ----------
-    size : int
+    size
         The number of random unit vectors to generate.
-    seed : int
+    seed
         Seed.
 
     Returns
     -------
-    np.ndarray
+    npt.NDArray[np.float64]
         An array of shape (size, 3) containing random unit vectors.
     """
     rotations = Rotation.random(size, random_state=seed)
@@ -32,24 +42,26 @@ def random_unit_vector(size=1, seed=None):
     return unit_vectors
 
 
-def rotational_diffusion_step(v, dt, tau_rot, seed=None):
+def rotational_diffusion_step(
+    v: npt.ArrayLike, dt: float, tau_rot: float, seed: RandomGeneratorSeed = None
+) -> npt.NDArray[np.float64]:
     """
     Apply a random rotation to vector(s) v.
 
     Parameters
     ----------
-    v : np.ndarray
+    v
         The vector(s) to be rotated. Can be 1D (shape: (3,)) or 2D (shape: (N, 3)).
-    dt : float
+    dt
         The time step for the simulation in s.
-    tau_rot : float
+    tau_rot
         The rotational diffusion time constant in s.
-    seed : int
+    seed
         Seed.
 
     Returns
     -------
-    np.ndarray
+    npt.NDArray[np.float64]
         The rotated vector(s), normalized to be unit vector(s).
     """
     rng = np.random.default_rng(seed)
@@ -69,24 +81,29 @@ def rotational_diffusion_step(v, dt, tau_rot, seed=None):
     return v_rot
 
 
-def simulate_rotational_motion(tau_rot, tau_life, dt=1e-12, seed=None):
+def simulate_rotational_motion(
+    tau_rot: float,
+    tau_life: float,
+    dt: float | None = 1e-12,
+    seed: RandomGeneratorSeed = None,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
     Simulate rotational motion and return dipole orientations over the lifetime.
 
     Parameters
     ----------
-    tau_rot : float
+    tau_rot
         The rotational diffusion time constant in s.
-    tau_life : float
+    tau_life
         The lifetime of the dipole in s.
-    dt : float, optional
+    dt
         The time step for the simulation in s.
-    seed : int, optional
+    seed
         Seed.
 
     Returns
     -------
-    tuple of np.ndarray
+    tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
         Two arrays containing the dipole orientations over time for two dipoles.
     """
     rng = np.random.default_rng(seed)
@@ -104,22 +121,24 @@ def simulate_rotational_motion(tau_rot, tau_life, dt=1e-12, seed=None):
     return np.array(traj1), np.array(traj2)
 
 
-def kappa_squared(d, a, r):
+def kappa_squared(
+    d: npt.ArrayLike, a: npt.ArrayLike, r: npt.ArrayLike
+) -> npt.NDArray[np.float64]:
     """
     Calculate dipole orientation factor κ² for arrays of vectors.
 
     Parameters
     ----------
-    d : np.ndarray
+    d
         Donor dipole vectors.
-    a : np.ndarray
+    a
         Acceptor dipole vectors.
-    r : np.ndarray
+    r
         Unit vector from donor to acceptor.
 
     Returns
     -------
-    np.ndarray
+    npt.NDArray[np.float64]
         The value of κ² calculated from the input vectors.
     """
     dot_d_r = np.sum(d * r, axis=1)
@@ -131,19 +150,24 @@ def kappa_squared(d, a, r):
     return k2
 
 
-def integral_kappa_squared(traj1, traj2, dt, r=None):
+def integral_kappa_squared(
+    traj1: npt.ArrayLike,
+    traj2: npt.ArrayLike,
+    dt: float,
+    r: npt.ArrayLike | None = None,
+) -> float:
     """
     Calculate the time-averaged κ² using integration.
 
     Parameters
     ----------
-    traj1 : np.ndarray
+    traj1
         Array of dipole orientations for the first dipole.
-    traj2 : np.ndarray
+    traj2
         Array of dipole orientations for the second dipole.
-    dt : float
+    dt
         The time step for the simulation.
-    r : np.ndarray, optional
+    r
         Unit vector from donor to acceptor. If None, assumes z-axis [0, 0, 1].
 
     Returns
@@ -159,23 +183,25 @@ def integral_kappa_squared(traj1, traj2, dt, r=None):
     return np.trapezoid(kappas, dx=dt) / (len(kappas) * dt)
 
 
-def sample_kappa_squared_distribution(k2_values, size=100, seed=None):
+def sample_kappa_squared_distribution(
+    k2_values: npt.ArrayLike, size: int | None = 100, seed: RandomGeneratorSeed = None
+) -> npt.NDArray[np.float64]:
     """
     Sample from the distribution of κ² values utilizing Gaussian kernel-density
     estimation and logit transformation.
 
     Parameters
     ----------
-    k2_values : np.ndarray
+    k2_values
         Array of κ² values.
-    size : int, optional
+    size
         Number of samples to generate.
-    seed : int, optional
+    seed
         Seed.
 
     Returns
     -------
-    np.ndarray
+    npt.NDArray[np.float64]
         Samples from the κ² distribution.
     """
     rng = np.random.default_rng(seed)
