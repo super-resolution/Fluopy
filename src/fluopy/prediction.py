@@ -368,6 +368,11 @@ class Prediction:
         """
         Plot frequencies of transitions.
 
+        Parameter
+        ---------
+        kwargs
+            kwargs for fluopy.figure.universal_figure
+
         Returns
         -------
         npt.NDArray[mplAxes]
@@ -415,6 +420,11 @@ class Prediction:
         """
         Plot frequencies of states.
 
+        Parameter
+        ---------
+        kwargs
+            kwargs for fluopy.figure.universal_figure
+
         Returns
         -------
         npt.NDArray[mplAxes]
@@ -460,6 +470,11 @@ class Prediction:
     def plot_mean_transition_times(self, **kwargs: Any) -> npt.NDArray[mplAxes]:
         """
         Plot mean times until transitions occur.
+
+        Parameter
+        ---------
+        kwargs
+            kwargs for fluopy.figure.universal_figure
 
         Returns
         -------
@@ -512,6 +527,11 @@ class Prediction:
         """
         Plot mean lifetimes of states.
 
+        Parameter
+        ---------
+        kwargs
+            kwargs for fluopy.figure.universal_figure
+
         Returns
         -------
         npt.NDArray[mplAxes]
@@ -562,6 +582,11 @@ class Prediction:
     def plot_state_occupations(self, **kwargs: Any) -> npt.NDArray[mplAxes]:
         """
         Plot state occupation times (relative total time spent in state).
+
+        Parameter
+        ---------
+        kwargs
+            kwargs for fluopy.figure.universal_figure
 
         Returns
         -------
@@ -627,6 +652,9 @@ class Prediction:
             The identity of the state whose distribution is to be shown.
         x
             The x values for which the distribution is to be shown.
+        kwargs
+            kwargs for fluopy.figure.universal_figure
+
         Returns
         -------
         npt.NDArray[mplAxes]
@@ -679,6 +707,8 @@ class Prediction:
             The identity of the transition whose distribution is to be shown.
         x
             The x values for which the distribution is to be shown.
+        kwargs
+            kwargs for fluopy.figure.universal_figure
 
         Returns
         -------
