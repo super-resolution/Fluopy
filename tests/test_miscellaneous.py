@@ -5,7 +5,6 @@ from fluopy.miscellaneous import (
     add_table,
     create_row_subtitles,
     delete_subplots,
-    find_key_in_list,
     format_axis_labels,
     format_electronic_state,
     format_transition,
@@ -51,13 +50,6 @@ def test_get_figures():
     return_value = get_figure(axes=axes.ravel()[4])
     assert return_value is fig
     plt.close()
-
-
-def test_find_key_in_list():
-    series = pd.Series([1, 2, 3], name="fluorophore_ids")
-    return_value = find_key_in_list(series, 2)
-    # print(return_value)
-    assert return_value
 
 
 def test_print_class(capsys):

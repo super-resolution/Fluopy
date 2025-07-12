@@ -217,26 +217,6 @@ def print_class(class_instance: Any) -> None:
     print("\n")
 
 
-def find_key_in_list(row: pd.Series, key: Any) -> int | None:
-    """
-    If key is in row['fluorophore_ids'], return the index of the row.
-
-    Parameters
-    ----------
-    row
-        Row of a DataFrame.
-    key
-        Key to search for in row['fluorophore_ids'].
-
-    Returns
-    -------
-    int | None
-    """
-    if key in row["fluorophore_ids"]:
-        return row.name
-    return None
-
-
 def format_electronic_state(label: str) -> str:
     """
     Format label for LaTeX.
