@@ -9,6 +9,28 @@ from fluopy import prediction as pr
 from fluopy import simulation as si
 
 
+class TestSimualation:
+
+    def test_init_empty(self):
+        with pytest.raises(TypeError):
+            si.Simulation()
+
+    def test_init(self, tr_set_1f_bl):
+        simulation = si.Simulation(transition_set=tr_set_1f_bl)
+        assert simulation.time_series is None
+        assert simulation.state_series is None
+        assert simulation.transition_series is None
+        assert simulation.memmap_path is None
+
+    def test_run(self, tr_set_1f_bl):
+        simulation = si.Simulation(transition_set=tr_set_1f_bl)
+        simulation.run(size=1000, seed=1)
+        assert simulation.time_series.shape == (1001,)
+        assert simulation.state_series.shape == (1, 1001)
+        assert simulation.transition_series.shape == (1000,)
+        assert simulation.memmap_path is None
+
+
 def test_direct_method_steps(tr_set_1f):
     time_series, transition_series = si.direct_method_steps(
         transition_matrix=tr_set_1f.transition_matrix,

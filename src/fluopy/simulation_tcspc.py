@@ -2,29 +2,45 @@
 Module simulation_tcspc
 """
 
+from __future__ import annotations
+
 import logging
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 from . import simulation as si
+from .simulation import Simulation
+
+if TYPE_CHECKING:
+    from .fluopy_types import RandomGeneratorSeed
+    from .transitions import TransitionSet
 
 logger = logging.getLogger(__name__)
 
 
 def simulate_TCSPC(
-    transition_set,
-    emitting_transition_ids,
-    et_transition_ids=None,
-    number_pulses=1e5,
-    pulse_duration=5e-11,
-    time_between_pulses=25e-9,
-    excitation_rates=None,
-    frame_time="1ms",
-    size=1e5,
-    store_time_points=False,
-    seed=None,
-):
+    transition_set: TransitionSet,
+    emitting_transition_ids: dict[int, float],
+    et_transition_ids: Sequence[int] | None = None,
+    number_pulses: int = 1e5,
+    pulse_duration: float = 5e-11,
+    time_between_pulses: float = 25e-9,
+    excitation_rates: dict[str, float] | None = None,
+    frame_time: str = "1ms",
+    size: int = 1e5,
+    store_time_points: bool = False,
+    seed: RandomGeneratorSeed = None,
+) -> tuple[
+    pd.Series,
+    npt.NDArray[np.float64],
+    npt.NDArray[np.float64],
+    npt.NDArray[np.float64],
+    npt.NDArray[np.float64],
+]:
     """
     Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence lifetime
     measurement). Methodically the direct method of the gillespie algorithm.
@@ -35,32 +51,32 @@ def simulate_TCSPC(
 
     Parameters
     ----------
-    transition_set : fluopy.transitions.TransitionSet
+    transition_set
         Collection of all relevant transitions and related attributes
-    emitting_transition_ids : dict
+    emitting_transition_ids
         Contains the combined_state_transition indices as keys and their probability of
         passing a bandpass filter as values.
-    et_transition_ids : None, list
+    et_transition_ids
         Contains the combined_state_transition indices that are emissions when energy
         transfer is available.
-    number_pulses : int
+    number_pulses
         Number of pulses simulated.
-    pulse_duration : float
+    pulse_duration
         The duration of a laser pulse in s. This time is used to calculate the
         probability of excitation, other than that it is neglected.
-    time_between_pulses : float
+    time_between_pulses
         The time between 2 laser pulses in s.
-    excitation_rates : dict
+    excitation_rates
         Contains the fluorophore names as keys and the excitation rates as values.
         Assumes uniform irradiance over the pulse duration.
-    frame_time : str
+    frame_time
         For possible input values, see
         https://pandas.pydata.org/docs/user_guide/timeseries.html -> Offset aliases.
-    size : int
+    size
         Size of random numbers drawn at once.
-    store_time_points : bool
+    store_time_points
         Whether to store the time points at which emissions are detected.
-    seed : None, int, BitGenerator, Generator
+    seed
         A seed to initialize the BitGenerator.
 
     Returns
@@ -68,15 +84,15 @@ def simulate_TCSPC(
     event_time_series : pd.Series
         Contains the time points (increasing by a defined time interval) as index and
         the number of events (i.e., detected emissions) as values.
-    event_time_points : 1-D array_like
+    event_time_points : npt.NDArray[np.float64]
         The time points at which emissions are detected.
-    lifetimes_DA : 1-D array_like
+    lifetimes_DA : npt.NDArray[np.float64]
         Contains the fluorescence lifetimes of detected emissions when energy transfer
         available.
-    lifetimes_D : 1-D array_like
+    lifetimes_D : npt.NDArray[np.float64]
         Contains the fluorescence lifetimes of detected emissions when energy transfer
         not available.
-    lifetimes_all : 1-D array_like
+    lifetimes_all : npt.NDArray[np.float64]
         Contains the fluorescence lifetimes of all detected emissions.
     """
     number_pulses = int(number_pulses)
@@ -350,18 +366,24 @@ def simulate_TCSPC(
 
 
 def simulate_TCSPC_detailed(
-    transition_set,
-    emitting_transition_ids,
-    et_transition_ids=None,
-    number_pulses=1e5,
-    pulse_duration=5e-11,
-    time_between_pulses=25e-9,
-    excitation_rates=None,
-    frame_time="1ms",
-    size=1e5,
-    store_time_points=False,
-    seed=None,
-):
+    transition_set: TransitionSet,
+    emitting_transition_ids: dict[int, float],
+    et_transition_ids: Sequence[int] | None = None,
+    number_pulses: int = 1e5,
+    pulse_duration: float = 5e-11,
+    time_between_pulses: float = 25e-9,
+    excitation_rates: dict[str, float] | None = None,
+    frame_time: str = "1ms",
+    size: int = 1e5,
+    store_time_points: bool = False,
+    seed: RandomGeneratorSeed = None,
+) -> tuple[
+    pd.Series,
+    npt.NDArray[np.float64],
+    npt.NDArray[np.float64],
+    npt.NDArray[np.float64],
+    npt.NDArray[np.float64],
+]:
     """
     Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence lifetime
     measurement). Methodically the direct method of the gillespie algorithm.
@@ -375,32 +397,32 @@ def simulate_TCSPC_detailed(
 
     Parameters
     ----------
-    transition_set : fluopy.transitions.TransitionSet
+    transition_set
         Collection of all relevant transitions and related attributes
-    emitting_transition_ids : dict
+    emitting_transition_ids
         Contains the combined_state_transition indices as keys and their probability of
         passing a bandpass filter as values.
-    et_transition_ids : None, list
+    et_transition_ids
         Contains the combined_state_transition indices that are emissions when energy
         transfer is available.
-    number_pulses : int
+    number_pulses
         Number of pulses simulated.
-    pulse_duration : float
+    pulse_duration
         The duration of a laser pulse in s. This time is used to calculate the
         probability of excitation, other than that it is neglected.
-    time_between_pulses : float
+    time_between_pulses
         The time between 2 laser pulses in s.
-    excitation_rates : dict
+    excitation_rates
         Contains the fluorophore names as keys and the excitation rates as values.
         Assumes uniform irradiance over the pulse duration.
-    frame_time : str
+    frame_time
         For possible input values, see
         https://pandas.pydata.org/docs/user_guide/timeseries.html -> Offset aliases.
-    size : int
+    size
         Size of random numbers drawn at once.
-    store_time_points : bool
+    store_time_points
         Whether to store the time points at which emissions are detected.
-    seed : None, int, BitGenerator, Generator
+    seed
         A seed to initialize the BitGenerator.
 
     Returns
@@ -408,15 +430,15 @@ def simulate_TCSPC_detailed(
     event_time_series : pd.Series
         Contains the time points (increasing by a defined time interval) as index and
         the number of events (i.e., detected emissions) as values.
-    event_time_points : 1-D array_like
+    event_time_points : npt.NDArray[np.float64]
         The time points at which emissions are detected.
-    lifetimes_DA : 1-D array_like
+    lifetimes_DA : npt.NDArray[np.float64]
         Contains the fluorescence lifetimes of detected emissions when energy transfer
         available.
-    lifetimes_D : 1-D array_like
+    lifetimes_D : npt.NDArray[np.float64]
         Contains the fluorescence lifetimes of detected emissions when energy transfer
         not available.
-    lifetimes_all : 1-D array_like
+    lifetimes_all : npt.NDArray[np.float64]
         Contains the fluorescence lifetimes of all detected emissions.
     simulation_object : fluopy.simulation.Simulation
         Container for simulation-associated attributes and methods.
@@ -704,7 +726,7 @@ def simulate_TCSPC_detailed(
     return return_values
 
 
-def space_multiple_excitations(time_series):
+def space_multiple_excitations(time_series: npt.ArrayLike) -> npt.NDArray[np.float64]:
     """
     If multiple excitations occur at the same time point, the time point is repeated.
     This function creates a minimal space between the same time points. Note that this
@@ -715,13 +737,13 @@ def space_multiple_excitations(time_series):
 
     Parameters
     ----------
-    time_series : 1-D array_like
+    time_series
         Contains the time points at which transitions occur. Transitions may occur at
         the same time point.
 
     Returns
     -------
-    time_series : np.ndarray
+    time_series : npt.NDArray[np.float64]
         Contains the time points at which transitions occur. Transitions that occurred
         at the same time point are now spaced by a minimal amount.
     """
@@ -743,24 +765,28 @@ def space_multiple_excitations(time_series):
     return time_series
 
 
-def insert_excitations(transition_series, transition_set, excitation_series):
+def insert_excitations(
+    transition_series: npt.ArrayLike,
+    transition_set: TransitionSet,
+    excitation_series: npt.ArrayLike,
+) -> npt.NDArray[np.float64]:
     """
     Inserts the indices of the excitation transitions into the transition series in the
     correct order.
 
     Parameters
     ----------
-    transition_series : 1-D array_like
+    transition_series
         Contains the indices of the transitions that occur. Does not include the indices
         of the excitations.
-    transition_set : fluopy.transitions.TransitionSet
+    transition_set
         Collection of all relevant transitions and related attributes.
-    excitation_series : 1-D array_like
+    excitation_series
         Contains the index of a fluorophore if excitation, -1 if other transition.
 
     Returns
     -------
-    transition_series_ad : 1-D array_like
+    transition_series_ad : npt.NDArray[np.float64]
         Contains the indices of the transitions that occur. Includes the indices of the
         excitations.
     """
@@ -834,20 +860,22 @@ def insert_excitations(transition_series, transition_set, excitation_series):
     return transition_series_ad
 
 
-def get_state_series(transition_set, transition_series):
+def get_state_series(
+    transition_set: TransitionSet, transition_series: npt.ArrayLike
+) -> npt.NDArray[np.int64]:
     """
     Creates a series of states based on the transitions that occur, starting at state 0.
 
     Parameters
     ----------
-    transition_set : fluopy.transitions.TransitionSet
+    transition_set
         Collection of all relevant transitions and related attributes.
-    transition_series : 1-D array_like
+    transition_series
         Contains the indices of the transitions that occur.
 
     Returns
     -------
-    state_series : np.ndarray
+    state_series : npt.NDArray[np.int64]
         Contains 1-D array_like for each fluorophore representing its state at index i
         corresponding to transition_series[i-1].
     """
@@ -870,17 +898,24 @@ def get_state_series(transition_set, transition_series):
 
 
 def prepare_return_values(
-    photon_collector,
-    time_stamps,
-    time_points,
-    lifetimes_DA,
-    lifetimes_D,
-    lifetimes_all,
-    time_series,
-    transition_series,
-    excitation_series,
-    transition_set,
-):
+    photon_collector: npt.ArrayLike,
+    time_stamps: npt.ArrayLike,
+    time_points: npt.ArrayLike | None,
+    lifetimes_DA: npt.ArrayLike,
+    lifetimes_D: npt.ArrayLike,
+    lifetimes_all: npt.ArrayLike,
+    time_series: npt.ArrayLike,
+    transition_series: npt.ArrayLike,
+    excitation_series: npt.ArrayLike,
+    transition_set: TransitionSet,
+) -> tuple[
+    pd.Series,
+    npt.NDArray[np.float64] | None,
+    npt.NDArray[np.float64],
+    npt.NDArray[np.float64],
+    npt.NDArray[np.float64],
+    Simulation,
+]:
     """
     Prepares the return values for the detailed TCSPC simulation. This includes the
     conversion to numpy arrays, the insertion of excitation transitions, the spacing of
@@ -889,30 +924,30 @@ def prepare_return_values(
 
     Parameters
     ----------
-    photon_collector : 1-D array_like
+    photon_collector
         Contains the number of detected emissions at the corresponding time points.
-    time_stamps : 1-D array_like
+    time_stamps
         Contains the time points (increasing by a defined time interval).
-    time_points : 1-D array_like, None
+    time_points
         The time points at which emissions are detected.
-    lifetimes_DA : 1-D array_like
+    lifetimes_DA
         Contains the fluorescence lifetimes of detected emissions when energy transfer
         available.
-    lifetimes_D : 1-D array_like
+    lifetimes_D
         Contains the fluorescence lifetimes of detected emissions when energy transfer
         not available.
-    lifetimes_all : 1-D array_like
+    lifetimes_all
         Contains the fluorescence lifetimes of all detected emissions.
-    time_series : 1-D array_like
+    time_series
         Contains the time points at which transitions occur. Also includes the time
         points at which excitations occur. Note that if multiple excitations occur at
         the same time point, the time point is repeated.
-    transition_series : 1-D array_like
+    transition_series
         Contains the indices of the transitions that occur. Does not include the indices
         of the excitations.
-    excitation_series : 1-D array_like
+    excitation_series
         Contains the index of a fluorophore if excitation, -1 if other transition.
-    transition_set : fluopy.transitions.TransitionSet
+    transition_set
         Collection of all relevant transitions and related attributes.
 
     Returns
@@ -920,15 +955,15 @@ def prepare_return_values(
     event_time_series : pd.Series
         Contains the time points (increasing by a defined time interval) as index and
         the number of events (i.e., detected emissions) as values.
-    event_time_points : 1-D array_like, None
+    event_time_points : npt.NDArray[np.float64] | None
         The time points at which emissions are detected.
-    lifetimes_DA : 1-D array_like
+    lifetimes_DA : npt.NDArray[np.float64]
         Contains the fluorescence lifetimes of detected emissions when energy transfer
         available.
-    lifetimes_D : 1-D array_like
+    lifetimes_D : npt.NDArray[np.float64]
         Contains the fluorescence lifetimes of detected emissions when energy transfer
         not available.
-    lifetimes_all : 1-D array_like
+    lifetimes_all : npt.NDArray[np.float64]
         Contains the fluorescence lifetimes of all detected emissions.
     simulation_object : fluopy.simulation.Simulation
         Container for simulation-associated attributes and methods.

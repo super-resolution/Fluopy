@@ -2,32 +2,39 @@
 Module formulas
 """
 
+from __future__ import annotations
+
+from typing import Literal
+
 import numpy as np
+import numpy.typing as npt
 from scipy import constants
 
 
 def convert_wavenumber_wavelength_frequency(
-    wavenumber=None, wavelength=None, frequency=None
-):
+    wavenumber: float | npt.ArrayLike | None = None,
+    wavelength: float | npt.ArrayLike | None = None,
+    frequency: float | npt.ArrayLike | None = None,
+) -> tuple[npt.NDArray[np.float64]]:
     """
     Convert either wavenumber, wavelength or frequency into the other two.
 
     Parameters
     ----------
-    wavenumber : float, 1-D array_like
+    wavenumber
         In 1/cm.
-    wavelength : float, 1-D array_like
+    wavelength
         In nm.
-    frequency : float, 1-D array_like
+    frequency
         In Hz.
 
     Returns
     -------
-    wavenumber : np.ndarray
+    wavenumber : npt.NDArray[np.float64]
         In 1/cm.
-    wavelength : np.ndarray
+    wavelength : npt.NDArray[np.float64]
         In nm.
-    frequency : np.ndarray
+    frequency : npt.NDArray[np.float64]
         In Hz.
     """
     if sum(x is not None for x in [wavelength, wavenumber, frequency]) != 1:
@@ -55,20 +62,22 @@ def convert_wavenumber_wavelength_frequency(
     return wavenumber, wavelength, frequency
 
 
-def calculate_photon_flux(irradiance=2, frequency=4.5e14):
+def calculate_photon_flux(
+    irradiance: float | npt.ArrayLike = 2, frequency: float | npt.ArrayLike = 4.5e14
+) -> npt.NDArray[np.float64]:
     """
     Calculates the photon flux based on the irradiance and the frequency of the light.
 
     Parameters
     ----------
-    irradiance : float, 1-D array_like
+    irradiance
         The irradiance in kW/cm².
-    frequency : float, 1-D array_like
+    frequency
         The frequency in Hz.
 
     Returns
     -------
-    photon_flux : np.ndarray
+    npt.NDArray[np.float64]
         The photon flux in 1/(m² s).
     """
     irradiance = np.asarray(irradiance)
@@ -80,26 +89,28 @@ def calculate_photon_flux(irradiance=2, frequency=4.5e14):
 
 
 def calculate_excitation_rate(
-    photon_flux=8e25, extinction_coefficient=None, absorption_cross_section=None
-):
+    photon_flux: float | npt.ArrayLike = 8e25,
+    extinction_coefficient: float | npt.ArrayLike | None = None,
+    absorption_cross_section: float | npt.ArrayLike | None = None,
+) -> float | npt.NDArray[np.float64]:
     """
     Returns the excitation rate for a given irradiance and an extinction coefficient or
     an absorption cross section.
 
     Parameters
     ----------
-    photon_flux : float, 1-D array_like
+    photon_flux
         The photon flux in 1/(m² s).
-    extinction_coefficient : float, 1-D array_like
+    extinction_coefficient
         Extinction coefficient of fluorophore at wavelength in 1/(cm M).
-    absorption_cross_section : float, 1-D array_like
+    absorption_cross_section
         Absorption cross section of fluorophore at wavelength in cm².
         The scattering cross section is assumed to be negligible, hence the absorption
         cross section equals the excitation cross section.
 
     Returns
     -------
-    excitation_rate : float, np.ndarray
+    float | npt.NDArray[np.float64]
         The excitation rate in 1/s.
     """
     if (
@@ -121,21 +132,24 @@ def calculate_excitation_rate(
     return excitation_rate
 
 
-def calculate_emission_rate(quantum_yield=0.5, fluorescence_lifetime=1e-9):
+def calculate_emission_rate(
+    quantum_yield: float | npt.ArrayLike = 0.5,
+    fluorescence_lifetime: float | npt.ArrayLike = 1e-9,
+) -> float | npt.NDArray[np.float64]:
     """
     Returns the rate of fluorescent emission based on the quantum yield and the
     fluorescence lifetime.
 
     Parameters
     ----------
-    quantum_yield : float, 1-D array_like
+    quantum_yield
         Number between 0 and 1.
-    fluorescence_lifetime : float, 1-D array_like
+    fluorescence_lifetime
         The fluorescence lifetime in s.
 
     Returns
     -------
-    emis_rate : float, np.ndarray
+    float | npt.NDArray[np.float64]
         The rate of emission in 1/s.
     """
     emis_rate = np.asarray(quantum_yield) / np.asarray(fluorescence_lifetime)
@@ -144,31 +158,31 @@ def calculate_emission_rate(quantum_yield=0.5, fluorescence_lifetime=1e-9):
 
 
 def calculate_internal_conversion_rate(
-    quantum_yield=0.5,
-    emission_rate=5e8,
-    *other_outgoing_rates_args,
-    **other_outgoing_rates_kwargs,
-):
+    quantum_yield: float | npt.ArrayLike = 0.5,
+    emission_rate: float | npt.ArrayLike = 5e8,
+    *other_outgoing_rates_args: float,
+    **other_outgoing_rates_kwargs: float,
+) -> float | npt.NDArray[np.float64]:
     """
     Calculates the rate of internal conversion from the first excited state to the
     vibrationally excited but electronic ground state.
 
     Parameters
     ----------
-    quantum_yield : float, 1-D array_like
+    quantum_yield
         Number between 0 and 1.
-    emission_rate : float, 1-D array_like
+    emission_rate
         The rate of emission in 1/s.
-    other_outgoing_rates_args : floats
+    other_outgoing_rates_args
         Rates of all other transitions (except fluorescence emission) that leave the
         first excited state in 1/s.
-    other_outgoing_rates_kwargs : floats
+    other_outgoing_rates_kwargs
         Rates of all other transitions (except fluorescence emission) that leave the
         first excited state in 1/s.
 
     Returns
     -------
-    internal_conversion_rate : float, np.ndarray
+    float | npt.NDArray[np.float64]
         The rate of internal conversion in 1/s.
     """
     quantum_yield = np.asarray(quantum_yield)
@@ -189,17 +203,19 @@ def calculate_internal_conversion_rate(
     return internal_conversion_rate
 
 
-def henderson_hasselbalch_equation(ph, pka, concentration):
+def henderson_hasselbalch_equation(
+    ph: float, pka: float, concentration: float
+) -> float:
     """
     Returns the estimated concentration of the base given the total concentration.
 
     Parameters
     ----------
-    ph : float
+    ph
         The pH as indicator of acidity or basicity.
-    pka : float
+    pka
         Acid dissociation constant.
-    concentration : float
+    concentration
         Total concentration of the agent in mM.
 
     Returns
@@ -213,24 +229,29 @@ def henderson_hasselbalch_equation(ph, pka, concentration):
     return base_concentration
 
 
-def calculate_pet_rate(reducing_agent="mea", concentration=143, k_pet=1, ph=8):
+def calculate_pet_rate(
+    reducing_agent: Literal["mea", "betaME"] = "mea",
+    concentration: float = 143,
+    k_pet: float = 1,
+    ph=8,
+) -> float:
     """
     Returns the dSTORM reduction rate for a given reducing agent and its concentration.
 
     Parameters
     ----------
-    reducing_agent : str
+    reducing_agent
         One of 'mea' (mercaptoethylamine), 'betaME' (mercaptoethanol).
-    concentration : float
+    concentration
         Concentration of the reducing agent in mM.
-    k_pet : float
+    k_pet
         The rate of photoinduced electron transfer in 1/(s M).
-    ph : float
+    ph
         The pH as indicator of acidity or basicity.
 
     Returns
     -------
-    pet_rate : float
+    float
         The PeT rate in 1/s.
     """
     if reducing_agent == "betaME":
@@ -251,7 +272,11 @@ def calculate_pet_rate(reducing_agent="mea", concentration=143, k_pet=1, ph=8):
     return pet_rate
 
 
-def calculate_spectral_overlap_integral(donor=None, acceptor=None, wavelengths=None):
+def calculate_spectral_overlap_integral(
+    donor: npt.ArrayLike | None = None,
+    acceptor: npt.ArrayLike | None = None,
+    wavelengths: npt.ArrayLike | None = None,
+) -> float:
     """
     Calculates the spectral overlap integral defined as the integral of the
     multiplication of the donor emission spectrum normalized to an area of 1, the
@@ -287,32 +312,32 @@ def calculate_spectral_overlap_integral(donor=None, acceptor=None, wavelengths=N
 
 
 def calculate_fret_rate(
-    distance=10,
-    emission_rate=5e8,
-    spectral_overlap_integral=1e16,
-    dipole_orientation_factor=2 / 3,
-    refractive_index=1.33,
-):
+    distance: float = 10,
+    emission_rate: float = 5e8,
+    spectral_overlap_integral: float = 1e16,
+    dipole_orientation_factor: float = 2 / 3,
+    refractive_index: float = 1.33,
+) -> float:
     """
     Calculates the Förster resonance energy transfer rate.
 
     Parameters
     ----------
-    distance : float
+    distance
         In nm.
-    emission_rate : float
+    emission_rate
         In 1/s.
-    spectral_overlap_integral : float
+    spectral_overlap_integral
         In (nm**4)/(M cm).
-    dipole_orientation_factor : float
+    dipole_orientation_factor
         The dipole orientation factor κ².
-    refractive_index : float
+    refractive_index
         The refractive index of the medium.
 
     Returns
     -------
-    fret_rate : float
-        In 1/s.
+    float
+        fret rate in 1/s.
     """
     if distance <= 0:
         raise ValueError("distance has to be greater than 0.")
@@ -329,20 +354,22 @@ def calculate_fret_rate(
     return fret_rate
 
 
-def calculate_fret_efficiency(fret_rate=1e8, fluorescence_lifetime=1e-9):
+def calculate_fret_efficiency(
+    fret_rate: float = 1e8, fluorescence_lifetime: float = 1e-9
+) -> float:
     """
     Calculates the FRET efficiency.
 
     Parameters
     ----------
-    fret_rate : float
+    fret_rate
         In 1/s.
-    fluorescence_lifetime : float
+    fluorescence_lifetime
         The fluorescence lifetime of the donor in absence of the acceptor in s.
 
     Returns
     -------
-    efficiency : float
+    float
         The FRET efficiency (dimensionless). Between 0 and 1.
     """
     tau_1 = fluorescence_lifetime
@@ -352,21 +379,21 @@ def calculate_fret_efficiency(fret_rate=1e8, fluorescence_lifetime=1e-9):
     return efficiency
 
 
-def calculate_photon_collection_rate(NA=1.45, n1=1.51):
+def calculate_photon_collection_rate(NA: float = 1.45, n1: float = 1.51) -> float:
     """
     Calculates the photon collection rate based on the numerical aperture of the
     objective.
 
     Parameters
     ----------
-    NA : float
+    NA
         Numerical aperture of the objective.
-    n1 : float
+    n1
         Refractive index of the medium.
 
     Returns
     -------
-    photon_collection_rate : float
+    float
         The photon collection rate.
     """
     half_angle = np.arcsin(NA / n1)

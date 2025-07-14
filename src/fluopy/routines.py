@@ -2,7 +2,14 @@
 Module routines
 """
 
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 from . import emissions as em
@@ -10,16 +17,22 @@ from . import fitting as fit
 from . import formulas as fo
 from . import simulation as si
 
+if TYPE_CHECKING:
+    from fluopy.emissions import Emissions
+    from fluopy.fluopy_types import RandomGeneratorSeed
+    from fluopy.simulation import Simulation
+    from fluopy.transitions import TransitionSet
 
-def emission_post_processing(emis, seed):
+
+def emission_post_processing(emis: Emissions, seed: RandomGeneratorSeed) -> None:
     """
     Post-processing of the emission data.
 
     Parameters
     ----------
-    emis : fluopy.emissions.Emissions
+    emis
         Container for emission-associated attributes.
-    seed : None, int, BitGenerator, Generator
+    seed
         A seed to initialize the BitGenerator.
 
     Returns
@@ -37,7 +50,7 @@ def emission_post_processing(emis, seed):
     emis.apply_threshold(threshold=10)
 
 
-def get_bleaching_times(simulation):
+def get_bleaching_times(simulation: Simulation) -> npt.NDArray[np.float64]:
     """
     Get the times where photobleaching occurred - for each fluorophore, one number will
     be extracted. If no bleaching occurred, the entry will be np.nan. The elements will
@@ -45,13 +58,13 @@ def get_bleaching_times(simulation):
 
     Parameters
     ----------
-    simulation : fluopy.simulation.Simulation
+    simulation
         Container for simulation-associated attributes
 
     Returns
     -------
-    bleaching_times : 1-D array_like
-        Times where photobleaching occurred.
+    npt.NDArray[np.float64]
+        Times where photobleaching occurred of shape (n_times,).
     """
     df = simulation.transition_set.transition_df
     bleached_states = df[df["absorbing"]]["final_state"]
@@ -78,22 +91,24 @@ def get_bleaching_times(simulation):
     return bleaching_times
 
 
-def get_global_bleaching_rates(bleaching_times):
+def get_global_bleaching_rates(
+    bleaching_times: npt.ArrayLike,
+) -> tuple[npt.NDArray[np.float64], list[npt.NDArray[np.float64]]]:
     """
     Get the global bleaching rates for each fluorophore. The global bleaching rate is
     the inverse of the lifetime of a fluorophore starting from the last bleaching event.
 
     Parameters
     ----------
-    bleaching_times : 2-D array_like
+    bleaching_times
         Times where photobleaching occurred. Each run is a row, each fluorophore a
         column. Each row is sorted, np.nan will be at the end.
 
     Returns
     -------
-    global_bleaching_rates : 2-D array_like
+    global_bleaching_rates : npt.NDArray[np.float64]
         The two global bleaching rates and the mixing factor for each fluorophore.
-    delta_bleaching_times_all : list of arrays
+    delta_bleaching_times_all : list[npt.NDArray[np.float64]]
         The arrival times of photons between bleaching events. The timer starts at the
         previous bleaching event.
     """
@@ -121,14 +136,14 @@ def get_global_bleaching_rates(bleaching_times):
 
 
 def fingerprint_analysis(
-    transition_set,
-    batch_size,
-    batches,
-    filepath,
-    filename,
-    seed,
-    use_memmap=None,
-):
+    transition_set: TransitionSet,
+    batch_size: int,
+    batches: int,
+    filepath: str | os.PathLike[Any],
+    filename: str,
+    seed: RandomGeneratorSeed,
+    use_memmap: str | os.PathLike[Any] | None = None,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], list[list[np.float64]]]:
     """
     Routine to perform fingerprint analysis. Returns the fingerprint data and the times
     where photobleaching occurred. Each run is stored as a parquet file. The bleaching
@@ -136,31 +151,31 @@ def fingerprint_analysis(
 
     Parameters
     ----------
-    transition_set : fluopy.transition.TransitionSet
-        Collection of all relevant transitions and related attributes.
-    batch_size : int
+    transition_set
+        All relevant transitions and related attributes.
+    batch_size
         Size of each batch.
-    batches : int
+    batches
         Number of batches.
-    filepath : str
+    filepath
         Path to save the fingerprint data.
-    filename : str
+    filename
         The name of the file. In the case of single_run data, the name is extended with
         the batch number.
-    seed : None, int, BitGenerator, Generator
+    seed
         A seed to initialize the BitGenerator.
-    use_memmap : None, str
+    use_memmap
         If None, the data will be stored in memory. If a string, the data will be stored
         in a memmap file. Default is None.
 
     Returns
     -------
-    fingerprint_data : 1-D array_like
+    fingerprint_data : npt.NDArray[np.float64]
         Fingerprint data - normalized cumulative emissions.
-    bleaching_times : 2-D array_like
+    bleaching_times : npt.NDArray[np.float64]
         Times where photobleaching occurred. Each run is a row, each fluorophore a
         column). Each row is sorted, np.nan will be at the end.
-    delta_times_photons_between_bleaching : list of lists
+    delta_times_photons_between_bleaching : llist[list[float]]
         The arrival times of photons between bleaching events. The timer starts at the
         previous bleaching event.
     """
@@ -170,13 +185,13 @@ def fingerprint_analysis(
         np.round(np.linspace(0, 300, 300001), decimals=12),
         dtype=np.int32,
     )
-    output_file_bleach = rf"{filepath}\bleaching_times_{filename}.npy"
+    output_file_bleach = Path(filepath) / f"bleaching_times_{filename}.npy"
     bleaching_times_all_runs = []
     delta_times_photons_between_bleaching = [
         [] for _ in range(transition_set.fluorophore_system.count)
     ]
     for i in range(batches):
-        output_file_run = rf"{filepath}\single_runs_{filename}_batch_{i}.parquet"
+        output_file_run = Path(filepath) / f"single_runs_{filename}_batch_{i}.parquet"
         df = None
         for j in range(batch_size):
             simulation = si.Simulation(transition_set)
@@ -224,22 +239,24 @@ def fingerprint_analysis(
     )
 
 
-def truncate_fingerprints(fingerprint, low, high):
+def truncate_fingerprints(
+    fingerprint: pd.Series, low: float, high: float
+) -> npt.NDArray[np.float64]:
     """
     Truncate the fingerprint data. The data will be normalized again.
 
     Parameters
     ----------
-    fingerprint : pd.Series
+    fingerprint
         Fingerprint data - normalized cumulative emissions.
-    low : float
+    low
         Lower bound for truncation.
-    high : float
+    high
         Upper bound for truncation.
 
     Returns
     -------
-    fingerprint : 1-D array_like
+    npt.NDArray[np.float64]
         Truncated fingerprint data - normalized cumulative emissions.
     """
     fingerprint = fingerprint.iloc[low:high]

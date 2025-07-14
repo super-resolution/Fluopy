@@ -17,7 +17,7 @@ from pathlib import Path
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here.
-sys.path.insert(0, str(Path('..', 'src').resolve()))
+sys.path.insert(0, str(Path("..", "src").resolve()))
 
 
 # -- Project information -----------------------------------------------------
@@ -80,18 +80,17 @@ extensions = [
 
 # auto_api settings
 autoapi_dirs = ["../src"]
-autoapi_type = "python"
-autoapi_template_dir = "_templates/autoapi"
-
+autoapi_keep_files = False
 autoapi_options = [
     "members",
     "undoc-members",
     "show-inheritance",
     "show-module-summary",
+    "special-members",
     "imported-members",
 ]
-
-autoapi_keep_files = False
+autoapi_template_dir = "_templates/autoapi"
+autoapi_type = "python"
 autodoc_typehints = "signature"
 
 # Napoleon settings
@@ -99,7 +98,7 @@ napoleon_google_docstring = True
 napoleon_numpy_docstring = True
 napoleon_include_init_with_doc = True
 napoleon_include_private_with_doc = False
-napoleon_include_special_with_doc = False
+napoleon_include_special_with_doc = True
 napoleon_use_admonition_for_examples = False
 napoleon_use_admonition_for_notes = False
 napoleon_use_admonition_for_references = False

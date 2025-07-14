@@ -17,11 +17,11 @@ Install from pypi
 
 Install locan directly from the Python Package Index::
 
-    pip install locan
+    pip install fluopy
 
 Extra dependencies can be included::
 
-    pip install locan[gpu]
+    pip install fluopy[gpu]
 
 Install from distribution or sources
 -------------------------------------

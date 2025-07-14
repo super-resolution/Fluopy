@@ -1,3 +1,13 @@
+"""
+.. currentmodule:: fluopy
+
+Welcome to the base module of fluopy!
+"""
+
+import logging
+
+logger = logging.getLogger(__name__)
+
 try:
     from fluopy._version import version as __version__
 except ImportError:

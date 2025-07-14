@@ -23,6 +23,7 @@ Welcome to fluopy's documentation!
    :name: mastertoc_use
 
    ./source/design
+   ./source/logging
 
 
 .. toctree::
@@ -30,7 +31,7 @@ Welcome to fluopy's documentation!
    :caption: API Documentation
    :name: mastertoc_api
 
-   ./autoapi/index
+   ./autoapi/fluopy/index
 
 
 .. toctree::

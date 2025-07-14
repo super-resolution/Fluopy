@@ -418,6 +418,8 @@ class Analysis:
             Container of mathematically derived statistical attributes and methods.
         diff_dist
             Whether to plot energy transfers distance-specific or not.
+        kwargs
+            kwargs for fluopy.figure.universal_figure
 
         Returns
         -------

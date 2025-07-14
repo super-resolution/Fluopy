@@ -38,6 +38,8 @@ def ps_fingerprint_cdf_fit_1f(
     result : OptimizeResult
         The result of the optimization.
     """
+    x = np.asarray(x)
+    y = np.asarray(y)
 
     def objective_function(params):
         domain = (x[0], x[-1])
