@@ -10,4 +10,5 @@ repos:
     - id: ruff-check
       args: [
         "--output-format=grouped",
+        "--exclude", "notebooks/General/trials.ipynb",
       ]

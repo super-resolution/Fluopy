@@ -24,7 +24,7 @@ def test_delete_subplots():
 
 def test_create_row_subtitles():
     fig, axes = plt.subplots(2, 3)
-    create_row_subtitles(axes=axes.ravel(), nrows=2, ncols=3, titles=["one, two"])
+    create_row_subtitles(axes=axes.ravel(), nrows=2, ncols=3, titles=["one", "two"])
     # plt.show()
     plt.close()
 

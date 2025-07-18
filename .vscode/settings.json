@@ -67,6 +67,98 @@
         {
             "folderPath": "Photoswitching\\notebooks\\Chapter_III\\",
             "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\data_gen_noDSTORM.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\data_gen_noDSTORMlowrisc.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\data_gen_noDSTORMrisc_multiple_runs.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\data_gen_noDSTORMrisc.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\data_gen_noOET.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\data_gen_noOETnoSSA.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\data_gen_OET.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\data_gen_OEThighSSA.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\data_gen_OETnoSSA.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\data_gen_OETrisc.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\photon_counts_single_fluorophore.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\OET_efficiency_variations\\data_gen_1_1e-4.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\OET_efficiency_variations\\data_gen_01_1e-4.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\OET_efficiency_variations\\data_gen_001_1e-4.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\OET_efficiency_variations\\data_gen_1e-4_1.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\OET_efficiency_variations\\data_gen_1e-5_1.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\OET_efficiency_variations\\data_gen_1e-6_1.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\OET_efficiency_variations\\data_gen_2e-7_1.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\OET_efficiency_variations\\data_gen_1e-5_1_risc.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\OET_efficiency_variations\\data_gen_1e-5_1_only_oet.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\OET_efficiency_variations\\OET_efficiency_variations.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\OET_efficiency_variations\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\short_off_periods_radical.ipynb\\",
+            "color": "foldercolorizer.color_009933"
         }
     ],
     "git.decorations.enabled": false,

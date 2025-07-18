@@ -156,7 +156,7 @@ def test_direct_method_time_with_memmap(tr_set_1f, tmp_path):
 def test_first_reaction_method(tr_set_bl_et_2f_diff):
     df = tr_set_bl_et_2f_diff.combined_state_transitions_df
     et_indices = df.index[df["fluorophore_ids"].apply(len) > 1]
-    time_series, transition_series = si.first_reaction_method(
+    time_series, transition_series, kappa_squared = si.first_reaction_method(
         transition_matrix=tr_set_bl_et_2f_diff.transition_matrix,
         row_sums=tr_set_bl_et_2f_diff.row_sums,
         tau_rot=1e-10,
@@ -178,6 +178,7 @@ def test_first_reaction_method(tr_set_bl_et_2f_diff):
             4.12916020277841e-12,
         ]
     )
+    assert kappa_squared.size == 4
     exp_transition_series = np.array([32, 63, 32, 63])
     np.testing.assert_array_almost_equal(time_series, exp_time_series, decimal=14)
     np.testing.assert_array_equal(transition_series, exp_transition_series)
@@ -186,7 +187,7 @@ def test_first_reaction_method(tr_set_bl_et_2f_diff):
 def test_first_reaction_method_with_memmap(tr_set_bl_et_2f_diff, tmp_path):
     df = tr_set_bl_et_2f_diff.combined_state_transitions_df
     et_indices = df.index[df["fluorophore_ids"].apply(len) > 1]
-    time_series, transition_series = si.first_reaction_method(
+    time_series, transition_series, kappa_squared = si.first_reaction_method(
         transition_matrix=tr_set_bl_et_2f_diff.transition_matrix,
         row_sums=tr_set_bl_et_2f_diff.row_sums,
         tau_rot=1e-10,
@@ -208,6 +209,7 @@ def test_first_reaction_method_with_memmap(tr_set_bl_et_2f_diff, tmp_path):
             4.12916020277841e-12,
         ]
     )
+    assert kappa_squared.size == 4
     exp_transition_series = np.array([32, 63, 32, 63])
     np.testing.assert_array_almost_equal(time_series, exp_time_series, decimal=14)
     np.testing.assert_array_equal(transition_series, exp_transition_series)

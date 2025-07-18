@@ -78,7 +78,7 @@ class Simulation:
         seed: RandomGeneratorSeed = None,
         use_memmap: str | os.PathLike[Any] | None = None,
         **kwargs: Any,
-    ) -> None:
+    ) -> None | npt.NDArray[np.float64]:
         """
         Runs a simulation based on the direct method of the gillespie algorithm (i.e.,
         stochastic simulation algorithm). Can either be based on maximum number of
@@ -109,7 +109,9 @@ class Simulation:
 
         Returns
         -------
-        None
+        None | npt.NDArray[np.float64]
+            Returns None for most simulation methods. When kap_sq_var=True,
+            returns array of kappa_squared values.
         """
         if start_at is None:
             start_at = tuple(
@@ -126,6 +128,7 @@ class Simulation:
         eval_floating_point_precision_error(
             transition_set=self.transition_set, largest_number=end_time
         )
+        kappa_squared = None
         if end_time is None and not kap_sq_var:
             self.time_series, self.transition_series = direct_method_steps(
                 transition_matrix=self.transition_set.transition_matrix,
@@ -137,15 +140,17 @@ class Simulation:
             )
         elif end_time is None and kap_sq_var:
             et_indices = df.index[df["fluorophore_ids"].apply(len) > 1]
-            self.time_series, self.transition_series = first_reaction_method(
-                transition_matrix=self.transition_set.transition_matrix,
-                row_sums=self.transition_set.row_sums,
-                start_index=start_index,
-                size=size,
-                seed=seed,
-                use_memmap=use_memmap,
-                fret_indices=et_indices,
-                **kwargs,
+            self.time_series, self.transition_series, kappa_squared = (
+                first_reaction_method(
+                    transition_matrix=self.transition_set.transition_matrix,
+                    row_sums=self.transition_set.row_sums,
+                    start_index=start_index,
+                    size=size,
+                    seed=seed,
+                    use_memmap=use_memmap,
+                    fret_indices=et_indices,
+                    **kwargs,
+                )
             )
         elif end_time is not None and not kap_sq_var:
             self.time_series, self.transition_series = direct_method_time(
@@ -186,6 +191,8 @@ class Simulation:
             self.state_series[i][1:] = final_states_fluorophore[self.transition_series]
         if use_memmap is not None:
             self.state_series.flush()
+
+        return kappa_squared
 
     def approximate(
         self, prediction: Prediction, size: float, seed: RandomGeneratorSeed
@@ -630,6 +637,8 @@ def first_reaction_method(
         transition_series[i - 1].
     transition_series : npt.NDArray[np.int64]
         The simulated transitions. At index i, they correspond to time_series[i + 1].
+    kappa_squared : npt.NDArray[np.float64]
+        The sampled kappa_squared values for each step.
     """
     rng = np.random.default_rng(seed)
 
@@ -680,11 +689,11 @@ def first_reaction_method(
     kappa_squared = np.array(kappa_squared)
 
     # sampling of kappa_squared
-    kappa_squared = kappa_sq.sample_kappa_squared_distribution(
+    kappa_squared_sampled = kappa_sq.sample_kappa_squared_distribution(
         k2_values=kappa_squared, size=size, seed=rng
     )
 
-    kappa_squared_ratio = kappa_squared / (2 / 3)
+    kappa_squared_ratio = kappa_squared_sampled / (2 / 3)
 
     current_state_index = start_index
     absorbing_state_reached = False
@@ -740,7 +749,7 @@ def first_reaction_method(
         transition_series.flush()
         time_series.flush()
 
-    return time_series, transition_series
+    return time_series, transition_series, kappa_squared_sampled
 
 
 def approximation(

@@ -523,11 +523,111 @@ def pnormalize(
     return Gn
 
 
+def coincidence_numpy(
+    arr1: npt.ArrayLike,
+    arr2: npt.ArrayLike,
+    tau_max: float,
+    bin_width: float,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """
+    Compute the coincidence histogram of photon arrival times using NumPy. Suitable for
+    smaller datasets.
+
+    Parameters
+    ----------
+    arr1
+        Photon arrival times from the first detector.
+    arr2
+        Photon arrival times from the second detector.
+    tau_max
+        Maximum time difference to consider for the histogram.
+    bin_width
+        Width of the histogram bins.
+
+    Returns
+    -------
+    hist : npt.NDArray[np.float64]
+        Coincidence histogram.
+    bins : npt.NDArray[np.float64]
+        Bin edges of the histogram.
+    """
+    bins = np.arange(-tau_max, tau_max + bin_width, bin_width)
+    hist = np.zeros(bins.size - 1)
+
+    for t in arr1:
+        mask = np.abs(arr2 - t) < tau_max
+        delays = arr2[mask] - t
+        h, _ = np.histogram(delays, bins=bins)
+        hist += h
+
+    return hist, bins
+
+
+@numba.jit(nopython=True)
+def coincidence_numba(
+    arr1: npt.ArrayLike,
+    arr2: npt.ArrayLike,
+    tau_max: float,
+    bin_width: float,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """
+    Compute the coincidence histogram of photon arrival times using Numba. Suitable for
+    larger datasets.
+    Uses similar algorithm to pcorrelate but optimized for coincidence calculations.
+
+    Parameters
+    ----------
+    arr1
+        Photon arrival times from the first detector.
+    arr2
+        Photon arrival times from the second detector.
+    tau_max
+        Maximum time difference to consider.
+    bin_width
+        Width of histogram bins.
+
+    Returns
+    -------
+    hist : npt.NDArray[np.float64]
+        Coincidence histogram.
+    bins : npt.NDArray[np.float64]
+        Bin edges of the histogram.
+    """
+    bins = np.arange(-tau_max, tau_max + bin_width, bin_width)
+    hist = np.zeros(len(bins) - 1, dtype=np.float64)
+
+    for t1 in arr1:
+        # Find range of arr2 values within tau_max of t1
+        # Using binary search-like approach for efficiency (log(n) complexity)
+        start_idx = 0
+        end_idx = len(arr2)
+
+        # Find first arr2 value >= t1 - tau_max
+        while start_idx < len(arr2) and arr2[start_idx] < t1 - tau_max:
+            start_idx += 1
+
+        # Find first arr2 value > t1 + tau_max
+        while end_idx > 0 and arr2[end_idx - 1] > t1 + tau_max:
+            end_idx -= 1
+
+        # Process valid range
+        for j in range(start_idx, end_idx):
+            delay = arr2[j] - t1
+            if abs(delay) < tau_max:
+                # Find which bin this delay belongs to
+                bin_idx = int((delay + tau_max) / bin_width)
+                if 0 <= bin_idx < len(hist):
+                    hist[bin_idx] += 1.0
+
+    return hist, bins
+
+
 def coincidence(
     photon_arrival_times: npt.ArrayLike,
     tau_max: float,
     bin_width: float,
     seed: RandomGeneratorSeed = 1,
+    method: str = "numba",
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
     Compute the coincidence histogram of photon arrival times. Here, the Hanbury Brown
@@ -545,6 +645,8 @@ def coincidence(
         Width of the histogram bins.
     seed
         A seed to initialize the BitGenerator.
+    method
+        Method to use: "numpy" or "numba".
 
     Returns
     -------
@@ -555,24 +657,23 @@ def coincidence(
     """
     rng = np.random.default_rng(seed)
     mask = rng.random(photon_arrival_times.size) < 0.5
-    arr1 = photon_arrival_times[mask]
-    arr2 = photon_arrival_times[~mask]
+    arr1 = np.sort(photon_arrival_times[mask])
+    arr2 = np.sort(photon_arrival_times[~mask])
 
-    bins = np.arange(-tau_max, tau_max + bin_width, bin_width)
-    hist = np.zeros(bins.size - 1)
+    if method == "numpy":
+        hist, bins = coincidence_numpy(arr1, arr2, tau_max, bin_width)
+    elif method == "numba":
+        hist, bins = coincidence_numba(arr1, arr2, tau_max, bin_width)
+    else:
+        raise ValueError(f"Unknown method: {method}. Use 'numpy' or 'numba'.")
 
-    for t in arr1:
-        mask = np.abs(arr2 - t) < tau_max
-        delays = arr2[mask] - t
-        h, _ = np.histogram(delays, bins=bins)
-        hist += h
     hist = hist[:-1]
-
     # normalization to avoid finite window effects
     hist = hist / (np.max(photon_arrival_times) - np.abs(bins[1:-1]))
     # standard normalization
-    average_signal_1 = arr1.size / np.max(arr1)
-    average_signal_2 = arr2.size / np.max(arr2)
-    hist = hist / (average_signal_1 * average_signal_2 * bin_width)
+    average_signal_1 = arr1.size / np.max(arr1) if arr1.size > 0 else 0
+    average_signal_2 = arr2.size / np.max(arr2) if arr2.size > 0 else 0
+    if average_signal_1 > 0 and average_signal_2 > 0:
+        hist = hist / (average_signal_1 * average_signal_2 * bin_width)
 
     return hist, bins

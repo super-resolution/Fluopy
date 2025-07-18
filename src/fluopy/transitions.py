@@ -312,7 +312,7 @@ class TransitionSet:
     row_sums : np.ndarray
         Contains the sum of each row of non-normalized transition rates, i.e., the sum
         of rates of all possbile combined_state_transitions.
-    single_states : dict[str, list[SingleState]]
+    single_states : dict[str, list[int]]
         Contains the values of all relevant SingleStates as values. Name of
         fluorophores as keys.
     transition_df : pd.DataFrame
@@ -624,7 +624,7 @@ class TransitionSet:
 
 def get_single_states(
     transitions: Collection[Transition], transition_df: pd.DataFrame
-) -> dict[str, npt.NDArray[SingleState]]:
+) -> dict[str, npt.NDArray[int]]:
     """
     Gets the values of SingleStates that occur in non-energy transfer transitions.
     Also assigns whether a transition leads to a Markovian absorbing state (note that
@@ -686,7 +686,7 @@ def get_single_states(
 
 
 def get_state_combinations(
-    single_states: dict[str, Collection[SingleState | int]],
+    single_states: dict[str, Collection[int]],
     fluorophores: Collection[Fluorophore],
 ) -> list[tuple[int, ...]]:
     """
