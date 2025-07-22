@@ -159,6 +159,30 @@
         {
             "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\short_off_periods_radical.ipynb\\",
             "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\0_4_multi_f_PFA\\data_gen_1F.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\0_4_multi_f_PFA\\data_gen_2F.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\0_4_multi_f_PFA\\data_gen_3F.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_9_multi_f_PFA_add\\multi_f_PFA_add.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_9_multi_f_PFA_add\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\0_4_multi_f_PFA\\data_gen_4F.ipynb\\",
+            "color": "foldercolorizer.color_009933"
         }
     ],
     "git.decorations.enabled": false,

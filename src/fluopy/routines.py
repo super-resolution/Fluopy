@@ -240,8 +240,8 @@ def fingerprint_analysis(
 
 
 def truncate_fingerprints(
-    fingerprint: pd.Series, low: float, high: float
-) -> npt.NDArray[np.float64]:
+    fingerprint: pd.Series, low: int | None = None, high: int | None = None
+) -> pd.Series:
     """
     Truncate the fingerprint data. The data will be normalized again.
 
@@ -259,6 +259,10 @@ def truncate_fingerprints(
     npt.NDArray[np.float64]
         Truncated fingerprint data - normalized cumulative emissions.
     """
+    if low is None:
+        low = 0
+    if high is None:
+        high = -1
     fingerprint = fingerprint.iloc[low:high]
     fingerprint = fingerprint - fingerprint.iloc[0]
     fingerprint = fingerprint / fingerprint.iloc[-1]

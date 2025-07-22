@@ -244,7 +244,6 @@ def ps_fingerprint_cdf_fit_4f(
     result = differential_evolution(
         objective_function,
         bounds=bounds,
-        args=(x, y),
         constraints=linear_constraint,
         **diff_ev,
     )
