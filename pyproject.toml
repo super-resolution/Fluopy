@@ -90,6 +90,7 @@ test = [
 lint = [
     "black~=25.0",
     "ruff",
+    "black[jupyter]",
 ]
 typing = [
     "mypy",
@@ -99,6 +100,12 @@ typing = [
 ]
 dev = [
     "pre-commit",
+    "pyarrow",
+    "Jinja2",
+    "ipython",
+    "ipykernel",
+    "brokenaxes",
+    "rdkit",
     {include-group = "test"},
     {include-group = "lint"},
     {include-group = "typing"},
@@ -152,7 +159,6 @@ line_length = 88
 
 [tool.pytest.ini_options]
 testpaths = [
-    "src/fluopy/tests",
     "tests"
 ]
 addopts = "--import-mode=importlib --strict-markers -m 'not gui and not visual and not slow'"

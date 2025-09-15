@@ -183,6 +183,30 @@
         {
             "folderPath": "Photoswitching\\notebooks\\Chapter_I\\0_4_multi_f_PFA\\data_gen_4F.ipynb\\",
             "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\0_5_modeling\\2f\\modeling_2f_3nm.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Additional\\mixed_populations_question_markus.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Additional\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_4_single_f_PFA_gl_bl_times\\single_f_PFA_gl_bl_times copy.ipynb\\",
+            "color": "foldercolorizer.color_000066"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\0_4_multi_f_PFA\\multi_f_PFA.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\0_4_multi_f_PFA\\",
+            "color": "foldercolorizer.color_009933"
         }
     ],
     "git.decorations.enabled": false,
@@ -190,6 +214,8 @@
         88
     ],
     "workbench.preferredLightColorTheme": "Atom One Light",
-    "workbench.preferredDarkColorTheme": "Monokai Dimmed",
+    "workbench.preferredDarkColorTheme": "Atom One Dark",
     "files.autoSave": "afterDelay",
+    "workbench.preferredHighContrastColorTheme": "Atom One Dark",
+    "workbench.preferredHighContrastLightColorTheme": "Atom One Light",
 }

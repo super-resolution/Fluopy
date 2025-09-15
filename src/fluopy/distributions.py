@@ -11,61 +11,10 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import numpy.typing as npt
-from scipy.special import i1
-from scipy.stats import expon, rv_discrete
+from scipy.stats import expon
 
 if TYPE_CHECKING:
     from fluopy.fluopy_types import RandomGeneratorSeed
-
-
-def high_gain_amplification_noise_distribution(
-    x_min: int = 1, x_max: int = 100, v: float = 1, gain: float = 100
-) -> rv_discrete:
-    """
-    The high gain amplification noise distribution as proposed in
-    https://doi.org/10.1117/12.2004621 with the adjustment of not considering 0 as a
-    possible variable's value. The support is limited to a maximum x of around
-    125000 * gain / v.
-    Applies if gain is added to poisson distributed photon counts. This is the case, if
-    the interarrival time is exponentially distributed or can be approximated with an
-    exponential distribution. Resembles a high gain approximation, indicating a better
-    fit for higher gains. Indeed, low gains of 1 to 10 should be avoided.
-
-    Parameters
-    ----------
-    x_min
-        Minimum support value.
-    x_max
-        Maximum support value.
-    v
-        The mean of the non-amplified (nearly) poissonian photon count distribution.
-        Has to include 0 counts.
-    gain
-        The gain applied to the photon counts.
-
-    Returns
-    -------
-    distribution : scipy.stats._distn_infrastructure.rv_sample
-        High gain amplification noise distribution.
-    """
-    # the value z of iv cannot be larger than ~714:
-    if x_max > 120000 * gain / v:
-        raise ValueError("x_max is too large (> 120,000 * gain / v).")
-    x = np.arange(start=x_min, stop=x_max)
-
-    x = x.astype(float)
-
-    probabilities = (
-        1
-        / x
-        * np.exp(-(x / gain + v))
-        * np.sqrt(v * x / gain)
-        * i1(2 * np.sqrt(v * x / gain))
-    )
-    probabilities = probabilities / np.sum(probabilities)
-    distribution = rv_discrete(name="high_gain_distr", values=(x, probabilities))
-
-    return distribution
 
 
 def hypoexponential_distribution_cdf(
@@ -187,24 +136,32 @@ class Photoswitching_fingerprint_model:
 
     def __init__(
         self,
-        lambdas: float | npt.ArrayLike,
-        pis_orig: float | npt.ArrayLike,
+        params: dict,
+        weights: float | npt.ArrayLike = None,
         domain: tuple[float, float] = (0, np.inf),
     ) -> None:
         """
         Parameters
         ----------
-        lambdas
-            Rates of the underlying exponential distributions (2D).
-        pis_orig
-            Weights of the underlying exponential distributions (1D).
+        params
+            Parameters of the underlying exponential distributions.
+        weights
+            Weights of each fluorophore (1D).
         domain
             Domain of the model. Default is (0, np.inf).
         """
-        self.lambdas = np.asarray(lambdas)
-        pis_orig = np.asarray(pis_orig)
-        self.pis_orig = np.array([pis_orig, 1 - pis_orig])
+        self.params = params
+        if weights is None:
+            weights = np.ones(len(params)) / len(params)
+        self.weights = np.asarray(weights)
         self.domain = domain
+        lengths = {k: len(params[k]) for k in params}
+        max_length = max(lengths.values())
+        self.z = (
+            -1
+            if list(lengths.values()).count(max_length) > 1
+            else max(lengths, key=lengths.get)
+        )
 
     def pdf(
         self, x: float | npt.ArrayLike, order: int = 0
@@ -239,22 +196,22 @@ class Photoswitching_fingerprint_model:
         else:
             raise ValueError("Order has to be 0, 1, or 2.")
 
-        n = self.lambdas.shape[1]
+        n = len(self.params)
         pdf = 0
         for i in range(n):
-            valid_combinations, pis = photoswitching_fingerprint_prepare(
-                i + 1, self.pis_orig
+            lambdas, pis = photoswitching_fingerprint_prepare(
+                self.params,
+                i + 1,
+                self.z,
             )
             pdf_part = 0
-            for j in range(i + 2):
-                pi_set = np.prod(pis[j])
+            for lambda_combo, pi_combo in zip(lambdas, pis):
+                pi_set = np.prod(pi_combo)
                 pdf_part += pi_set * call(
                     x,
-                    *self.lambdas[
-                        valid_combinations[j], np.arange(valid_combinations[j].shape[0])
-                    ],
+                    *lambda_combo,
                 )
-            pdf += 1 / n * pdf_part
+            pdf += self.weights[i] * pdf_part
 
         if self.domain != (0, np.inf):
             if self.domain[-1] == np.inf:
@@ -284,22 +241,22 @@ class Photoswitching_fingerprint_model:
         cdf : float | npt.NDArray[np.float64]
             Model output.
         """
-        n = self.lambdas.shape[1]
+        n = len(self.params)
         cdf = 0
         for i in range(n):
-            valid_combinations, pis = photoswitching_fingerprint_prepare(
-                i + 1, self.pis_orig
+            lambdas, pis = photoswitching_fingerprint_prepare(
+                self.params,
+                i + 1,
+                self.z,
             )
             cdf_part = 0
-            for j in range(i + 2):
-                pi_set = np.prod(pis[j])
+            for lambda_combo, pi_combo in zip(lambdas, pis):
+                pi_set = np.prod(pi_combo)
                 cdf_part += pi_set * hypoexponential_distribution_cdf(
                     x,
-                    *self.lambdas[
-                        valid_combinations[j], np.arange(valid_combinations[j].shape[0])
-                    ],
+                    *lambda_combo,
                 )
-            cdf += 1 / n * cdf_part
+            cdf += self.weights[i] * cdf_part
         if extra:
             return cdf
 
@@ -349,254 +306,179 @@ class Photoswitching_fingerprint_model:
 
 
 def photoswitching_fingerprint_prepare(
-    n: int, pis: npt.ArrayLike
-) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    params: dict,
+    n: int,
+    z: int,
+) -> tuple[list[list[float]], list[list[float]]]:
     """
-    Get indices for valid lambda combinations for the photoswitching fingerprint model.
-    Modifies the weights of the underlying exponential distributions by converting
-    probabilities to 1, if their counterpart is not valid.
+    Get combinations of lambdas and pis for the photoswitching fingerprint model.
+    See model derivation for details.
+
+    Parameters
+    ----------
+    params
+        Parameters of the underlying exponential distributions.
+    n
+        Number of fluorophores.
+    z
+        Index of the fluorophore that uses three exponential distributions.
+
+    Returns
+    -------
+    tuple[list[list[float]], list[list[float]]]
+        Combinations of lambdas and pis for the photoswitching fingerprint model.
+    """
+    valid_combinations = generate_combinations(n, z)
+    lambdas = map_to_lambdas(valid_combinations, params, z)
+    pis = get_pis(valid_combinations, params, z)
+    return lambdas, pis
+
+
+def generate_combinations(n: int, z: int):
+    """
+    Generate all valid convolutions of exponential distributions.
 
     Parameters
     ----------
     n
         Number of fluorophores.
-    pis
-        Weights of the underlying exponential distributions.
+    z
+        Index of the fluorophore that uses three exponential distributions.
 
     Returns
     -------
-    valid_combinations : 2-D array_like
-        Valid combinations of lambdas.
-    pis : 2-D array_like
-        Modified weights of the underlying exponential distributions.
+    valid_combos : 2-D np.ndarray
+        All valid combinations of exponential distributions. Array of shape (m, n) where
+        m is the number of valid combinations.
+        For each m, the n columns represent the n fluorophores. Each entry can be 0
+        (biased exponential distribution), 1 (non-biased exponential distribution of
+        two-component mixture), 2 (first non-biased exponential distribution of
+        three-component mixture), or 3 (second non-biased exponential distribution of
+        three-component mixture).
     """
-    combinations = product([0, 1], repeat=n)
-    valid_combinations = [
-        comb
-        for comb in combinations
-        if all(not (comb[h] == 0 and comb[h - 1] == 1) for h in range(1, n))
-    ]
-    valid_combinations = np.array(valid_combinations, dtype=int)
-    pis = pis[valid_combinations, np.arange(valid_combinations.shape[1])]
-    for n, comb in enumerate(valid_combinations):
-        ones = np.where(comb == 1)[0]
-        if ones.size > 1:
-            pis[n, ones[1:]] = 1
+    arrays = []
+    for i in range(n):
+        if i == z:
+            arrays.append([0, 2, 3])  # b, nb_1 and nb_2
+        else:
+            arrays.append([0, 1])  # b and nb_0
+    combos = np.array(list(product(*arrays)), dtype=int)
+    if combos.shape[1] == 1:
+        valid_combos = combos
+    zeros = combos == 0
+    curr_zeros = zeros[:, 1:]
+    prev_zeros = zeros[:, :-1]
+    mask = np.all((~curr_zeros) | prev_zeros, axis=1)
+    valid_combos = combos[mask]
 
-    return valid_combinations, pis
+    return valid_combos
 
 
-def ps_fingerprint_cdf_1f(
-    x: float | npt.ArrayLike,
-    lam1_1: float,
-    lam1_2: float,
-    pi1: float,
-    domain: tuple[float, float],
-) -> float | npt.NDArray[np.float64]:
+def map_to_lambdas(
+    combos: npt.NDArray[np.int_], params: dict, z: int
+) -> npt.NDArray[np.float64]:
     """
-    Cumulative distribution function of the photoswitching fingerprint model with one
-    fluorophore.
+    Map combinations to lambdas.
 
     Parameters
     ----------
-    x : float, 1-D array_like
-        Sample.
-    lam1_1
-        Rate of the first (biased) exponential distribution.
-    lam1_2
-        Rate of the second (non-biased) exponential distribution.
-    pi1
-        Weight of the first exponential distribution.
-    domain
-        Domain of the model.
+    combos
+        All valid combinations of exponential distributions.
+    params
+        Parameters of the underlying exponential distributions.
+    z
+        Index of the fluorophore that uses three exponential distributions.
 
     Returns
     -------
-    float | npt.NDArray[np.float64]
-        CDF of the photoswitching fingerprint model.
+    result : 2-D np.ndarray
+        Mapped lambdas. Array of shape (m, n) where m is the number of valid combinations
+        and n the number of fluorophores.
     """
-    cdf = Photoswitching_fingerprint_model(
-        lambdas=[[lam1_1], [lam1_2]],
-        pis_orig=[pi1],
-        domain=domain,
-    ).cdf(x)
+    result = np.empty_like(combos, dtype=float)
+    for idx in range(combos.shape[1]):
+        col = combos[:, idx]
+        if idx == z:
+            mapping = {0: params[idx][3], 2: params[idx][4], 3: params[idx][5]}
+        else:
+            mapping = {0: params[idx][2], 1: params[idx][3]}
 
-    return cdf
+        mapper = np.vectorize(mapping.get)
+        result[:, idx] = mapper(col)
+    return result
 
 
-def ps_fingerprint_cdf_2f(
-    x: float | npt.ArrayLike,
-    lam1_1: float,
-    lam2_1: float,
-    lam1_2: float,
-    lam2_2: float,
-    pi1: float,
-    pi2: float,
-    domain,
-) -> float | npt.NDArray[np.float64]:
+def get_pis(
+    combos: npt.NDArray[np.int_], params: dict, z: int
+) -> npt.NDArray[np.float64]:
     """
-    Cumulative distribution function of the photoswitching fingerprint model with two
-    fluorophores.
+    Get pis for each combination.
 
     Parameters
     ----------
-    x
-        Sample.
-    lam1_1
-        Rate of the first (biased) exponential distribution of the first fluorophore.
-    lam2_1
-        Rate of the first (biased) exponential distribution of the second fluorophore.
-    lam1_2
-        Rate of the second (non-biased) exponential distribution of the first fluorophore.
-    lam2_2
-        Rate of the second (non-biased) exponential distribution of the second fluorophore.
-    pi1
-        Weight of the first exponential distribution of the first fluorophore.
-    pi2
-        Weight of the first exponential distribution of the second fluorophore.
-    domain
-        Domain of the model.
+    combos
+        All valid combinations of exponential distributions.
+    params
+        Parameters of the underlying exponential distributions.
+    z
+        Index of the fluorophore that uses three exponential distributions.
 
     Returns
     -------
-    float | npt.NDArray[np.float64]
-        CDF of the photoswitching fingerprint model.
+    pis : 2-D np.ndarray
+        Mapped pis. Array of shape (m, n) where m is the number of valid combinations
+        and n the number of fluorophores.
     """
-    cdf = Photoswitching_fingerprint_model(
-        lambdas=[[lam1_1, lam2_1], [lam1_2, lam2_2]],
-        pis_orig=[pi1, pi2],
-        domain=domain,
-    ).cdf(x)
+    pis = np.ones_like(combos, dtype=float)
+    if z != -1:
+        normalize = params[z][1] + params[z][2]
+    else:
+        normalize = 1
+    for idx in range(combos.shape[1]):
+        col_all = combos[:, idx]
+        col_filt = combos[1:, idx]
+        mapping = {
+            0: params[idx][0],
+            1: params[idx][1],
+            2: params[idx][1],
+            3: params[idx][2],
+        }
+        mapper = np.vectorize(mapping.get, otypes=[float])
+        if idx == combos.shape[1] - 1:
+            pis[:, idx] = mapper(col_all)
+        else:
+            zeros = np.where(col_filt == 0)[0]
+            pis[1:, :][zeros, idx] = mapper(col_filt[zeros])
 
-    return cdf
+            ones = np.where(col_filt == 1)[0]
+            if idx == 0:
+                pis[1:, :][ones, idx] = mapper(col_filt[ones])
+            else:
+                mask = combos[1:, :][ones, idx - 1] == 0
+                pis[1:, :][ones[mask], idx] = mapper(col_filt[ones[mask]])
 
-
-def ps_fingerprint_cdf_3f(
-    x: float | npt.ArrayLike,
-    lam1_1: float,
-    lam2_1: float,
-    lam3_1: float,
-    lam1_2: float,
-    lam2_2: float,
-    lam3_2: float,
-    pi1: float,
-    pi2: float,
-    pi3: float,
-    domain: tuple[float, float],
-) -> float | npt.NDArray[np.float64]:
-    """
-    Cumulative distribution function of the photoswitching fingerprint model with three
-    fluorophores.
-
-    Parameters
-    ----------
-    x
-        Sample.
-    lam1_1
-        Rate of the first (biased) exponential distribution of the first fluorophore.
-    lam2_1
-        Rate of the first (biased) exponential distribution of the second fluorophore.
-    lam3_1
-        Rate of the first (biased) exponential distribution of the third fluorophore.
-    lam1_2
-        Rate of the second (non-biased) exponential distribution of the first fluorophore.
-    lam2_2
-        Rate of the second (non-biased) exponential distribution of the second fluorophore.
-    lam3_2
-        Rate of the second (non-biased) exponential distribution of the third fluorophore.
-    pi1
-        Weight of the first exponential distribution of the first fluorophore.
-    pi2
-        Weight of the first exponential distribution of the second fluorophore.
-    pi3
-        Weight of the first exponential distribution of the third fluorophore.
-    domain
-        Domain of the model.
-
-    Returns
-    -------
-    float | npt.NDArray[np.float64]
-        CDF of the photoswitching fingerprint model.
-    """
-    cdf = Photoswitching_fingerprint_model(
-        lambdas=[[lam1_1, lam2_1, lam3_1], [lam1_2, lam2_2, lam3_2]],
-        pis_orig=[pi1, pi2, pi3],
-        domain=domain,
-    ).cdf(x)
-
-    return cdf
-
-
-def ps_fingerprint_cdf_4f(
-    x: float | npt.ArrayLike,
-    lam1_1: float,
-    lam2_1: float,
-    lam3_1: float,
-    lam4_1: float,
-    lam1_2: float,
-    lam2_2: float,
-    lam3_2: float,
-    lam4_2: float,
-    pi1: float,
-    pi2: float,
-    pi3: float,
-    pi4: float,
-    domain: tuple[float, float],
-) -> float | npt.NDArray[np.float64]:
-    """
-    Cumulative distribution function of the photoswitching fingerprint model with four
-    fluorophores.
-
-    Parameters
-    ----------
-    x
-        Sample.
-    lam1_1
-        Rate of the first (biased) exponential distribution of the first fluorophore.
-    lam2_1
-        Rate of the first (biased) exponential distribution of the second fluorophore.
-    lam3_1
-        Rate of the first (biased) exponential distribution of the third fluorophore.
-    lam4_1
-        Rate of the first (biased) exponential distribution of the fourth fluorophore.
-    lam1_2
-        Rate of the second (non-biased) exponential distribution of the first fluorophore.
-    lam2_2
-        Rate of the second (non-biased) exponential distribution of the second fluorophore.
-    lam3_2
-        Rate of the second (non-biased) exponential distribution of the third fluorophore.
-    lam4_2
-        Rate of the second (non-biased) exponential distribution of the fourth fluorophore.
-    pi1
-        Weight of the first exponential distribution of the first fluorophore.
-    pi2
-        Weight of the first exponential distribution of the second fluorophore.
-    pi3
-        Weight of the first exponential distribution of the third fluorophore.
-    pi4
-        Weight of the first exponential distribution of the fourth fluorophore.
-    domain
-        Domain of the model.
-
-    Returns
-    -------
-    float | npt.NDArray[np.float64]
-        CDF of the photoswitching fingerprint model.
-    """
-    cdf = Photoswitching_fingerprint_model(
-        lambdas=[[lam1_1, lam2_1, lam3_1, lam4_1], [lam1_2, lam2_2, lam3_2, lam4_2]],
-        pis_orig=[pi1, pi2, pi3, pi4],
-        domain=domain,
-    ).cdf(x)
-
-    return cdf
+            twos_threes = np.isin(col_filt, [2, 3])
+            twos_threes = np.where(twos_threes)[0]
+            if idx == 0:
+                pis[1:, :][twos_threes, idx] = mapper(col_filt[twos_threes])
+            else:
+                mask = combos[1:, :][twos_threes, idx - 1] == 0
+                pis[1:, :][twos_threes[mask], idx] = mapper(col_filt[twos_threes[mask]])
+                pis[1:, :][twos_threes[~mask], idx] = (
+                    mapper(col_filt[twos_threes[~mask]]) / normalize
+                )
+    return pis
 
 
 def two_expon_mixture_cdf(
-    x: float | npt.ArrayLike, lambda1: float, lambda2: float, p: float
+    x: float | npt.ArrayLike,
+    p: float,
+    lambda1: float,
+    lambda2: float,
 ) -> float | npt.NDArray[np.float64]:
     """
     Cumulative distribution function of a mixture of two exponential distributions.
+    Automatic truncation is applied if x contains more than two values.
 
     Parameters
     ----------
@@ -624,10 +506,11 @@ def two_expon_mixture_cdf(
 
 
 def two_expon_mixture_pdf(
-    x: float | npt.ArrayLike, lambda1: float, lambda2: float, p: float
+    x: float | npt.ArrayLike, p: float, lambda1: float, lambda2: float
 ) -> float | npt.NDArray[np.float64]:
     """
     Probability density function of a mixture of two exponential distributions.
+    Automatic truncation is applied if x contains more than two values.
 
     Parameters
     ----------
@@ -650,6 +533,97 @@ def two_expon_mixture_pdf(
     )
     cdf = p * expon.cdf(x, scale=1 / lambda1) + (1 - p) * expon.cdf(
         x, scale=1 / lambda2
+    )
+    if pdf.size > 2:
+        pdf = pdf / (cdf[-1] - cdf[0])
+
+    return pdf
+
+
+def three_expon_mixture_cdf(
+    x: float | npt.ArrayLike,
+    p1: float,
+    p2: float,
+    lambda1: float,
+    lambda2: float,
+    lambda3: float,
+) -> float | npt.NDArray[np.float64]:
+    """
+    Cumulative distribution function of a mixture of three exponential distributions.
+    Automatic truncation is applied if x contains more than two values.
+
+    Parameters
+    ----------
+    x
+        Sample.
+    lambda1
+        Rate of the first exponential distribution.
+    lambda2
+        Rate of the second exponential distribution.
+    lambda3
+        Rate of the third exponential distribution.
+    p1
+        Weight of the first exponential distribution.
+    p2
+        Weight of the second exponential distribution.
+
+    Returns
+    -------
+    float | npt.NDArray[np.float64]
+        CDF of three exponential mixture distribution.
+    """
+    cdf = (
+        p1 * expon.cdf(x, scale=1 / lambda1)
+        + p2 * expon.cdf(x, scale=1 / lambda2)
+        + (1 - p1 - p2) * expon.cdf(x, scale=1 / lambda3)
+    )
+    if cdf.size > 2:
+        cdf = (cdf - cdf[0]) / (cdf[-1] - cdf[0])
+
+    return cdf
+
+
+def three_expon_mixture_pdf(
+    x: float | npt.ArrayLike,
+    p1: float,
+    p2: float,
+    lambda1: float,
+    lambda2: float,
+    lambda3: float,
+) -> float | npt.NDArray[np.float64]:
+    """
+    Probability density function of a mixture of three exponential distributions.
+    Automatic truncation is applied if x contains more than two values.
+
+    Parameters
+    ----------
+    x
+        Sample.
+    lambda1
+        Rate of the first exponential distribution.
+    lambda2
+        Rate of the second exponential distribution.
+    lambda3
+        Rate of the third exponential distribution.
+    p1
+        Weight of the first exponential distribution.
+    p2
+        Weight of the second exponential distribution.
+
+    Returns
+    -------
+    float | npt.NDArray[np.float64]
+        PDF of three exponential mixture distribution.
+    """
+    pdf = (
+        p1 * expon.pdf(x, scale=1 / lambda1)
+        + p2 * expon.pdf(x, scale=1 / lambda2)
+        + (1 - p1 - p2) * expon.pdf(x, scale=1 / lambda3)
+    )
+    cdf = (
+        p1 * expon.cdf(x, scale=1 / lambda1)
+        + p2 * expon.cdf(x, scale=1 / lambda2)
+        + (1 - p1 - p2) * expon.cdf(x, scale=1 / lambda3)
     )
     if pdf.size > 2:
         pdf = pdf / (cdf[-1] - cdf[0])

@@ -85,7 +85,7 @@ def universal_figure(
         Factor to scale the figure.
     type_
         Type of the plot. One of "hist", "multiple_hist", "bar", "line",
-        "multiple_line", "scatter", "errorbar", "step".
+        "multiple_line", "scatter", "errorbar", "step", "stair".
     data
         Data to be plotted. Required formation depends on input parameter type_.
     label
@@ -302,6 +302,14 @@ def universal_figure(
             ax.plot(data[0], data[1], color=color, label=label, **type_specific_kwargs)
         case "step":
             ax.step(data[0], data[1], color=color, label=label, **type_specific_kwargs)
+        case "stair":
+            ax.stairs(
+                data[1],
+                data[0],
+                color=color,
+                label=label,
+                **type_specific_kwargs,
+            )
         case "errorbar":
             ax.errorbar(
                 data[0],

@@ -13,7 +13,6 @@ import numpy.typing as npt
 import pandas as pd
 
 from . import emissions as em
-from . import fitting as fit
 from . import formulas as fo
 from . import simulation as si
 
@@ -91,12 +90,11 @@ def get_bleaching_times(simulation: Simulation) -> npt.NDArray[np.float64]:
     return bleaching_times
 
 
-def get_global_bleaching_rates(
+def get_delta_bleaching_times(
     bleaching_times: npt.ArrayLike,
 ) -> tuple[npt.NDArray[np.float64], list[npt.NDArray[np.float64]]]:
     """
-    Get the global bleaching rates for each fluorophore. The global bleaching rate is
-    the inverse of the lifetime of a fluorophore starting from the last bleaching event.
+    Get the delta times between bleaching events.
 
     Parameters
     ----------
@@ -106,13 +104,10 @@ def get_global_bleaching_rates(
 
     Returns
     -------
-    global_bleaching_rates : npt.NDArray[np.float64]
-        The two global bleaching rates and the mixing factor for each fluorophore.
     delta_bleaching_times_all : list[npt.NDArray[np.float64]]
         The arrival times of photons between bleaching events. The timer starts at the
         previous bleaching event.
     """
-    global_bleaching_rates = []
     delta_bleaching_times_all = []
     previous_times = np.zeros_like(bleaching_times.shape[0])
     for fluorophore in range(bleaching_times.shape[1]):
@@ -121,18 +116,8 @@ def get_global_bleaching_rates(
         delta_bleaching_times = delta_bleaching_times[~np.isnan(delta_bleaching_times)]
         delta_bleaching_times_all.append(delta_bleaching_times)
         previous_times = bleaching_times_fluo
-        p1, lambda_1, lambda_2 = fit.estimate_mixture_parameters(
-            data=delta_bleaching_times,
-            initial_guess=[0.1, 0.01, 0.5],
-            bounds=[(0, 1), (0, None), (0, None)],
-            truncation_low=0,
-            truncation_up=300,
-        )
-        model_parameters = np.array([lambda_1, lambda_2, p1])
-        global_bleaching_rates.append(model_parameters)
-    global_bleaching_rates = np.array(global_bleaching_rates)
 
-    return global_bleaching_rates, delta_bleaching_times_all
+    return delta_bleaching_times_all
 
 
 def fingerprint_analysis(
@@ -175,7 +160,7 @@ def fingerprint_analysis(
     bleaching_times : npt.NDArray[np.float64]
         Times where photobleaching occurred. Each run is a row, each fluorophore a
         column). Each row is sorted, np.nan will be at the end.
-    delta_times_photons_between_bleaching : llist[list[float]]
+    delta_times_photons_between_bleaching : list[list[float]]
         The arrival times of photons between bleaching events. The timer starts at the
         previous bleaching event.
     """
