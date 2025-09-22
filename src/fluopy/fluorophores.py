@@ -304,6 +304,8 @@ class FluorophoreSystem:
         axes : npt.NDArray[matplotlib.axes.Axes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
+        if self.fluorophores[0].position.shape[0] != 2:
+            raise ValueError("Only 2D positions can be plotted.")
         positions = np.empty(shape=(2, self.count))
         labels = []
         for i, fluorophore in enumerate(self.fluorophores):
@@ -344,7 +346,9 @@ def get_distances(
     for i, position_1 in enumerate(positions):
         for j, position_2 in enumerate(positions):
             if i != j and (i, j) not in distances:
-                distances[(i, j)] = np.round(np.linalg.norm(position_1 - position_2), 3)
+                distances[(i, j)] = np.round(
+                    np.linalg.norm(position_1 - position_2), decimals=3
+                )
 
     return distances  # type: ignore[return-value]
 

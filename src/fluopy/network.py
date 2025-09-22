@@ -52,7 +52,7 @@ def construct_state_graphs(transition_df: pd.DataFrame) -> list[nx.MultiDiGraph]
                 )
                 edges.append(edge)
             else:
-                pattern = re.compile(r"D: (\w+), A: (\w+), dist: (\w+)")
+                pattern = re.compile(r"D: (\w+), A: (\w+), dist: ([\d.]+)")
                 d, a, dist = pattern.findall(fluorophore)[0]
                 source_1 = transition["initial_state"].value[0].name
                 source_2 = transition["initial_state"].value[1].name

@@ -155,13 +155,41 @@ class Photoswitching_fingerprint_model:
             weights = np.ones(len(params)) / len(params)
         self.weights = np.asarray(weights)
         self.domain = domain
-        lengths = {k: len(params[k]) for k in params}
-        max_length = max(lengths.values())
-        self.z = (
-            -1
-            if list(lengths.values()).count(max_length) > 1
-            else max(lengths, key=lengths.get)
+        self.z = next((k for k, v in params.items() if len(v) == 6), -1)
+
+    def pdf_part(
+        self,
+        call: Callable | None,
+        x: float | npt.ArrayLike,
+        i: int,
+        normalize: bool = False,
+    ) -> float | npt.NDArray[np.float64]:
+        if call is None:
+            call = hypoexponential_distribution_pdf
+        lambdas, pis = photoswitching_fingerprint_prepare(
+            self.params,
+            i + 1,
+            self.z,
         )
+        pdf_part = 0
+        for lambda_combo, pi_combo in zip(lambdas, pis):
+            pi_set = np.prod(pi_combo)
+            pdf_part += pi_set * call(
+                x,
+                *lambda_combo,
+            )
+        if not normalize:
+            return pdf_part
+
+        if self.domain != (0, np.inf):
+            if self.domain[-1] == np.inf:
+                F_1 = 1
+            else:
+                F_1 = self.cdf_part(self.domain[-1], i, normalize=False)
+            F_0 = self.cdf_part(self.domain[0], i, normalize=False)
+            pdf_part = pdf_part / (F_1 - F_0)  # true for pdf, dpdf, ddpdf
+
+        return pdf_part
 
     def pdf(
         self, x: float | npt.ArrayLike, order: int = 0
@@ -199,18 +227,7 @@ class Photoswitching_fingerprint_model:
         n = len(self.params)
         pdf = 0
         for i in range(n):
-            lambdas, pis = photoswitching_fingerprint_prepare(
-                self.params,
-                i + 1,
-                self.z,
-            )
-            pdf_part = 0
-            for lambda_combo, pi_combo in zip(lambdas, pis):
-                pi_set = np.prod(pi_combo)
-                pdf_part += pi_set * call(
-                    x,
-                    *lambda_combo,
-                )
+            pdf_part = self.pdf_part(x, call=call, i=i, normalize=False)
             pdf += self.weights[i] * pdf_part
 
         if self.domain != (0, np.inf):
@@ -223,8 +240,41 @@ class Photoswitching_fingerprint_model:
 
         return pdf
 
+    def cdf_part(
+        self,
+        x: float | npt.ArrayLike,
+        i: int,
+        normalize: bool = False,
+    ) -> float | npt.NDArray[np.float64]:
+        lambdas, pis = photoswitching_fingerprint_prepare(
+            self.params,
+            i + 1,
+            self.z,
+        )
+        cdf_part = 0
+        for lambda_combo, pi_combo in zip(lambdas, pis):
+            pi_set = np.prod(pi_combo)
+            cdf_part += pi_set * hypoexponential_distribution_cdf(
+                x,
+                *lambda_combo,
+            )
+        if not normalize:
+            return cdf_part
+
+        if self.domain != (0, np.inf):
+            if self.domain[-1] == np.inf:
+                F_1 = 1
+            else:
+                F_1 = self.cdf_part(self.domain[-1], i, normalize=False)
+            F_0 = self.cdf_part(self.domain[0], i, normalize=False)
+            cdf_part = (cdf_part - F_0) / (F_1 - F_0)
+
+        return cdf_part
+
     def cdf(
-        self, x: float | npt.ArrayLike, extra: bool = False
+        self,
+        x: float | npt.ArrayLike,
+        extra: bool = False,
     ) -> float | npt.NDArray[np.float64]:
         """
         CDF
@@ -244,18 +294,7 @@ class Photoswitching_fingerprint_model:
         n = len(self.params)
         cdf = 0
         for i in range(n):
-            lambdas, pis = photoswitching_fingerprint_prepare(
-                self.params,
-                i + 1,
-                self.z,
-            )
-            cdf_part = 0
-            for lambda_combo, pi_combo in zip(lambdas, pis):
-                pi_set = np.prod(pi_combo)
-                cdf_part += pi_set * hypoexponential_distribution_cdf(
-                    x,
-                    *lambda_combo,
-                )
+            cdf_part = self.cdf_part(x, i, normalize=False)
             cdf += self.weights[i] * cdf_part
         if extra:
             return cdf
@@ -475,10 +514,11 @@ def two_expon_mixture_cdf(
     p: float,
     lambda1: float,
     lambda2: float,
+    domain: tuple[float, float] = (0, np.inf),
+    extra: bool = False,
 ) -> float | npt.NDArray[np.float64]:
     """
     Cumulative distribution function of a mixture of two exponential distributions.
-    Automatic truncation is applied if x contains more than two values.
 
     Parameters
     ----------
@@ -499,18 +539,34 @@ def two_expon_mixture_cdf(
     cdf = p * expon.cdf(x, scale=1 / lambda1) + (1 - p) * expon.cdf(
         x, scale=1 / lambda2
     )
-    if cdf.size > 2:
-        cdf = (cdf - cdf[0]) / (cdf[-1] - cdf[0])
+    if extra:
+        return cdf
+    if domain != (0, np.inf):
+        if domain[-1] == np.inf:
+            F_1 = 1
+        else:
+            F_1 = two_expon_mixture_cdf(
+                domain[-1],
+                p,
+                lambda1,
+                lambda2,
+                extra=True,
+            )
+        F_0 = two_expon_mixture_cdf(domain[0], p, lambda1, lambda2, extra=True)
+        cdf = (cdf - F_0) / (F_1 - F_0)
 
     return cdf
 
 
 def two_expon_mixture_pdf(
-    x: float | npt.ArrayLike, p: float, lambda1: float, lambda2: float
+    x: float | npt.ArrayLike,
+    p: float,
+    lambda1: float,
+    lambda2: float,
+    domain: tuple[float, float] = (0, np.inf),
 ) -> float | npt.NDArray[np.float64]:
     """
     Probability density function of a mixture of two exponential distributions.
-    Automatic truncation is applied if x contains more than two values.
 
     Parameters
     ----------
@@ -531,11 +587,19 @@ def two_expon_mixture_pdf(
     pdf = p * expon.pdf(x, scale=1 / lambda1) + (1 - p) * expon.pdf(
         x, scale=1 / lambda2
     )
-    cdf = p * expon.cdf(x, scale=1 / lambda1) + (1 - p) * expon.cdf(
-        x, scale=1 / lambda2
-    )
-    if pdf.size > 2:
-        pdf = pdf / (cdf[-1] - cdf[0])
+    if domain != (0, np.inf):
+        if domain[-1] == np.inf:
+            F_1 = 1
+        else:
+            F_1 = two_expon_mixture_cdf(
+                domain[-1],
+                p,
+                lambda1,
+                lambda2,
+                extra=True,
+            )
+        F_0 = two_expon_mixture_cdf(domain[0], p, lambda1, lambda2, extra=True)
+        pdf = pdf / (F_1 - F_0)
 
     return pdf
 
@@ -547,10 +611,11 @@ def three_expon_mixture_cdf(
     lambda1: float,
     lambda2: float,
     lambda3: float,
+    domain: tuple[float, float] = (0, np.inf),
+    extra: bool = False,
 ) -> float | npt.NDArray[np.float64]:
     """
     Cumulative distribution function of a mixture of three exponential distributions.
-    Automatic truncation is applied if x contains more than two values.
 
     Parameters
     ----------
@@ -577,8 +642,31 @@ def three_expon_mixture_cdf(
         + p2 * expon.cdf(x, scale=1 / lambda2)
         + (1 - p1 - p2) * expon.cdf(x, scale=1 / lambda3)
     )
-    if cdf.size > 2:
-        cdf = (cdf - cdf[0]) / (cdf[-1] - cdf[0])
+    if extra:
+        return cdf
+    if domain != (0, np.inf):
+        if domain[-1] == np.inf:
+            F_1 = 1
+        else:
+            F_1 = three_expon_mixture_cdf(
+                domain[-1],
+                p1,
+                p2,
+                lambda1,
+                lambda2,
+                lambda3,
+                extra=True,
+            )
+        F_0 = three_expon_mixture_cdf(
+            domain[0],
+            p1,
+            p2,
+            lambda1,
+            lambda2,
+            lambda3,
+            extra=True,
+        )
+        cdf = (cdf - F_0) / (F_1 - F_0)
 
     return cdf
 
@@ -590,10 +678,10 @@ def three_expon_mixture_pdf(
     lambda1: float,
     lambda2: float,
     lambda3: float,
+    domain: tuple[float, float] = (0, np.inf),
 ) -> float | npt.NDArray[np.float64]:
     """
     Probability density function of a mixture of three exponential distributions.
-    Automatic truncation is applied if x contains more than two values.
 
     Parameters
     ----------
@@ -620,13 +708,29 @@ def three_expon_mixture_pdf(
         + p2 * expon.pdf(x, scale=1 / lambda2)
         + (1 - p1 - p2) * expon.pdf(x, scale=1 / lambda3)
     )
-    cdf = (
-        p1 * expon.cdf(x, scale=1 / lambda1)
-        + p2 * expon.cdf(x, scale=1 / lambda2)
-        + (1 - p1 - p2) * expon.cdf(x, scale=1 / lambda3)
-    )
-    if pdf.size > 2:
-        pdf = pdf / (cdf[-1] - cdf[0])
+    if domain != (0, np.inf):
+        if domain[-1] == np.inf:
+            F_1 = 1
+        else:
+            F_1 = three_expon_mixture_cdf(
+                domain[-1],
+                p1,
+                p2,
+                lambda1,
+                lambda2,
+                lambda3,
+                extra=True,
+            )
+        F_0 = three_expon_mixture_cdf(
+            domain[0],
+            p1,
+            p2,
+            lambda1,
+            lambda2,
+            lambda3,
+            extra=True,
+        )
+        pdf = pdf / (F_1 - F_0)
 
     return pdf
 
