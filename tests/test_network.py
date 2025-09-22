@@ -61,50 +61,50 @@ def test_construct_state_graphs(tr_set_bl_et_3f):
             (
                 "testfluo_1_S1",
                 "testfluo_1_S0(2)",
-                {"w": "FRET", "dist": "distance: 1 nm"},
+                {"w": "FRET", "dist": "distance: 1.0 nm"},
             ),
             (
                 "testfluo_1_S1",
                 "testfluo_1_T1(2)",
-                {"w": "STA", "dist": "distance: 1 nm"},
+                {"w": "STA", "dist": "distance: 1.0 nm"},
             ),
         ],
         [
             (
                 "testfluo_1_S1",
                 "testfluo_2_S0(2)",
-                {"w": "FRET", "dist": "distance: 1 nm"},
+                {"w": "FRET", "dist": "distance: 1.0 nm"},
             )
         ],
         [
             (
                 "testfluo_1_S1",
                 "testfluo_2_S0(2)",
-                {"w": "FRET", "dist": "distance: 2 nm"},
+                {"w": "FRET", "dist": "distance: 2.0 nm"},
             )
         ],
         [
             (
                 "testfluo_2_S1",
                 "testfluo_1_S0(2)",
-                {"w": "FRET", "dist": "distance: 1 nm"},
+                {"w": "FRET", "dist": "distance: 1.0 nm"},
             ),
             (
                 "testfluo_2_S1",
                 "testfluo_1_T1(2)",
-                {"w": "STA", "dist": "distance: 1 nm"},
+                {"w": "STA", "dist": "distance: 1.0 nm"},
             ),
         ],
         [
             (
                 "testfluo_2_S1",
                 "testfluo_1_S0(2)",
-                {"w": "FRET", "dist": "distance: 2 nm"},
+                {"w": "FRET", "dist": "distance: 2.0 nm"},
             ),
             (
                 "testfluo_2_S1",
                 "testfluo_1_T1(2)",
-                {"w": "STA", "dist": "distance: 2 nm"},
+                {"w": "STA", "dist": "distance: 2.0 nm"},
             ),
         ],
         [

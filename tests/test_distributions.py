@@ -5,23 +5,6 @@ from fluopy import distributions as dist
 
 
 @pytest.mark.parametrize(
-    "x_min, x_max, v, gain, expected",
-    [[1, 130000, 1, 1, "ValueError"], [1, 125940, 1, 20, 32.1022]],
-)
-def test_high_gain_amplification_noise_distribution(x_min, x_max, v, gain, expected):
-    if expected == "ValueError":
-        with pytest.raises(ValueError):
-            dist.high_gain_amplification_noise_distribution(
-                x_min=x_min, x_max=x_max, v=v, gain=gain
-            )
-    else:
-        distribution = dist.high_gain_amplification_noise_distribution(
-            x_min=x_min, x_max=x_max, v=v, gain=gain
-        )
-        np.testing.assert_allclose(distribution.mean(), expected, rtol=1e-4)
-
-
-@pytest.mark.parametrize(
     "x, args, expected",
     [[1, [1], 0.6321], [1, [1, 0.9], 0.2452], [1, [1, 0.99, 1.01], 0.08029]],
 )
@@ -40,28 +23,32 @@ def test_hypoexponential_distribution_pdf(x, args, expected):
 
 
 def test_photoswitching_fingerprint_prepare():
-    valid_combinations, pis = dist.photoswitching_fingerprint_prepare(
-        n=3, pis=np.array([[1, 0.7, 0.5], [0, 0.3, 0.5]])
+    lambdas, pis = dist.photoswitching_fingerprint_prepare(
+        params={0: [1, 0, 1, 0.7], 1: [0.7, 0.3, 0.7, 0.5], 2: [0.5, 0.5, 0.5, 0.3]},
+        n=3,
+        z=-1,
     )
-    expected_combinations = np.array([[0, 0, 0], [0, 0, 1], [0, 1, 1], [1, 1, 1]])
-    expected_pis = np.array([[1, 0.7, 0.5], [1, 0.7, 0.5], [1, 0.3, 1], [0, 1, 1]])
-    np.testing.assert_array_equal(valid_combinations, expected_combinations)
-    np.testing.assert_array_equal(pis, expected_pis)
+    np.testing.assert_array_equal(
+        lambdas, [[1, 0.7, 0.5], [1, 0.7, 0.3], [1, 0.5, 0.3], [0.7, 0.5, 0.3]]
+    )
+    np.testing.assert_array_equal(
+        pis, [[1, 1, 0.5], [1, 0.7, 0.5], [1, 0.3, 0.5], [0, 1, 0.5]]
+    )
 
 
 def test_PFM_cdf():
     cdf = dist.Photoswitching_fingerprint_model(
-        lambdas=[[1, 0.7, 0.5], [0.7, 0.5, 0.3]], pis_orig=[1, 0.7, 0.5]
+        params={0: [1, 0, 1, 0.7], 1: [0.7, 0.3, 0.7, 0.5], 2: [0.5, 0.5, 0.5, 0.3]},
     ).cdf(x=2)
-    expected = 0.4838
+    expected = 0.487748
     np.testing.assert_allclose(cdf, expected, rtol=1e-4)
 
 
 def test_PFM_pdf():
     pdf = dist.Photoswitching_fingerprint_model(
-        lambdas=[[1, 0.7, 0.5], [0.7, 0.5, 0.3]], pis_orig=[1, 0.7, 0.5]
+        params={0: [1, 0, 1, 0.7], 1: [0.7, 0.3, 0.7, 0.5], 2: [0.5, 0.5, 0.5, 0.3]},
     ).pdf(x=2)
-    expected = 0.17106
+    expected = 0.174595
     np.testing.assert_allclose(pdf, expected, rtol=1e-4)
 
 

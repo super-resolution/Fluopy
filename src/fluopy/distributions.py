@@ -227,7 +227,7 @@ class Photoswitching_fingerprint_model:
         n = len(self.params)
         pdf = 0
         for i in range(n):
-            pdf_part = self.pdf_part(x, call=call, i=i, normalize=False)
+            pdf_part = self.pdf_part(call=call, x=x, i=i, normalize=False)
             pdf += self.weights[i] * pdf_part
 
         if self.domain != (0, np.inf):
@@ -368,7 +368,9 @@ def photoswitching_fingerprint_prepare(
         Combinations of lambdas and pis for the photoswitching fingerprint model.
     """
     valid_combinations = generate_combinations(n, z)
+    print(valid_combinations)
     lambdas = map_to_lambdas(valid_combinations, params, z)
+    print(lambdas)
     pis = get_pis(valid_combinations, params, z)
     return lambdas, pis
 
@@ -441,9 +443,7 @@ def map_to_lambdas(
             mapping = {0: params[idx][3], 2: params[idx][4], 3: params[idx][5]}
         else:
             mapping = {0: params[idx][2], 1: params[idx][3]}
-
-        mapper = np.vectorize(mapping.get)
-        result[:, idx] = mapper(col)
+        result[:, idx] = np.array([mapping.get(x) for x in col])
     return result
 
 
