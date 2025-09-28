@@ -7,7 +7,7 @@ from __future__ import annotations
 import copy
 import os
 import re
-from collections.abc import Collection
+from collections.abc import Collection, Iterable
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from itertools import product
@@ -23,6 +23,8 @@ from . import formulas as fo
 from . import network as net
 
 if TYPE_CHECKING:
+    from matplotlib.axes import Axes as mplAxes
+
     from fluopy.fluo_data import FluorophoreData
     from fluopy.fluorophores import Fluorophore, FluorophoreSystem
 
@@ -600,7 +602,8 @@ class TransitionSet:
         graph_type: str = "shell",
         colors: Collection | None = None,
         scale: float = 1,
-    ) -> None:
+        axes: Iterable[mplAxes] | None = None,
+    ) -> list[mplAxes]:
         """
         Plot photophysical system as network/graph.
 
@@ -612,14 +615,31 @@ class TransitionSet:
             Contains two colors as Hex values of type str.
         scale
             Factor to scale the figure.
+        axes
+            Axes elements to plot graphs on.
 
         Returns
         -------
-        None
+        list[matplotlib.axes.Axes]
+            Axes objects with the plots.
         """
         graphs = net.construct_state_graphs(transition_df=self.transition_df)
-        for graph in graphs:
-            net.plot_graph(G=graph, graph_type=graph_type, colors=colors, scale=scale)
+
+        if axes is None:
+            axes = [None] * len(graphs)
+
+        return_axes = []
+        try:
+            for graph, ax in zip(graphs, axes, strict=True):
+                ax = net.plot_graph(
+                    G=graph, graph_type=graph_type, colors=colors, scale=scale, ax=ax
+                )
+                return_axes.append(ax)
+        except ValueError as exception:
+            raise ValueError(
+                f"The number of axes elements must be {len(graphs)} or None"
+            ) from exception
+        return return_axes
 
 
 def get_single_states(

@@ -1,5 +1,6 @@
 from dataclasses import asdict
 
+import matplotlib.axes
 import numpy as np
 import pandas as pd
 import pytest
@@ -136,6 +137,33 @@ class TestTransitionSet:
         assert isinstance(transition_set.transition_df, pd.DataFrame)
         assert len(transition_set.transition_df) == 2
         assert transition_set.transition_matrix.shape == (2, 2)
+
+    def test_plot(self, flu_sys_cy5):
+        transition_1 = tr.Transition(
+            tr.TransitionType.EXCITATION, rate=1e6, fluorophore_ids=[0]
+        )
+        transition_2 = tr.Transition(
+            tr.TransitionType.FLUORESCENT_EMISSION, rate=1e9, fluorophore_ids=[0]
+        )
+        transitions = {
+            "testfluo_1": [transition_1, transition_2],
+        }
+        fluorophore_system = flu_sys_cy5
+        transition_set = tr.TransitionSet(
+            transitions=transitions, fluorophore_system=fluorophore_system
+        )
+        transition_set = tr.TransitionSet(
+            transitions=transitions, fluorophore_system=fluorophore_system
+        )
+        transition_set.finalize()
+
+        axes = transition_set.plot()
+        for ax_ in axes:
+            assert isinstance(ax_, matplotlib.axes.Axes)
+
+        with pytest.raises(ValueError):
+            transition_set.plot(axes=[])
+        # plt.show()
 
     @pytest.mark.parametrize(
         "transition_type, fluorophore_ids, fluo_comb, expected",
