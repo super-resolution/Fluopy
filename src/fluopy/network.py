@@ -172,6 +172,7 @@ def plot_graph(
     graph_type: str = "shell",
     colors: Sequence[str] = None,
     scale: float = 1,
+    ax: mplAxes | None = None,
 ) -> mplAxes:
     """
     Plot graph.
@@ -188,15 +189,20 @@ def plot_graph(
         Contains two colors as Hex values of type str.
     scale
         Factor to scale the figure.
+    ax : matplotlib.axes.Axes
+        The axes on which to show the image
 
     Returns
     -------
-    ax : matplotlib.axes._subplots.AxesSubplot
+    matplotlib.axes.Axes
+        Axes object with the plot.
     """
+    if ax is None:
+        ax = plt.gca()
+
     if colors is None:
         colors = ["#ADD8E6", "#FFF0C8"]
     rcParams["figure.dpi"] = rcParamsDefault["figure.dpi"] * scale
-    _, ax = plt.subplots()
     if graph_type == "circular":
         pos = nx.circular_layout(G)
     elif graph_type == "planar":
