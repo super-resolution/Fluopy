@@ -20,9 +20,12 @@ from . import emissions
 from . import fcs
 from . import figure
 from . import fitting
+from . import fluo_data
 from . import fluorophores
 from . import formulas
+from . import kappa_squared
 from . import miscellaneous
+from . import network
 from . import prediction
 from . import routines
 from . import simulation
