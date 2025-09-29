@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Self
 
+import matplotlib.pyplot as plt
 import multipletau as mp
 import numba
 import numpy as np
@@ -166,6 +167,50 @@ class FCS:
         self.autocorrelation = autocorrelation + 1
 
         return self
+
+    def plot_matplotlib(
+        self,
+        normalize_to: int | None = None,
+        unit: str = "s",
+        ax: mplAxes | None = None,
+        **kwargs: Any,
+    ) -> mplAxes:
+        """
+        Plot FCS data.
+
+        Parameters
+        ----------
+        normalize_to
+            Index of datapoint to which the data is normalized.
+        unit
+            One of 's', 'ms', 'us'. Influences the unit of the x-axis.
+        ax
+            Axis to plot on.
+        kwargs
+            Other parameters passed to :func:`matplotlib.pyplot.plot`.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+            Axes object with the plot.
+        """
+        if ax is None:
+            ax = plt.gca()
+
+        tau_data, correl_data = np.copy(self.tau), np.copy(self.autocorrelation)
+        if normalize_to is not None:
+            correl_data /= correl_data[normalize_to]
+
+        adjust_unit = pd.to_timedelta(1, unit=unit).total_seconds()
+        tau_data = tau_data / adjust_unit
+
+        ax.plot(tau_data, correl_data, **kwargs)
+        ax.set_title(rf"$\tau_{{min}} = {tau_data[0]:.2e}$ {unit}")
+        ax.set_xlabel(rf"$\tau \ ({unit})$")
+        ax.set_xscale("log")
+        ax.set_ylabel(r"$G(\tau)$")
+
+        return ax
 
     def plot(
         self, normalize_to: int | None = None, unit: str = "s", **kwargs: Any

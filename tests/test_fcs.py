@@ -1,4 +1,6 @@
+import matplotlib.pyplot as plt  # needed for visual inspection  # noqa: F401
 import numpy as np
+from matplotlib.axes import Axes as mplAxes
 
 from fluopy import fcs as fcs_p
 
@@ -8,6 +10,19 @@ def test_fcs(em_very_large):
     assert fcs_obj.emissions == em_very_large
     assert fcs_obj.autocorrelation is None
     assert fcs_obj.tau is None
+
+
+def test_fcs_plot(em_very_large):
+    fcs_obj = fcs_p.FCS(emissions=em_very_large)
+    fcs_obj.autocorrelate_time_points(
+        exp_min=-8, exp_max=-2, points_per_base=4, base=10, normalize=True
+    )
+    ax = fcs_obj.plot_matplotlib()
+    assert isinstance(ax, mplAxes)
+    # plt.show()
+
+    fcs_obj.plot()
+    # plt.show()
 
 
 def test_fcs_autocorrelate_time_points(em_very_large):
