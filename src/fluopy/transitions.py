@@ -930,7 +930,9 @@ def construct_transition_matrix(
         of rates of all possbile combined_state_transitions.
     """
     transition_count = combined_state_transitions_df.index.size
-    transition_rate_matrix = np.zeros(shape=(transition_count, transition_count))
+    transition_rate_matrix = np.zeros(
+        shape=(transition_count, transition_count), dtype=np.float64
+    )
 
     for i, row in combined_state_transitions_df.iterrows():
         final_state = row["final_state"]
@@ -941,7 +943,7 @@ def construct_transition_matrix(
             indices
         ]
 
-    row_sums = transition_rate_matrix.sum(axis=1)
+    row_sums = transition_rate_matrix.sum(axis=1, dtype=np.float64)
     row_sums_exp = np.tile(np.expand_dims(row_sums, axis=1), row_sums.size)
     mask = np.ma.make_mask(row_sums_exp)
     transition_matrix = np.divide(

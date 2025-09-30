@@ -4,14 +4,12 @@ Module fitting
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
-from scipy.optimize import Bounds, LinearConstraint, differential_evolution, minimize
-from scipy.stats import expon
-from sklearn.metrics import r2_score, root_mean_squared_error
+from scipy.optimize import Bounds, LinearConstraint, differential_evolution
 
 from . import distributions as dist
 
@@ -19,81 +17,28 @@ if TYPE_CHECKING:
     pass
 
 
-def mixture_log_likelihood(
-    params: Iterable,
-    data: npt.ArrayLike,
-    truncation_low: float,
-    truncation_up: float,
-    number_no_events: int = 0,
-) -> float:
-    """
-    Negative log-likelihood of a mixture of two exponential distributions (pdf).
-
-    Parameters
-    ----------
-    params
-        Parameters of the mixture distribution.
-    data
-        Sample.
-    truncation_low
-        Lower truncation of the distribution.
-    truncation_up
-        Upper truncation of the distribution.
-    number_no_events
-        Number of runs without events.
-
-    Returns
-    -------
-    float
-        Negative log-likelihood to be minimized.
-    """
-    pi, lambda1, lambda2 = params
-
-    if not (0 <= pi <= 1) or lambda1 <= 0 or lambda2 <= 0:
-        return 1e20
-
-    norm1 = (1 - np.exp(-lambda1 * truncation_up)) - (  # adjust for truncation
-        1 - np.exp(-lambda1 * truncation_low)
-    )
-    norm2 = (1 - np.exp(-lambda2 * truncation_up)) - (
-        1 - np.exp(-lambda2 * truncation_low)
-    )
-
-    exp1 = pi * expon.pdf(data, scale=1 / lambda1) / norm1
-    exp2 = (1 - pi) * expon.pdf(data, scale=1 / lambda2) / norm2
-    pdf = exp1 + exp2
-    safe_pdf = np.clip(pdf, 1e-14, None)
-    log_likelihood_observation = np.log(safe_pdf)
-    if number_no_events == 0:
-        log_likelihood_no_observation = 0
-    else:
-        prob_event = pi * norm1 + (1 - pi) * norm2  # probability of observing an event
-        # within the truncation range (given the distribution is non-truncated)
-        prob_event = np.minimum(prob_event, 1 - 1e-14)  # avoid log(0)
-        log_likelihood_no_observation = np.log1p(-prob_event) * number_no_events
-
-    log_likelihood = np.sum(log_likelihood_observation) + log_likelihood_no_observation
-    negative_log_likelihood = -log_likelihood
-
-    return negative_log_likelihood
-
-
-def mixture_log_likelihood_hist(
+def log_likelihood_hist_v1(
+    model,
     params: Iterable,
     counts: npt.ArrayLike,
     bin_edges: npt.ArrayLike,
     truncation_low: float,
     truncation_up: float,
-    rel_events_not_observed: int,
+    counts_not_observed: int,
 ) -> float:
     """
-    Negative log-likelihood of a mixture of two exponential distributions (probability
-    within bins).
+    Negative log-likelihood of a distribution specified by its CDF and parameters. The
+    distribution is truncated between truncation_low and truncation_up, meaning the
+    probability of observing an event outside this range is 0. This is why here, to
+    include the log-likelihood term of not observing an event due to truncation, we also
+    add a term for the probability of observing an event within the truncation range.
 
     Parameters
     ----------
+    model
+        A custom distribution defined in distributions.py.
     params
-        Parameters of the mixture distribution.
+        Parameters of the distribution.
     counts
         Counts of the histogram.
     bin_edges
@@ -102,275 +47,233 @@ def mixture_log_likelihood_hist(
         Lower truncation of the distribution.
     truncation_up
         Upper truncation of the distribution.
+    counts_not_observed
+        Number of events not observed due to truncation.
 
     Returns
     -------
     float
-        Negative log-likelihood to be minimized.
+        Negative log-likelihood.
     """
-    pi, lambda1, lambda2 = params
-
-    if not (0 <= pi <= 1) or lambda1 <= 0 or lambda2 <= 0:
-        return 1e20
-
     a = bin_edges[:-1]
     b = bin_edges[1:]
     # calculate the probability of observing an event between a and b if the distribution
     # is truncated between trunc_low and trunc_up
-    # e^-lam a - e^-lam b is the same as 1 - e^-lam a - (1 - e^-lam b)
-    probs = dist.two_expon_mixture_cdf(
-        b, pi, lambda1, lambda2, domain=(truncation_low, truncation_up)
-    ) - dist.two_expon_mixture_cdf(
-        a, pi, lambda1, lambda2, domain=(truncation_low, truncation_up)
-    )
+    probs = model(params, domain=(truncation_low, truncation_up)).cdf(b) - model(
+        params, domain=(truncation_low, truncation_up)
+    ).cdf(a)
     probs = np.clip(probs, 1e-14, None)  # avoid log(0)
     log_likelihood_bin = np.sum(counts * np.log(probs))
 
-    if rel_events_not_observed == 0:
-        log_likelihood_no_observation = 0
-        log_likelihood_observation = 0
-    else:
-        prob_event = dist.two_expon_mixture_cdf(
-            truncation_up, pi, lambda1, lambda2, domain=(0, np.inf)
-        ) - dist.two_expon_mixture_cdf(
-            truncation_low, pi, lambda1, lambda2, domain=(0, np.inf)
-        )
-        # probability of observing an event
-        # within the truncation range (given the distribution is non-truncated)
-        prob_event = np.minimum(prob_event, 1 - 1e-14)  # avoid log(0)
-        factor = rel_events_not_observed / (1 - rel_events_not_observed)
-        log_likelihood_no_observation = np.log1p(-prob_event) * np.sum(counts) * factor
-        log_likelihood_observation = np.sum(counts) * np.log(prob_event)
+    prob_event = model(params, domain=(0, np.inf)).cdf(truncation_up) - model(
+        params, domain=(0, np.inf)
+    ).cdf(truncation_low)
+    # probability of observing an event
+    # within the truncation range (given the distribution is non-truncated)
+    prob_event = np.minimum(prob_event, 1 - 1e-14)  # avoid log(0)
+    log_likelihood_no_observation = np.log1p(-prob_event) * counts_not_observed
+    log_likelihood_observation = np.sum(counts) * np.log(prob_event)
     log_likelihood = (
         log_likelihood_bin + log_likelihood_no_observation + log_likelihood_observation
     )
-
     negative_log_likelihood = -log_likelihood
 
     return negative_log_likelihood
 
 
-def mixture_log_likelihood_hist_three_exp(
+def log_likelihood_hist_marginal_v1(
+    model,
     params: Iterable,
+    pfa_cdf_part: Callable,
+    cdf_part_index: int,
     counts: npt.ArrayLike,
     bin_edges: npt.ArrayLike,
     truncation_low: float,
     truncation_up: float,
-    rel_events_not_observed: int,
+    counts_not_observed: int,
 ) -> float:
     """
-    Negative log-likelihood of a mixture of three exponential distributions (probability
-    within bins).
-    """
-    u, v, lambda1, lambda2, lambda3 = params
-    pi1 = u
-    pi2 = (1 - u) * v
-    pi3 = (1 - u) * (1 - v)
-    if (
-        not (0 <= pi1 <= 1)
-        or not (0 <= pi2 <= 1)
-        or not (0 <= pi3 <= 1)
-        or lambda1 <= 0
-        or lambda2 <= 0
-        or lambda3 <= 0
-    ):
-        return 1e20
-    a = bin_edges[:-1]
-    b = bin_edges[1:]
-    # calculate the probability of observing an event between a and b if the distribution
-    # is truncated between trunc_low and trunc_up
-    probs = dist.three_expon_mixture_cdf(
-        b, pi1, pi2, lambda1, lambda2, lambda3, domain=(truncation_low, truncation_up)
-    ) - dist.three_expon_mixture_cdf(
-        a, pi1, pi2, lambda1, lambda2, lambda3, domain=(truncation_low, truncation_up)
-    )
-    probs = np.clip(probs, 1e-14, None)  # avoid log(0)
-    log_likelihood_bin = np.sum(counts * np.log(probs))
-
-    if rel_events_not_observed == 0:
-        log_likelihood_no_observation = 0
-        log_likelihood_observation = 0
-    else:
-        prob_event = dist.three_expon_mixture_cdf(
-            truncation_up, pi1, pi2, lambda1, lambda2, lambda3, domain=(0, np.inf)
-        ) - dist.three_expon_mixture_cdf(
-            truncation_low, pi1, pi2, lambda1, lambda2, lambda3, domain=(0, np.inf)
-        )
-        # probability of observing an event
-        # within the truncation range (given the distribution is non-truncated)
-        prob_event = np.minimum(prob_event, 1 - 1e-14)  # avoid log(0)
-        factor = rel_events_not_observed / (1 - rel_events_not_observed)
-        log_likelihood_no_observation = np.log1p(-prob_event) * np.sum(counts) * factor
-        log_likelihood_observation = np.sum(counts) * np.log(prob_event)
-    # adding also observation because bin used probabilites that used the information
-    # of being inside the truncation range
-    log_likelihood = (
-        log_likelihood_bin + log_likelihood_no_observation + log_likelihood_observation
-    )
-
-    negative_log_likelihood = -log_likelihood
-
-    return negative_log_likelihood
-
-
-def pfa_log_likelihood(
-    params: dict,
-    counts: npt.ArrayLike,
-    bin_edges: npt.ArrayLike,
-    truncation_low: float,
-    truncation_up: float,
-    rel_events_not_observed: int,
-) -> float:
-    a = bin_edges[:-1]
-    b = bin_edges[1:]
-    probs = dist.Photoswitching_fingerprint_model(
-        params, domain=(truncation_low, truncation_up)
-    ).cdf(b) - dist.Photoswitching_fingerprint_model(
-        params, domain=(truncation_low, truncation_up)
-    ).cdf(
-        a
-    )
-    probs = np.clip(probs, 1e-14, None)  # avoid log(0)
-    log_likelihood_bin = np.sum(counts * np.log(probs))
-    if rel_events_not_observed == 0:
-        log_likelihood_no_observation = 0
-        log_likelihood_observation = 0
-    else:
-        prob_event = dist.Photoswitching_fingerprint_model(
-            params, domain=(truncation_low, truncation_up)
-        ).cdf(truncation_up) - dist.Photoswitching_fingerprint_model(
-            params, domain=(truncation_low, truncation_up)
-        ).cdf(
-            truncation_low
-        )  # probability of observing an event
-        # within the truncation range (given the distribution is non-truncated)
-        prob_event = np.minimum(prob_event, 1 - 1e-14)  # avoid log(0)
-        factor = rel_events_not_observed / (1 - rel_events_not_observed)
-        log_likelihood_no_observation = np.log1p(-prob_event) * np.sum(counts) * factor
-        log_likelihood_observation = np.sum(counts) * np.log(prob_event)
-    log_likelihood = (
-        log_likelihood_bin + log_likelihood_no_observation + log_likelihood_observation
-    )
-    negative_log_likelihood = -log_likelihood
-
-    return negative_log_likelihood
-
-
-def estimate_mixture_parameters(
-    data: npt.ArrayLike,
-    initial_guess: npt.ArrayLike,
-    bounds: Iterable,
-    truncation_low: float = 0,
-    truncation_up: float = 300,
-    number_no_events: int = 0,
-    method: str = "L-BFGS-B",
-) -> tuple[float, float, float]:
-    """
-    Estimate the parameters of a mixture of two exponential distributions (pdf).
+    Negative log-likelihood of a marginal distribution specified by its CDF and parameters.
+    The marginal distribution support is (0, truncation_up) and has no option to be
+    defined on (0, inf), however the marginal distribution has an attribute returning
+    the probability of observing an event within (0, truncation_up) assuming the support
+    was (0, inf).
 
     Parameters
     ----------
-    data
-        Sample or histogram data. If a histogram is provided, it should be a list
-        containing two elements: the counts and the bin edges.
-    initial_guess
-        Initial guess for the optimization. For parameters, see return values.
-    bounds
-        Bounds for the optimization. For parameters, see return values.
+    model
+        A custom marginal distribution defined in distributions.py.
+    params
+        Parameters of the distribution.
+    pfa_cdf_part
+        CDF part of the PFA distribution to be used in the marginal distribution.
+    cdf_part_index
+        Index of the CDF part of the PFA distribution to be used in the marginal
+        distribution.
+    counts
+        Counts of the histogram.
+    bin_edges
+        Edges of the histogram bins.
     truncation_low
         Lower truncation of the distribution.
     truncation_up
         Upper truncation of the distribution.
-    number_no_events
-        Number of runs without events. Set to 0 if all runs produced events or if no
-        influence of log-likelihood of no events is desired.
-    method
-        Optimization method.
+    counts_not_observed
+        Number of events not observed due to truncation.
 
     Returns
     -------
-    pi : float
-        Weight of the first exponential distribution.
-    lambda1 : float
-        Rate of the first exponential distribution.
-    lambda2 : float
-        Rate of the second exponential distribution.
+    float
+        Negative log-likelihood.
     """
-    if isinstance(data, np.ndarray):
-        optimization_function = mixture_log_likelihood
-        args = (data, truncation_low, truncation_up, number_no_events)
-    elif isinstance(data, list) and len(data) == 2:
-        optimization_function = mixture_log_likelihood_hist
-        args = (data[0], data[1], truncation_low, truncation_up, number_no_events)
-    result = minimize(
-        optimization_function,
-        initial_guess,
-        args=args,
-        bounds=bounds,
-        method=method,
+    if truncation_low != 0:
+        raise ValueError("Marginal distribution only defined for truncation_low = 0.")
+    a = bin_edges[:-1]
+    b = bin_edges[1:]
+    # calculate the probability of observing an event between a and b if the distribution
+    # is truncated between trunc_low and trunc_up
+    probs = model(params, pfa_cdf_part, cdf_part_index, truncation_up).cdf(b) - model(
+        params, pfa_cdf_part, cdf_part_index, truncation_up
+    ).cdf(a)
+    probs = np.clip(probs, 1e-14, None)  # avoid log(0)
+    log_likelihood_bin = np.sum(counts * np.log(probs))
+
+    prob_event = model(params, pfa_cdf_part, cdf_part_index, truncation_up).P_obs
+    # probability of observing an event
+    # within the truncation range (given the distribution is non-truncated)
+    prob_event = np.minimum(prob_event, 1 - 1e-14)  # avoid log(0)
+    log_likelihood_no_observation = np.log1p(-prob_event) * counts_not_observed
+    log_likelihood_observation = np.sum(counts) * np.log(prob_event)
+    log_likelihood = (
+        log_likelihood_bin + log_likelihood_no_observation + log_likelihood_observation
     )
-    pi, lambda1, lambda2 = result.x
+    negative_log_likelihood = -log_likelihood
 
-    return pi, lambda1, lambda2
+    return negative_log_likelihood
 
 
-def goodness_of_fit(
-    fits: npt.NDArray[np.float64], data: npt.NDArray[np.float64], p: int
-) -> tuple[float, float, float, float]:
+def log_likelihood_hist_v2(
+    model,
+    params: Iterable,
+    counts: npt.ArrayLike,
+    bin_edges: npt.ArrayLike,
+    counts_not_observed: int,
+) -> float:
     """
-    Calculate the goodness of fit for the given fits and data.
+    Negative log-likelihood of a distribution specified by its CDF and parameters. The
+    distribution support is (0, inf), meaning the sum of probabilities of the given bins
+    may not be 1. This is why here, to include the log-likelihood term of not observing an
+    event due to truncation, we can do 1 - sum(probabilities_bins).
 
     Parameters
     ----------
-    fits
-        The fitted values from the model.
-    data
-        The observed data values.
-    p
-        The number of parameters in the model.
+    model
+        A custom distribution defined in distributions.py.
+    params
+        Parameters of the distribution.
+    counts
+        Counts of the histogram.
+    bin_edges
+        Edges of the histogram bins.
+    counts_not_observed
+        Number of events not observed due to truncation.
 
     Returns
     -------
-    ss_res : float
-        The sum of squared residuals.
-    rmse : float
-        The root mean squared error.
-    r2 : float
-        The coefficient of determination (R^2).
-    adj_r2 : float
-        The adjusted R^2, which accounts for the number of predictors in the model.
+    float
+        Negative log-likelihood.
     """
-    r2 = r2_score(data, fits)
-    residuals = data - fits
-    ss_res = np.sum(residuals**2)
-    rmse = root_mean_squared_error(data, fits)
-    adj_r2 = 1 - (1 - r2) * (data.size - 1) / (data.size - p - 1)
+    a = bin_edges[:-1]
+    b = bin_edges[1:]
+    # calculate the probability of observing an event between a and b if the distribution
+    # is truncated between trunc_low and trunc_up
+    probs = model(params, domain=(0, np.inf)).cdf(b) - model(
+        params, domain=(0, np.inf)
+    ).cdf(a)
+    probs = np.clip(probs, 1e-14, None)  # avoid log(0)
+    log_likelihood_bin = np.sum(counts * np.log(probs))
 
-    return ss_res, rmse, r2, adj_r2
+    log_likelihood_no_observation = np.log1p(-np.sum(probs)) * counts_not_observed
+    log_likelihood = log_likelihood_bin + log_likelihood_no_observation
+    negative_log_likelihood = -log_likelihood
+
+    return negative_log_likelihood
 
 
-def fit_multiple_mixture(
+def log_likelihood_hist_marginal_v2(
+    model,
+    params,
+    counts,
+    bin_edges,
+    counts_not_observed,
+    truncation_low,
+    truncation_up,
+    pfa_pdf_part: Callable,
+    pdf_part_index: int,
+) -> float:
+    """
+    Negative log-likelihood of a marginal distribution of a sample X from model, where
+    the upper truncation is a random variable Y ~ fixed truncation - T, and T is a random
+    variable following a part of PFA distribution.
+    The distribution support is (0, inf), meaning the sum of probabilities of the given bins
+    may not be 1. This is why here, to include the log-likelihood term of not observing an
+    event due to truncation, we can do 1 - sum(probabilities_bins).
+    """
+    if truncation_low != 0:
+        raise ValueError("Marginal distribution only defined for truncation_low = 0.")
+    x_grid = np.logspace(np.log10(0.01), np.log10(truncation_up), 200)
+    x_grid = np.insert(x_grid, 0, 0)
+    weights = pfa_pdf_part(
+        call=None,
+        x=x_grid,
+        i=pdf_part_index,
+        normalize=True,
+    )
+    a = bin_edges[:-1][:, None]
+    b = bin_edges[1:][:, None]
+    true_limits = (truncation_up - x_grid)[None, :]
+    eff_limit = np.minimum(b, true_limits)
+    valid = (a < true_limits).astype(float)
+    qk = model(params, domain=(0, np.inf)).cdf(eff_limit) - model(
+        params, domain=(0, np.inf)
+    ).cdf(a)
+    qk *= valid
+    probs = np.trapezoid(qk * weights[None, :], x=x_grid, axis=1)
+    probs = np.clip(probs, 1e-14, None)  # avoid log(0)
+    log_likelihood_bin = np.sum(counts * np.log(probs))
+
+    p_no_event = 1 - np.sum(probs)
+    p_no_event = np.clip(p_no_event, 1e-14, None)  # avoid log(0)
+
+    log_likelihood_no_observation = np.log(p_no_event) * counts_not_observed
+    log_likelihood = log_likelihood_bin + log_likelihood_no_observation
+    negative_log_likelihood = -log_likelihood
+
+    return negative_log_likelihood
+
+
+def fit_multiple_mixture_v1(
     datasets,
     bin_edges,
     z=-1,
     constr=True,
     norm=False,
-    rel_events_not_observed=None,
+    counts_not_observed=None,
     pfa_bin_edges=None,
     pfa_counts=None,
-    pfa_not_observed=None,
+    pfa_counts_not_observed=None,
     **diff_ev,
 ):
-    if rel_events_not_observed is None:
-        rel_events_not_observed = [0 for _ in datasets]
+    if counts_not_observed is None:
+        counts_not_observed = [0 for _ in datasets]
     else:
         if norm:
             raise ValueError(
                 "Normalization to num observed events not possible if general "
                 "log-likelihood of observation/no observation terms are included."
             )
-    if pfa_not_observed is None:
-        pfa_not_observed = 0
+    if pfa_counts_not_observed is None:
+        pfa_counts_not_observed = 0
 
     if z != -1 and z < len(datasets) - 1:
         add = 5
@@ -385,41 +288,158 @@ def fit_multiple_mixture(
     def global_objective(params):
         total_negative_log_likelihood = 0
         counter = 0
+        pfa_params = prepare_pfa_parameters(z=z, n=len(datasets), params=params)
         for i, data in enumerate(datasets):
-            if i == z:
-                parameters = params[0:5]
-                negative_log_likelihood = mixture_log_likelihood_hist_three_exp(
-                    parameters,
-                    data,
-                    bin_edges,
-                    0,
-                    300,
-                    rel_events_not_observed=rel_events_not_observed[i],
-                )
+            if i != 0:
+                pfa_cdf_part = dist.Photoswitching_fingerprint_model(
+                    params=pfa_params,
+                    domain=(0, 300),
+                ).cdf_part
+                cdf_part_index = i - 1
+                use_model = dist.ExponentialMixtureMarginalModel
+                use = log_likelihood_hist_marginal_v1
+                use_parameters = [pfa_cdf_part, cdf_part_index]
             else:
-                parameters = params[add + counter * 3 : (add + 3) + counter * 3]
-                negative_log_likelihood = mixture_log_likelihood_hist(
-                    parameters,
-                    data,
-                    bin_edges,
-                    0,
-                    300,
-                    rel_events_not_observed=rel_events_not_observed[i],
-                )
+                use_model = dist.ExponentialMixtureModel
+                use = log_likelihood_hist_v1
+                use_parameters = []
+            if i == z:
+                parameters = {
+                    "pis": [params[0], (1 - params[0]) * params[1]],
+                    "lambdas": [params[2], params[3], params[4]],
+                }
+            else:
+                parameters = {
+                    "pis": [params[add + counter * 3]],
+                    "lambdas": [
+                        params[add + counter * 3 + 1],
+                        params[add + counter * 3 + 2],
+                    ],
+                }
                 counter += 1
+
+            negative_log_likelihood = use(
+                use_model,
+                parameters,
+                *use_parameters,
+                data,
+                bin_edges,
+                0,
+                300,
+                counts_not_observed[i],
+            )
             if norm:
                 negative_log_likelihood /= data.sum()  # data is histogrammed
             total_negative_log_likelihood += negative_log_likelihood
-
         if pfa_bin_edges is not None and pfa_counts is not None:
-            parameters = prepare_pfa_parameters(z, len(datasets), params)
-            negative_log_likelihood = pfa_log_likelihood(
-                parameters,
+            negative_log_likelihood = log_likelihood_hist_v1(
+                dist.Photoswitching_fingerprint_model,
+                pfa_params,
                 pfa_counts,
                 pfa_bin_edges,
                 0,
                 300,
-                rel_events_not_observed=pfa_not_observed,
+                counts_not_observed=pfa_counts_not_observed,
+            )
+            if norm:
+                negative_log_likelihood /= (
+                    pfa_counts.sum()
+                )  # pfa_counts is histogrammed
+            total_negative_log_likelihood += negative_log_likelihood
+        return total_negative_log_likelihood
+
+    linear_constraint, bounds = prepare_constraints(len(datasets), z)
+
+    if not constr:
+        linear_constraint = ()
+    result = differential_evolution(
+        global_objective, bounds=bounds, constraints=linear_constraint, **diff_ev
+    )
+    return result
+
+
+def fit_multiple_mixture_v2(
+    datasets,
+    bin_edges,
+    z=-1,
+    constr=True,
+    norm=False,
+    counts_not_observed=None,
+    pfa_bin_edges=None,
+    pfa_counts=None,
+    pfa_counts_not_observed=None,
+    **diff_ev,
+):
+    if counts_not_observed is None:
+        counts_not_observed = [0 for _ in datasets]
+    else:
+        if norm:
+            raise ValueError(
+                "Normalization to num observed events not possible if general "
+                "log-likelihood of observation/no observation terms are included."
+            )
+    if pfa_counts_not_observed is None:
+        pfa_counts_not_observed = 0
+
+    if z != -1 and z < len(datasets) - 1:
+        add = 5
+    elif z != -1 and z >= len(datasets) - 1:
+        raise ValueError(
+            "z must be -1 or between 0 and number of datasets - 1."
+            " The last dataset is assumed to always be a mixture of two exponentials."
+        )
+    else:
+        add = 0
+
+    def global_objective(params):
+        total_negative_log_likelihood = 0
+        counter = 0
+        pfa_params = prepare_pfa_parameters(z=z, n=len(datasets), params=params)
+        for i, data in enumerate(datasets):
+            if i != 0:
+                pfa_pdf_part = dist.Photoswitching_fingerprint_model(
+                    params=pfa_params,
+                    domain=(0, 300),
+                ).pdf_part
+                pdf_part_index = i - 1
+                use = log_likelihood_hist_marginal_v2
+                use_parameters = [0, 300, pfa_pdf_part, pdf_part_index]
+            else:
+                use = log_likelihood_hist_v2
+                use_parameters = []
+            if i == z:
+                parameters = {
+                    "pis": [params[0], (1 - params[0]) * params[1]],
+                    "lambdas": [params[2], params[3], params[4]],
+                }
+            else:
+                parameters = {
+                    "pis": [params[add + counter * 3]],
+                    "lambdas": [
+                        params[add + counter * 3 + 1],
+                        params[add + counter * 3 + 2],
+                    ],
+                }
+                counter += 1
+
+            negative_log_likelihood = use(
+                dist.ExponentialMixtureModel,
+                parameters,
+                data,
+                bin_edges,
+                counts_not_observed[i],
+                *use_parameters,
+            )
+            if norm:
+                negative_log_likelihood /= data.sum()  # data is histogrammed
+            total_negative_log_likelihood += negative_log_likelihood
+        if pfa_bin_edges is not None and pfa_counts is not None:
+            negative_log_likelihood = log_likelihood_hist_v2(
+                dist.Photoswitching_fingerprint_model,
+                pfa_params,
+                pfa_counts,
+                pfa_bin_edges,
+                counts_not_observed=pfa_counts_not_observed,
             )
             if norm:
                 negative_log_likelihood /= (
@@ -607,18 +627,22 @@ def prepare_exp_mixture_parameters(z, n, params):
         pz2 = (1 - uz) * vz
         for i in range(n):
             if i == z:
-                parameters[i] = [pz1, pz2, params[2], params[3], params[4]]
+                parameters[i] = {
+                    "pis": [pz1, pz2],
+                    "lambdas": [params[2], params[3], params[4]],
+                }
             else:
-                parameters[i] = [
-                    params[(i - (i > z)) * 3 + 5],
-                    params[(i - (i > z)) * 3 + 1 + 5],
-                    params[(i - (i > z)) * 3 + 2 + 5],
-                ]
+                parameters[i] = {
+                    "pis": [params[(i - (i > z)) * 3 + 5]],
+                    "lambdas": [
+                        params[(i - (i > z)) * 3 + 1 + 5],
+                        params[(i - (i > z)) * 3 + 2 + 5],
+                    ],
+                }
     else:
         for i in range(n):
-            parameters[i] = [
-                params[i * 3],
-                params[i * 3 + 1],
-                params[i * 3 + 2],
-            ]
+            parameters[i] = {
+                "pis": [params[i * 3]],
+                "lambdas": [params[i * 3 + 1], params[i * 3 + 2]],
+            }
     return parameters

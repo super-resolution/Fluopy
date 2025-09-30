@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import numpy.typing as npt
+from scipy.integrate import cumulative_trapezoid
 from scipy.stats import expon
 
 if TYPE_CHECKING:
@@ -178,6 +179,7 @@ class Photoswitching_fingerprint_model:
                 x,
                 *lambda_combo,
             )
+
         if not normalize:
             return pdf_part
 
@@ -187,7 +189,7 @@ class Photoswitching_fingerprint_model:
             else:
                 F_1 = self.cdf_part(self.domain[-1], i, normalize=False)
             F_0 = self.cdf_part(self.domain[0], i, normalize=False)
-            pdf_part = pdf_part / (F_1 - F_0)  # true for pdf, dpdf, ddpdf
+            pdf_part = pdf_part / (F_1 - F_0)
 
         return pdf_part
 
@@ -368,9 +370,7 @@ def photoswitching_fingerprint_prepare(
         Combinations of lambdas and pis for the photoswitching fingerprint model.
     """
     valid_combinations = generate_combinations(n, z)
-    print(valid_combinations)
     lambdas = map_to_lambdas(valid_combinations, params, z)
-    print(lambdas)
     pis = get_pis(valid_combinations, params, z)
     return lambdas, pis
 
@@ -509,230 +509,150 @@ def get_pis(
     return pis
 
 
-def two_expon_mixture_cdf(
-    x: float | npt.ArrayLike,
-    p: float,
-    lambda1: float,
-    lambda2: float,
-    domain: tuple[float, float] = (0, np.inf),
-    extra: bool = False,
-) -> float | npt.NDArray[np.float64]:
+class ExponentialMixtureModel:
     """
-    Cumulative distribution function of a mixture of two exponential distributions.
-
-    Parameters
-    ----------
-    x
-        Sample.
-    lambda1
-        Rate of the first exponential distribution.
-    lambda2
-        Rate of the second exponential distribution.
-    p
-        Weight of the first exponential distribution.
-
-    Returns
-    -------
-    float | npt.NDArray[np.float64]
-        CDF of two exponential mixture distribution.
+    Model to describe a mixture of exponential distributions.
     """
-    cdf = p * expon.cdf(x, scale=1 / lambda1) + (1 - p) * expon.cdf(
-        x, scale=1 / lambda2
-    )
-    if extra:
+
+    def __init__(
+        self,
+        params: dict,
+        domain: tuple[float, float] = (0, np.inf),
+    ) -> None:
+        """
+        Parameters
+        ----------
+        params
+            Parameters of the underlying exponential distributions.
+        domain
+            Domain of the model. Default is (0, np.inf).
+        """
+        self.params = params
+        self.domain = domain
+
+    def pdf(
+        self,
+        x: float | npt.ArrayLike,
+    ) -> float | npt.NDArray[np.float64]:
+        """
+        Probability density function of a mixture of exponential distributions.
+
+        Parameters
+        ----------
+        x
+            Sample.
+
+        Returns
+        -------
+        float | npt.NDArray[np.float64]
+            PDF of the mixture of exponential distributions.
+        """
+        pdf = 0
+        for i, lam in enumerate(self.params["lambdas"]):
+            if i == len(self.params["lambdas"]) - 1:
+                p = 1 - np.sum(self.params["pis"])
+            else:
+                p = self.params["pis"][i]
+            pdf += p * expon.pdf(x, scale=1 / lam)
+
+        if self.domain != (0, np.inf):
+            if self.domain[-1] == np.inf:
+                F_1 = 1
+            else:
+                F_1 = self.cdf(self.domain[-1], extra=True)
+            F_0 = self.cdf(self.domain[0], extra=True)
+            pdf = pdf / (F_1 - F_0)
+
+        return pdf
+
+    def cdf(
+        self,
+        x: float | npt.ArrayLike,
+        extra: bool = False,
+    ) -> float | npt.NDArray[np.float64]:
+        """
+        Cumulative distribution function of a mixture of exponential distributions.
+
+        Parameters
+        ----------
+        x
+            Sample.
+        extra
+            ...
+
+        Returns
+        -------
+        float | npt.NDArray[np.float64]
+            CDF of the mixture of exponential distributions.
+        """
+        cdf = 0
+        for i, lam in enumerate(self.params["lambdas"]):
+            if i == len(self.params["lambdas"]) - 1:
+                p = 1 - np.sum(self.params["pis"])
+            else:
+                p = self.params["pis"][i]
+
+            cdf += p * expon.cdf(x, scale=1 / lam)
+
+        if extra:
+            return cdf
+
+        if self.domain != (0, np.inf):
+            if self.domain[-1] == np.inf:
+                F_1 = 1
+            else:
+                F_1 = self.cdf(self.domain[-1], extra=True)
+            F_0 = self.cdf(self.domain[0], extra=True)
+            cdf = (cdf - F_0) / (F_1 - F_0)
+
         return cdf
-    if domain != (0, np.inf):
-        if domain[-1] == np.inf:
-            F_1 = 1
-        else:
-            F_1 = two_expon_mixture_cdf(
-                domain[-1],
-                p,
-                lambda1,
-                lambda2,
-                extra=True,
-            )
-        F_0 = two_expon_mixture_cdf(domain[0], p, lambda1, lambda2, extra=True)
-        cdf = (cdf - F_0) / (F_1 - F_0)
-
-    return cdf
 
 
-def two_expon_mixture_pdf(
-    x: float | npt.ArrayLike,
-    p: float,
-    lambda1: float,
-    lambda2: float,
-    domain: tuple[float, float] = (0, np.inf),
-) -> float | npt.NDArray[np.float64]:
+class ExponentialMixtureMarginalModel:
     """
-    Probability density function of a mixture of two exponential distributions.
-
-    Parameters
-    ----------
-    x
-        Sample.
-    lambda1
-        Rate of the first exponential distribution.
-    lambda2
-        Rate of the second exponential distribution.
-    p
-        Weight of the first exponential distribution.
-
-    Returns
-    -------
-    float | npt.NDArray[np.float64]
-        PDF of two exponential mixture distribution.
+    Model to describe the marginal distribution of a sample X from a mixture of
+    exponential distributions, where the upper truncation is a random variable
+    Y ~ fixed truncation - T, and T is a random variable following a part of PFA
+    distribution.
     """
-    pdf = p * expon.pdf(x, scale=1 / lambda1) + (1 - p) * expon.pdf(
-        x, scale=1 / lambda2
-    )
-    if domain != (0, np.inf):
-        if domain[-1] == np.inf:
-            F_1 = 1
-        else:
-            F_1 = two_expon_mixture_cdf(
-                domain[-1],
-                p,
-                lambda1,
-                lambda2,
-                extra=True,
-            )
-        F_0 = two_expon_mixture_cdf(domain[0], p, lambda1, lambda2, extra=True)
-        pdf = pdf / (F_1 - F_0)
 
-    return pdf
+    def __init__(
+        self,
+        params: dict,
+        pfa_cdf_part: Callable,
+        cdf_part_index: int,
+        truncation_up: float,
+    ) -> None:
+        x_grid = np.logspace(np.log10(0.01), np.log10(truncation_up), 200)
+        x_grid = np.insert(x_grid, 0, 0.0)
+        pdf_grid = ExponentialMixtureModel(params).pdf(x_grid) * pfa_cdf_part(
+            truncation_up - x_grid, cdf_part_index, normalize=True
+        )
+        # pfa_cdf_part because we want the distribution of T of the (n-1)th fluorophore,
+        # not of all n-x fluorophores
+        # CDF(truncation_up - x) because Pr(actual_truncation >= x) = Pr(truncation_up - T >= x) = Pr(T <= truncation_up - x) = CDF(truncation_up - x)
+        # i.e., pfa_cdf_part does not describe the actual truncation of the two_expon_mixture, but truncation_up - T does.
+        # if it described the actual truncation, we would multiply with (1 - CDF(x)) (Survival function)
+        P_obs = np.trapezoid(pdf_grid, x_grid)
+        pdf_grid /= P_obs
+        # normalization such that integral over domain is 1, i.e., pdf_grid describes the distribution
+        # given that an event is observed
+        cdf_grid = cumulative_trapezoid(pdf_grid, x_grid, initial=0)
 
+        self.pdf_grid = pdf_grid
+        self.cdf_grid = cdf_grid
+        self.x_grid = x_grid
+        self.P_obs = P_obs
 
-def three_expon_mixture_cdf(
-    x: float | npt.ArrayLike,
-    p1: float,
-    p2: float,
-    lambda1: float,
-    lambda2: float,
-    lambda3: float,
-    domain: tuple[float, float] = (0, np.inf),
-    extra: bool = False,
-) -> float | npt.NDArray[np.float64]:
-    """
-    Cumulative distribution function of a mixture of three exponential distributions.
+    def pdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
+        pdf = np.interp(x, self.x_grid, self.pdf_grid, left=0.0, right=0.0)
 
-    Parameters
-    ----------
-    x
-        Sample.
-    lambda1
-        Rate of the first exponential distribution.
-    lambda2
-        Rate of the second exponential distribution.
-    lambda3
-        Rate of the third exponential distribution.
-    p1
-        Weight of the first exponential distribution.
-    p2
-        Weight of the second exponential distribution.
+        return pdf
 
-    Returns
-    -------
-    float | npt.NDArray[np.float64]
-        CDF of three exponential mixture distribution.
-    """
-    cdf = (
-        p1 * expon.cdf(x, scale=1 / lambda1)
-        + p2 * expon.cdf(x, scale=1 / lambda2)
-        + (1 - p1 - p2) * expon.cdf(x, scale=1 / lambda3)
-    )
-    if extra:
+    def cdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
+        cdf = np.interp(x, self.x_grid, self.cdf_grid, left=0.0, right=1.0)
+
         return cdf
-    if domain != (0, np.inf):
-        if domain[-1] == np.inf:
-            F_1 = 1
-        else:
-            F_1 = three_expon_mixture_cdf(
-                domain[-1],
-                p1,
-                p2,
-                lambda1,
-                lambda2,
-                lambda3,
-                extra=True,
-            )
-        F_0 = three_expon_mixture_cdf(
-            domain[0],
-            p1,
-            p2,
-            lambda1,
-            lambda2,
-            lambda3,
-            extra=True,
-        )
-        cdf = (cdf - F_0) / (F_1 - F_0)
-
-    return cdf
-
-
-def three_expon_mixture_pdf(
-    x: float | npt.ArrayLike,
-    p1: float,
-    p2: float,
-    lambda1: float,
-    lambda2: float,
-    lambda3: float,
-    domain: tuple[float, float] = (0, np.inf),
-) -> float | npt.NDArray[np.float64]:
-    """
-    Probability density function of a mixture of three exponential distributions.
-
-    Parameters
-    ----------
-    x
-        Sample.
-    lambda1
-        Rate of the first exponential distribution.
-    lambda2
-        Rate of the second exponential distribution.
-    lambda3
-        Rate of the third exponential distribution.
-    p1
-        Weight of the first exponential distribution.
-    p2
-        Weight of the second exponential distribution.
-
-    Returns
-    -------
-    float | npt.NDArray[np.float64]
-        PDF of three exponential mixture distribution.
-    """
-    pdf = (
-        p1 * expon.pdf(x, scale=1 / lambda1)
-        + p2 * expon.pdf(x, scale=1 / lambda2)
-        + (1 - p1 - p2) * expon.pdf(x, scale=1 / lambda3)
-    )
-    if domain != (0, np.inf):
-        if domain[-1] == np.inf:
-            F_1 = 1
-        else:
-            F_1 = three_expon_mixture_cdf(
-                domain[-1],
-                p1,
-                p2,
-                lambda1,
-                lambda2,
-                lambda3,
-                extra=True,
-            )
-        F_0 = three_expon_mixture_cdf(
-            domain[0],
-            p1,
-            p2,
-            lambda1,
-            lambda2,
-            lambda3,
-            extra=True,
-        )
-        pdf = pdf / (F_1 - F_0)
-
-    return pdf
 
 
 def rejection_sampling(
