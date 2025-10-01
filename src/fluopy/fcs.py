@@ -4,6 +4,7 @@ Module fcs
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any, Self
 
 import matplotlib.pyplot as plt
@@ -20,6 +21,9 @@ if TYPE_CHECKING:
 
     from fluopy.emissions import Emissions
     from fluopy.fluopy_types import RandomGeneratorSeed
+
+
+logger = logging.getLogger(__name__)
 
 
 class FCS:
@@ -80,10 +84,16 @@ class FCS:
         if self.emissions.event_time_points is None:
             raise ValueError("event_time_points is None.")
         if base**exp_max > self.emissions.event_time_points[-1]:
-            raise ValueError(
-                "Base to the power of exp_max cannot be larger than the last time "
-                "point."
+            last_time_point = self.emissions.event_time_points[-1]
+            exp_max_adjusted = np.int64(
+                np.floor(np.log(last_time_point) / np.log(base))
             )
+            logger.warning(
+                f"The exp_max {exp_max} yields a base to the power of exp_max {base**exp_max} that is larger than the last time "
+                f"point {last_time_point}. Therefore, exp_max is adjusted to {exp_max_adjusted}.",
+                stacklevel=2,
+            )
+            exp_max = exp_max_adjusted
         bins = make_loglags(
             exp_min=exp_min, exp_max=exp_max, points_per_base=points_per_base, base=base
         )

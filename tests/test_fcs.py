@@ -25,8 +25,20 @@ def test_fcs_plot(em_very_large):
     # plt.show()
 
 
-def test_fcs_autocorrelate_time_points(em_very_large):
+def test_fcs_autocorrelate_time_points(em_very_large, caplog):
     fcs_obj = fcs_p.FCS(emissions=em_very_large)
+
+    fcs_obj.autocorrelate_time_points(
+        exp_min=-8, exp_max=0, points_per_base=4, base=10, normalize=True
+    )
+    assert caplog.record_tuples == [
+        (
+            "fluopy.fcs",
+            30,
+            "The exp_max 0 yields a base to the power of exp_max 1 that is larger than the last time point 0.1676677881662439. Therefore, exp_max is adjusted to -1.",
+        )
+    ]
+
     fcs_obj.autocorrelate_time_points(
         exp_min=-8, exp_max=-2, points_per_base=4, base=10, normalize=True
     )
