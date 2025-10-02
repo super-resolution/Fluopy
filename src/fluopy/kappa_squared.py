@@ -1,5 +1,5 @@
 """
-Module kappa_squared
+Compute rotational effects expressed by kappa_squared.
 """
 
 from __future__ import annotations

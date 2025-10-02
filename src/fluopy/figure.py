@@ -1,5 +1,5 @@
 """
-Module custom_plot
+A universal figure to plot simulation results.
 
 A universal figure is defined for plotting simulation results with matplotlib.
 """

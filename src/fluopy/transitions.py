@@ -1,5 +1,5 @@
 """
-Module transitions
+Define and handle photophysical transitions.
 """
 
 from __future__ import annotations

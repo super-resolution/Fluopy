@@ -1,5 +1,5 @@
 """
-Module analysis
+Analysis a photophysical simulation.
 """
 
 from __future__ import annotations

@@ -1,5 +1,5 @@
 """
-Module simulation_tcspc
+Run simulations that resemble TCSPC experiments.
 """
 
 from __future__ import annotations

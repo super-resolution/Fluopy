@@ -1,5 +1,5 @@
 """
-Module simulation
+Run photophysical simulations.
 """
 
 from __future__ import annotations

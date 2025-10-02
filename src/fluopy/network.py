@@ -1,5 +1,5 @@
 """
-Module network
+Represent states and transitions as graph.
 """
 
 from __future__ import annotations

@@ -1,5 +1,5 @@
 """
-Module routines
+Various routines to deal with simulation results.
 """
 
 from __future__ import annotations

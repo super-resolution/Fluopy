@@ -1,4 +1,6 @@
 """
+Tools for fitting marginal.
+
 Module fitting marginal: Here we define each log likelihood bins unconditionally
 (i.e., the fitting distribution is non-truncated), and include 1-sum(bin_probs) for
 the probability of observing no event. This is the case for all log-likelihoods that

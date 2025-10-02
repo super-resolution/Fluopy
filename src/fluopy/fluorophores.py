@@ -1,5 +1,5 @@
 """
-Module fluorophores
+Define and work with fluorophores.
 """
 
 from __future__ import annotations

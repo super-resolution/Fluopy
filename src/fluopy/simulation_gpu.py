@@ -1,5 +1,5 @@
 """
-Module simulation_gpu
+Run simulations in parallel or on a gpu.
 """
 
 import cupy as cp

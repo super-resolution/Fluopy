@@ -1,5 +1,5 @@
 """
-Module fcs
+Fluorescence correlation spectroscopy.
 """
 
 from __future__ import annotations

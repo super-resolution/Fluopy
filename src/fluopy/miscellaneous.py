@@ -1,5 +1,5 @@
 """
-Module miscellaneous
+Miscellaneous tools to format plots and labels.
 """
 
 from __future__ import annotations

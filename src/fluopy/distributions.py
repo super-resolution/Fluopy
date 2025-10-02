@@ -1,5 +1,5 @@
 """
-Module distributions
+Random variable distributions.
 """
 
 from __future__ import annotations

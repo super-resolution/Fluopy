@@ -1,5 +1,5 @@
 """
-Module blinking
+Extract fluorescence intermittency (blinking).
 """
 
 from __future__ import annotations

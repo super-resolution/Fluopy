@@ -1,5 +1,5 @@
 """
-Module prediction
+Compute a prediction for a photophysical system.
 """
 
 from __future__ import annotations

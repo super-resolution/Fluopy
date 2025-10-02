@@ -1,5 +1,5 @@
 """
-Module formulas
+Mathematical formulas for optical and spectral properties.
 """
 
 from __future__ import annotations

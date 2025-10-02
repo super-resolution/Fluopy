@@ -1,5 +1,5 @@
 """
-Module fitting
+Tools for fitting.
 """
 
 from __future__ import annotations

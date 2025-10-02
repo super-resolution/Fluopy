@@ -1,5 +1,5 @@
 """
-Module emissions
+Work with observable photon emission time series.
 """
 
 from __future__ import annotations
