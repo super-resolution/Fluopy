@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 from scipy.optimize import Bounds, LinearConstraint, differential_evolution
 
 from . import distributions as dist
@@ -646,3 +647,35 @@ def prepare_exp_mixture_parameters(z, n, params):
                 "lambdas": [params[i * 3 + 1], params[i * 3 + 2]],
             }
     return parameters
+
+
+def save_as_array(parameter_dict, filepath):
+    indices = []
+    parameters = []
+    for key, value in parameter_dict.items():
+        indices += [key] * len(value)
+        parameters += value
+
+    save_array = np.array([indices, parameters])
+    np.save(filepath, save_array)
+
+
+def load_from_array(filepath):
+    parameter_array = np.load(filepath)
+    parameter_df = pd.DataFrame(parameter_array.T, columns=["key", "value"])
+    parameter_df["key"] = parameter_df["key"].astype(int)
+    parameter_dict = parameter_df.groupby("key")["value"].apply(list).to_dict()
+    return parameter_dict
+
+
+def convert_dicts(pfa_dict):
+    exp_mixture_dict = {}
+    for key, value in pfa_dict.items():
+        if len(value) == 6:
+            pis = [value[0], value[1]]
+            lambdas = [value[3], value[4], value[5]]
+        elif len(value) == 4:
+            pis = [value[0]]
+            lambdas = [value[2], value[3]]
+        exp_mixture_dict[key] = {"pis": pis, "lambdas": lambdas}
+    return exp_mixture_dict

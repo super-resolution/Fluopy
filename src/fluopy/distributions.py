@@ -523,7 +523,9 @@ class ExponentialMixtureModel:
         Parameters
         ----------
         params
-            Parameters of the underlying exponential distributions.
+            Parameters of the underlying exponential distributions. Should contain
+            keys "lambdas" (1D array-like of length n) and "pis" (1D array-like of length
+            n-1).
         domain
             Domain of the model. Default is (0, np.inf).
         """
