@@ -10,6 +10,8 @@ import numpy as np
 import numpy.typing as npt
 from scipy import constants
 
+__all__: list[str] = []
+
 
 def convert_wavenumber_wavelength_frequency(
     wavenumber: float | npt.ArrayLike | None = None,

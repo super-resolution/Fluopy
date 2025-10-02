@@ -20,6 +20,9 @@ if TYPE_CHECKING:
     from fluopy.simulation import Simulation
 
 
+__all__: list[str] = ["Blinking"]
+
+
 class Blinking:
     """
     Container for blinking-associated attributes.

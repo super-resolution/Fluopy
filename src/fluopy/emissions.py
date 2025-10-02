@@ -29,6 +29,9 @@ if TYPE_CHECKING:
 
     from fluopy.fluopy_types import RandomGeneratorSeed
 
+
+__all__: list[str] = ["Emissions"]
+
 logger = logging.getLogger(__name__)
 
 

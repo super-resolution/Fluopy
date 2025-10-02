@@ -22,6 +22,9 @@ if TYPE_CHECKING:
     from scipy.stats.distributions import rv_frozen
 
 
+__all__: list[str] = []
+
+
 def universal_figure(
     nrows: int = 1,
     ncols: int = 1,

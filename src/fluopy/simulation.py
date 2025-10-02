@@ -22,6 +22,9 @@ if TYPE_CHECKING:
     from .prediction import Prediction
     from .transitions import TransitionSet
 
+
+__all__: list[str] = ["Simulation"]
+
 logger = logging.getLogger(__name__)
 
 

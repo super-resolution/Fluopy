@@ -20,6 +20,9 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure as mplFigure
 
 
+__all__: list[str] = []
+
+
 def delete_subplots(
     axes: npt.NDArray[mplAxes],
     keep_number: int | None = None,

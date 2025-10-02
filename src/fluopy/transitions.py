@@ -29,6 +29,9 @@ if TYPE_CHECKING:
     from fluopy.fluorophores import Fluorophore, FluorophoreSystem
 
 
+__all__: list[str] = ["SingleState", "PairedState", "Transition", "TransitionSet"]
+
+
 class SingleState(Enum):
     """
     Assigns a unique identifier (value) to each possible photophysical state.

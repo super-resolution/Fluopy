@@ -23,6 +23,9 @@ if TYPE_CHECKING:
     from fluopy.transitions import TransitionSet
 
 
+__all__: list[str] = []
+
+
 def emission_post_processing(emis: Emissions, seed: RandomGeneratorSeed) -> None:
     """
     Post-processing of the emission data.

@@ -18,6 +18,9 @@ if TYPE_CHECKING:
     pass
 
 
+__all__: list[str] = []
+
+
 def log_likelihood_hist_v1(
     model,
     params: Iterable,

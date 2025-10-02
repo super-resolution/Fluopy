@@ -22,6 +22,8 @@ from .transitions import (
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
 
+__all__: list[str] = ["Fluorophore", "FluorophoreSystem"]
+
 logger = logging.getLogger(__name__)
 
 
