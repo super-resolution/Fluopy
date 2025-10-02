@@ -313,7 +313,7 @@ class TransitionSet:
         other attributes as columns.
     row_sums : np.ndarray
         Contains the sum of each row of non-normalized transition rates, i.e., the sum
-        of rates of all possbile combined_state_transitions.
+        of rates of all possible combined_state_transitions.
     single_states : dict[str, list[int]]
         Contains the values of all relevant SingleStates as values. Name of
         fluorophores as keys.
@@ -470,7 +470,7 @@ class TransitionSet:
         return filtered
 
     def adjust_rates(
-        self, change_dict: dict[str, float] = None, keep_zero_rates: bool = False
+        self, change_dict: dict[int, float] = None, keep_zero_rates: bool = False
     ) -> TransitionSet:
         """
         Returns another TransitionSet with transition rates modified. Should be used
@@ -504,6 +504,41 @@ class TransitionSet:
         )
 
         return adjusted
+
+    def remove_zero_rates(self) -> TransitionSet:
+        """
+        Returns another TransitionSet with all transitions removed that have a rate constant
+        of zero.
+
+        Returns
+        -------
+        TransitionSet
+            Re-initialization of the object with the modified transition collection.
+        """
+        transitions = copy.deepcopy(self.transitions)
+
+        for fluorophore_comb, f_transitions in transitions.items():
+            i = 0
+            keep_transitions = []
+            df_constructor = []
+            for transition in f_transitions:
+                if transition.rate != 0:
+                    transition.identity = i
+                    i += 1
+                    keep_transitions.append(transition)
+                    df_constructor.append(asdict(transition))
+            if keep_transitions:
+                transitions[fluorophore_comb] = keep_transitions
+                transition_df = pd.DataFrame(df_constructor)
+                transition_df = transition_df.set_index("identity")
+                transition_df = pd.concat(
+                    {fluorophore_comb: transition_df}, names=["Fluorophore"]
+                )
+
+        new_transition_set = TransitionSet(
+            transitions=transitions, fluorophore_system=self.fluorophore_system
+        )
+        return new_transition_set
 
     def remove_absorbing_states(self) -> TransitionSet:
         """
@@ -643,7 +678,7 @@ class TransitionSet:
 
 
 def get_single_states(
-    transitions: Collection[Transition], transition_df: pd.DataFrame
+    transitions: dict[str, Collection[Transition]], transition_df: pd.DataFrame
 ) -> dict[str, npt.NDArray[int]]:
     """
     Gets the values of SingleStates that occur in non-energy transfer transitions.
