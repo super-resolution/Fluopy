@@ -40,36 +40,28 @@ class Fluorophore:
     position : Sequence[float, float]
         The position of the fluorophore in 2D space.
     constants : FluorophoreData | None
-        Not None if the fluorophore has a defined FluorophoreData
-        dataclass.
+        If None an instance of FluorophoreData with the same name is inserted
+        if available in fluopy.fluo_data.
     """
 
-    identity: int = field(init=False)
+    identity: int = field(init=False, default=None)
     name: str = field()
-    position: Sequence[float] = field()
+    position: npt.ArrayLike = field()
     constants: fd.FluorophoreData | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "identity", None)
-        object.__setattr__(self, "position", np.asarray(self.position))
-        fluorophore_dataclasses = [
-            name for name in dir(fd) if isinstance(getattr(fd, name), type)
-        ]
-        class_name = [
-            name
-            for name in fluorophore_dataclasses
-            if name.lower() == self.name.lower()
-        ]
-        if len(class_name) == 1:
-            object.__setattr__(self, "constants", getattr(fd, class_name[0])())
-        elif len(class_name) == 0:
-            logger.warning(
-                f"Fluorophore {self.name} not known. Parameters have to be defined "
-                "manually.",
-                stacklevel=2,
-            )
-        else:
-            raise ValueError("Multiple fluorophore dataclasses found.")
+        self.position = np.asarray(self.position)
+        if self.constants is None:
+            if self.name in dir(fd) and isinstance(
+                getattr(fd, self.name), fd.FluorophoreData
+            ):
+                self.constants = getattr(fd, self.name)
+            else:
+                logger.warning(
+                    f"There is no FluorophoreData for Fluorophore {self.name} in fluopy.fluo_data. "
+                    f"Parameters have to be defined manually.",
+                    stacklevel=2,
+                )
 
 
 @dataclass

@@ -4,20 +4,20 @@ import numpy as np
 import pytest
 
 from fluopy import fluorophores as fl
-from fluopy.fluo_data import TestFluo_1, TestFluo_2
+from fluopy.fluo_data import FluorophoreData, testfluo_1, testfluo_2
 
 
 @pytest.mark.parametrize(
     "name, position, exp_identity, exp_name, exp_position, exp_constants",
     [
-        ["testfluo_1", [0, 0], None, "testfluo_1", np.array([0, 0]), TestFluo_1],
+        ["testfluo_1", [0, 0], None, "testfluo_1", np.array([0, 0]), testfluo_1],
         [
             "testfluo_2",
             [1.5, 0.34],
             None,
             "testfluo_2",
             np.array([1.5, 0.34]),
-            TestFluo_2,
+            testfluo_2,
         ],
         ["aa", [0, -5], None, "aa", np.array([0, -5]), None],
     ],
@@ -29,7 +29,7 @@ def test_fluorophore(
         with caplog.at_level(logging.WARNING):
             fluorophore = fl.Fluorophore(name=name, position=position)
             assert (
-                "Fluorophore aa not known. Parameters have to be defined manually."
+                "There is no FluorophoreData for Fluorophore aa in fluopy.fluo_data. Parameters have to be defined manually."
                 in caplog.text
             )
         caplog.clear()
@@ -39,7 +39,7 @@ def test_fluorophore(
     assert fluorophore.name == exp_name
     np.testing.assert_array_equal(fluorophore.position, exp_position)
     if exp_constants is not None:
-        assert isinstance(fluorophore.constants, exp_constants)
+        assert isinstance(fluorophore.constants, FluorophoreData)
     else:
         assert fluorophore.constants is None
 
@@ -96,7 +96,7 @@ def test_fluorophore_system(
         with caplog.at_level(logging.WARNING):
             fluorophores = [request.getfixturevalue(dirname) for dirname in dirnames]
             assert (
-                "Fluorophore aa not known. Parameters have to be defined manually."
+                "There is no FluorophoreData for Fluorophore aa in fluopy.fluo_data. Parameters have to be defined manually."
                 in caplog.text
             )
         caplog.clear()
@@ -160,7 +160,7 @@ def test_fluorophore_system_load_transitions(
         with caplog.at_level(logging.WARNING):
             fluorophore_system = request.getfixturevalue(dirname)
             assert (
-                "Fluorophore aa not known. Parameters have to be defined manually."
+                "There is no FluorophoreData for Fluorophore aa in fluopy.fluo_data. Parameters have to be defined manually."
                 in caplog.text
             )
         caplog.clear()
@@ -262,7 +262,7 @@ def test_construct_fluorophores(name, distance, count, expected, caplog):
         with caplog.at_level(logging.WARNING):
             fluorophores = fl.construct_fluorophores(name, distance, count)
             assert (
-                "Fluorophore aa not known. Parameters have to be defined manually."
+                "There is no FluorophoreData for Fluorophore aa in fluopy.fluo_data. Parameters have to be defined manually."
                 in caplog.text
             )
         caplog.clear()
