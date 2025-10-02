@@ -39,7 +39,7 @@ class Fluorophore:
         FluorophoreSystem.
     name : str
         Name of the fluorophore.
-    position : Sequence[float, float]
+    position : npt.NDArray[float, float]
         The position of the fluorophore in 2D space.
     constants : FluorophoreData | None
         If None an instance of FluorophoreData with the same name is inserted
@@ -319,7 +319,7 @@ class FluorophoreSystem:
 
 
 def get_distances(
-    positions: Sequence[Sequence[float]],
+    positions: npt.ArrayLike,
 ) -> dict[tuple[int, int], np.float64]:
     """
     Gets distances between positions.
@@ -357,15 +357,15 @@ def triangle_third_position(
 
     Parameters
     ----------
-    position_1 : 1-D array_like
-        The position of the first vertex.
-    position_2 : 1-D array_like
-        The position of the second vertex.
+    position_1
+        The position of the first vertex. Shape (2,).
+    position_2
+        The position of the second vertex. Shape (2,).
 
     Returns
     -------
-    position_3 : 1-D array_like
-        The position of the third vertex.
+    npt.NDArray[np.float64]
+        The position of the third vertex. Shape (2,).
     """
     if position_1 is None:
         position_1 = np.array([0, 0])
