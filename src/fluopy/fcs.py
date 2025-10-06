@@ -1,11 +1,13 @@
 """
-Module fcs
+Fluorescence correlation spectroscopy.
 """
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any, Self
 
+import matplotlib.pyplot as plt
 import multipletau as mp
 import numba
 import numpy as np
@@ -19,6 +21,11 @@ if TYPE_CHECKING:
 
     from fluopy.emissions import Emissions
     from fluopy.fluopy_types import RandomGeneratorSeed
+
+
+__all__: list[str] = ["FCS"]
+
+logger = logging.getLogger(__name__)
 
 
 class FCS:
@@ -79,10 +86,16 @@ class FCS:
         if self.emissions.event_time_points is None:
             raise ValueError("event_time_points is None.")
         if base**exp_max > self.emissions.event_time_points[-1]:
-            raise ValueError(
-                "Base to the power of exp_max cannot be larger than the last time "
-                "point."
+            last_time_point = self.emissions.event_time_points[-1]
+            exp_max_adjusted = np.int64(
+                np.floor(np.log(last_time_point) / np.log(base))
             )
+            logger.warning(
+                f"The exp_max {exp_max} yields a base to the power of exp_max {base**exp_max} that is larger than the last time "
+                f"point {last_time_point}. Therefore, exp_max is adjusted to {exp_max_adjusted}.",
+                stacklevel=2,
+            )
+            exp_max = exp_max_adjusted
         bins = make_loglags(
             exp_min=exp_min, exp_max=exp_max, points_per_base=points_per_base, base=base
         )
@@ -166,6 +179,50 @@ class FCS:
         self.autocorrelation = autocorrelation + 1
 
         return self
+
+    def plot_matplotlib(
+        self,
+        normalize_to: int | None = None,
+        unit: str = "s",
+        ax: mplAxes | None = None,
+        **kwargs: Any,
+    ) -> mplAxes:
+        """
+        Plot FCS data.
+
+        Parameters
+        ----------
+        normalize_to
+            Index of datapoint to which the data is normalized.
+        unit
+            One of 's', 'ms', 'us'. Influences the unit of the x-axis.
+        ax
+            Axis to plot on.
+        kwargs
+            Other parameters passed to :func:`matplotlib.pyplot.plot`.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+            Axes object with the plot.
+        """
+        if ax is None:
+            ax = plt.gca()
+
+        tau_data, correl_data = np.copy(self.tau), np.copy(self.autocorrelation)
+        if normalize_to is not None:
+            correl_data /= correl_data[normalize_to]
+
+        adjust_unit = pd.to_timedelta(1, unit=unit).total_seconds()
+        tau_data = tau_data / adjust_unit
+
+        ax.plot(tau_data, correl_data, **kwargs)
+        ax.set_title(rf"$\tau_{{min}} = {tau_data[0]:.2e}$ {unit}")
+        ax.set_xlabel(rf"$\tau \ ({unit})$")
+        ax.set_xscale("log")
+        ax.set_ylabel(r"$G(\tau)$")
+
+        return ax
 
     def plot(
         self, normalize_to: int | None = None, unit: str = "s", **kwargs: Any

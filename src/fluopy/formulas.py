@@ -1,5 +1,5 @@
 """
-Module formulas
+Mathematical formulas for optical and spectral properties.
 """
 
 from __future__ import annotations
@@ -9,6 +9,8 @@ from typing import Literal
 import numpy as np
 import numpy.typing as npt
 from scipy import constants
+
+__all__: list[str] = []
 
 
 def convert_wavenumber_wavelength_frequency(

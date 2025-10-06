@@ -1,5 +1,5 @@
 """
-Module distributions
+Random variable distributions.
 """
 
 from __future__ import annotations
@@ -16,6 +16,9 @@ from scipy.stats import expon
 
 if TYPE_CHECKING:
     from fluopy.fluopy_types import RandomGeneratorSeed
+
+
+__all__: list[str] = []
 
 
 def hypoexponential_distribution_cdf(

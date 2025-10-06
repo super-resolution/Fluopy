@@ -1,5 +1,5 @@
 """
-Module blinking
+Extract fluorescence intermittency (blinking).
 """
 
 from __future__ import annotations
@@ -18,6 +18,9 @@ if TYPE_CHECKING:
 
     from fluopy.emissions import Emissions
     from fluopy.simulation import Simulation
+
+
+__all__: list[str] = ["Blinking"]
 
 
 class Blinking:

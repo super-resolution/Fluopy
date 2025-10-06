@@ -1,5 +1,5 @@
 """
-Module emissions
+Work with observable photon emission time series.
 """
 
 from __future__ import annotations
@@ -28,6 +28,9 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
 
     from fluopy.fluopy_types import RandomGeneratorSeed
+
+
+__all__: list[str] = ["Emissions"]
 
 logger = logging.getLogger(__name__)
 

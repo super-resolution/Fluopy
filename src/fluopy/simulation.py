@@ -1,5 +1,5 @@
 """
-Module simulation
+Run photophysical simulations.
 """
 
 from __future__ import annotations
@@ -21,6 +21,9 @@ if TYPE_CHECKING:
     from .fluopy_types import RandomGeneratorSeed
     from .prediction import Prediction
     from .transitions import TransitionSet
+
+
+__all__: list[str] = ["Simulation"]
 
 logger = logging.getLogger(__name__)
 

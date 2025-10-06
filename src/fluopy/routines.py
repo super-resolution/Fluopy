@@ -1,5 +1,5 @@
 """
-Module routines
+Various routines to deal with simulation results.
 """
 
 from __future__ import annotations
@@ -21,6 +21,9 @@ if TYPE_CHECKING:
     from fluopy.fluopy_types import RandomGeneratorSeed
     from fluopy.simulation import Simulation
     from fluopy.transitions import TransitionSet
+
+
+__all__: list[str] = []
 
 
 def emission_post_processing(emis: Emissions, seed: RandomGeneratorSeed) -> None:

@@ -1,5 +1,5 @@
 """
-Module custom_plot
+A universal figure to plot simulation results.
 
 A universal figure is defined for plotting simulation results with matplotlib.
 """
@@ -20,6 +20,9 @@ from .miscellaneous import format_axis_labels
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
     from scipy.stats.distributions import rv_frozen
+
+
+__all__: list[str] = []
 
 
 def universal_figure(

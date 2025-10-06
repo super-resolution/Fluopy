@@ -1,3 +1,4 @@
+import matplotlib.axes
 import matplotlib.pyplot as plt
 import networkx as nx
 import pytest
@@ -196,14 +197,14 @@ def test_determine_node_order():
 def test_plot_graph():
     G = nx.MultiDiGraph()
     ax = net.plot_graph(G=G, graph_type="shell", colors=None, scale=1)
-    assert ax
+    assert isinstance(ax, matplotlib.axes.Axes)
 
 
 @pytest.mark.visual
 def test_plot_graph_visual():
     G = nx.MultiDiGraph()
     ax = net.plot_graph(G=G, graph_type="shell", colors=None, scale=1)
-    assert ax
+    assert isinstance(ax, matplotlib.axes.Axes)
     plt.show()
 
 
@@ -213,7 +214,7 @@ def test_draw_networkx_curved_edge_labels():
     ax = net.draw_networkx_curved_edge_labels(
         G=G, pos=pos, ax=None, edge_labels=None, rad=0
     )
-    assert ax
+    assert isinstance(ax, matplotlib.axes.Axes)
 
 
 @pytest.mark.visual
@@ -223,5 +224,5 @@ def test_draw_networkx_curved_edge_labels_visual():
     ax = net.draw_networkx_curved_edge_labels(
         G=G, pos=pos, ax=None, edge_labels=None, rad=0
     )
-    assert ax
+    assert isinstance(ax, matplotlib.axes.Axes)
     plt.show()

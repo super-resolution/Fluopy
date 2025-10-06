@@ -1,5 +1,5 @@
 """
-Module fluorophores
+Define and work with fluorophores.
 """
 
 from __future__ import annotations
@@ -22,6 +22,8 @@ from .transitions import (
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
 
+__all__: list[str] = ["Fluorophore", "FluorophoreSystem"]
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,39 +39,31 @@ class Fluorophore:
         FluorophoreSystem.
     name : str
         Name of the fluorophore.
-    position : Sequence[float, float]
+    position : npt.NDArray[float, float]
         The position of the fluorophore in 2D space.
     constants : FluorophoreData | None
-        Not None if the fluorophore has a defined FluorophoreData
-        dataclass.
+        If None an instance of FluorophoreData with the same name is inserted
+        if available in fluopy.fluo_data.
     """
 
-    identity: int = field(init=False)
+    identity: int = field(init=False, default=None)
     name: str = field()
-    position: Sequence[float] = field()
+    position: npt.ArrayLike = field()
     constants: fd.FluorophoreData | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "identity", None)
-        object.__setattr__(self, "position", np.asarray(self.position))
-        fluorophore_dataclasses = [
-            name for name in dir(fd) if isinstance(getattr(fd, name), type)
-        ]
-        class_name = [
-            name
-            for name in fluorophore_dataclasses
-            if name.lower() == self.name.lower()
-        ]
-        if len(class_name) == 1:
-            object.__setattr__(self, "constants", getattr(fd, class_name[0])())
-        elif len(class_name) == 0:
-            logger.warning(
-                f"Fluorophore {self.name} not known. Parameters have to be defined "
-                "manually.",
-                stacklevel=2,
-            )
-        else:
-            raise ValueError("Multiple fluorophore dataclasses found.")
+        self.position = np.asarray(self.position)
+        if self.constants is None:
+            if self.name in dir(fd) and isinstance(
+                getattr(fd, self.name), fd.FluorophoreData
+            ):
+                self.constants = getattr(fd, self.name)
+            else:
+                logger.warning(
+                    f"There is no FluorophoreData for Fluorophore {self.name} in fluopy.fluo_data. "
+                    f"Parameters have to be defined manually.",
+                    stacklevel=2,
+                )
 
 
 @dataclass
@@ -325,7 +319,7 @@ class FluorophoreSystem:
 
 
 def get_distances(
-    positions: Sequence[Sequence[float]],
+    positions: npt.ArrayLike,
 ) -> dict[tuple[int, int], np.float64]:
     """
     Gets distances between positions.
@@ -363,15 +357,15 @@ def triangle_third_position(
 
     Parameters
     ----------
-    position_1 : 1-D array_like
-        The position of the first vertex.
-    position_2 : 1-D array_like
-        The position of the second vertex.
+    position_1
+        The position of the first vertex. Shape (2,).
+    position_2
+        The position of the second vertex. Shape (2,).
 
     Returns
     -------
-    position_3 : 1-D array_like
-        The position of the third vertex.
+    npt.NDArray[np.float64]
+        The position of the third vertex. Shape (2,).
     """
     if position_1 is None:
         position_1 = np.array([0, 0])

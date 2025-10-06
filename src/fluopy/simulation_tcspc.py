@@ -1,5 +1,5 @@
 """
-Module simulation_tcspc
+Run simulations that resemble TCSPC experiments.
 """
 
 from __future__ import annotations
@@ -18,6 +18,9 @@ from .simulation import Simulation
 if TYPE_CHECKING:
     from .fluopy_types import RandomGeneratorSeed
     from .transitions import TransitionSet
+
+
+__all__: list[str] = []
 
 logger = logging.getLogger(__name__)
 

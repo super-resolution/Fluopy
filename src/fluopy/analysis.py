@@ -1,5 +1,5 @@
 """
-Module analysis
+Analysis a photophysical simulation.
 """
 
 from __future__ import annotations
@@ -22,6 +22,9 @@ if TYPE_CHECKING:
 
     from fluopy.prediction import Prediction
     from fluopy.simulation import Simulation
+
+
+__all__: list[str] = ["Analysis"]
 
 logger = logging.getLogger(__name__)
 

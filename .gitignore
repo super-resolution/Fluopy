@@ -142,3 +142,6 @@ dmypy.json
 !.vscode/launch.json
 !.vscode/extensions.json
 !.vscode/*.code-snippets
+
+# Project specific
+src/fluopy/_version.py

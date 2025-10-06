@@ -1,5 +1,5 @@
 """
-Module fitting
+Tools for fitting.
 """
 
 from __future__ import annotations
@@ -16,6 +16,9 @@ from . import distributions as dist
 
 if TYPE_CHECKING:
     pass
+
+
+__all__: list[str] = []
 
 
 def log_likelihood_hist_v1(

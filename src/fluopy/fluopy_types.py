@@ -1,5 +1,5 @@
 """
-Type definitions
+Type definitions for fluopy.
 """
 
 from __future__ import annotations

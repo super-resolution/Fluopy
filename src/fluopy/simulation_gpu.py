@@ -1,5 +1,5 @@
 """
-Module simulation_gpu
+Run simulations in parallel or on a gpu.
 """
 
 import cupy as cp
@@ -7,6 +7,8 @@ import numpy as np
 from torch import cuda, repeat_interleave, tensor
 
 from . import network as net
+
+__all__: list[str] = []
 
 
 def list_devices():

@@ -1,5 +1,5 @@
 """
-Module miscellaneous
+Miscellaneous tools to format plots and labels.
 """
 
 from __future__ import annotations
@@ -18,6 +18,9 @@ import pandas as pd
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
     from matplotlib.figure import Figure as mplFigure
+
+
+__all__: list[str] = []
 
 
 def delete_subplots(

@@ -1,5 +1,5 @@
 """
-Module kappa_squared
+Compute rotational effects expressed by kappa_squared.
 """
 
 from __future__ import annotations
@@ -14,6 +14,8 @@ from scipy.stats import gaussian_kde
 
 if TYPE_CHECKING:
     from .fluopy_types import RandomGeneratorSeed
+
+__all__: list[str] = []
 
 
 def random_unit_vector(

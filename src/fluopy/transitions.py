@@ -1,5 +1,5 @@
 """
-Module transitions
+Define and handle photophysical transitions.
 """
 
 from __future__ import annotations
@@ -7,7 +7,7 @@ from __future__ import annotations
 import copy
 import os
 import re
-from collections.abc import Collection
+from collections.abc import Collection, Iterable
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from itertools import product
@@ -23,8 +23,13 @@ from . import formulas as fo
 from . import network as net
 
 if TYPE_CHECKING:
+    from matplotlib.axes import Axes as mplAxes
+
     from fluopy.fluo_data import FluorophoreData
     from fluopy.fluorophores import Fluorophore, FluorophoreSystem
+
+
+__all__: list[str] = ["SingleState", "PairedState", "Transition", "TransitionSet"]
 
 
 class SingleState(Enum):
@@ -311,7 +316,7 @@ class TransitionSet:
         other attributes as columns.
     row_sums : np.ndarray
         Contains the sum of each row of non-normalized transition rates, i.e., the sum
-        of rates of all possbile combined_state_transitions.
+        of rates of all possible combined_state_transitions.
     single_states : dict[str, list[int]]
         Contains the values of all relevant SingleStates as values. Name of
         fluorophores as keys.
@@ -468,7 +473,7 @@ class TransitionSet:
         return filtered
 
     def adjust_rates(
-        self, change_dict: dict[str, float] = None, keep_zero_rates: bool = False
+        self, change_dict: dict[int, float] = None, keep_zero_rates: bool = False
     ) -> TransitionSet:
         """
         Returns another TransitionSet with transition rates modified. Should be used
@@ -502,6 +507,41 @@ class TransitionSet:
         )
 
         return adjusted
+
+    def remove_zero_rates(self) -> TransitionSet:
+        """
+        Returns another TransitionSet with all transitions removed that have a rate constant
+        of zero.
+
+        Returns
+        -------
+        TransitionSet
+            Re-initialization of the object with the modified transition collection.
+        """
+        transitions = copy.deepcopy(self.transitions)
+
+        for fluorophore_comb, f_transitions in transitions.items():
+            i = 0
+            keep_transitions = []
+            df_constructor = []
+            for transition in f_transitions:
+                if transition.rate != 0:
+                    transition.identity = i
+                    i += 1
+                    keep_transitions.append(transition)
+                    df_constructor.append(asdict(transition))
+            if keep_transitions:
+                transitions[fluorophore_comb] = keep_transitions
+                transition_df = pd.DataFrame(df_constructor)
+                transition_df = transition_df.set_index("identity")
+                transition_df = pd.concat(
+                    {fluorophore_comb: transition_df}, names=["Fluorophore"]
+                )
+
+        new_transition_set = TransitionSet(
+            transitions=transitions, fluorophore_system=self.fluorophore_system
+        )
+        return new_transition_set
 
     def remove_absorbing_states(self) -> TransitionSet:
         """
@@ -600,7 +640,8 @@ class TransitionSet:
         graph_type: str = "shell",
         colors: Collection | None = None,
         scale: float = 1,
-    ) -> None:
+        axes: Iterable[mplAxes] | None = None,
+    ) -> list[mplAxes]:
         """
         Plot photophysical system as network/graph.
 
@@ -612,18 +653,35 @@ class TransitionSet:
             Contains two colors as Hex values of type str.
         scale
             Factor to scale the figure.
+        axes
+            Axes elements to plot graphs on.
 
         Returns
         -------
-        None
+        list[matplotlib.axes.Axes]
+            Axes objects with the plots.
         """
         graphs = net.construct_state_graphs(transition_df=self.transition_df)
-        for graph in graphs:
-            net.plot_graph(G=graph, graph_type=graph_type, colors=colors, scale=scale)
+
+        if axes is None:
+            axes = [None] * len(graphs)
+
+        return_axes = []
+        try:
+            for graph, ax in zip(graphs, axes, strict=True):
+                ax = net.plot_graph(
+                    G=graph, graph_type=graph_type, colors=colors, scale=scale, ax=ax
+                )
+                return_axes.append(ax)
+        except ValueError as exception:
+            raise ValueError(
+                f"The number of axes elements must be {len(graphs)} or None"
+            ) from exception
+        return return_axes
 
 
 def get_single_states(
-    transitions: Collection[Transition], transition_df: pd.DataFrame
+    transitions: dict[str, Collection[Transition]], transition_df: pd.DataFrame
 ) -> dict[str, npt.NDArray[int]]:
     """
     Gets the values of SingleStates that occur in non-energy transfer transitions.

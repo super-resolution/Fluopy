@@ -1,5 +1,5 @@
 """
-Module prediction
+Compute a prediction for a photophysical system.
 """
 
 from __future__ import annotations
@@ -20,6 +20,8 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
 
     from .transitions import TransitionSet
+
+__all__: list[str] = ["Prediction"]
 
 logger = logging.getLogger(__name__)
 
