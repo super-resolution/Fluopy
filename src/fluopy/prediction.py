@@ -74,10 +74,6 @@ class Prediction:
         if transition_set.fluorophore_system.count > 2:
             raise ValueError("prediction not available for more than 2 fluorophores.")
         # too large matrix in np.linalg.matrix_power
-        if transition_set.transition_matrix is None:
-            raise ValueError(
-                "prediction not available if transition_set not finalized."
-            )
         if any(
             "dist" in fluorophore_comb
             for fluorophore_comb in transition_set.transition_df.index.get_level_values(

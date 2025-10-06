@@ -64,15 +64,8 @@ def test_prediction_1(tr_set_bl_et_3f):
         pr.Prediction(transition_set=tr_set_bl_et_3f)
 
 
-# test with not finalized transition_set
-def test_prediction_2(tr_set_bl_et_2f_diff):
-    tr_set_new = tr_set_bl_et_2f_diff.filter_by_identity(remove_list=[4])
-    prediction = pr.Prediction(transition_set=tr_set_new)
-    assert prediction
-
-
 # test with 2 different fluorophores, energy transfer, bleaching
-def test_prediction_3(tr_set_bl_et_2f_diff, caplog):
+def test_prediction_2(tr_set_bl_et_2f_diff, caplog):
     with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_bl_et_2f_diff)
         assert (
@@ -132,7 +125,7 @@ def test_prediction_3(tr_set_bl_et_2f_diff, caplog):
 
 
 # test with 2 same fluorophores, energy transfer, bleaching
-def test_prediction_4(tr_set_bl_et_2f_same, caplog):
+def test_prediction_3(tr_set_bl_et_2f_same, caplog):
     with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_bl_et_2f_same)
         assert (
@@ -184,7 +177,7 @@ def test_prediction_4(tr_set_bl_et_2f_same, caplog):
 
 
 # test with 2 different fluorophores, energy transfer, no bleaching
-def test_prediction_5(tr_set_et_2f_diff, caplog):
+def test_prediction_4(tr_set_et_2f_diff, caplog):
     with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_et_2f_diff)
         assert (
@@ -238,7 +231,7 @@ def test_prediction_5(tr_set_et_2f_diff, caplog):
 
 
 # test with 2 different fluorophores, no energy transfer, no bleaching
-def test_prediction_6(tr_set_2f_diff):
+def test_prediction_5(tr_set_2f_diff):
     prediction = pr.Prediction(transition_set=tr_set_2f_diff)
     assert not prediction.energy_transfer
     assert not prediction.absorbing_chain
@@ -312,7 +305,7 @@ def test_prediction_6(tr_set_2f_diff):
 
 
 # test with 1 fluorophore, with bleaching
-def test_prediction_7(tr_set_1f_bl, caplog):
+def test_prediction_6(tr_set_1f_bl, caplog):
     with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_1f_bl)
         assert (
@@ -390,7 +383,7 @@ def test_prediction_7(tr_set_1f_bl, caplog):
 
 
 # test with 1 fluorophore, no bleaching
-def test_prediction_8(tr_set_1f):
+def test_prediction_7(tr_set_1f):
     prediction = pr.Prediction(transition_set=tr_set_1f)
     assert not prediction.energy_transfer
     assert not prediction.absorbing_chain

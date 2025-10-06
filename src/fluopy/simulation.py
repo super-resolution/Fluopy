@@ -62,10 +62,6 @@ class Simulation:
         -------
         None
         """
-        if transition_set.transition_matrix is None:
-            raise ValueError(
-                "simulation not available if transition_set not finalized."
-            )
         self.transition_set = transition_set
         self.time_series = None
         self.transition_series = None
