@@ -441,12 +441,16 @@ class TransitionSet:
             self.finalize()
         return self._transition_matrix
 
-    def filter_by_identity(self, remove_list: Collection = None) -> TransitionSet:
+    def filter_by_identity(
+        self, remove_list: Collection = None, keep_zero_rates: bool = False
+    ) -> TransitionSet:
         """
         Returns another TransitionSet with transitions removed by their identity.
 
         Parameters
         ----------
+        keep_zero_rates
+            Whether to keep transitions with rate 0.
         remove_list
             Contains identities of type int.
 
@@ -467,7 +471,9 @@ class TransitionSet:
                     else:
                         filtered_transitions[fluorophore] = [transition]
         filtered = TransitionSet(
-            transitions=filtered_transitions, fluorophore_system=self.fluorophore_system
+            transitions=filtered_transitions,
+            fluorophore_system=self.fluorophore_system,
+            keep_zero_rates=keep_zero_rates,
         )
 
         return filtered
@@ -476,9 +482,7 @@ class TransitionSet:
         self, change_dict: dict[int, float] = None, keep_zero_rates: bool = False
     ) -> TransitionSet:
         """
-        Returns another TransitionSet with transition rates modified. Should be used
-        as last modification step since other modifiers lack the keep_zero_rates
-        argument.
+        Returns another TransitionSet with transition rates modified.
 
         Parameters
         ----------
@@ -543,9 +547,14 @@ class TransitionSet:
         )
         return new_transition_set
 
-    def remove_absorbing_states(self) -> TransitionSet:
+    def remove_absorbing_states(self, keep_zero_rates: bool = False) -> TransitionSet:
         """
         Returns another TransitionSet that contains no Markovian absorbing states.
+
+        Parameters
+        ----------
+        keep_zero_rates
+            Whether to keep transitions with rate 0.
 
         Returns
         -------
@@ -567,15 +576,22 @@ class TransitionSet:
                         keep_transitions[fluorophore] = [transition]
 
         no_abs = TransitionSet(
-            transitions=keep_transitions, fluorophore_system=self.fluorophore_system
+            transitions=keep_transitions,
+            fluorophore_system=self.fluorophore_system,
+            keep_zero_rates=keep_zero_rates,
         )
 
         return no_abs
 
-    def remove_energy_transfers(self) -> TransitionSet:
+    def remove_energy_transfers(self, keep_zero_rates: bool = False) -> TransitionSet:
         """
         Return another TransitionSet that contains no transitions that are energy
         transfers.
+
+        Parameters
+        ----------
+        keep_zero_rates
+            Whether to keep transitions with rate 0.
 
         Returns
         -------
@@ -590,7 +606,9 @@ class TransitionSet:
                 keep_transitions[fluorophore] = f_transition
 
         no_ets = TransitionSet(
-            transitions=keep_transitions, fluorophore_system=self.fluorophore_system
+            transitions=keep_transitions,
+            fluorophore_system=self.fluorophore_system,
+            keep_zero_rates=keep_zero_rates,
         )
 
         return no_ets

@@ -675,11 +675,12 @@ def first_reaction_method(
     time_step_series[0] = 0
 
     # simulation of rotational motion
+    tau_flu_samples = rng.exponential(scale=tau_flu, size=accuracy)
     kappa_squared = []
-    for _ in range(accuracy):
+    for tau_flu_sample in tau_flu_samples:
         traj1, traj2 = kappa_sq.simulate_rotational_motion(
             tau_rot=tau_rot,
-            tau_life=tau_flu,
+            tau_life=tau_flu_sample,
             dt=dt,
             seed=rng,
         )

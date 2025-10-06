@@ -182,7 +182,8 @@ def integral_kappa_squared(
 
     r_expanded = np.tile(r, (len(traj1), 1))
     kappas = kappa_squared(traj1, traj2, r_expanded)
-    return np.trapezoid(kappas, dx=dt) / (len(kappas) * dt)
+    t = len(kappas) * dt
+    return np.trapezoid(kappas, dx=dt) / t
 
 
 def sample_kappa_squared_distribution(
@@ -208,11 +209,16 @@ def sample_kappa_squared_distribution(
     """
     rng = np.random.default_rng(seed)
 
-    k2_values_scaled = k2_values / 4
+    k2_values_scaled = k2_values / 4  # kappa² ranges from 0 to 4
+    # for logit transform, scale to (0, 1)
     k2_values_scaled_log = logit(np.clip(k2_values_scaled, 1e-5, 1 - 1e-5))
+    # maps (0, 1) to (-inf, inf)
     kde_logit = gaussian_kde(k2_values_scaled_log, bw_method="silverman")
+    # kde builds smooth estimate of PDF
     samples_logit = kde_logit.resample(size, seed=rng)[0]
     samples_scaled = expit(samples_logit)
+    # maps (-inf, inf) back to (0, 1)
     samples_kappa2 = samples_scaled * 4
+    # maps (0, 1) back to (0, 4)
 
     return samples_kappa2
