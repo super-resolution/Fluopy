@@ -1,5 +1,4 @@
 import logging
-import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -22,9 +21,7 @@ from fluopy import fluorophores as fl
     ],
 )
 def test_get_p_filter(bandpass, expected):
-    data_dir = os.path.join(
-        Path(__file__).parents[1], "src", "fluopy", "fluorophore_spectra"
-    )
+    data_dir = Path(__file__).parents[1] / "src" / "fluopy" / "fluorophore_spectra"
     fluorophore = fl.Fluorophore(name="testfluo_1", position=[0, 0])
     if expected == "ValueError1":
         with pytest.raises(
@@ -87,11 +84,11 @@ def test_get_emitting_transition_ids(bandpass, expected, tr_set_bl_et_2f_diff):
 def test_emissions():
     frame_time = "5ms"
     bandpass = None
-    seed = 1
-    emis = em.Emissions(frame_time=frame_time, bandpass=bandpass, seed=seed)
+    rng = np.random.default_rng(1)
+    emis = em.Emissions(frame_time=frame_time, bandpass=bandpass, seed=rng)
     assert emis.parameters["frame_time"] == frame_time
     assert emis.parameters["bandpass"] == bandpass
-    assert emis.parameters["seed"] == seed
+    assert emis.parameters["seed"] == rng
     assert emis.event_time_points is None
     assert emis.event_time_series is None
 
@@ -107,7 +104,8 @@ def test_emissions():
     ],
 )
 def test_emissions_extract(dirname, request, frame_time, bandpass, expected, caplog):
-    emis = em.Emissions(frame_time=frame_time, bandpass=bandpass, seed=1)
+    rng = np.random.default_rng(1)
+    emis = em.Emissions(frame_time=frame_time, bandpass=bandpass, seed=rng)
     with caplog.at_level(logging.WARNING):
         simulation = request.getfixturevalue(dirname)
         assert "Floating point precision error warning" in caplog.text
@@ -137,7 +135,8 @@ def test_emissions_extract(dirname, request, frame_time, bandpass, expected, cap
 
 
 def test_emissions_simulate(tr_set_1f_bl):
-    emis = em.Emissions(frame_time="100us", bandpass=(650, 700), seed=1)
+    rng = np.random.default_rng(1)
+    emis = em.Emissions(frame_time="100us", bandpass=(650, 700), seed=rng)
     emis.simulate(
         transition_set=tr_set_1f_bl,
         start_at=None,
@@ -162,12 +161,13 @@ def test_emissions_simulate(tr_set_1f_bl):
     ],
 )
 def test_emissions_tcspc(dirname, request, excitation_rates, expected, caplog):
+    rng = np.random.default_rng(1)
     tr_set = request.getfixturevalue(dirname)
     if expected == 1:
         ets = [j for h, j in tr_set.transition_df.index if "dist" in h]
         tr_set = tr_set.adjust_rates({identity: 1e10 for identity in ets})
         tr_set.finalize()
-    emis = em.Emissions(frame_time="100us", bandpass=(650, 700), seed=1)
+    emis = em.Emissions(frame_time="100us", bandpass=(650, 700), seed=rng)
     with caplog.at_level(logging.WARNING):
         lifetimes_DA, _, _ = emis.tcspc(
             transition_set=tr_set,
@@ -188,11 +188,12 @@ def test_emissions_tcspc(dirname, request, excitation_rates, expected, caplog):
 
 
 def test_emissions_tcspc_parameters(tr_set_bl_et_2f_diff):
+    rng = np.random.default_rng(1)
     tr_set = tr_set_bl_et_2f_diff.adjust_rates(
         {8: 1e10, 15: 1e10}, keep_zero_rates=True
     )
     tr_set.finalize()
-    emis = em.Emissions(frame_time="1ms", bandpass=(650, 700), seed=1)
+    emis = em.Emissions(frame_time="1ms", bandpass=(650, 700), seed=rng)
     with patch("fluopy.emissions.simulate_TCSPC") as mock_tcspc:
         mock_tcspc.return_value = (0, 0, 0, 0, 0)
         emis.tcspc(
@@ -227,6 +228,7 @@ def test_emissions_tcspc_parameters(tr_set_bl_et_2f_diff):
     [[0.7, ""], [1.0, "no change"], [1.1, "ValueError"], [-0.1, "ValueError"]],
 )
 def test_emissions_add_photon_collection_objective(p, em_large, expected):
+    rng = np.random.default_rng(1)
     # fmt: off
     exp_values_prev = np.array(
         [
@@ -246,22 +248,22 @@ def test_emissions_add_photon_collection_objective(p, em_large, expected):
 
     if expected == "ValueError":
         with pytest.raises(ValueError, match="p has to be between 0 and 1."):
-            em_large.add_photon_collection_objective(p=p, seed=10)
+            em_large.add_photon_collection_objective(p=p, seed=rng)
     elif expected == "no change":
-        em_large.add_photon_collection_objective(p=p, seed=10)
+        em_large.add_photon_collection_objective(p=p, seed=rng)
         pd.testing.assert_series_equal(
             em_large.event_time_series, exp_event_time_series_prev
         )
     else:
-        em_large.add_photon_collection_objective(p=p, seed=10)
+        em_large.add_photon_collection_objective(p=p, seed=rng)
         # fmt: off
         exp_values = np.array(
             [
-                34176, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                34842, 5175, 0, 0, 0, 0, 0, 0, 46614, 53267, 25163, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                34454, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                34953, 5221, 0, 0, 0, 0, 0, 0, 46702, 52968, 25294, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ],
             dtype=np.int64)
         # fmt: on
@@ -277,6 +279,7 @@ def test_emissions_add_photon_collection_objective(p, em_large, expected):
     [[0.7, ""], [1.0, "no change"], [1.1, "ValueError"], [-0.1, "ValueError"]],
 )
 def test_emissions_add_quantum_efficiency(em_large, p, expected):
+    rng = np.random.default_rng(1)
     # fmt: off
     exp_values_prev = np.array(
         [
@@ -296,14 +299,14 @@ def test_emissions_add_quantum_efficiency(em_large, p, expected):
 
     if expected == "ValueError":
         with pytest.raises(ValueError, match="p has to be between 0 and 1."):
-            em_large.add_quantum_efficiency(p=p, seed=1)
+            em_large.add_quantum_efficiency(p=p, seed=rng)
     elif expected == "no change":
-        em_large.add_quantum_efficiency(p=p, seed=1)
+        em_large.add_quantum_efficiency(p=p, seed=rng)
         pd.testing.assert_series_equal(
             em_large.event_time_series, exp_event_time_series_prev
         )
     else:
-        em_large.add_quantum_efficiency(p=p, seed=1)
+        em_large.add_quantum_efficiency(p=p, seed=rng)
         # fmt: off
         exp_values = np.array(
             [
@@ -327,6 +330,7 @@ def test_emissions_add_quantum_efficiency(em_large, p, expected):
     [[0.7, ""], [1.0, "no change"], [1.1, "ValueError"], [-0.1, "ValueError"]],
 )
 def test_emissions_add_transmittance(em_large, p, expected):
+    rng = np.random.default_rng(1)
     # fmt: off
     exp_values_prev = np.array(
         [
@@ -346,14 +350,14 @@ def test_emissions_add_transmittance(em_large, p, expected):
 
     if expected == "ValueError":
         with pytest.raises(ValueError, match="p has to be between 0 and 1."):
-            em_large.add_transmittance(p=p, seed=1)
+            em_large.add_transmittance(p=p, seed=rng)
     elif expected == "no change":
-        em_large.add_transmittance(p=p, seed=1)
+        em_large.add_transmittance(p=p, seed=rng)
         pd.testing.assert_series_equal(
             em_large.event_time_series, exp_event_time_series_prev
         )
     else:
-        em_large.add_transmittance(p=p, seed=1)
+        em_large.add_transmittance(p=p, seed=rng)
         # fmt: off
         exp_values = np.array(
             [
@@ -373,6 +377,7 @@ def test_emissions_add_transmittance(em_large, p, expected):
 
 
 def test_emissions_add_emccd_gain(em_large):
+    rng = np.random.default_rng(1)
     # fmt: off
     exp_values_prev = np.array(
         [
@@ -389,7 +394,7 @@ def test_emissions_add_emccd_gain(em_large):
     pd.testing.assert_series_equal(
         em_large.event_time_series, exp_event_time_series_prev
     )
-    em_large.add_emccd_gain(emccd_gain=10, seed=1)
+    em_large.add_emccd_gain(emccd_gain=10, seed=rng)
     # fmt: off
     exp_values = np.array(
         [
@@ -406,6 +411,7 @@ def test_emissions_add_emccd_gain(em_large):
 
 
 def test_emissions_add_gaussian_noise(em_large):
+    rng = np.random.default_rng(1)
     # fmt: off
     exp_values_prev = np.array(
         [
@@ -422,7 +428,7 @@ def test_emissions_add_gaussian_noise(em_large):
     pd.testing.assert_series_equal(
         em_large.event_time_series, exp_event_time_series_prev
     )
-    em_large.add_gaussian_noise(mean=10, std=5, seed=1)
+    em_large.add_gaussian_noise(mean=10, std=5, seed=rng)
     # fmt: off
     exp_values = np.array(
         [
@@ -440,6 +446,7 @@ def test_emissions_add_gaussian_noise(em_large):
 
 
 def test_emissions_add_poisson_noise(em_large):
+    rng = np.random.default_rng(1)
     # fmt: off
     exp_values_prev = np.array(
         [
@@ -456,7 +463,7 @@ def test_emissions_add_poisson_noise(em_large):
     pd.testing.assert_series_equal(
         em_large.event_time_series, exp_event_time_series_prev
     )
-    em_large.add_poisson_noise(rate=10, seed=1)
+    em_large.add_poisson_noise(rate=10, seed=rng)
     # fmt: off
     exp_values = np.array(
         [
@@ -479,20 +486,12 @@ def test_save_and_load(request, tmp_path, caplog):
     caplog.clear()
 
     em_tr_set_1f_bl.save(path=tmp_path, name_extension="_test_extension")
-    assert os.path.isfile(
-        os.path.join(tmp_path, "event_time_series_test_extension.csv")
-    )
-    assert os.path.isfile(
-        os.path.join(tmp_path, "event_time_points_test_extension.npy")
-    )
+    assert (Path(tmp_path) / "event_time_series_test_extension.csv").is_file()
+    assert (Path(tmp_path) / "event_time_points_test_extension.npy").is_file()
     emis = em.Emissions.load(path=tmp_path, name_extension="_test_extension")
     assert type(emis.event_time_points) is np.ndarray
     assert type(emis.event_time_series) is pd.Series
-    os.remove(os.path.join(tmp_path, "event_time_series_test_extension.csv"))
-    os.remove(os.path.join(tmp_path, "event_time_points_test_extension.npy"))
-    assert not os.path.isfile(
-        os.path.join(tmp_path, "event_time_series_test_extension.csv")
-    )
-    assert not os.path.isfile(
-        os.path.join(tmp_path, "event_time_points_test_extension.npy")
-    )
+    (Path(tmp_path) / "event_time_series_test_extension.csv").unlink(missing_ok=True)
+    (Path(tmp_path) / "event_time_points_test_extension.npy").unlink(missing_ok=True)
+    assert not (Path(tmp_path) / "event_time_series_test_extension.csv").is_file()
+    assert not (Path(tmp_path) / "event_time_points_test_extension.npy").is_file()

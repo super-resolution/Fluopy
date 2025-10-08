@@ -5,7 +5,7 @@ Random variable distributions.
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from itertools import product
 from typing import TYPE_CHECKING, Any
 
@@ -15,7 +15,7 @@ from scipy.integrate import cumulative_trapezoid
 from scipy.stats import expon
 
 if TYPE_CHECKING:
-    from fluopy.fluopy_types import RandomGeneratorSeed
+    pass
 
 
 __all__: list[str] = []
@@ -171,9 +171,9 @@ class Photoswitching_fingerprint_model:
         if call is None:
             call = hypoexponential_distribution_pdf
         lambdas, pis = photoswitching_fingerprint_prepare(
-            self.params,
-            i + 1,
-            self.z,
+            params=self.params,
+            n=i + 1,
+            z=self.z,
         )
         pdf_part = 0
         for lambda_combo, pi_combo in zip(lambdas, pis):
@@ -190,8 +190,8 @@ class Photoswitching_fingerprint_model:
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
-                F_1 = self.cdf_part(self.domain[-1], i, normalize=False)
-            F_0 = self.cdf_part(self.domain[0], i, normalize=False)
+                F_1 = self.cdf_part(x=self.domain[-1], i=i, normalize=False)
+            F_0 = self.cdf_part(x=self.domain[0], i=i, normalize=False)
             pdf_part = pdf_part / (F_1 - F_0)
 
         return pdf_part
@@ -239,8 +239,8 @@ class Photoswitching_fingerprint_model:
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
-                F_1 = self.cdf(self.domain[-1], extra=True)
-            F_0 = self.cdf(self.domain[0], extra=True)
+                F_1 = self.cdf(x=self.domain[-1], extra=True)
+            F_0 = self.cdf(x=self.domain[0], extra=True)
             pdf = pdf / (F_1 - F_0)  # true for pdf, dpdf, ddpdf
 
         return pdf
@@ -252,9 +252,9 @@ class Photoswitching_fingerprint_model:
         normalize: bool = False,
     ) -> float | npt.NDArray[np.float64]:
         lambdas, pis = photoswitching_fingerprint_prepare(
-            self.params,
-            i + 1,
-            self.z,
+            params=self.params,
+            n=i + 1,
+            z=self.z,
         )
         cdf_part = 0
         for lambda_combo, pi_combo in zip(lambdas, pis):
@@ -270,8 +270,8 @@ class Photoswitching_fingerprint_model:
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
-                F_1 = self.cdf_part(self.domain[-1], i, normalize=False)
-            F_0 = self.cdf_part(self.domain[0], i, normalize=False)
+                F_1 = self.cdf_part(x=self.domain[-1], i=i, normalize=False)
+            F_0 = self.cdf_part(x=self.domain[0], i=i, normalize=False)
             cdf_part = (cdf_part - F_0) / (F_1 - F_0)
 
         return cdf_part
@@ -299,7 +299,7 @@ class Photoswitching_fingerprint_model:
         n = len(self.params)
         cdf = 0
         for i in range(n):
-            cdf_part = self.cdf_part(x, i, normalize=False)
+            cdf_part = self.cdf_part(x=x, i=i, normalize=False)
             cdf += self.weights[i] * cdf_part
         if extra:
             return cdf
@@ -308,8 +308,8 @@ class Photoswitching_fingerprint_model:
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
-                F_1 = self.cdf(self.domain[-1], extra=True)
-            F_0 = self.cdf(self.domain[0], extra=True)
+                F_1 = self.cdf(x=self.domain[-1], extra=True)
+            F_0 = self.cdf(x=self.domain[0], extra=True)
             cdf = (cdf - F_0) / (F_1 - F_0)
 
         return cdf
@@ -372,9 +372,9 @@ def photoswitching_fingerprint_prepare(
     tuple[list[list[float]], list[list[float]]]
         Combinations of lambdas and pis for the photoswitching fingerprint model.
     """
-    valid_combinations = generate_combinations(n, z)
-    lambdas = map_to_lambdas(valid_combinations, params, z)
-    pis = get_pis(valid_combinations, params, z)
+    valid_combinations = generate_combinations(n=n, z=z)
+    lambdas = map_to_lambdas(combos=valid_combinations, params=params, z=z)
+    pis = get_pis(combos=valid_combinations, params=params, z=z)
     return lambdas, pis
 
 
@@ -485,7 +485,7 @@ def get_pis(
             2: params[idx][1],
             3: params[idx][2],
         }
-        mapper = np.vectorize(mapping.get, otypes=[float])
+        mapper = np.vectorize(pyfunc=mapping.get, otypes=[float])
         if idx == combos.shape[1] - 1:
             pis[:, idx] = mapper(col_all)
         else:
@@ -564,8 +564,8 @@ class ExponentialMixtureModel:
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
-                F_1 = self.cdf(self.domain[-1], extra=True)
-            F_0 = self.cdf(self.domain[0], extra=True)
+                F_1 = self.cdf(x=self.domain[-1], extra=True)
+            F_0 = self.cdf(x=self.domain[0], extra=True)
             pdf = pdf / (F_1 - F_0)
 
         return pdf
@@ -606,8 +606,8 @@ class ExponentialMixtureModel:
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
-                F_1 = self.cdf(self.domain[-1], extra=True)
-            F_0 = self.cdf(self.domain[0], extra=True)
+                F_1 = self.cdf(x=self.domain[-1], extra=True)
+            F_0 = self.cdf(x=self.domain[0], extra=True)
             cdf = (cdf - F_0) / (F_1 - F_0)
 
         return cdf
@@ -629,20 +629,20 @@ class ExponentialMixtureMarginalModel:
         truncation_up: float,
     ) -> None:
         x_grid = np.logspace(np.log10(0.01), np.log10(truncation_up), 200)
-        x_grid = np.insert(x_grid, 0, 0.0)
-        pdf_grid = ExponentialMixtureModel(params).pdf(x_grid) * pfa_cdf_part(
-            truncation_up - x_grid, cdf_part_index, normalize=True
-        )
+        x_grid = np.insert(arr=x_grid, obj=0, values=0.0)
+        pdf_grid = ExponentialMixtureModel(params=params, domain=(0, np.inf)).pdf(
+            x_grid
+        ) * pfa_cdf_part(x=truncation_up - x_grid, i=cdf_part_index, normalize=True)
         # pfa_cdf_part because we want the distribution of T of the (n-1)th fluorophore,
         # not of all n-x fluorophores
         # CDF(truncation_up - x) because Pr(actual_truncation >= x) = Pr(truncation_up - T >= x) = Pr(T <= truncation_up - x) = CDF(truncation_up - x)
         # i.e., pfa_cdf_part does not describe the actual truncation of the two_expon_mixture, but truncation_up - T does.
         # if it described the actual truncation, we would multiply with (1 - CDF(x)) (Survival function)
-        P_obs = np.trapezoid(pdf_grid, x_grid)
+        P_obs = np.trapezoid(y=pdf_grid, x=x_grid)
         pdf_grid /= P_obs
         # normalization such that integral over domain is 1, i.e., pdf_grid describes the distribution
         # given that an event is observed
-        cdf_grid = cumulative_trapezoid(pdf_grid, x_grid, initial=0)
+        cdf_grid = cumulative_trapezoid(pdf_grid, x=x_grid, initial=0)
 
         self.pdf_grid = pdf_grid
         self.cdf_grid = cdf_grid
@@ -650,64 +650,11 @@ class ExponentialMixtureMarginalModel:
         self.P_obs = P_obs
 
     def pdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
-        pdf = np.interp(x, self.x_grid, self.pdf_grid, left=0.0, right=0.0)
+        pdf = np.interp(x, xp=self.x_grid, fp=self.pdf_grid, left=0.0, right=0.0)
 
         return pdf
 
     def cdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
-        cdf = np.interp(x, self.x_grid, self.cdf_grid, left=0.0, right=1.0)
+        cdf = np.interp(x, xp=self.x_grid, fp=self.cdf_grid, left=0.0, right=1.0)
 
         return cdf
-
-
-def rejection_sampling(
-    pdf: Callable[Any, Any],
-    x_min: float,
-    x_max: float,
-    y_min: float,
-    y_max: float,
-    batch: int,
-    size: int,
-    parameters: Iterable[Any],
-    seed: RandomGeneratorSeed,
-):
-    """
-    Technique to sample from a distribution with a known PDF.
-    Adapted from https://cosmiccoding.com.au/tutorials/rejection_sampling/.
-    Needed if the inverse function of the CDF is not analytically computable.
-
-    Parameters
-    ----------
-    pdf
-        Probability density function of distribution of interest.
-    x_min
-        Sample space lower bound.
-    x_max
-        Sample space upper bound.
-    y_min
-        Probability density lower bound.
-    y_max
-        Probability density upper bound.
-    batch
-        Number of possible samples tested simultaneously.
-    size
-        Number of samples to be generated.
-    parameters
-        Parameters to be passed to pdf in corresponding order.
-    seed
-        A seed to initialize the BitGenerator.
-
-    Returns
-    -------
-    samples : np.ndarray
-        Generated samples.
-    """
-    rng = np.random.default_rng(seed)
-    samples = []
-    while len(samples) < size:
-        x = rng.uniform(low=x_min, high=x_max, size=batch)
-        y = rng.uniform(low=y_min, high=y_max, size=batch)
-        samples += x[y < pdf(*parameters, x)].tolist()
-    samples = np.array(samples)
-
-    return samples[:size]

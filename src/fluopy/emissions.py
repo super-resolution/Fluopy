@@ -5,7 +5,6 @@ Work with observable photon emission time series.
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -57,7 +56,7 @@ class Emissions:
         self,
         frame_time: str = "5ms",
         bandpass: tuple[float, float] | None = None,
-        seed: RandomGeneratorSeed = 1,
+        seed: RandomGeneratorSeed = None,
     ) -> None:
         """
         Parameters
@@ -97,7 +96,7 @@ class Emissions:
         )
         self.event_time_points = simulation.time_series[emission_indices + 1]
         self.construct_event_time_series(
-            simulation,
+            simulation=simulation,
             resample=self.parameters["frame_time"],
         )
 
@@ -225,7 +224,7 @@ class Emissions:
         df = transition_set.transition_df
         exc = [j for _, j in df.index if df.loc[(_, j), "abbreviation"] == "EXC"]
         transition_set = transition_set.adjust_rates(
-            {identity: 0 for identity in exc}, keep_zero_rates=True
+            change_dict={identity: 0 for identity in exc}, keep_zero_rates=True
         )
         transition_set.finalize()
 
@@ -319,7 +318,7 @@ class Emissions:
             rng = np.random.default_rng(seed)
             processed = []
             collect_emission_indices = []
-            data_dir = os.path.join(Path(__file__).parent, "fluorophore_spectra")
+            data_dir = Path(__file__).parent / "fluorophore_spectra"
 
             for (
                 fluorophore
@@ -346,7 +345,7 @@ class Emissions:
                         simulation.transition_series, emitting_transition_ids_f
                     ).nonzero()[0]
                     amount_not_detected = binom.rvs(
-                        emission_indices_f.size, p_not_passed, random_state=rng
+                        n=emission_indices_f.size, p=p_not_passed, random_state=rng
                     )
                     not_detected_indices = rng.choice(
                         np.arange(0, emission_indices_f.size),
@@ -386,7 +385,7 @@ class Emissions:
         -------
         None
         """
-        event_time_points = np.insert(self.event_time_points, 0, 0)
+        event_time_points = np.insert(arr=self.event_time_points, obj=0, values=0)
 
         added_end_time = False
         if event_time_points[-1] != simulation.time_series[-1]:
@@ -536,7 +535,7 @@ class Emissions:
         """
         rng = np.random.default_rng(seed)
         size = self.event_time_series.size - 1
-        variates = norm(mean, std).rvs(size, random_state=rng)
+        variates = norm(loc=mean, scale=std).rvs(size, random_state=rng)
         variates = variates.astype(np.int32)
         self.event_time_series.values[1:] = self.event_time_series.values[1:] + variates
         self.event_time_series.clip(lower=0, inplace=True)
@@ -682,7 +681,7 @@ class Emissions:
 
         return axes
 
-    def save(self, path: str | os.PathLike[Any], name_extension: str = "") -> None:
+    def save(self, path: str | Path, name_extension: str = "") -> None:
         """
         Saves event_time_series and event_time_points to a file.
 
@@ -697,15 +696,13 @@ class Emissions:
         -------
         None
         """
-        time_series_file = os.path.join(
-            path, "event_time_series" + name_extension + ".csv"
-        )
-        time_points_file = os.path.join(path, "event_time_points" + name_extension)
+        time_series_file = Path(path) / ("event_time_series" + name_extension + ".csv")
+        time_points_file = Path(path) / ("event_time_points" + name_extension + ".npy")
         self.event_time_series.to_csv(time_series_file, header=False)
         np.save(time_points_file, self.event_time_points)
 
     @classmethod
-    def load(cls, path: str | os.PathLike[Any], name_extension: str = "") -> Emissions:
+    def load(cls, path: str | Path, name_extension: str = "") -> Emissions:
         """
         Load event_time_series and event_time_points from file.
         Adapted from an unpopular answer of
@@ -726,7 +723,7 @@ class Emissions:
         """
         obj = cls.__new__(cls)
         obj.event_time_series = pd.read_csv(
-            os.path.join(path, "event_time_series" + name_extension + ".csv"),
+            Path(path) / ("event_time_series" + name_extension + ".csv"),
             index_col=0,
             header=None,
         )
@@ -735,7 +732,7 @@ class Emissions:
         )
         obj.event_time_series.index.name = None
         obj.event_time_points = np.load(
-            os.path.join(path, "event_time_points" + name_extension + ".npy"),
+            Path(path) / ("event_time_points" + name_extension + ".npy"),
             allow_pickle=True,
         )
 
@@ -743,7 +740,7 @@ class Emissions:
 
 
 def get_p_filter(
-    data_dir: str | os.PathLike[Any],
+    data_dir: str | Path,
     fluorophore: Fluorophore,
     bandpass: tuple[float, float],
 ) -> float:
@@ -775,7 +772,7 @@ def get_p_filter(
         )
 
     emission_data = pd.read_csv(
-        os.path.join(data_dir, fluorophore.constants.data_files, "emission.csv")
+        Path(data_dir) / fluorophore.constants.data_files / "emission.csv"
     )
 
     minimum_wavelength = 200
@@ -814,7 +811,7 @@ def get_emitting_transition_ids(
     emitting_transition_ids = {}
     if bandpass is not None:
         processed = []
-        data_dir = os.path.join(Path(__file__).parent, "fluorophore_spectra")
+        data_dir = Path(__file__).parent / "fluorophore_spectra"
         for fluorophore in transition_set.fluorophore_system.fluorophores:
             if fluorophore.constants is None:
                 raise ValueError(

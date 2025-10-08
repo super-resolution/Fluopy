@@ -132,6 +132,7 @@ def test_simulate_TCSPC(
     expected,
     caplog,
 ):
+    rng = np.random.default_rng(42)
     tr_set = request.getfixturevalue(dirname)
 
     # this tests a standard case of a single fluorophore
@@ -157,7 +158,7 @@ def test_simulate_TCSPC(
                 excitation_rates=excitation_rates,
                 frame_time=frame_time,
                 store_time_points=store_time_points,
-                seed=1,
+                seed=rng,
             )
             assert (
                 "the last frame (of index 0.002) has 2.50e-02 times the pulses of other frames."
@@ -177,12 +178,13 @@ def test_simulate_TCSPC(
             == int(np.ceil(number_pulses * time_between_pulses / 1e-3)) + 1
         )
         assert lifetimes_DA.size == 0
-        np.testing.assert_allclose(lifetimes_D.mean(), 9.96e-10, rtol=1e-2)
+        np.testing.assert_allclose(lifetimes_D.mean(), 1.0405e-09, rtol=1e-2)
 
     # this tests for the warning of bleaching
     elif expected == 1:
         tr_set = tr_set.adjust_rates({0: 0}, keep_zero_rates=True)
         tr_set.finalize()
+
         with caplog.at_level(logging.WARNING):
             (
                 event_time_series,
@@ -200,7 +202,7 @@ def test_simulate_TCSPC(
                 excitation_rates=excitation_rates,
                 frame_time=frame_time,
                 store_time_points=store_time_points,
-                seed=1,
+                seed=rng,
             )
             assert (
                 "the last frame (of index 0.103) has 5.00e-01 times the pulses of other frames."
@@ -237,7 +239,7 @@ def test_simulate_TCSPC(
                 excitation_rates=excitation_rates,
                 frame_time=frame_time,
                 store_time_points=store_time_points,
-                seed=1,
+                seed=rng,
             )
             assert (
                 "Not enough laser pulses to completely simulate a single frame "
@@ -281,7 +283,7 @@ def test_simulate_TCSPC(
                 excitation_rates=excitation_rates,
                 frame_time=frame_time,
                 store_time_points=store_time_points,
-                seed=1,
+                seed=rng,
             )
             assert (
                 "the last frame (of index 4000.0) has 0.00e+00 times the pulses of other frames."
@@ -335,7 +337,7 @@ def test_simulate_TCSPC(
                 excitation_rates=excitation_rates,
                 frame_time=frame_time,
                 store_time_points=store_time_points,
-                seed=1,
+                seed=rng,
             )
             assert "Not enough laser pulses to completely" in caplog.text
         caplog.clear()
@@ -376,7 +378,7 @@ def test_simulate_TCSPC(
                 excitation_rates=excitation_rates,
                 frame_time=frame_time,
                 store_time_points=store_time_points,
-                seed=1,
+                seed=rng,
             )
             assert "the last frame (of index" in caplog.text
         caplog.clear()
@@ -425,7 +427,7 @@ def test_simulate_TCSPC(
                 excitation_rates=excitation_rates,
                 frame_time=frame_time,
                 store_time_points=store_time_points,
-                seed=1,
+                seed=rng,
             )
             assert "the last frame (of index" in caplog.text
         caplog.clear()
@@ -461,7 +463,7 @@ def test_simulate_TCSPC(
                 excitation_rates=excitation_rates,
                 frame_time=frame_time,
                 store_time_points=store_time_points,
-                seed=1,
+                seed=rng,
             )
             assert "the last frame (of index" in caplog.text
         caplog.clear()
@@ -493,7 +495,7 @@ def test_simulate_TCSPC(
                 excitation_rates=excitation_rates,
                 frame_time=frame_time,
                 store_time_points=store_time_points,
-                seed=1,
+                seed=rng,
             )
             assert "the last frame (of index" in caplog.text
         caplog.clear()
@@ -502,6 +504,7 @@ def test_simulate_TCSPC(
 
 
 def test_simulate_TCSPC_detailed(request, caplog):
+    rng = np.random.default_rng(42)
     transition_set = request.getfixturevalue("tr_set_bl_et_2f_diff")
     transition_set = transition_set.filter_by_identity(
         [2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15]
@@ -527,7 +530,7 @@ def test_simulate_TCSPC_detailed(request, caplog):
             excitation_rates=excitation_rates,
             frame_time=frame_time,
             store_time_points=store_time_points,
-            seed=1,
+            seed=rng,
         )
         assert "the last frame (of index" in caplog.text
     caplog.clear()
@@ -546,7 +549,7 @@ def test_simulate_TCSPC_detailed(request, caplog):
         return_values[-1].transition_series.size
         == return_values[-1].state_series.shape[1] - 1
     )
-    assert return_values[-1].state_series.shape == (2, 120313)
+    assert return_values[-1].state_series.shape == (2, 119971)
     assert (
         return_values[-1].transition_series.size
         == return_values[-1].time_series.size - 1

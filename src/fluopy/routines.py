@@ -4,9 +4,8 @@ Various routines to deal with simulation results.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
@@ -74,7 +73,7 @@ def get_bleaching_times(simulation: Simulation) -> npt.NDArray[np.float64]:
     if len(bleached_states) == 1:
         bleached_state = bleached_states[0]
     elif len(bleached_states) == 0:
-        return np.full(simulation.state_series.shape[0], np.nan)
+        return np.full(simulation.state_series.shape[0], fill_value=np.nan)
     else:
         raise NotImplementedError(
             "Multiple bleaching states not yet implemented in " + "this function."
@@ -127,10 +126,10 @@ def fingerprint_analysis(
     transition_set: TransitionSet,
     batch_size: int,
     batches: int,
-    filepath: str | os.PathLike[Any],
+    filepath: str | Path,
     filename: str,
     seed: RandomGeneratorSeed,
-    use_memmap: str | os.PathLike[Any] | None = None,
+    use_memmap: str | Path | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], list[list[np.float64]]]:
     """
     Routine to perform fingerprint analysis. Returns the fingerprint data and the times
@@ -182,12 +181,12 @@ def fingerprint_analysis(
         output_file_run = Path(filepath) / f"single_runs_{filename}_batch_{i}.parquet"
         df = None
         for j in range(batch_size):
-            simulation = si.Simulation(transition_set)
+            simulation = si.Simulation(transition_set=transition_set)
             simulation.run(size=1e6, seed=rng, end_time=300, use_memmap=use_memmap)
-            bleaching_times = get_bleaching_times(simulation)
+            bleaching_times = get_bleaching_times(simulation=simulation)
             bleaching_times_all_runs.append(bleaching_times)
             emis = em.Emissions(seed=rng, **PARAMS_EMIS)
-            emis.extract(simulation)
+            emis.extract(simulation=simulation)
 
             for n in range(transition_set.fluorophore_system.count):
                 if n > 0:
@@ -208,7 +207,7 @@ def fingerprint_analysis(
                     )  # the delta, not the actual times
                     break
 
-            emission_post_processing(emis, rng)
+            emission_post_processing(emis=emis, seed=rng)
             emis.event_time_series.name = i * batch_size + j
             if df is None:
                 df = emis.event_time_series

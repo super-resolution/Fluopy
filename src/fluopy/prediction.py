@@ -136,7 +136,7 @@ class Prediction:
             Expected relative frequencies of each transition.
         """
         matrix_power = np.linalg.matrix_power(
-            self.transition_set.transition_matrix, accuracy
+            self.transition_set.transition_matrix, n=accuracy
         )
         stationary_distribution_combined_state_transitions = matrix_power[0]
         # https://brilliant.org/wiki/stationary-distributions/
@@ -154,7 +154,7 @@ class Prediction:
         ):
             if "dist" in fluorophore_comb:
                 pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
-                match = re.match(pattern, fluorophore_comb)
+                match = re.match(pattern=pattern, string=fluorophore_comb)
                 d, _, _ = match.group(1), match.group(2), match.group(3)
             else:
                 d = fluorophore_comb
@@ -217,7 +217,7 @@ class Prediction:
         ):
             if "dist" in fluorophore_comb:
                 pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
-                match = re.match(pattern, fluorophore_comb)
+                match = re.match(pattern=pattern, string=fluorophore_comb)
                 d, _, _ = match.group(1), match.group(2), match.group(3)
             else:
                 d = fluorophore_comb
@@ -249,7 +249,7 @@ class Prediction:
         for fluorophore_comb, f_transitions in grouped:
             if "dist" in fluorophore_comb:
                 pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
-                match = re.match(pattern, fluorophore_comb)
+                match = re.match(pattern=pattern, string=fluorophore_comb)
                 d, a, _ = match.group(1), match.group(2), match.group(3)
                 single_states_a = single_states[a]
                 single_states_d = single_states[d]
@@ -445,7 +445,7 @@ class Prediction:
             data_merged.append(self.frequency_states[fluorophore])
             labels.extend(
                 [
-                    format_electronic_state(SingleState(identity).name)
+                    format_electronic_state(label=SingleState(identity).name)
                     for identity in states
                 ]
             )
@@ -556,7 +556,7 @@ class Prediction:
             data_merged.append(self.mean_lifetimes[fluorophore])
             labels.extend(
                 [
-                    format_electronic_state(SingleState(identity).name)
+                    format_electronic_state(label=SingleState(identity).name)
                     for identity in states
                 ]
             )
@@ -612,7 +612,7 @@ class Prediction:
             data_merged.append(self.state_occupations[fluorophore])
             labels.extend(
                 [
-                    format_electronic_state(SingleState(identity).name)
+                    format_electronic_state(label=SingleState(identity).name)
                     for identity in states
                 ]
             )

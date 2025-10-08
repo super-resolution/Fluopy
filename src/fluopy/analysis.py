@@ -101,7 +101,7 @@ class Analysis:
 
         Returns
         -------
-        bool
+        is_abs : bool
             Whether at least one of the fluorophores has reached a Markovian absorbing
             state.
         """
@@ -112,7 +112,7 @@ class Analysis:
         ].apply(lambda x: x.value if not isinstance(x.value, list) else None)
         initial_states = initial_states.dropna().astype(int).values
         absorbing_states = {}
-        absorbing = False
+        is_abs = False
         for (
             fluorophore,
             single_states,
@@ -130,13 +130,13 @@ class Analysis:
             last_state = state_series[-1]
             if fluorophore.name in absorbing_states:
                 if last_state in absorbing_states[fluorophore.name]:
-                    absorbing = True
+                    is_abs = True
                     print(
                         f"fluorophore {i} has reached the Markovian absorbing state "
                         f"{SingleState(last_state)}"
                     )
 
-        return absorbing
+        return is_abs
 
     def get_transition_occurrences(self) -> npt.NDArray[np.float64]:
         """
@@ -167,7 +167,7 @@ class Analysis:
         ) in self.simulation.transition_set.transition_df.groupby(level=0, sort=False):
             if "dist" in fluorophore_comb:
                 pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
-                match = re.match(pattern, fluorophore_comb)
+                match = re.match(pattern=pattern, string=fluorophore_comb)
                 d, _, _ = match.group(1), match.group(2), match.group(3)
             else:
                 d = fluorophore_comb
@@ -206,8 +206,8 @@ class Analysis:
             states = state_series_fluorophore[changes_at_and_last]
             state_ids, state_counts = np.unique(states, return_counts=True)
             _, corresponding_indices, _ = np.intersect1d(
-                single_states[fluorophore],
-                state_ids,
+                ar1=single_states[fluorophore],
+                ar2=state_ids,
                 assume_unique=True,
                 return_indices=True,
             )
@@ -259,7 +259,7 @@ class Analysis:
             initial_single_states = state_series_fluorophore[changes_at]
             total_times = self.simulation.time_series[changed]
             time_intervals = np.diff(total_times)
-            time_intervals = np.insert(time_intervals, 0, total_times[0])
+            time_intervals = np.insert(arr=time_intervals, obj=0, values=total_times[0])
             for j, state in enumerate(single_states[fluorophore]):
                 time_intervals_state = time_intervals[
                     np.where(initial_single_states == state)
@@ -433,7 +433,8 @@ class Analysis:
         dat = self.frequency_transitions
         if not diff_dist:
             df, dict2, dict_values = no_diff_dist(
-                df, self.simulation.transition_set.single_states.keys()
+                transition_df=df,
+                fluorophores=self.simulation.transition_set.single_states.keys(),
             )
             data2 = np.delete(dat, dict_values)
             for key, values in dict2.items():
@@ -593,7 +594,8 @@ class Analysis:
         dat = self.mean_transition_times
         if not diff_dist:
             df, dict2, dict_values = no_diff_dist(
-                df, self.simulation.transition_set.single_states.keys()
+                transition_df=df,
+                fluorophores=self.simulation.transition_set.single_states.keys(),
             )
             data2 = [
                 val

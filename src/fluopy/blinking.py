@@ -233,18 +233,20 @@ def get_blinking_statistics(
             off_periods = differences[off_periods_indices] - 1
             # the off periods
             if frames[0] > memory:
-                off_periods = np.insert(off_periods, 0, frames[0])
+                off_periods = np.insert(arr=off_periods, obj=0, values=frames[0])
                 # add an initial off period if the series doesn't start with on period
-                off_periods_frames = np.insert(off_periods_frames, 0, 0)
+                off_periods_frames = np.insert(arr=off_periods_frames, obj=0, values=0)
                 on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
                 off_periods = np.delete(off_periods, 0)
                 off_periods_frames = np.delete(off_periods_frames, 0)
             elif frames[0] != 0:
                 on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
-                on_periods_frames = np.insert(on_periods_frames, 0, frames[0])
+                on_periods_frames = np.insert(
+                    arr=on_periods_frames, obj=0, values=frames[0]
+                )
             else:
                 on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
-                on_periods_frames = np.insert(on_periods_frames, 0, 0)
+                on_periods_frames = np.insert(arr=on_periods_frames, obj=0, values=0)
             on_periods_frames = on_periods_frames[: on_periods.size]
 
     else:
@@ -295,12 +297,12 @@ def get_off_statistics(
         raise ValueError("no photophysical OFF states found.")
     high_diffs = np.where(np.diff(off_indices) > 1)[0]
     starting_indices = off_indices[high_diffs + 1]
-    starting_indices = np.insert(starting_indices, 0, off_indices[0])
+    starting_indices = np.insert(arr=starting_indices, obj=0, values=off_indices[0])
     ending_indices = off_indices[high_diffs] + 1  # ends when new state (s0) is reached
     off_start = simulation.time_series[starting_indices]
     off_end = simulation.time_series[ending_indices]
     on_start = np.copy(off_end)
-    on_start = np.insert(on_start, 0, 0)
+    on_start = np.insert(arr=on_start, obj=0, values=0)
     on_end = np.copy(off_start)
     merged = np.concatenate((off_start, off_end, on_start, on_end))
     on_off_times = np.sort(merged)
@@ -347,11 +349,11 @@ def get_analytical_off_statistics(
 
     if on_frames.size != 0:
         if on_frames[0] != 0:
-            off_frames = np.insert(off_frames, 0, 0)
-            off_periods = np.insert(off_periods, 0, on_frames[0])
+            off_frames = np.insert(arr=off_frames, obj=0, values=0)
+            off_periods = np.insert(arr=off_periods, obj=0, values=on_frames[0])
     off_frames_start_end = np.ravel([off_frames, off_frames + off_periods], order="F")
     on_off_frames = np.vstack((off_frames_start_end, off_frames_start_end)).ravel("F")
-    on_off_frames = np.insert(on_off_frames, 0, 0)
+    on_off_frames = np.insert(arr=on_off_frames, obj=0, values=0)
     on_off_values = np.ones(int(on_off_frames.size / 2))
     on_off_values[1::2] = 0
     on_off_values = np.vstack((on_off_values, on_off_values)).ravel("F")

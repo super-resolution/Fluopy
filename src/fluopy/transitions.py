@@ -5,7 +5,6 @@ Define and handle photophysical transitions.
 from __future__ import annotations
 
 import copy
-import os
 import re
 from collections.abc import Collection, Iterable
 from dataclasses import asdict, dataclass, field
@@ -365,7 +364,7 @@ class TransitionSet:
                     )
                 if "dist" in fluorophore_comb:
                     pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
-                    match = re.match(pattern, fluorophore_comb)
+                    match = re.match(pattern=pattern, string=fluorophore_comb)
                     d, a, dist = match.group(1), match.group(2), match.group(3)
                     for d_t, a_t in transition.fluorophore_ids:
                         if self.fluorophore_system.fluorophores[d_t].name != d:
@@ -621,6 +620,9 @@ class TransitionSet:
         -------
         self
         """
+        if self._combined_state_transitions_df is not None:
+            return self
+
         state_combinations = get_state_combinations(
             single_states=self.single_states,
             fluorophores=self.fluorophore_system.fluorophores,
@@ -1020,7 +1022,7 @@ def construct_transition_matrix(
         ]
 
     row_sums = transition_rate_matrix.sum(axis=1, dtype=np.float64)
-    row_sums_exp = np.tile(np.expand_dims(row_sums, axis=1), row_sums.size)
+    row_sums_exp = np.tile(np.expand_dims(row_sums, axis=1), reps=row_sums.size)
     mask = np.ma.make_mask(row_sums_exp)
     transition_matrix = np.divide(
         transition_rate_matrix,
@@ -1079,13 +1081,13 @@ def derive_energy_transfer_transitions(
     transitions : list[Transition]
         Contains energy transfer transitions of type Transition.
     """
-    data_dir = os.path.join(Path(__file__).parent, "fluorophore_spectra")
-    donor_emission = pd.read_csv(
-        os.path.join(data_dir, donor_data.data_files, "emission.csv")
-    )
-    acceptor_files = os.listdir(os.path.join(data_dir, acceptor_data.data_files))
+    data_dir = Path(__file__).parent / "fluorophore_spectra"
+    donor_emission = pd.read_csv(data_dir / donor_data.data_files / "emission.csv")
+    acceptor_files = Path(data_dir / acceptor_data.data_files).iterdir()
     acceptor_abs_files = [
-        data_file for data_file in acceptor_files if data_file.startswith("absorption")
+        data_file
+        for data_file in acceptor_files
+        if data_file.name.startswith("absorption")
     ]
 
     emission_rate = fo.calculate_emission_rate(
@@ -1170,7 +1172,7 @@ def derive_energy_transfer_transitions(
     transitions = []
     for acceptor_abs_file in acceptor_abs_files:
         acceptor_abs = pd.read_csv(
-            os.path.join(data_dir, acceptor_data.data_files, acceptor_abs_file)
+            Path(data_dir) / acceptor_data.data_files / acceptor_abs_file
         )
 
         J = fo.calculate_spectral_overlap_integral(
@@ -1185,7 +1187,7 @@ def derive_energy_transfer_transitions(
             dipole_orientation_factor=dipole_orientation_factor,
             refractive_index=refractive_index,
         )
-        acceptor_state = acceptor_abs_file.split("_")[1].split(".")[0]
+        acceptor_state = acceptor_abs_file.name.split("_")[1].split(".")[0]
         if exclude is not None and acceptor_state in exclude:
             continue
         for transition_type, factor in which_et_new[acceptor_state]:
@@ -1243,11 +1245,11 @@ def derive_transitions(
     fd = fluorophore_data
     _, _, frequency = fo.convert_wavenumber_wavelength_frequency(wavelength=wavelength)
     photon_flux = fo.calculate_photon_flux(irradiance=irradiance, frequency=frequency)
-    path_absorption = os.path.join(
-        Path(__file__).parent,
-        "fluorophore_spectra",
-        fd.data_files,
-        "absorption_s0.csv",
+    path_absorption = (
+        Path(__file__).parent
+        / "fluorophore_spectra"
+        / fd.data_files
+        / "absorption_s0.csv"
     )
     if fluorophore_ids is None:
         fluorophore_ids = [0]

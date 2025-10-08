@@ -107,7 +107,9 @@ def simulate_TCSPC(
         transition_matrix_non_exc, axis=1
     )
     sorted_transition_matrix_non_exc = np.take_along_axis(
-        transition_matrix_non_exc, transition_matrix_sorted_indices_non_exc, axis=1
+        arr=transition_matrix_non_exc,
+        indices=transition_matrix_sorted_indices_non_exc,
+        axis=1,
     )
     cumsum_sorted_trm_non_exc = np.cumsum(sorted_transition_matrix_non_exc, axis=1)
     number_fluorophores = transition_set.fluorophore_system.count
@@ -455,7 +457,9 @@ def simulate_TCSPC_detailed(
         transition_matrix_non_exc, axis=1
     )
     sorted_transition_matrix_non_exc = np.take_along_axis(
-        transition_matrix_non_exc, transition_matrix_sorted_indices_non_exc, axis=1
+        arr=transition_matrix_non_exc,
+        indices=transition_matrix_sorted_indices_non_exc,
+        axis=1,
     )
     cumsum_sorted_trm_non_exc = np.cumsum(sorted_transition_matrix_non_exc, axis=1)
     number_fluorophores = transition_set.fluorophore_system.count
@@ -629,16 +633,16 @@ def simulate_TCSPC_detailed(
                     stacklevel=2,
                 )
                 return_values = prepare_return_values(
-                    photon_collector,
-                    time_stamps,
-                    time_points,
-                    lifetimes_DA,
-                    lifetimes_D,
-                    lifetimes_all,
-                    time_series,
-                    transition_series,
-                    excitation_series,
-                    transition_set,
+                    photon_collector=photon_collector,
+                    time_stamps=time_stamps,
+                    time_points=time_points,
+                    lifetimes_DA=lifetimes_DA,
+                    lifetimes_D=lifetimes_D,
+                    lifetimes_all=lifetimes_all,
+                    time_series=time_series,
+                    transition_series=transition_series,
+                    excitation_series=excitation_series,
+                    transition_set=transition_set,
                 )
 
                 return return_values
@@ -714,16 +718,16 @@ def simulate_TCSPC_detailed(
         time_series = time_series[:-1]
         excitation_series = excitation_series[:-1]
     return_values = prepare_return_values(
-        photon_collector,
-        time_stamps,
-        time_points,
-        lifetimes_DA,
-        lifetimes_D,
-        lifetimes_all,
-        time_series,
-        transition_series,
-        excitation_series,
-        transition_set,
+        photon_collector=photon_collector,
+        time_stamps=time_stamps,
+        time_points=time_points,
+        lifetimes_DA=lifetimes_DA,
+        lifetimes_D=lifetimes_D,
+        lifetimes_all=lifetimes_all,
+        time_series=time_series,
+        transition_series=transition_series,
+        excitation_series=excitation_series,
+        transition_set=transition_set,
     )
 
     return return_values
@@ -799,7 +803,7 @@ def insert_excitations(
     indices_transitions = np.where(excitation_series == -1)[0]  # gets the indices of
     # transitions that are not excitations
     diffs = np.diff(indices_transitions)
-    diffs = np.insert(diffs, 0, indices_transitions[0] + 1)
+    diffs = np.insert(arr=diffs, obj=0, values=indices_transitions[0] + 1)
     # if diffs is > 1, there was an excitation
     number_fluorophores = transition_set.fluorophore_system.count
     already_processed = None
@@ -818,7 +822,9 @@ def insert_excitations(
             insert_at = np.searchsorted(already_processed, processing, side="left")
             # left because it starts from the back, i.e., last excitation is processed
             # first
-            already_processed = np.insert(already_processed, insert_at, processing)
+            already_processed = np.insert(
+                arr=already_processed, obj=insert_at, values=processing
+            )
             processing += insert_at
         else:
             already_processed = processing
@@ -857,7 +863,7 @@ def insert_excitations(
         # should be inserted)
         original_indices = np.array(merged["original_index"].tolist())
         transition_series_ad = np.insert(
-            transition_series_ad, processing[original_indices], indices
+            arr=transition_series_ad, obj=processing[original_indices], values=indices
         )
 
     return transition_series_ad
@@ -983,13 +989,17 @@ def prepare_return_values(
     transition_series = np.array(transition_series)
     excitation_series = np.array(excitation_series)
 
-    time_series = space_multiple_excitations(time_series)
+    time_series = space_multiple_excitations(time_series=time_series)
     transition_series = insert_excitations(
-        transition_series, transition_set, excitation_series
+        transition_series=transition_series,
+        transition_set=transition_set,
+        excitation_series=excitation_series,
     )
-    state_series = get_state_series(transition_set, transition_series)
+    state_series = get_state_series(
+        transition_set=transition_set, transition_series=transition_series
+    )
 
-    simulation_object = si.Simulation(transition_set)
+    simulation_object = si.Simulation(transition_set=transition_set)
     simulation_object.time_series = time_series
     simulation_object.transition_series = transition_series
     simulation_object.state_series = state_series

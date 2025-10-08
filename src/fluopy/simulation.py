@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import gc
 import logging
-import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import iteround as it
@@ -75,7 +75,7 @@ class Simulation:
         end_time: float | None = None,
         kap_sq_var: bool = False,
         seed: RandomGeneratorSeed = None,
-        use_memmap: str | os.PathLike[Any] | None = None,
+        use_memmap: str | Path | None = None,
         **kwargs: Any,
     ) -> None | npt.NDArray[np.float64]:
         """
@@ -108,9 +108,7 @@ class Simulation:
 
         Returns
         -------
-        None | npt.NDArray[np.float64]
-            Returns None for most simulation methods. When kap_sq_var=True,
-            returns array of kappa_squared values.
+        None
         """
         if start_at is None:
             start_at = tuple(
@@ -127,7 +125,6 @@ class Simulation:
         eval_floating_point_precision_error(
             transition_set=self.transition_set, largest_number=end_time
         )
-        kappa_squared = None
         if end_time is None and not kap_sq_var:
             self.time_series, self.transition_series = direct_method_steps(
                 transition_matrix=self.transition_set.transition_matrix,
@@ -138,18 +135,15 @@ class Simulation:
                 use_memmap=use_memmap,
             )
         elif end_time is None and kap_sq_var:
-            et_indices = df.index[df["fluorophore_ids"].apply(len) > 1]
-            self.time_series, self.transition_series, kappa_squared = (
-                first_reaction_method(
-                    transition_matrix=self.transition_set.transition_matrix,
-                    row_sums=self.transition_set.row_sums,
-                    start_index=start_index,
-                    size=size,
-                    seed=seed,
-                    use_memmap=use_memmap,
-                    fret_indices=et_indices,
-                    **kwargs,
-                )
+            self.time_series, self.transition_series = first_reaction_method(
+                transition_matrix=self.transition_set.transition_matrix,
+                row_sums=self.transition_set.row_sums,
+                combined_state_transitions_df=df,
+                start_index=start_index,
+                size=size,
+                seed=seed,
+                use_memmap=use_memmap,
+                **kwargs,
             )
         elif end_time is not None and not kap_sq_var:
             self.time_series, self.transition_series = direct_method_time(
@@ -171,7 +165,7 @@ class Simulation:
         if use_memmap is not None:
             self.memmap_path = use_memmap
             self.state_series = np.memmap(
-                os.path.join(use_memmap, "state_series"),
+                Path(use_memmap) / "state_series",
                 dtype=np.int8,
                 mode="w+",
                 shape=(len(final_states[0]), self.transition_series.size + 1),
@@ -190,8 +184,6 @@ class Simulation:
             self.state_series[i][1:] = final_states_fluorophore[self.transition_series]
         if use_memmap is not None:
             self.state_series.flush()
-
-        return kappa_squared
 
     def approximate(
         self, prediction: Prediction, size: float, seed: RandomGeneratorSeed
@@ -264,9 +256,9 @@ class Simulation:
         del self.transition_series
         del self.time_series
         del self.state_series
-        os.remove(os.path.join(self.memmap_path, "transition_series"))
-        os.remove(os.path.join(self.memmap_path, "time_series"))
-        os.remove(os.path.join(self.memmap_path, "state_series"))
+        (Path(self.memmap_path) / "transition_series").unlink(missing_ok=True)
+        (Path(self.memmap_path) / "time_series").unlink(missing_ok=True)
+        (Path(self.memmap_path) / "state_series").unlink(missing_ok=True)
 
 
 def direct_method_steps(
@@ -275,7 +267,7 @@ def direct_method_steps(
     start_index: int = 0,
     size: int = 10,
     seed: RandomGeneratorSeed = None,
-    use_memmap: str | os.PathLike[Any] | None = None,
+    use_memmap: str | Path | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
     """
     The direct method of the gillespie algorithm (i.e., stochastic simulation #
@@ -315,19 +307,19 @@ def direct_method_steps(
 
     if use_memmap is not None:
         time_step_series = np.memmap(
-            os.path.join(use_memmap, "time_step_series"),
+            Path(use_memmap) / "time_step_series",
             dtype=np.float32,
             mode="w+",
             shape=(size + 1,),
         )
         transition_series = np.memmap(
-            os.path.join(use_memmap, "transition_series"),
+            Path(use_memmap) / "transition_series",
             dtype=np.uint32,
             mode="w+",
             shape=(size,),
         )
         time_series = np.memmap(
-            os.path.join(use_memmap, "time_series"),
+            Path(use_memmap) / "time_series",
             dtype=np.float64,
             mode="w+",
             shape=(size + 1,),
@@ -347,7 +339,7 @@ def direct_method_steps(
 
     transition_matrix_sorted_indices = np.argsort(transition_matrix, axis=1)
     sorted_transition_matrix = np.take_along_axis(
-        transition_matrix, transition_matrix_sorted_indices, axis=1
+        arr=transition_matrix, indices=transition_matrix_sorted_indices, axis=1
     )
     cumsum_sorted_trm = np.cumsum(sorted_transition_matrix, axis=1)
     absorbing_state_reached = False
@@ -381,19 +373,19 @@ def direct_method_steps(
             transition_series.flush()
             time_series.flush()
             time_step_series = np.memmap(
-                os.path.join(use_memmap, "time_step_series"),
+                Path(use_memmap) / "time_step_series",
                 mode="r+",
                 dtype=np.float32,
                 shape=(i + 1,),
             )
             transition_series = np.memmap(
-                os.path.join(use_memmap, "transition_series"),
+                Path(use_memmap) / "transition_series",
                 mode="r+",
                 dtype=np.uint32,
                 shape=(i,),
             )
             time_series = np.memmap(
-                os.path.join(use_memmap, "time_series"),
+                Path(use_memmap) / "time_series",
                 dtype=np.float64,
                 mode="r+",
                 shape=(i + 1,),
@@ -408,7 +400,7 @@ def direct_method_steps(
     if use_memmap is not None:
         del time_step_series
         gc.collect()
-        os.remove(os.path.join(use_memmap, "time_step_series"))
+        (Path(use_memmap) / "time_step_series").unlink(missing_ok=True)
         transition_series.flush()
         time_series.flush()
 
@@ -422,7 +414,7 @@ def direct_method_time(
     size: int = 10,
     end_time: float = 10,
     seed: RandomGeneratorSeed = None,
-    use_memmap: str | os.PathLike[Any] | None = None,
+    use_memmap: str | Path | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
     """
     The direct method of the gillespie algorithm (i.e., stochastic simulation
@@ -467,13 +459,13 @@ def direct_method_time(
 
     if use_memmap is not None:
         transition_series = np.memmap(
-            os.path.join(use_memmap, "transition_series"),
+            Path(use_memmap) / "transition_series",
             dtype=np.uint32,
             mode="w+",
             shape=(size,),
         )
         time_series = np.memmap(
-            os.path.join(use_memmap, "time_series"),
+            Path(use_memmap) / "time_series",
             dtype=np.float64,
             mode="w+",
             shape=(size + 1,),
@@ -491,7 +483,7 @@ def direct_method_time(
     time_series[0] = 0
     transition_matrix_sorted_indices = np.argsort(transition_matrix, axis=1)
     sorted_transition_matrix = np.take_along_axis(
-        transition_matrix, transition_matrix_sorted_indices, axis=1
+        arr=transition_matrix, indices=transition_matrix_sorted_indices, axis=1
     )
     cumsum_sorted_trm = np.cumsum(sorted_transition_matrix, axis=1)
 
@@ -529,13 +521,13 @@ def direct_method_time(
                 time_series.flush()
                 transition_series.flush()
                 time_series = np.memmap(
-                    os.path.join(use_memmap, "time_series"),
+                    Path(use_memmap) / "time_series",
                     mode="r+",
                     dtype=np.float64,
                     shape=(j * size + 1,),
                 )
                 transition_series = np.memmap(
-                    os.path.join(use_memmap, "transition_series"),
+                    Path(use_memmap) / "transition_series",
                     mode="r+",
                     dtype=np.uint32,
                     shape=(j * size,),
@@ -556,13 +548,13 @@ def direct_method_time(
         time_series.flush()
         transition_series.flush()
         time_series = np.memmap(
-            os.path.join(use_memmap, "time_series"),
+            Path(use_memmap) / "time_series",
             mode="r+",
             dtype=np.float64,
             shape=(i + 1 + abso,),
         )
         transition_series = np.memmap(
-            os.path.join(use_memmap, "transition_series"),
+            Path(use_memmap) / "transition_series",
             mode="r+",
             dtype=np.uint32,
             shape=(i - 1 + abso,),
@@ -577,15 +569,13 @@ def direct_method_time(
 def first_reaction_method(
     transition_matrix: npt.ArrayLike,
     row_sums: npt.ArrayLike,
-    tau_rot: float = 5e-10,
-    tau_flu: float = 1e-9,
-    dt: float = 1e-12,
-    accuracy: int = 1000,
-    fret_indices: npt.NDArray[np.int64] | None = None,
+    combined_state_transitions_df: pd.DataFrame,
+    include_kap_sq: bool = True,
+    minimum_rate: float = 0,
     start_index: int = 0,
     size: int = 10,
     seed: RandomGeneratorSeed = None,
-    use_memmap: str | os.PathLike[Any] | None = None,
+    use_memmap: str | Path | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
     """
     The first reaction method of the gillespie algorithm. Here, the propensities are
@@ -593,8 +583,8 @@ def first_reaction_method(
     state change vector is redundant because each transition leads to a shift in
     populations by 1. This version is based on a maximum number of steps.
 
-    Needed to efficiently incooperate variable dipole orientation factor kappa_squared.
-    Only approximation, as fluorescence lifetime is assumed to be monoexponential.
+    Needed to efficiently incooperate a variable dipole orientation factor
+    kappa_squared. The variable kappa_squared is sampled from the static regime.
     The FRET transitions should be given for kappa_squared = 2/3.
 
     Parameters
@@ -605,19 +595,14 @@ def first_reaction_method(
     row_sums
         Contains the sum of each row of non-normalized transition rates, i.e., the sum
         of rates of all possible combined_state_transitions.
-    tau_rot
-        Rotational correlation time in seconds.
-    tau_flu
-        Fluorescence lifetime in seconds. Approximates the lifetime distribution to be
-        monoexponential which is not the case for energy transfer systems, especially
-        if dipole orientation factor kappa_squared is not constant.
-    dt
-        Time step in seconds. The smaller the more accurate the rotational motion.
-    accuracy
-        Number of rotational motion steps to average over. The larger the more accurate
-        the rotational motion and corresponding kappa_squared.
-    fret_indices
-        Indices of transitions that are FRET transitions.
+    combined_state_transitions_df
+        Contains realizable combined_state_transitions with their id as index and their
+        other attributes as columns.
+    include_kap_sq
+        If True, the dipole orientation factor kappa_squared is sampled from the static
+        regime and used to scale the FRET transition rates.
+    minimum_rate
+        Minimum rate for a FRET transition to be considered following the static regime.
     start_index
         Starting index. The final state of the transition indexed is the starting state
         configuration.
@@ -643,19 +628,19 @@ def first_reaction_method(
 
     if use_memmap is not None:
         time_step_series = np.memmap(
-            os.path.join(use_memmap, "time_step_series"),
+            Path(use_memmap) / "time_step_series",
             dtype=np.float32,
             mode="w+",
             shape=(size + 1,),
         )
         transition_series = np.memmap(
-            os.path.join(use_memmap, "transition_series"),
+            Path(use_memmap) / "transition_series",
             dtype=np.uint32,
             mode="w+",
             shape=(size,),
         )
         time_series = np.memmap(
-            os.path.join(use_memmap, "time_series"),
+            Path(use_memmap) / "time_series",
             dtype=np.float64,
             mode="w+",
             shape=(size + 1,),
@@ -665,36 +650,32 @@ def first_reaction_method(
         transition_series = np.empty(size, dtype=np.uint32)
         time_series = np.empty(size + 1, dtype=np.float64)
 
-    row_sums_exp = np.tile(np.expand_dims(row_sums, axis=1), row_sums.size)
+    row_sums_exp = np.tile(np.expand_dims(row_sums, axis=1), reps=row_sums.size)
     transition_rate_matrix = transition_matrix * row_sums_exp
 
     time_step_series[0] = 0
 
-    # simulation of rotational motion
-    tau_flu_samples = rng.exponential(scale=tau_flu, size=accuracy)
-    kappa_squared = []
-    for tau_flu_sample in tau_flu_samples:
-        traj1, traj2 = kappa_sq.simulate_rotational_motion(
-            tau_rot=tau_rot,
-            tau_life=tau_flu_sample,
-            dt=dt,
-            seed=rng,
-        )
-        integral = kappa_sq.integral_kappa_squared(
-            traj1=traj1,
-            traj2=traj2,
-            dt=dt,
-        )
-        kappa_squared.append(integral)
-    kappa_squared = np.array(kappa_squared)
-
-    # sampling of kappa_squared
-    kappa_squared_sampled = kappa_sq.sample_kappa_squared_distribution(
-        k2_values=kappa_squared, size=size, seed=rng
+    mask = (combined_state_transitions_df["fluorophore_ids"].apply(len) > 1) & (
+        combined_state_transitions_df["rate"] > minimum_rate
     )
+    fret_indices = combined_state_transitions_df.index[mask]
 
-    kappa_squared_ratio = kappa_squared_sampled / (2 / 3)
+    if include_kap_sq:
+        # static orientation regime
+        N = 100000
+        d = kappa_sq.random_unit_vector(size=N, seed=rng)
+        a = kappa_sq.random_unit_vector(size=N, seed=rng)
+        r = kappa_sq.random_unit_vector(size=N, seed=rng)
+        k2_values = kappa_sq.kappa_squared(d=d, a=a, r=r)
 
+        # sampling of kappa_squared
+        kappa_squared_sampled = kappa_sq.sample_kappa_squared_distribution(
+            k2_values=k2_values, size=size, seed=rng
+        )
+
+        kappa_squared_ratio = kappa_squared_sampled / (2 / 3)
+    else:
+        kappa_squared_ratio = np.ones(size)
     current_state_index = start_index
     absorbing_state_reached = False
     for i in range(size):
@@ -718,19 +699,19 @@ def first_reaction_method(
             transition_series.flush()
             time_series.flush()
             time_step_series = np.memmap(
-                os.path.join(use_memmap, "time_step_series"),
+                Path(use_memmap) / "time_step_series",
                 mode="r+",
                 dtype=np.float32,
                 shape=(i + 1,),
             )
             transition_series = np.memmap(
-                os.path.join(use_memmap, "transition_series"),
+                Path(use_memmap) / "transition_series",
                 mode="r+",
                 dtype=np.uint32,
                 shape=(i,),
             )
             time_series = np.memmap(
-                os.path.join(use_memmap, "time_series"),
+                Path(use_memmap) / "time_series",
                 dtype=np.float64,
                 mode="r+",
                 shape=(i + 1,),
@@ -745,11 +726,11 @@ def first_reaction_method(
     if use_memmap is not None:
         del time_step_series
         gc.collect()
-        os.remove(os.path.join(use_memmap, "time_step_series"))
+        (Path(use_memmap) / "time_step_series").unlink(missing_ok=True)
         transition_series.flush()
         time_series.flush()
 
-    return time_series, transition_series, kappa_squared_sampled
+    return time_series, transition_series
 
 
 def approximation(
@@ -799,7 +780,7 @@ def approximation(
 
     rng = np.random.default_rng(seed)
     transition_series = np.full(
-        transition_occurrences[maximum_transition_index], starting_transition
+        transition_occurrences[maximum_transition_index], fill_value=starting_transition
     )
 
     for transition in transition_order:
@@ -837,7 +818,7 @@ def approximation(
         )
         insert_at = transition_indices + 1
         transition_series = np.insert(
-            transition_series, insert_at, follow_up_transitions
+            arr=transition_series, obj=insert_at, values=follow_up_transitions
         )
 
     time_step_series = np.empty(transition_series.size + 1, dtype=np.float64)
@@ -911,7 +892,7 @@ def simulate_experiment(
 
     transition_matrix_sorted_indices = np.argsort(transition_matrix, axis=1)
     sorted_transition_matrix = np.take_along_axis(
-        transition_matrix, transition_matrix_sorted_indices, axis=1
+        arr=transition_matrix, indices=transition_matrix_sorted_indices, axis=1
     )
     cumsum_sorted_trm = np.cumsum(sorted_transition_matrix, axis=1)
 

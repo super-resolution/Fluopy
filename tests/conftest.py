@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from fluopy import emissions as em
@@ -220,42 +221,48 @@ def pred_tr_set_1f_bl_2(tr_set_1f_bl_2):
 
 @pytest.fixture()
 def sim_tr_set_1f_bl(tr_set_1f_bl):
+    rng = np.random.default_rng(1)
     sim = si.Simulation(transition_set=tr_set_1f_bl)
-    sim.run(size=1000, seed=1)
+    sim.run(size=1000, seed=rng)
     return sim
 
 
 @pytest.fixture()
 def sim_tr_set_et_2f_diff(tr_set_et_2f_diff):
+    rng = np.random.default_rng(1)
     sim = si.Simulation(transition_set=tr_set_et_2f_diff)
-    sim.run(size=1000, end_time=5e-7, seed=1)
+    sim.run(size=1000, end_time=5e-7, seed=rng)
     return sim
 
 
 @pytest.fixture()
 def sim_tr_set_2f_diff(tr_set_2f_diff):
+    rng = np.random.default_rng(1)
     sim = si.Simulation(transition_set=tr_set_2f_diff)
-    sim.run(size=1000, seed=1)
+    sim.run(size=1000, seed=rng)
     return sim
 
 
 @pytest.fixture()
 def sim_dstorm(tr_set_large):
+    rng = np.random.default_rng(1)
     sim = si.Simulation(transition_set=tr_set_large)
-    sim.run(size=1e6, seed=1)
+    sim.run(size=1e6, seed=rng)
     return sim
 
 
 @pytest.fixture()
 def em_tr_set_1f_bl(sim_tr_set_1f_bl):
-    emis = em.Emissions(frame_time="5ms", bandpass=None, seed=1)
+    rng = np.random.default_rng(1)
+    emis = em.Emissions(frame_time="5ms", bandpass=None, seed=rng)
     emis.extract(simulation=sim_tr_set_1f_bl)
     return emis
 
 
 @pytest.fixture()
 def em_tr_set_et_2f_diff(sim_tr_set_et_2f_diff):
-    emis = em.Emissions(frame_time="5ms", bandpass=None, seed=1)
+    rng = np.random.default_rng(1)
+    emis = em.Emissions(frame_time="5ms", bandpass=None, seed=rng)
     emis.extract(simulation=sim_tr_set_et_2f_diff)
     return emis
 

@@ -101,7 +101,7 @@ class FluorophoreSystem:
         object.__setattr__(
             self,
             "distances",
-            get_distances([fluo.position for fluo in self.fluorophores]),
+            get_distances(positions=[fluo.position for fluo in self.fluorophores]),
         )
         if 0 in self.distances.values():
             raise ValueError(

@@ -1,5 +1,5 @@
 import logging
-import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -23,8 +23,9 @@ class TestSimualation:
         assert simulation.memmap_path is None
 
     def test_run(self, tr_set_1f_bl):
+        rng = np.random.default_rng(42)
         simulation = si.Simulation(transition_set=tr_set_1f_bl)
-        simulation.run(size=1000, seed=1)
+        simulation.run(size=1000, seed=rng)
         assert simulation.time_series.shape == (1001,)
         assert simulation.state_series.shape == (1, 1001)
         assert simulation.transition_series.shape == (1000,)
@@ -32,12 +33,13 @@ class TestSimualation:
 
 
 def test_direct_method_steps(tr_set_1f):
+    rng = np.random.default_rng(42)
     time_series, transition_series = si.direct_method_steps(
         transition_matrix=tr_set_1f.transition_matrix,
         row_sums=tr_set_1f.row_sums,
         start_index=0,
         size=10,
-        seed=1,
+        seed=rng,
         use_memmap=None,
     )
     exp_time_series = np.array(
@@ -55,18 +57,19 @@ def test_direct_method_steps(tr_set_1f):
             8.98761261e-07,
         ]
     )
-    exp_transition_series = np.array([6, 0, 6, 0, 1, 0, 6, 0, 6, 0])
+    exp_transition_series = np.array([6, 0, 6, 0, 6, 0, 6, 0, 1, 0])
     np.testing.assert_array_almost_equal(time_series, exp_time_series)
     np.testing.assert_array_equal(transition_series, exp_transition_series)
 
 
 def test_direct_method_steps_with_memmap(tr_set_1f, tmp_path):
+    rng = np.random.default_rng(42)
     time_series, transition_series = si.direct_method_steps(
         transition_matrix=tr_set_1f.transition_matrix,
         row_sums=tr_set_1f.row_sums,
         start_index=0,
         size=10,
-        seed=1,
+        seed=rng,
         use_memmap=tmp_path,
     )
     exp_time_series = np.array(
@@ -84,140 +87,180 @@ def test_direct_method_steps_with_memmap(tr_set_1f, tmp_path):
             8.98761261e-07,
         ]
     )
-    exp_transition_series = np.array([6, 0, 6, 0, 1, 0, 6, 0, 6, 0])
+    exp_transition_series = np.array([6, 0, 6, 0, 6, 0, 6, 0, 1, 0])
     np.testing.assert_array_almost_equal(time_series, exp_time_series)
     np.testing.assert_array_equal(transition_series, exp_transition_series)
 
 
 def test_direct_method_time(tr_set_1f):
+    rng = np.random.default_rng(42)
     time_series, transition_series = si.direct_method_time(
         transition_matrix=tr_set_1f.transition_matrix,
         row_sums=tr_set_1f.row_sums,
         start_index=0,
         size=10,
         end_time=1e-6,
-        seed=1,
+        seed=rng,
         use_memmap=None,
     )
     exp_time_series = np.array(
         [
-            0.00000000e00,
-            6.69779104e-10,
-            3.33705188e-07,
-            3.34870480e-07,
-            3.67386146e-07,
-            3.67984722e-07,
-            4.16647625e-07,
-            4.17757101e-07,
-            6.22956748e-07,
-            6.24966353e-07,
-            8.98761274e-07,
-            8.99048470e-07,
-            1.00000000e-06,
+            0.00000000e0,
+            2.56240192e-10,
+            2.64705453e-8,
+            2.88331209e-8,
+            7.57644173e-8,
+            7.78192550e-8,
+            2.48408814e-7,
+            2.48849080e-7,
+            3.88686227e-7,
+            3.89275763e-7,
+            4.21806267e-7,
+            4.22083224e-7,
+            4.27196942e-7,
+            4.27447478e-7,
+            5.58476170e-7,
+            5.60345094e-7,
+            6.11016612e-7,
+            6.12138006e-7,
+            7.42125463e-7,
+            7.44166288e-7,
+            9.99200862e-7,
+            1.00000000e-6,
         ]
     )
-    exp_transition_series = np.array([6, 0, 6, 0, 1, 0, 6, 0, 6, 0, 1])
+    exp_transition_series = np.array(
+        [6, 0, 6, 0, 6, 0, 6, 0, 1, 0, 6, 0, 1, 0, 6, 0, 6, 0, 6, 0]
+    )
     np.testing.assert_array_almost_equal(time_series, exp_time_series)
     np.testing.assert_array_equal(transition_series, exp_transition_series)
 
 
 def test_direct_method_time_with_memmap(tr_set_1f, tmp_path):
+    rng = np.random.default_rng(42)
     time_series, transition_series = si.direct_method_time(
         transition_matrix=tr_set_1f.transition_matrix,
         row_sums=tr_set_1f.row_sums,
         start_index=0,
         size=10,
         end_time=1e-6,
-        seed=1,
+        seed=rng,
         use_memmap=tmp_path,
     )
     exp_time_series = np.array(
         [
-            0.00000000e00,
-            6.69779104e-10,
-            3.33705188e-07,
-            3.34870480e-07,
-            3.67386146e-07,
-            3.67984722e-07,
-            4.16647625e-07,
-            4.17757101e-07,
-            6.22956748e-07,
-            6.24966353e-07,
-            8.98761274e-07,
-            8.99048470e-07,
-            1.00000000e-06,
+            0.00000000e0,
+            2.56240192e-10,
+            2.64705453e-8,
+            2.88331209e-8,
+            7.57644173e-8,
+            7.78192550e-8,
+            2.48408814e-7,
+            2.48849080e-7,
+            3.88686227e-7,
+            3.89275763e-7,
+            4.21806267e-7,
+            4.22083224e-7,
+            4.27196942e-7,
+            4.27447478e-7,
+            5.58476170e-7,
+            5.60345094e-7,
+            6.11016612e-7,
+            6.12138006e-7,
+            7.42125463e-7,
+            7.44166288e-7,
+            9.99200862e-7,
+            1.00000000e-6,
         ]
     )
-    exp_transition_series = np.array([6, 0, 6, 0, 1, 0, 6, 0, 6, 0, 1])
+    exp_transition_series = np.array(
+        [6, 0, 6, 0, 6, 0, 6, 0, 1, 0, 6, 0, 1, 0, 6, 0, 6, 0, 6, 0]
+    )
     np.testing.assert_array_almost_equal(time_series, exp_time_series)
     np.testing.assert_array_equal(transition_series, exp_transition_series)
 
 
 def test_first_reaction_method(tr_set_bl_et_2f_diff):
-    df = tr_set_bl_et_2f_diff.combined_state_transitions_df
-    et_indices = df.index[df["fluorophore_ids"].apply(len) > 1]
-    time_series, transition_series, kappa_squared = si.first_reaction_method(
+    rng = np.random.default_rng(42)
+    time_series, transition_series = si.first_reaction_method(
         transition_matrix=tr_set_bl_et_2f_diff.transition_matrix,
         row_sums=tr_set_bl_et_2f_diff.row_sums,
-        tau_rot=1e-10,
-        tau_flu=1e-9,
-        dt=1e-12,
-        accuracy=10,
-        fret_indices=et_indices,
+        combined_state_transitions_df=tr_set_bl_et_2f_diff.combined_state_transitions_df,
+        include_kap_sq=True,
+        minimum_rate=1e3,
         start_index=0,
         size=4,
-        seed=1,
+        seed=rng,
         use_memmap=None,
     )
     exp_time_series = np.array(
         [
-            0,
-            1.03999849097175e-12,
-            1.75348022777091e-12,
-            3.99671143619731e-12,
-            4.12916020277841e-12,
+            0.00000000000000e0,
+            2.51211829116471e-10,
+            2.52237265362804e-10,
+            2.53171254576898e-10,
+            2.53177307732260e-10,
         ]
     )
-    assert kappa_squared.size == 4
+    exp_transition_series = np.array([32, 63, 32, 63])
+    np.testing.assert_array_almost_equal(time_series, exp_time_series, decimal=14)
+    np.testing.assert_array_equal(transition_series, exp_transition_series)
+
+    time_series, transition_series = si.first_reaction_method(
+        transition_matrix=tr_set_bl_et_2f_diff.transition_matrix,
+        row_sums=tr_set_bl_et_2f_diff.row_sums,
+        combined_state_transitions_df=tr_set_bl_et_2f_diff.combined_state_transitions_df,
+        include_kap_sq=False,
+        minimum_rate=1e3,
+        start_index=0,
+        size=4,
+        seed=rng,
+        use_memmap=None,
+    )
+    exp_time_series = np.array(
+        [
+            0.00000000000000e0,
+            2.29979230104149e-13,
+            4.33853663715442e-13,
+            1.49257871145080e-12,
+            1.76534034244079e-12,
+        ]
+    )
     exp_transition_series = np.array([32, 63, 32, 63])
     np.testing.assert_array_almost_equal(time_series, exp_time_series, decimal=14)
     np.testing.assert_array_equal(transition_series, exp_transition_series)
 
 
 def test_first_reaction_method_with_memmap(tr_set_bl_et_2f_diff, tmp_path):
-    df = tr_set_bl_et_2f_diff.combined_state_transitions_df
-    et_indices = df.index[df["fluorophore_ids"].apply(len) > 1]
-    time_series, transition_series, kappa_squared = si.first_reaction_method(
+    rng = np.random.default_rng(42)
+    time_series, transition_series = si.first_reaction_method(
         transition_matrix=tr_set_bl_et_2f_diff.transition_matrix,
         row_sums=tr_set_bl_et_2f_diff.row_sums,
-        tau_rot=1e-10,
-        tau_flu=1e-9,
-        dt=1e-12,
-        accuracy=10,
-        fret_indices=et_indices,
+        combined_state_transitions_df=tr_set_bl_et_2f_diff.combined_state_transitions_df,
+        minimum_rate=1e3,
         start_index=0,
         size=4,
-        seed=1,
+        seed=rng,
         use_memmap=tmp_path,
     )
     exp_time_series = np.array(
         [
-            0,
-            1.03999849097175e-12,
-            1.75348022777091e-12,
-            3.99671143619731e-12,
-            4.12916020277841e-12,
+            0.00000000000000e0,
+            2.51211829116471e-10,
+            2.52237265362804e-10,
+            2.53171254576898e-10,
+            2.53177307732260e-10,
         ]
     )
-    assert kappa_squared.size == 4
     exp_transition_series = np.array([32, 63, 32, 63])
     np.testing.assert_array_almost_equal(time_series, exp_time_series, decimal=14)
     np.testing.assert_array_equal(transition_series, exp_transition_series)
 
 
 def test_approximation(pred_tr_set_1f):
+    rng = np.random.default_rng(42)
     time_series, transition_series = si.approximation(
-        prediction=pred_tr_set_1f, size=20, seed=1
+        prediction=pred_tr_set_1f, size=20, seed=rng
     )
     exp_time_series = np.array(
         [
@@ -243,7 +286,7 @@ def test_approximation(pred_tr_set_1f):
         ]
     )
     exp_transition_series = np.array(
-        [0, 1, 0, 1, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 1, 0, 6], dtype=np.int64
+        [0, 1, 0, 6, 0, 6, 0, 1, 0, 6, 0, 6, 0, 6, 0, 1, 0, 6], dtype=np.int64
     )
     np.testing.assert_array_almost_equal(time_series, exp_time_series)
     np.testing.assert_array_equal(transition_series, exp_transition_series)
@@ -256,6 +299,7 @@ def test_approximation(pred_tr_set_1f):
 def test_simulate_experiment(
     tr_set_1f, store_time_points, emitting_transition_ids, expected
 ):
+    rng = np.random.default_rng(42)
     event_time_points, event_time_series = si.simulate_experiment(
         transition_matrix=tr_set_1f.transition_matrix,
         row_sums=tr_set_1f.row_sums,
@@ -265,13 +309,13 @@ def test_simulate_experiment(
         frames=10,
         frame_time="1ms",
         store_time_points=store_time_points,
-        seed=1,
+        seed=rng,
     )
     if expected is None:
         assert event_time_points is None
         exp_event_time_series = pd.Series(
             np.array(
-                [0, 388, 702, 442, 87, 436, 558, 73, 435, 344, 229], dtype=np.int64
+                [0, 768, 511, 666, 249, 206, 323, 207, 468, 356, 456], dtype=np.int64
             ),
             index=np.array(
                 [
@@ -293,7 +337,7 @@ def test_simulate_experiment(
     else:
         exp_event_time_series = pd.Series(
             np.array(
-                [0, 347, 639, 403, 85, 394, 500, 66, 383, 313, 205], dtype=np.int64
+                [0, 705, 461, 596, 224, 189, 298, 190, 419, 325, 412], dtype=np.int64
             ),
             index=np.array(
                 [
@@ -338,20 +382,20 @@ def test_simulation(tr_set_1f):
             False,
             np.array(
                 [
-                    0.00000000e00,
-                    1.15167403e-07,
-                    1.17104237e-07,
-                    3.17474333e-07,
-                    3.17663434e-07,
-                    4.20587581e-07,
-                    4.20870590e-07,
-                    6.11643129e-07,
-                    6.12836509e-07,
-                    9.58384640e-07,
-                    9.59976949e-07,
+                    0.00000000000e0,
+                    4.40600729235e-8,
+                    4.42125274724e-8,
+                    4.50453456369e-7,
+                    4.50726394735e-7,
+                    8.04052296605e-7,
+                    8.05044394342e-7,
+                    8.80747400872e-7,
+                    8.81560651839e-7,
+                    9.82930309396e-7,
+                    9.83119497061e-7,
                 ]
             ),
-            np.array([0, 6, 0, 6, 0, 6, 0, 6, 0, 1]),
+            np.array([0, 6, 0, 6, 0, 6, 0, 1, 0, 6]),
             np.array([[0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]]),
         ],
         [
@@ -359,21 +403,21 @@ def test_simulation(tr_set_1f):
             False,
             np.array(
                 [
-                    0.00000000e00,
-                    1.15167401e-07,
-                    1.17104235e-07,
-                    3.17474331e-07,
-                    3.17663432e-07,
-                    4.20587582e-07,
-                    4.20870591e-07,
-                    6.11643130e-07,
-                    6.12836509e-07,
-                    9.58384629e-07,
-                    9.59976939e-07,
-                    1.00000000e-06,
+                    0.00000000000e0,
+                    4.40600740169e-8,
+                    4.42125285628e-8,
+                    4.50453465361e-7,
+                    4.50726403722e-7,
+                    8.04052314341e-7,
+                    8.05044412115e-7,
+                    8.80747419909e-7,
+                    8.81560670868e-7,
+                    9.82930330960e-7,
+                    9.83119518629e-7,
+                    1.00000000000e-6,
                 ]
             ),
-            np.array([0, 6, 0, 6, 0, 6, 0, 6, 0, 1]),
+            np.array([0, 6, 0, 6, 0, 6, 0, 1, 0, 6]),
             np.array([[0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]]),
         ],
         [
@@ -381,20 +425,20 @@ def test_simulation(tr_set_1f):
             True,
             np.array(
                 [
-                    0,
-                    4.91424785309e-08,
-                    5.09508820690e-08,
-                    2.30533495738e-07,
-                    2.31105151571e-07,
-                    4.89238079937e-07,
-                    4.90429360234e-07,
-                    5.45429911902e-07,
-                    5.45721774603e-07,
-                    8.38009639625e-07,
-                    8.38490725352e-07,
+                    0.00000000000e0,
+                    1.11581833551e-7,
+                    1.12361178140e-7,
+                    1.66769968502e-7,
+                    1.66845595444e-7,
+                    3.13505893572e-7,
+                    3.14175598141e-7,
+                    3.36006188810e-7,
+                    3.40509502976e-7,
+                    4.17729425876e-7,
+                    4.18007488477e-7,
                 ]
             ),
-            np.array([0, 6, 0, 1, 0, 6, 0, 6, 0, 6]),
+            np.array([0, 6, 0, 6, 0, 6, 0, 1, 0, 6]),
             np.array([[0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]]),
         ],
         [
@@ -417,6 +461,7 @@ def test_simulation_run(
     tmp_path,
     caplog,
 ):
+    rng = np.random.default_rng(42)
     if use_memmap is not None:
         memmap_path = tmp_path
     else:
@@ -434,7 +479,7 @@ def test_simulation_run(
                 size=size,
                 end_time=end_time,
                 kap_sq_var=kap_sq_var,
-                seed=1,
+                seed=rng,
                 use_memmap=memmap_path,
             )
         return
@@ -445,10 +490,9 @@ def test_simulation_run(
             size=size,
             end_time=end_time,
             kap_sq_var=kap_sq_var,
-            seed=1,
+            seed=rng,
             use_memmap=memmap_path,
-            accuracy=10,
-        )  # accuracy only if kap_sq_var=True
+        )
         assert "Floating point precision error warning" in caplog.text
     caplog.clear()
 
@@ -485,14 +529,14 @@ def test_simulation_run(
             / 8
             * simulation.state_series.shape[0]
         )
-
-        assert os.path.isfile(os.path.join(memmap_path, "state_series"))
-        assert os.path.isfile(os.path.join(memmap_path, "time_series"))
-        assert os.path.isfile(os.path.join(memmap_path, "transition_series"))
+        # convert to pathlib
+        assert (Path(memmap_path) / "state_series").is_file()
+        assert (Path(memmap_path) / "time_series").is_file()
+        assert (Path(memmap_path) / "transition_series").is_file()
         simulation.delete_memmaps()
-        assert not os.path.isfile(os.path.join(memmap_path, "state_series"))
-        assert not os.path.isfile(os.path.join(memmap_path, "time_series"))
-        assert not os.path.isfile(os.path.join(memmap_path, "transition_series"))
+        assert not (Path(memmap_path) / "state_series").is_file()
+        assert not (Path(memmap_path) / "time_series").is_file()
+        assert not (Path(memmap_path) / "transition_series").is_file()
         assert not hasattr(simulation, "transition_series")
         assert not hasattr(simulation, "time_series")
         assert not hasattr(simulation, "state_series")
@@ -508,7 +552,7 @@ def test_simulation_run(
         match="The number of starting states doesn't match the number of fluorophores.",
     ):
         simulation.run(
-            start_at=(0, 1), size=size, end_time=None, seed=1, use_memmap=None
+            start_at=(0, 1), size=size, end_time=None, seed=rng, use_memmap=None
         )
 
 
@@ -521,6 +565,7 @@ def test_simulation_run(
     ],
 )
 def test_simulation_approximate(dirname, request, expected, caplog):
+    rng = np.random.default_rng(42)
     tr_set = request.getfixturevalue(dirname)
     pred = pr.Prediction(transition_set=tr_set)
     size = 10
@@ -532,7 +577,7 @@ def test_simulation_approximate(dirname, request, expected, caplog):
             ValueError,
             match="prediction is based on different transition_set than simulation.",
         ):
-            simulation.approximate(prediction=pred, size=size, seed=1)
+            simulation.approximate(prediction=pred, size=size, seed=rng)
     else:
         simulation = si.Simulation(transition_set=tr_set)
         if expected == "ValueError2":
@@ -540,10 +585,10 @@ def test_simulation_approximate(dirname, request, expected, caplog):
                 ValueError,
                 match="approximation only available to single fluorophore systems.",
             ):
-                simulation.approximate(prediction=pred, size=size, seed=1)
+                simulation.approximate(prediction=pred, size=size, seed=rng)
         else:
             with caplog.at_level(logging.WARNING):
-                simulation.approximate(prediction=pred, size=size, seed=1)
+                simulation.approximate(prediction=pred, size=size, seed=rng)
                 assert "Floating point precision error warning" in caplog.text
             caplog.clear()
 
@@ -560,7 +605,7 @@ def test_simulation_approximate(dirname, request, expected, caplog):
                     1.31845621e-06,
                 ]
             )
-            exp_transition_series = np.array([0, 1, 0, 6, 0, 6, 0, 6], dtype=np.int64)
+            exp_transition_series = np.array([0, 6, 0, 6, 0, 6, 0, 1], dtype=np.int64)
             exp_state_series = np.array([[0, 1, 0, 1, 0, 1, 0, 1, 0]], dtype=np.int64)
             np.testing.assert_array_almost_equal(
                 simulation.time_series, exp_time_series

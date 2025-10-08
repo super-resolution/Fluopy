@@ -105,7 +105,7 @@ class FCS:
             bins=bins,
             normalize=normalize,
         )
-        self.tau = np.mean([bins[1:], bins[:-1]], 0)
+        self.tau = np.mean([bins[1:], bins[:-1]], axis=0)
 
         return self
 
@@ -683,7 +683,7 @@ def coincidence(
     photon_arrival_times: npt.ArrayLike,
     tau_max: float,
     bin_width: float,
-    seed: RandomGeneratorSeed = 1,
+    seed: RandomGeneratorSeed = None,
     method: str = "numba",
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
@@ -718,9 +718,13 @@ def coincidence(
     arr2 = np.sort(photon_arrival_times[~mask])
 
     if method == "numpy":
-        hist, bins = coincidence_numpy(arr1, arr2, tau_max, bin_width)
+        hist, bins = coincidence_numpy(
+            arr1=arr1, arr2=arr2, tau_max=tau_max, bin_width=bin_width
+        )
     elif method == "numba":
-        hist, bins = coincidence_numba(arr1, arr2, tau_max, bin_width)
+        hist, bins = coincidence_numba(
+            arr1=arr1, arr2=arr2, tau_max=tau_max, bin_width=bin_width
+        )
     else:
         raise ValueError(f"Unknown method: {method}. Use 'numpy' or 'numba'.")
 

@@ -4,9 +4,8 @@ Photophysical constants for specific fluorophores.
 This module provides a dataclass container to hold photophysical constants.
 """
 
-import os
 from dataclasses import dataclass
-from typing import Any
+from pathlib import Path
 from warnings import deprecated
 
 __all__: list[str] = ["FluorophoreData", "cy5_dna", "atto643"]
@@ -20,7 +19,7 @@ class FluorophoreData:
     """
 
     # spectra
-    data_files: str | os.PathLike[Any] | None = None
+    data_files: str | Path | None = None
 
     # general
     QUANTUM_YIELD: float = 0

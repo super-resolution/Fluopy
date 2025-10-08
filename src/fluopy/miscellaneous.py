@@ -83,7 +83,7 @@ def create_row_subtitles(
     if titles is None:
         titles = ["default_title"]
 
-    fig = get_figure(axes)
+    fig = get_figure(axes=axes)
     grid = plt.GridSpec(nrows=nrows, ncols=ncols)
     for i in range(nrows):
         row = fig.add_subplot(grid[i, ::])
@@ -140,7 +140,7 @@ def add_table(
     else:
         cells = data
 
-    fig = get_figure(axes)
+    fig = get_figure(axes=axes)
     new_ax = fig.add_subplot(grid)
     new_ax.axis("off")
     table = new_ax.table(cellText=cells, rowLabels=labels, loc="center")
@@ -234,7 +234,7 @@ def format_electronic_state(label: str) -> str:
     str
         Formatted label.
     """
-    if re.match(r"^[A-Z]\d$", label):
+    if re.match(pattern=r"^[A-Z]\d$", string=label):
         return label[0] + r"$_{" + label[1:] + r"}$"
     return label
 
@@ -254,7 +254,7 @@ def format_transition(label: str) -> str:
         Formatted label.
     """
     if "_" in label:
-        parts = label.split("_", 1)
+        parts = label.split(sep="_", maxsplit=1)
         return parts[0] + r"$_{" + parts[1] + r"}$"
     return label
 
@@ -278,9 +278,9 @@ def format_axis_labels(label: str, offset: str) -> str:
     _, exponent = offset.split("e")
     offset = rf"$10^{{{exponent}}}$"
     if "(" in label and ")" in label:
-        label = re.sub(r"\((.*?)\)", rf"({offset} x \1)", label)
+        label = re.sub(pattern=r"\((.*?)\)", repl=rf"({offset} x \1)", string=label)
     elif "[" in label and "]" in label:
-        label = re.sub(r"\[(.*?)\]", rf"[{offset} × \1]", label)
+        label = re.sub(pattern=r"\[(.*?)\]", repl=rf"[{offset} × \1]", string=label)
     else:
         label = f"{label} (× {offset})"
 

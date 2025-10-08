@@ -36,7 +36,8 @@ def random_unit_vector(
     npt.NDArray[np.float64]
         An array of shape (size, 3) containing random unit vectors.
     """
-    rotations = Rotation.random(size, random_state=seed)
+    rng = np.random.default_rng(seed)
+    rotations = Rotation.random(size, random_state=rng)
     unit_vectors = rotations.apply([1, 0, 0])
 
     if size == 1:
@@ -48,7 +49,7 @@ def rotational_diffusion_step(
     v: npt.ArrayLike, dt: float, tau_rot: float, seed: RandomGeneratorSeed = None
 ) -> npt.NDArray[np.float64]:
     """
-    Apply a random rotation to vector(s) v.
+    Apply a random rotation to vector(s) v. Equivalent to Rodrigues' rotation formula.
 
     Parameters
     ----------
@@ -72,7 +73,7 @@ def rotational_diffusion_step(
         v = v.reshape(1, -1)
 
     n_vectors = v.shape[0]
-    angles = rng.normal(0, np.sqrt(dt / (3 * tau_rot)), size=n_vectors)
+    angles = rng.normal(loc=0, scale=np.sqrt(dt / (3 * tau_rot)), size=n_vectors)
     axes = random_unit_vector(size=n_vectors, seed=rng)
     rotation_vectors = axes * angles.reshape(-1, 1)
     rotations = Rotation.from_rotvec(rotation_vectors)
@@ -115,8 +116,8 @@ def simulate_rotational_motion(
     traj1 = [v1]
     traj2 = [v2]
     for _ in range(n_steps):
-        v1 = rotational_diffusion_step(v1, dt, tau_rot, seed=rng)[0]
-        v2 = rotational_diffusion_step(v2, dt, tau_rot, seed=rng)[0]
+        v1 = rotational_diffusion_step(v=v1, dt=dt, tau_rot=tau_rot, seed=rng)[0]
+        v2 = rotational_diffusion_step(v=v2, dt=dt, tau_rot=tau_rot, seed=rng)[0]
         traj1.append(v1)
         traj2.append(v2)
 
@@ -181,7 +182,7 @@ def integral_kappa_squared(
         r = np.array([0, 0, 1])
 
     r_expanded = np.tile(r, (len(traj1), 1))
-    kappas = kappa_squared(traj1, traj2, r_expanded)
+    kappas = kappa_squared(d=traj1, a=traj2, r=r_expanded)
     t = len(kappas) * dt
     return np.trapezoid(kappas, dx=dt) / t
 
@@ -211,7 +212,7 @@ def sample_kappa_squared_distribution(
 
     k2_values_scaled = k2_values / 4  # kappa² ranges from 0 to 4
     # for logit transform, scale to (0, 1)
-    k2_values_scaled_log = logit(np.clip(k2_values_scaled, 1e-5, 1 - 1e-5))
+    k2_values_scaled_log = logit(np.clip(k2_values_scaled, a_min=1e-5, a_max=1 - 1e-5))
     # maps (0, 1) to (-inf, inf)
     kde_logit = gaussian_kde(k2_values_scaled_log, bw_method="silverman")
     # kde builds smooth estimate of PDF
