@@ -316,7 +316,7 @@ class TransitionSet:
     row_sums : np.ndarray
         Contains the sum of each row of non-normalized transition rates, i.e., the sum
         of rates of all possible combined_state_transitions.
-    single_states : dict[str, list[int]]
+    single_states : dict[str, npt.NDArray[np.int64]]
         Contains the values of all relevant SingleStates as values. Name of
         fluorophores as keys.
     transition_df : pd.DataFrame
@@ -448,10 +448,10 @@ class TransitionSet:
 
         Parameters
         ----------
-        keep_zero_rates
-            Whether to keep transitions with rate 0.
         remove_list
             Contains identities of type int.
+        keep_zero_rates
+            Whether to keep transitions with rate 0.
 
         Returns
         -------
@@ -773,7 +773,7 @@ def get_state_combinations(
 
     Parameters
     ----------
-    states
+    single_states
         Contains the values of all relevant SingleStates as values. Name of
         fluorophores as keys.
     fluorophores
@@ -791,8 +791,8 @@ def get_state_combinations(
 
 
 def get_combined_state_transitions(
-    state_combinations: Collection[tuple[int, int]],
-) -> list[tuple[tuple[int, int], ...]]:
+    state_combinations: Collection[tuple[int, ...]],
+) -> list[tuple[tuple[int, ...], ...]]:
     """
     Combines all given state_combinations with themselves 2 times. Cartesian product,
     see itertools.product(). Each combination resembles a combined_state_transition.
@@ -1232,9 +1232,9 @@ def derive_transitions(
     wavelength
         Wavelength in nm.
     bleaching
-        Whether to incooperate bleaching as a possible transition.
+        Whether to incorporate bleaching as a possible transition.
     dstorm
-        Whether to incooperate dstorm photoswitching as possible transitions.
+        Whether to incorporate dstorm photoswitching as possible transitions.
     dstorm_parameters : fo.calculate_pet_rate arguments (except k_pet)
 
     Returns
@@ -1454,7 +1454,7 @@ def interpolate_data(
     maximum_wavelength
         The maximum wavelength the interpolated data should cover.
     data
-        Contains emission or absorption data with columns 'Wavelength' and 'y'.
+        Contains emission or absorption data with columns 'Wavelengths' and 'y'.
 
     Returns
     -------

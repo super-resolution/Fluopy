@@ -32,7 +32,8 @@ def hypoexponential_distribution_cdf(
     x
         Sample.
     args : float, 1-D array_like
-        Parameters (lambdas) of the hypoexponential distribution.
+        Parameters (lambdas) of the hypoexponential distribution. Must be distinct and
+        positive.
 
     Returns
     -------
@@ -58,7 +59,8 @@ def hypoexponential_distribution_pdf(
     x
         Sample.
     args : float, 1-D array_like
-        Parameters (lambdas) of the hypoexponential distribution.
+        Parameters (lambdas) of the hypoexponential distribution. Must be distinct and
+        positive.
 
     Returns
     -------
@@ -85,7 +87,8 @@ def hypoexponential_distribution_pdf_1st_order_derivative(
     x
         Sample.
     args : float, 1-D array_like
-        Parameters (lambdas) of the hypoexponential distribution.
+        Parameters (lambdas) of the hypoexponential distribution. Must be distinct and
+        positive.
 
     Returns
     -------
@@ -114,7 +117,8 @@ def hypoexponential_distribution_pdf_2nd_order_derivative(
     x
         Sample.
     args : float, 1-D array_like
-        Parameters (lambdas) of the hypoexponential distribution.
+        Parameters (lambdas) of the hypoexponential distribution. Must be distinct and
+        positive.
 
     Returns
     -------
@@ -148,11 +152,16 @@ class Photoswitching_fingerprint_model:
         Parameters
         ----------
         params
-            Parameters of the underlying exponential distributions.
+            Parameters of the underlying exponential mixture distributions. Dict indexed
+            by (0, 1, ..., n-1). The indices denote the number of photobleaching events
+            that have occurred. Each entry is a list of length 4, one of the entries
+            can be of length 6. The first half of the list contains the pis, the second
+            half the lambdas.
         weights
-            Weights of each fluorophore (1D).
+            Weights of each fluorophore (1D). Defaults to equal weights.
         domain
-            Domain of the model. Default is (0, np.inf).
+            Domain of the model. Default is (0, np.inf). If domain is not (0, inf),
+            the PDF and CDF are normalized to the domain.
         """
         self.params = params
         if weights is None:
@@ -168,6 +177,26 @@ class Photoswitching_fingerprint_model:
         i: int,
         normalize: bool = False,
     ) -> float | npt.NDArray[np.float64]:
+        """
+        PDF for the arrival times (not delta arrival times) after the i-th fluorophore
+        has photobleached.
+
+        Parameters
+        ----------
+        call
+            Function to calculate the PDF (or its derivative) of the hypoexponential
+            distribution. If None, hypoexponential_distribution_pdf is used.
+        x
+            Sample.
+        i
+            Index of the fluorophore that has just photobleached (0 means no
+            photobleaching so far).
+        normalize
+            Whether to normalize the PDF part to the domain. This is needed since if
+            PDF parts are summarized into the full PDF, the full PDF is normalized. If
+            PDF parts are used for other purposes (e.g., marginal distribution), they
+            have to be normalized individually.
+        """
         if call is None:
             call = hypoexponential_distribution_pdf
         lambdas, pis = photoswitching_fingerprint_prepare(
@@ -219,12 +248,12 @@ class Photoswitching_fingerprint_model:
         elif order == 1:
             caller = inspect.stack()[1].function
             if caller != "dpdf":
-                raise ValueError("Call dpdf instead of setting order=1.")
+                raise ValueError("Call dpdf instead of pdf with setting order=1.")
             call = hypoexponential_distribution_pdf_1st_order_derivative
         elif order == 2:
             caller = inspect.stack()[1].function
             if caller != "ddpdf":
-                raise ValueError("Call ddpdf instead of setting order=2.")
+                raise ValueError("Call ddpdf instead of pdf with setting order=2.")
             call = hypoexponential_distribution_pdf_2nd_order_derivative
         else:
             raise ValueError("Order has to be 0, 1, or 2.")
@@ -251,6 +280,23 @@ class Photoswitching_fingerprint_model:
         i: int,
         normalize: bool = False,
     ) -> float | npt.NDArray[np.float64]:
+        """
+        CDF for the arrival times (not delta arrival times) after the i-th fluorophore
+        has photobleached.
+
+        Parameters
+        ----------
+        x
+            Sample.
+        i
+            Index of the fluorophore that has just photobleached (0 means no
+            photobleaching so far).
+        normalize
+            Whether to normalize the CDF part to the domain. This is needed since if
+            CDF parts are summarized into the full CDF, the full CDF is normalized. If
+            CDF parts are used for other purposes (e.g., marginal distribution), they
+            have to be normalized individually.
+        """
         lambdas, pis = photoswitching_fingerprint_prepare(
             params=self.params,
             n=i + 1,
@@ -289,7 +335,8 @@ class Photoswitching_fingerprint_model:
         x
             Sample.
         extra
-            ...
+            If True, the CDF is not normalized to the domain. Needed for normalization
+            of PDF and CDF.
 
         Returns
         -------
@@ -316,7 +363,17 @@ class Photoswitching_fingerprint_model:
 
     def dpdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """
-        first derivate of PDF
+        First derivative of PDF.
+
+        Parameters
+        ----------
+        x
+            Sample.
+
+        Returns
+        -------
+        dpdf : float | npt.NDArray[np.float64]
+            Model output.
         """
         dpdf = self.pdf(x, order=1)
 
@@ -324,7 +381,17 @@ class Photoswitching_fingerprint_model:
 
     def ddpdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """
-        second derivate of PDF
+        Second derivative of PDF.
+
+        Parameters
+        ----------
+        x
+            Sample.
+
+        Returns
+        -------
+        ddpdf : float | npt.NDArray[np.float64]
+            Model output.
         """
         ddpdf = self.pdf(x, order=2)
 
@@ -332,7 +399,17 @@ class Photoswitching_fingerprint_model:
 
     def logp(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """
-        Logarithm of the PDF
+        Logarithm of the PDF.
+
+        Parameters
+        ----------
+        x
+            Sample.
+
+        Returns
+        -------
+        logp : float | npt.NDArray[np.float64]
+            Model output.
         """
         logp = np.log(self.pdf(x))  # lower-level implementation of log does not provide
         # much numerical stability since sum of e^x terms has to be calculated first.
@@ -341,7 +418,7 @@ class Photoswitching_fingerprint_model:
 
     def quantile_function(self) -> None:
         """
-        Quantile function
+        Quantile function.
         """
         raise ValueError(
             "Quantile function has no closed form. Inverse CDF has to be "
@@ -353,52 +430,59 @@ def photoswitching_fingerprint_prepare(
     params: dict,
     n: int,
     z: int,
-) -> tuple[list[list[float]], list[list[float]]]:
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
     Get combinations of lambdas and pis for the photoswitching fingerprint model.
-    See model derivation for details.
+    Needed for the PDF and CDF parts. See model derivation for details.
 
     Parameters
     ----------
     params
         Parameters of the underlying exponential distributions.
     n
-        Number of fluorophores.
+        Number of fluorophores needed to be considered. For the i-th CDF/PDF part,
+        n = i + 1.
     z
-        Index of the fluorophore that uses three exponential distributions.
+        Index of the delta arrival time group that uses a mixture of three exponential
+        distributions. -1 if none uses three exponential distributions.
 
     Returns
     -------
-    tuple[list[list[float]], list[list[float]]]
+    tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
         Combinations of lambdas and pis for the photoswitching fingerprint model.
     """
     valid_combinations = generate_combinations(n=n, z=z)
+    print(valid_combinations)
     lambdas = map_to_lambdas(combos=valid_combinations, params=params, z=z)
     pis = get_pis(combos=valid_combinations, params=params, z=z)
+
     return lambdas, pis
 
 
-def generate_combinations(n: int, z: int):
+def generate_combinations(n: int, z: int) -> npt.NDArray[np.int64]:
     """
     Generate all valid convolutions of exponential distributions.
 
     Parameters
     ----------
     n
-        Number of fluorophores.
+        Number of fluorophores needed to be considered. For the i-th CDF/PDF part,
+        n = i + 1.
     z
-        Index of the fluorophore that uses three exponential distributions.
+        Index of the delta arrival time group that uses a mixture of three exponential
+        distributions. -1 if none uses three exponential distributions.
 
     Returns
     -------
     valid_combos : 2-D np.ndarray
         All valid combinations of exponential distributions. Array of shape (m, n) where
         m is the number of valid combinations.
-        For each m, the n columns represent the n fluorophores. Each entry can be 0
-        (biased exponential distribution), 1 (non-biased exponential distribution of
-        two-component mixture), 2 (first non-biased exponential distribution of
-        three-component mixture), or 3 (second non-biased exponential distribution of
-        three-component mixture).
+        For each m, the n columns represent the n delta arrival time groups needed to be
+        considered.
+        Each entry can be 0 (biased exponential distribution), 1 (non-biased exponential
+        distribution of two-component mixture), 2 (first non-biased exponential
+        distribution of three-component mixture), or 3 (second non-biased exponential
+        distribution of three-component mixture).
     """
     arrays = []
     for i in range(n):
@@ -436,8 +520,9 @@ def map_to_lambdas(
     Returns
     -------
     result : 2-D np.ndarray
-        Mapped lambdas. Array of shape (m, n) where m is the number of valid combinations
-        and n the number of fluorophores.
+        Mapped lambdas. Array of shape (m, n) where m is the number of valid
+        combinations and n the number of delta arrival time groups needed to be
+        considered.
     """
     result = np.empty_like(combos, dtype=float)
     for idx in range(combos.shape[1]):
@@ -469,7 +554,7 @@ def get_pis(
     -------
     pis : 2-D np.ndarray
         Mapped pis. Array of shape (m, n) where m is the number of valid combinations
-        and n the number of fluorophores.
+        and n the number of delta arrival time groups needed to be considered.
     """
     pis = np.ones_like(combos, dtype=float)
     if z != -1:
@@ -527,8 +612,8 @@ class ExponentialMixtureModel:
         ----------
         params
             Parameters of the underlying exponential distributions. Should contain
-            keys "lambdas" (1D array-like of length n) and "pis" (1D array-like of length
-            n-1).
+            keys "lambdas" (1D array-like of length n) and "pis" (1D array-like of
+            length n-1). The last pi will be inferred as 1 - sum(pis).
         domain
             Domain of the model. Default is (0, np.inf).
         """
@@ -628,6 +713,20 @@ class ExponentialMixtureMarginalModel:
         cdf_part_index: int,
         truncation_up: float,
     ) -> None:
+        """
+        Parameters
+        ----------
+        params
+            Parameters of the underlying exponential distributions. Should contain
+            keys "lambdas" (1D array-like of length n) and "pis" (1D array-like of
+            length n-1). The last pi will be inferred as 1 - sum(pis).
+        pfa_cdf_part
+            Function to calculate the CDF part of the PFA distribution.
+        cdf_part_index
+            Index of the CDF part of the PFA distribution to be used.
+        truncation_up
+            Fixed upper truncation.
+        """
         x_grid = np.logspace(np.log10(0.01), np.log10(truncation_up), 200)
         x_grid = np.insert(arr=x_grid, obj=0, values=0.0)
         pdf_grid = ExponentialMixtureModel(params=params, domain=(0, np.inf)).pdf(

@@ -94,7 +94,7 @@ def get_bleaching_times(simulation: Simulation) -> npt.NDArray[np.float64]:
 
 def get_delta_bleaching_times(
     bleaching_times: npt.ArrayLike,
-) -> tuple[npt.NDArray[np.float64], list[npt.NDArray[np.float64]]]:
+) -> list[npt.NDArray[np.float64]]:
     """
     Get the delta times between bleaching events.
 
@@ -130,11 +130,11 @@ def fingerprint_analysis(
     filename: str,
     seed: RandomGeneratorSeed,
     use_memmap: str | Path | None = None,
-) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], list[list[np.float64]]]:
+) -> tuple[pd.Series, npt.NDArray[np.float64], list[npt.NDArray[np.float64]]]:
     """
     Routine to perform fingerprint analysis. Returns the fingerprint data and the times
-    where photobleaching occurred. Each run is stored as a parquet file. The bleaching
-    times are stored as a numpy file.
+    where photobleaching occurred. Each batch is stored as a parquet file. The bleaching
+    times are stored as a numpy file (once per function call, not per batch).
 
     Parameters
     ----------
@@ -157,7 +157,7 @@ def fingerprint_analysis(
 
     Returns
     -------
-    fingerprint_data : npt.NDArray[np.float64]
+    fingerprint_data : pd.Series
         Fingerprint data - normalized cumulative emissions.
     bleaching_times : npt.NDArray[np.float64]
         Times where photobleaching occurred. Each run is a row, each fluorophore a
@@ -243,8 +243,8 @@ def truncate_fingerprints(
 
     Returns
     -------
-    npt.NDArray[np.float64]
-        Truncated fingerprint data - normalized cumulative emissions.
+    pd.Series
+        Truncated fingerprint data - normalized (to [0, 1]) cumulative emissions.
     """
     if low is None:
         low = 0

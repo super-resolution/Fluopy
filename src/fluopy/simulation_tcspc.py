@@ -39,7 +39,7 @@ def simulate_TCSPC(
     seed: RandomGeneratorSeed = None,
 ) -> tuple[
     pd.Series,
-    npt.NDArray[np.float64],
+    npt.NDArray[np.float64] | None,
     npt.NDArray[np.float64],
     npt.NDArray[np.float64],
     npt.NDArray[np.float64],
@@ -87,8 +87,9 @@ def simulate_TCSPC(
     event_time_series : pd.Series
         Contains the time points (increasing by a defined time interval) as index and
         the number of events (i.e., detected emissions) as values.
-    event_time_points : npt.NDArray[np.float64]
+    event_time_points : npt.NDArray[np.float64] | None
         The time points at which emissions are detected.
+        If store_time_points is False, this will be None.
     lifetimes_DA : npt.NDArray[np.float64]
         Contains the fluorescence lifetimes of detected emissions when energy transfer
         available.
@@ -165,10 +166,10 @@ def simulate_TCSPC(
     m = 1
     S0 = 0
     S1 = 1
-    # skip is True if next transition shall be the remembered one wihtout the chance of
+    # skip is True if next transition shall be the remembered one without the chance of
     # another transition that is not excitation to come before it
     skip = False
-    # checked is True if next excitation oulse that excites a fluorophore happens before
+    # checked is True if next excitation pulse that excites a fluorophore happens before
     # a remembered transition
     checked = False
     # not_broken is False if no excitable states AND no possible future transitions
@@ -224,10 +225,10 @@ def simulate_TCSPC(
                 time = remember[1]
                 # here no new calculation of next_pulse_time since the time is smaller
                 # than current next_pulse_time, hence the calculation would result
-                # in the same valu
-            # if no excitation happened and if a potentielly remembered transition
+                # in the same value
+            # if no excitation happened and if a potentially remembered transition
             # could not take place, and if the number of pulses until an excitation
-            # event have not been checked immidiately before, the number of pulses
+            # event have not been checked immediately before, the number of pulses
             # until the next excitation event is calculated
             elif not checked:
                 number_pulses_until_next_excitation = rng.geometric(
@@ -384,10 +385,11 @@ def simulate_TCSPC_detailed(
     seed: RandomGeneratorSeed = None,
 ) -> tuple[
     pd.Series,
+    npt.NDArray[np.float64] | None,
     npt.NDArray[np.float64],
     npt.NDArray[np.float64],
     npt.NDArray[np.float64],
-    npt.NDArray[np.float64],
+    Simulation,
 ]:
     """
     Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence lifetime
@@ -435,8 +437,9 @@ def simulate_TCSPC_detailed(
     event_time_series : pd.Series
         Contains the time points (increasing by a defined time interval) as index and
         the number of events (i.e., detected emissions) as values.
-    event_time_points : npt.NDArray[np.float64]
+    event_time_points : npt.NDArray[np.float64] | None
         The time points at which emissions are detected.
+        If store_time_points is False, this will be None.
     lifetimes_DA : npt.NDArray[np.float64]
         Contains the fluorescence lifetimes of detected emissions when energy transfer
         available.
@@ -733,7 +736,7 @@ def simulate_TCSPC_detailed(
     return return_values
 
 
-def space_multiple_excitations(time_series: npt.ArrayLike) -> npt.NDArray[np.float64]:
+def space_multiple_excitations(time_series: npt.NDArray[np.float64]) -> None:
     """
     If multiple excitations occur at the same time point, the time point is repeated.
     This function creates a minimal space between the same time points. Note that this
@@ -741,6 +744,7 @@ def space_multiple_excitations(time_series: npt.ArrayLike) -> npt.NDArray[np.flo
     given the floating point precision. It is necessary to space excitations AND other
     transitions, otherwise a transition could appear at a time point smaller than the
     previous one.
+    Mutates the input inplace.
 
     Parameters
     ----------
@@ -750,9 +754,7 @@ def space_multiple_excitations(time_series: npt.ArrayLike) -> npt.NDArray[np.flo
 
     Returns
     -------
-    time_series : npt.NDArray[np.float64]
-        Contains the time points at which transitions occur. Transitions that occurred
-        at the same time point are now spaced by a minimal amount.
+    None
     """
     logger.warning(
         "Multiple excitations at the same time point are spaced by a minimal "
@@ -762,6 +764,8 @@ def space_multiple_excitations(time_series: npt.ArrayLike) -> npt.NDArray[np.flo
         "time higher than expected.",
         stacklevel=2,
     )
+    if time_series.dtype == int:
+        raise ValueError("time_series must be of float type.")
     indices = np.unique(time_series, return_index=True)[1]
     while indices.size != time_series.size:
         mask = np.ones(time_series.shape, dtype=bool)
@@ -769,14 +773,12 @@ def space_multiple_excitations(time_series: npt.ArrayLike) -> npt.NDArray[np.flo
         time_series[mask] = np.nextafter(time_series[mask], float("inf"))
         indices = np.unique(time_series, return_index=True)[1]
 
-    return time_series
-
 
 def insert_excitations(
-    transition_series: npt.ArrayLike,
+    transition_series: npt.NDArray[np.uint32],
     transition_set: TransitionSet,
-    excitation_series: npt.ArrayLike,
-) -> npt.NDArray[np.float64]:
+    excitation_series: npt.NDArray[np.int16],
+) -> npt.NDArray[np.uint32]:
     """
     Inserts the indices of the excitation transitions into the transition series in the
     correct order.
@@ -793,7 +795,7 @@ def insert_excitations(
 
     Returns
     -------
-    transition_series_ad : npt.NDArray[np.float64]
+    transition_series_ad : npt.NDArray[np.uint32]
         Contains the indices of the transitions that occur. Includes the indices of the
         excitations.
     """
@@ -871,7 +873,7 @@ def insert_excitations(
 
 def get_state_series(
     transition_set: TransitionSet, transition_series: npt.ArrayLike
-) -> npt.NDArray[np.int64]:
+) -> npt.NDArray[np.int8]:
     """
     Creates a series of states based on the transitions that occur, starting at state 0.
 
@@ -884,7 +886,7 @@ def get_state_series(
 
     Returns
     -------
-    state_series : npt.NDArray[np.int64]
+    state_series : npt.NDArray[np.int8]
         Contains 1-D array_like for each fluorophore representing its state at index i
         corresponding to transition_series[i-1].
     """
@@ -986,10 +988,10 @@ def prepare_return_values(
     lifetimes_D = np.array(lifetimes_D)
     lifetimes_all = np.array(lifetimes_all)
     time_series = np.array(time_series)
-    transition_series = np.array(transition_series)
-    excitation_series = np.array(excitation_series)
+    transition_series = np.array(transition_series, dtype=np.uint32)
+    excitation_series = np.array(excitation_series, dtype=np.int16)
 
-    time_series = space_multiple_excitations(time_series=time_series)
+    space_multiple_excitations(time_series=time_series)
     transition_series = insert_excitations(
         transition_series=transition_series,
         transition_set=transition_set,

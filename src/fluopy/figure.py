@@ -34,8 +34,8 @@ def universal_figure(
     rc_linewidth: float = 2,
     type_: str = "line",
     data: npt.ArrayLike | Sequence[Any] = (0, 0),
-    label: str | list[str] | None = None,
-    color: str | list[str] | Callable[Any, Any] = "blue",
+    label: str | Sequence[str] | None = None,
+    color: str | Sequence[str] | Callable[[int]] = "blue",
     title: str | None = None,
     xlabel: str = "x",
     ylabel: str = "y",
@@ -66,7 +66,7 @@ def universal_figure(
     legendargs: dict[str, Any] | None = None,
     draw_marker: Sequence[Any] | None = None,
     draw_marker_param: dict[str, Any] | None = None,
-    plot_distribution: rv_frozen | None = None,
+    plot_distribution: rv_frozen | Sequence[rv_frozen] | None = None,
     plot_distribution_label: str | None = None,
     axes: npt.NDArray[mplAxes] | None = None,
     **type_specific_kwargs: Any,
@@ -86,15 +86,19 @@ def universal_figure(
         Height of the figure.
     scale
         Factor to scale the figure.
+    rc_linewidth
+        Linewidth of the axes.
     type_
-        Type of the plot. One of "hist", "multiple_hist", "bar", "line",
-        "multiple_line", "scatter", "errorbar", "step", "stair".
+        Type of the plot. One of "hist", "multiple_hist", "2d_hist", "bar", "line",
+        "multiple_line", "scatter", "errorbar", "step", "stair", "boxplot".
     data
         Data to be plotted. Required formation depends on input parameter type_.
     label
-        Label to pass to legend.
+        Label to pass to legend. For multiple_line, multiple_hist, and bar, a list of
+        labels.
     color
-        Color.
+        Color. For multiple_line and multiple_hist, either a callable function or a list
+        of colors. For bar, a color or a list of colors.
     title
         The title of the plot.
     xlabel
@@ -112,13 +116,13 @@ def universal_figure(
     yscale
         One of "linear", "log", "symlog", "logit".
     xminor
-        Whether to plot minor ticks on the x-axis.
+        Whether to plot minor ticks on the x-axis. Only relevant if xscale is log.
     yminor
-        Whether to plot minor ticks on the y-axis.
+        Whether to plot minor ticks on the y-axis. Only relevant if yscale is log.
     adjust_x
-        Factor with which the x data is multiplicated.
+        Factor applied to tick label formatter.
     adjust_y
-        Factor with which the y data is multiplicated.
+        Factor applied to tick label formatter.
     xticks
         xtick locations.
     yticks
@@ -136,9 +140,9 @@ def universal_figure(
     tick_spacing_y
         Set a tick on each integer multiple of tick_spacing_y.
     tick_style_x
-        One of "sci", "plain".
+        "sci" - scientific notation. The offset is added to the xlabel.
     tick_style_y
-        One of "sci", "plain".
+        "sci" - scientific notation. The offset is added to the ylabel.
     second_axis_x
         Whether to plot a second x-axis.
     second_axis_y
@@ -156,20 +160,22 @@ def universal_figure(
     draw_marker
         The data positions, consists of x and y.
     draw_marker_param
-        Parameters to pass to .scatter
+        Parameters to pass to .scatter. Default is {"marker": "x", "c": "k",
+        "label": "prediction", "s": 100}.
     plot_distribution
-        Additional distribution to be plotted.
+        Additional distribution to be plotted. For multiple_hist, a list of
+        distributions.
     plot_distribution_label
-        Label of plot_distribution.
+        Label of plot_distribution. For multiple_hist, label is 'pred'.
     axes
-        Contains matplotlib.axes.Axes objects.
+        Contains matplotlib.axes.Axes objects. If None, a new figure is created.
     type_specific_kwargs
         type_ properties
 
     Returns
     -------
     npt.NDArray[matplotlib.axes.Axes]
-        Contains matplotlib.axes.Axes.
+        Contains matplotlib.axes.Axes. Shape is (nrows, ncols).
     """
     # initialize figure
     rcParams["axes.linewidth"] = rc_linewidth

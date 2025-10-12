@@ -565,11 +565,11 @@ def test_space_multiple_excitations(caplog):
     time_series = np.array([0, 0, 1, 1, 1, 2], dtype=np.float64)
     assert np.unique(time_series).size != time_series.size
     with caplog.at_level(logging.WARNING):
-        time_series_adjusted = si.space_multiple_excitations(time_series)
+        si.space_multiple_excitations(time_series)
         assert "Multiple excitations at the same time point" in caplog.text
     caplog.clear()
 
-    assert np.unique(time_series_adjusted).size == time_series_adjusted.size
+    assert np.unique(time_series).size == time_series.size
 
 
 def test_insert_excitations(request):

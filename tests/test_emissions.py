@@ -169,7 +169,7 @@ def test_emissions_tcspc(dirname, request, excitation_rates, expected, caplog):
         tr_set.finalize()
     emis = em.Emissions(frame_time="100us", bandpass=(650, 700), seed=rng)
     with caplog.at_level(logging.WARNING):
-        lifetimes_DA, _, _ = emis.tcspc(
+        lifetimes_DA, _, _, _ = emis.tcspc(
             transition_set=tr_set,
             number_pulses=1e4,
             pulse_duration=1e-9,

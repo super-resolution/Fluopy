@@ -36,6 +36,8 @@ class Prediction:
         Whether the prediction was carried out on energy transfer systems.
     absorbing_chain : bool
         Whether the prediction was carried out on an absorbing Markov chain.
+        Absorbing states have a lifetime of inf and a frequency / occupation of 0.
+        Absorbing transitions have a frequency of 0.
     transition_set : fluopy.transitions.TransitionSet
         Collection of all relevant transitions and related attributes.
     frequency_transitions : npt.NDArray[np.float64]
@@ -43,20 +45,25 @@ class Prediction:
     frequency_states : dict[str, float]
         Name of fluorophores as keys and their state's expected relative frequencies
         (array) as values.
-    transition_time_distributions : npt.NDArray[np.float64]
+    transition_time_distributions : npt.NDArray[object] | None
         Expected distributions of time until transition.
         Contains objects of type scipy.stats.*.rv_frozen for each transition.
-    lifetime_distributions : dict[str, Any]
+        None if energy transfer is True.
+    lifetime_distributions : dict[str, npt.NDArray[object]] | None
         Name of fluorophores as keys and their state's expected lifetime distributions
         (objects of type scipy.stats.*.rv_frozen) (array) as values.
-    mean_transition_times : npt.NDArray[np.float64]
+        None if energy transfer is True.
+    mean_transition_times : npt.NDArray[np.float64] | None
         Expected means of time until transition.
-    mean_lifetimes : dict[str, npt.NDArray[np.float64]]
+        None if energy transfer is True.
+    mean_lifetimes : dict[str, npt.NDArray[np.float64]] | None
         Name of fluorophores as keys and their state's expected lifetime means (array)
         as values.
-    state_occupations : dict[str, npt.NDArray[np.float64]]
+        None if energy transfer is True.
+    state_occupations : dict[str, npt.NDArray[np.float64]] | None
         Name of fluorophores as keys and their state's expected probability of being
         occupied at any given point in time (array) as values.
+        None if energy transfer is True.
     """
 
     def __init__(self, transition_set: TransitionSet, accuracy: float = 1e9) -> None:
@@ -122,7 +129,8 @@ class Prediction:
 
     def predict_transition_occurrences(self, accuracy: int) -> npt.NDArray[np.float64]:
         """
-        Predict the relative frequencies of transitions.
+        Predict the relative frequencies of transitions. Each different type of
+        fluorophore's transitions frequencies sum up to 1.
 
         Parameters
         ----------
@@ -233,7 +241,8 @@ class Prediction:
 
     def predict_state_occurrences(self) -> dict[str, npt.NDArray[np.float64]]:
         """
-        Predict the relative frequencies of states.
+        Predict the relative frequencies of states. Each different type of fluorophore's
+        states frequencies sum up to 1.
 
         Returns
         -------
@@ -366,8 +375,8 @@ class Prediction:
         """
         Plot frequencies of transitions.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         kwargs
             kwargs for fluopy.figure.universal_figure
 
@@ -418,8 +427,8 @@ class Prediction:
         """
         Plot frequencies of states.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         kwargs
             kwargs for fluopy.figure.universal_figure
 
@@ -469,8 +478,8 @@ class Prediction:
         """
         Plot mean times until transitions occur.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         kwargs
             kwargs for fluopy.figure.universal_figure
 
@@ -525,8 +534,8 @@ class Prediction:
         """
         Plot mean lifetimes of states.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         kwargs
             kwargs for fluopy.figure.universal_figure
 
@@ -581,8 +590,8 @@ class Prediction:
         """
         Plot state occupation times (relative total time spent in state).
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         kwargs
             kwargs for fluopy.figure.universal_figure
 
@@ -739,7 +748,7 @@ class Prediction:
 
 def get_Q(
     P: npt.ArrayLike, drop_transitions: int | npt.ArrayLike
-) -> npt.NDArray[np.int64]:
+) -> npt.NDArray[np.float64]:
     """
     Q describes the probability of transitioning from some transient state to another.
 
@@ -752,7 +761,7 @@ def get_Q(
 
     Returns
     -------
-    npt.NDArray[np.int64]
+    npt.NDArray[np.float64]
         Transition matrix Q with transient states t.
     """
     # Q takes the original transition matrix into account, because within Q the state
@@ -764,7 +773,7 @@ def get_Q(
     return Q
 
 
-def get_I_t(Q: npt.ArrayLike) -> npt.NDArray[np.int64]:
+def get_I_t(Q: npt.ArrayLike) -> npt.NDArray[np.float64]:
     """
     I_t is the identity matrix of Q.
 
@@ -775,7 +784,7 @@ def get_I_t(Q: npt.ArrayLike) -> npt.NDArray[np.int64]:
 
     Returns
     -------
-    npt.NDArray[np.int64]
+    npt.NDArray[np.float64]
         Identity matrix I_t of Q.
     """
     I_t = np.identity(Q.shape[0])
@@ -783,7 +792,7 @@ def get_I_t(Q: npt.ArrayLike) -> npt.NDArray[np.int64]:
     return I_t
 
 
-def get_N(I_t: npt.ArrayLike, Q: npt.ArrayLike) -> npt.NDArray[np.int64]:
+def get_N(I_t: npt.ArrayLike, Q: npt.ArrayLike) -> npt.NDArray[np.float64]:
     """
     N is the fundamental matrix. At entry (i, j) it contains the expected number
     of visits to a transient state j starting from transient state i before being
@@ -798,7 +807,7 @@ def get_N(I_t: npt.ArrayLike, Q: npt.ArrayLike) -> npt.NDArray[np.int64]:
 
     Returns
     -------
-    npt.NDArray[np.int64]
+    npt.NDArray[np.float64]
         Fundamental matrix N of absorbing Markov chain.
     """
     N = np.linalg.inv(I_t - Q)

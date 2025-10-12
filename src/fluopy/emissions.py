@@ -46,10 +46,12 @@ class Emissions:
         The time points at which emissions are happening - they may be filtered by
         bandpass, however it is not considered whether they actually end up being
         detected and converted to an electrical voltage.
+        None until extract(), simulate() or tcspc() has been called.
     event_time_series : pd.Series
         Contains the time points (increasing by a defined time interval) as index and
         the number of events as values. Depending on the applied functions events may
         represent emissions effected by obstacles introduced by the optical path.
+        None until extract(), simulate() or tcspc() has been called.
     """
 
     def __init__(
@@ -172,7 +174,7 @@ class Emissions:
         npt.NDArray[np.float64],
         npt.NDArray[np.float64],
         npt.NDArray[np.float64],
-        Simulation,
+        Simulation | None,
     ]:
         """
         Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence
@@ -287,17 +289,17 @@ class Emissions:
         if details:
             return lifetimes_DA, lifetimes_D, lifetimes_all, return_values[5]
         else:
-            return lifetimes_DA, lifetimes_D, lifetimes_all
+            return lifetimes_DA, lifetimes_D, lifetimes_all, None
 
     def get_emission_indices(
         self,
         simulation: Simulation,
-        bandpass: tuple[float, float],
+        bandpass: tuple[float, float] | None,
         seed: RandomGeneratorSeed,
     ) -> npt.NDArray[np.int64]:
         """
-        Get indices to apply to simulation.transition_series to yield emitting
-        transitions.
+        Get indices to apply to simulation.transition_series to yield (detected)
+        emitting transitions.
 
         Parameters
         ----------
@@ -518,7 +520,7 @@ class Emissions:
     ) -> None:
         """
         Add artificial noise to the events. The noise is normal distributed and can
-        represent readout noise (insigificant in the case of EMCCD).
+        represent readout noise (insignificant in the case of EMCCD).
 
         Parameters
         ----------
@@ -570,6 +572,10 @@ class Emissions:
         ----------
         threshold : int
             The minimum value of events to be considered.
+
+        Returns
+        -------
+        None
         """
         self.event_time_series[self.event_time_series < threshold] = 0
 
@@ -798,12 +804,14 @@ def get_emitting_transition_ids(
     ----------
     bandpass
         The lowest and highest emission wavelength to be passed by the bandpass filter.
+        If bandpass is None, all emitting transitions are returned with a probability of
+        1.
     transition_set
         Collection of all relevant transitions and related attributes.
 
     Returns
     -------
-    emitting_transition_ids : dict
+    emitting_transition_ids : dict[int, float]
         Dictionary with ids of emitting transitions as keys and probabilities of passing
         the bandpass filter as values.
         The ids correspond to transition_set.combined_state_transitions_df.

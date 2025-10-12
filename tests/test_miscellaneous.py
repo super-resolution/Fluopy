@@ -15,9 +15,7 @@ from fluopy.miscellaneous import (
 
 def test_delete_subplots():
     fig, axes = plt.subplots(2, 3)
-    assert (
-        delete_subplots(axes=axes.ravel(), keep_number=1, del_positions=[1, 1]) is None
-    )
+    assert delete_subplots(axes=axes.ravel(), keep_number=1, del_positions=None) is None
     assert axes.shape == (2, 3)
     plt.close()
 

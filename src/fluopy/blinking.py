@@ -69,18 +69,23 @@ class Blinking:
     def plot(
         self,
         mode: Literal[
-            "on_histogram", "off_histogram", "on_frame_series", "off_frame_series"
+            "on_histogram",
+            "off_histogram",
+            "on_frame_series",
+            "off_frame_series",
+            "on_boxplot",
+            "off_boxplot",
         ] = "off_histogram",
         **kwargs: Any,
     ) -> npt.NDArray[mplAxes]:
         """
-        Plot histogram or frame series of ON or OFF periods.
+        Plot histogram, boxplot or frame series of ON or OFF periods.
 
         Parameters
         ----------
         mode : str
             One of 'on_histogram', 'off_histogram', 'on_frame_series',
-            'off_frame_series'.
+            'off_frame_series', 'on_boxplot', 'off_boxplot'.
         kwargs
             fluopy.figure.universal_figure arguments
 
@@ -142,7 +147,6 @@ def get_blinking_statistics(
     Parameters
     ----------
     event_time_series
-        The return value of construct_event
         Contains the time points in seconds as index (time steps in between resemble
         frames) and the number of events (i.e., detected photons) as values.
     threshold
@@ -184,8 +188,8 @@ def get_blinking_statistics(
                 on_periods = np.array([frames[-1] - frames[0] + 1])
                 on_periods_frames = np.array([frames[0]])
             else:
-                on_periods = np.array([])
-                on_periods_frames = np.array([])
+                on_periods = np.array([], dtype=int)
+                on_periods_frames = np.array([], dtype=int)
         else:
             off_periods_zero = np.where(differences > 1 + memory, 0, differences)
             # if off period, convert to 0
@@ -250,17 +254,17 @@ def get_blinking_statistics(
             on_periods_frames = on_periods_frames[: on_periods.size]
 
     else:
-        on_periods = np.array([])
-        off_periods = np.array([])
-        on_periods_frames = np.array([])
-        off_periods_frames = np.array([])
+        on_periods = np.array([], dtype=int)
+        off_periods = np.array([], dtype=int)
+        on_periods_frames = np.array([], dtype=int)
+        off_periods_frames = np.array([], dtype=int)
 
     return on_periods, off_periods, on_periods_frames, off_periods_frames
 
 
 def get_off_statistics(
     simulation: Simulation, index: int
-) -> tuple[npt.NDArray[np.int64], npt.NDArray[np.int64]]:
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int8]]:
     """
     Determines ON and OFF intervals of a single fluorophore, where the OFF interval is
     defined as the fluorophore's time spend in off state, whilst the ON interval is the
@@ -277,9 +281,9 @@ def get_off_statistics(
 
     Returns
     -------
-    on_off_times : npt.NDArray[np.int64]
+    on_off_times : npt.NDArray[np.float64]
         Contains time points at which ON and OFF intervals start and end.
-    on_off_values : npt.NDArray[np.int64]
+    on_off_values : npt.NDArray[np.int8]
         Values that correspond to on_off_times. 0 if time is associated with OFF, 1
         otherwise.
     """
@@ -306,11 +310,11 @@ def get_off_statistics(
     on_end = np.copy(off_start)
     merged = np.concatenate((off_start, off_end, on_start, on_end))
     on_off_times = np.sort(merged)
-    on_off_values = np.ones(int(on_off_times.size / 2))
+    on_off_values = np.ones(int(on_off_times.size / 2), dtype=np.int8)
     on_off_values[1::2] = 0
     on_off_values = np.vstack((on_off_values, on_off_values)).ravel("F")
     if on_off_values.size != on_off_times.size:
-        on_off_values = np.append(on_off_values, 0)
+        on_off_values = np.append(on_off_values, np.array([0], dtype=np.int8))
 
     return on_off_times, on_off_values
 
@@ -320,7 +324,7 @@ def get_analytical_off_statistics(
     off_periods: npt.ArrayLike,
     on_frames: npt.ArrayLike,
     frame_time: str,
-) -> tuple[npt.NDArray[np.int64], npt.NDArray[np.int64]]:
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int8]]:
     """
     Intended to be used for visualizing analytical ON and OFF periods in time.
 
@@ -338,9 +342,9 @@ def get_analytical_off_statistics(
 
     Returns
     -------
-    on_off_times : npt.NDArray[np.int64]
+    on_off_times : npt.NDArray[np.float64]
         Contains time points at which ON and OFF intervals start and end.
-    on_off_values : npt.NDArray[np.int64]
+    on_off_values : npt.NDArray[np.int8]
         Corresponding values of on_off_frames. 1 if ON, 0 if OFF.
     """
     off_frames = np.asarray(off_frames)
@@ -354,11 +358,11 @@ def get_analytical_off_statistics(
     off_frames_start_end = np.ravel([off_frames, off_frames + off_periods], order="F")
     on_off_frames = np.vstack((off_frames_start_end, off_frames_start_end)).ravel("F")
     on_off_frames = np.insert(arr=on_off_frames, obj=0, values=0)
-    on_off_values = np.ones(int(on_off_frames.size / 2))
+    on_off_values = np.ones(int(on_off_frames.size / 2), dtype=np.int8)
     on_off_values[1::2] = 0
     on_off_values = np.vstack((on_off_values, on_off_values)).ravel("F")
     if on_off_values.size != on_off_frames.size:
-        on_off_values = np.append(on_off_values, 0)
+        on_off_values = np.append(on_off_values, np.array([0], dtype=np.int8))
 
     on_off_times = on_off_frames * (
         pd.to_timedelta(frame_time) / np.timedelta64(1, "s")

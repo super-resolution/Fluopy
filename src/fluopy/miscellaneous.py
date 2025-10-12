@@ -48,12 +48,16 @@ def delete_subplots(
     """
     flattened = axes.ravel()
     fig = flattened[0].get_figure()
-    if keep_number is not None:
+    if keep_number is not None and del_positions is not None:
+        raise ValueError("Only one of keep_number or del_positions must be provided.")
+    elif keep_number is not None:
         for i in range(flattened.size - keep_number):
             fig.delaxes(flattened[-1 - i])
     elif del_positions is not None:
         for position in del_positions:
             fig.delaxes(axes[position[0], position[1]])
+    else:
+        raise ValueError("Either keep_number or del_positions must be provided.")
 
 
 def create_row_subtitles(
@@ -74,7 +78,8 @@ def create_row_subtitles(
     ncols
         Number of columns in the figure.
     titles
-        Containes elements of type str. Must have the same length as nrows.
+        Contains elements of type str. Must have the same length as nrows. If None,
+        ['default_title'] is used.
 
     Returns
     -------
@@ -112,7 +117,7 @@ def add_table(
         If pd.Series, values to display in table with index as labels.
     labels
         Labels of table rows.
-        Only used if data is not pd.Series.
+        Only used if data is not pd.Series. Otherwise, index of pd.Series is used.
     grid
         Divide the figure subplots into an a x b grid. Choose a position c for the
         table such that it corresponds to the index + 1 of the flattened grid.
@@ -129,7 +134,8 @@ def add_table(
 
     Returns
     -------
-    None
+    axes : mplAxes
+        The input axes object.
     """
     if axes is None:
         axes = plt.gca()
@@ -180,7 +186,7 @@ def get_figure(axes: mplAxes | npt.NDArray[mplAxes] | None = None) -> mplFigure:
 
 def print_class(class_instance: Any) -> None:
     """
-    Print all class attributes.
+    Print all class attributes. Values are truncated for readability.
 
     Parameters
     ----------
@@ -268,7 +274,7 @@ def format_axis_labels(label: str, offset: str) -> str:
     label
         Label to format.
     offset
-        Offset to multiply label with.
+        Offset to multiply label with. Format: "1eX" with X being an integer.
 
     Returns
     -------

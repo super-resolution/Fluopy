@@ -40,11 +40,14 @@ class Simulation:
         The simulated time points. At index i, they correspond to state_series[i] and
         transition_series[i - 1]. If end_time was not None, includes end_time at index
         -1 that does not correspond to any of state_series or transition_series.
+        Can be memmap if use_memmap was set.
     transition_series : 1-D array_like
         The simulated transitions. At index i, they correspond to time_series[i + 1].
+        Can be memmap if use_memmap was set.
     state_series : np.ndarray
         Contains 1-D array_like for each fluorophore representing its state at index i
         corresponding to time_series[i].
+        Can be memmap if use_memmap was set.
     memmap_path : str
         The path where memmaps are stored.
     """
@@ -70,14 +73,14 @@ class Simulation:
 
     def run(
         self,
-        start_at: tuple[float, ...] | None = None,
+        start_at: tuple[int, ...] | None = None,
         size: int = 1e5,
         end_time: float | None = None,
         kap_sq_var: bool = False,
         seed: RandomGeneratorSeed = None,
         use_memmap: str | Path | None = None,
         **kwargs: Any,
-    ) -> None | npt.NDArray[np.float64]:
+    ) -> None:
         """
         Runs a simulation based on the direct method of the gillespie algorithm (i.e.,
         stochastic simulation algorithm). Can either be based on maximum number of
@@ -104,7 +107,7 @@ class Simulation:
             Determines the path where memmaps shall be stored. If empty str, saved in
             current working directory.
         kwargs
-            First reaction method arguments.
+            First reaction method arguments: include_kap_sq, minimum_rate.
 
         Returns
         -------
@@ -268,7 +271,7 @@ def direct_method_steps(
     size: int = 10,
     seed: RandomGeneratorSeed = None,
     use_memmap: str | Path | None = None,
-) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.uint32]]:
     """
     The direct method of the gillespie algorithm (i.e., stochastic simulation #
     algorithm). Here, the propensities are equal to the rate constants because the
@@ -300,7 +303,7 @@ def direct_method_steps(
     time_series : npt.NDArray[np.float64]
         The simulated time points. At index i, they correspond to
         transition_series[i - 1].
-    transition_series : npt.NDArray[np.int64]
+    transition_series : npt.NDArray[np.uint32]
         The simulated transitions. At index i, they correspond to time_series[i + 1].
     """
     rng = np.random.default_rng(seed)
@@ -415,7 +418,7 @@ def direct_method_time(
     end_time: float = 10,
     seed: RandomGeneratorSeed = None,
     use_memmap: str | Path | None = None,
-) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.uint32]]:
     """
     The direct method of the gillespie algorithm (i.e., stochastic simulation
     algorithm). Here, the propensities are equal to the rate constants because the
@@ -450,7 +453,7 @@ def direct_method_time(
         The simulated time points. At index i, they correspond to
         transition_series[i - 1]. Includes end_time at index -1 that does not
         correspond to any of transition_series.
-    transition_series : npt.NDArray[np.int64]
+    transition_series : npt.NDArray[np.uint32]
         The simulated transitions. At index i, they correspond to time_series[i + 1].
     """
     rng = np.random.default_rng(seed)
@@ -576,16 +579,17 @@ def first_reaction_method(
     size: int = 10,
     seed: RandomGeneratorSeed = None,
     use_memmap: str | Path | None = None,
-) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.uint32]]:
     """
     The first reaction method of the gillespie algorithm. Here, the propensities are
     equal to the rate constants because the population is always 1. Additionally, the
     state change vector is redundant because each transition leads to a shift in
     populations by 1. This version is based on a maximum number of steps.
 
-    Needed to efficiently incooperate a variable dipole orientation factor
+    Needed to efficiently incorporate a variable dipole orientation factor
     kappa_squared. The variable kappa_squared is sampled from the static regime.
-    The FRET transitions should be given for kappa_squared = 2/3.
+    The variable kappa_squared is only applied to FRET transitions that are above
+    minimum_rate. The FRET transitions should be given for kappa_squared = 2/3.
 
     Parameters
     ----------
@@ -619,10 +623,8 @@ def first_reaction_method(
     time_series : npt.NDArray[np.float64]
         The simulated time points. At index i, they correspond to
         transition_series[i - 1].
-    transition_series : npt.NDArray[np.int64]
+    transition_series : npt.NDArray[np.uint32]
         The simulated transitions. At index i, they correspond to time_series[i + 1].
-    kappa_squared : npt.NDArray[np.float64]
-        The sampled kappa_squared values for each step.
     """
     rng = np.random.default_rng(seed)
 
@@ -740,7 +742,7 @@ def approximation(
     Approximates stochastic data based on the limiting distribution of a Markov chain.
     The transitions are ordered via a topological sort and processed accordingly.
     Successor transitions are placed behind their predecessors. The topological sort is
-    possilbe via a temporary conversion of the graph to a directed acyclic graph (DAG).
+    possible via a temporary conversion of the graph to a directed acyclic graph (DAG).
     Only suitable for single fluorophore systems. Absorbing states are not considered.
     Each simple cycle should contain the most occurring state.
 
@@ -848,7 +850,7 @@ def simulate_experiment(
     frame_time: str = "5ms",
     store_time_points: bool = False,
     seed: RandomGeneratorSeed = None,
-) -> tuple[npt.NDArray[np.float64], pd.Series]:
+) -> tuple[npt.NDArray[np.float64] | None, pd.Series]:
     """
     Simulates experimental data (i.e., number of photons per frame). Methodically the
     direct method of the gillespie algorithm. Stores only the number of photons per
@@ -883,8 +885,9 @@ def simulate_experiment(
 
     Returns
     -------
-    event_time_points : npt.NDArray[np.float64]
+    event_time_points : npt.NDArray[np.float64] | None
         The time points at which emissions are detected.
+        If store_time_points is False, None is returned.
     event_time_series : pd.Series
         Contains the time points (increasing by a defined time interval) as index and
         the number of events (i.e., detected emissions) as values.
@@ -910,6 +913,7 @@ def simulate_experiment(
         event_time_points = None
 
     frame = 0
+    frame_diff = 0
     skip = False
     while frame < frames:
         frame += 1

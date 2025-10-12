@@ -283,6 +283,82 @@
         {
             "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_16_fluo_configs\\",
             "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\analysis.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\blinking.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\transitions.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\fluorophores.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\miscellaneous.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\emissions.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\prediction.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\formulas.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\kappa_squared.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\network.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\fluo_data.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\fluopy_types.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\routines.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\simulation.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\simulation_tcspc.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\figure.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\fcs.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\distributions.py\\",
+            "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\src\\fluopy\\fitting.py\\",
+            "color": "foldercolorizer.color_0000cc"
         }
     ],
     "git.decorations.enabled": false,

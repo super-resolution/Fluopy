@@ -1,5 +1,5 @@
 """
-Analysis a photophysical simulation.
+Analysis of a photophysical simulation.
 """
 
 from __future__ import annotations
@@ -426,7 +426,7 @@ class Analysis:
 
         Returns
         -------
-        npt.NDArray[matplotlib.axes.Axes]
+        npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         df = self.simulation.transition_set.transition_df
@@ -509,7 +509,7 @@ class Analysis:
 
         Returns
         -------
-        npt.NDArray[matplotlib.axes.Axes]
+        npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         from .transitions import SingleState
@@ -587,7 +587,7 @@ class Analysis:
 
         Returns
         -------
-        npt.NDArray[matplotlib.axes.Axes]
+        npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         df = self.simulation.transition_set.transition_df
@@ -682,7 +682,7 @@ class Analysis:
 
         Returns
         -------
-        npt.NDArray[matplotlib.axes.Axes]
+        npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         from .transitions import SingleState
@@ -761,7 +761,7 @@ class Analysis:
 
         Returns
         -------
-        npt.NDArray[matplotlib.axes.Axes]
+        npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         from .transitions import SingleState
@@ -847,7 +847,7 @@ class Analysis:
 
         Returns
         -------
-        npt.NDArray[matplotlib.axes.Axes]
+        npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         from .transitions import SingleState
@@ -915,7 +915,7 @@ class Analysis:
 
         Returns
         -------
-        npt.NDArray[matplotlib.axes.Axes]
+        npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         kwargs.setdefault("type_", "hist")
@@ -941,7 +941,7 @@ class Analysis:
                 )
             if prediction.energy_transfer:
                 raise ValueError(
-                    "predicted transsition_time_distributions not available if energy "
+                    "predicted transition_time_distributions not available if energy "
                     "transfer possible."
                 )
             plot_distribution = prediction.transition_time_distributions[transition_id]

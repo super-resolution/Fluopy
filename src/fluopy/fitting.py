@@ -10,7 +10,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-from scipy.optimize import Bounds, LinearConstraint, differential_evolution
+from scipy.optimize import (
+    Bounds,
+    LinearConstraint,
+    OptimizeResult,
+    differential_evolution,
+)
 
 from . import distributions as dist
 
@@ -40,7 +45,7 @@ def log_likelihood_hist_v1(
     Parameters
     ----------
     model
-        A custom distribution defined in distributions.py.
+        A custom distribution (class) defined in distributions.py.
     params
         Parameters of the distribution.
     counts
@@ -106,7 +111,7 @@ def log_likelihood_hist_marginal_v1(
     Parameters
     ----------
     model
-        A custom marginal distribution defined in distributions.py.
+        A custom marginal distribution (class) defined in distributions.py.
     params
         Parameters of the distribution.
     pfa_cdf_part
@@ -170,13 +175,13 @@ def log_likelihood_hist_v2(
     """
     Negative log-likelihood of a distribution specified by its CDF and parameters. The
     distribution support is (0, inf), meaning the sum of probabilities of the given bins
-    may not be 1. This is why here, to include the log-likelihood term of not observing an
-    event due to truncation, we can do 1 - sum(probabilities_bins).
+    may not be 1. This is why here, to include the log-likelihood term of not observing
+    an event due to truncation, we can do 1 - sum(probabilities_bins).
 
     Parameters
     ----------
     model
-        A custom distribution defined in distributions.py.
+        A custom distribution (class) defined in distributions.py.
     params
         Parameters of the distribution.
     counts
@@ -210,25 +215,44 @@ def log_likelihood_hist_v2(
 
 def log_likelihood_hist_marginal_v2(
     model,
-    params,
-    counts,
-    bin_edges,
-    counts_not_observed,
-    truncation_low,
-    truncation_up,
+    params: Iterable,
+    counts: npt.ArrayLike,
+    bin_edges: npt.ArrayLike,
+    counts_not_observed: int,
+    truncation_low: float,
+    truncation_up: float,
     pfa_pdf_part: Callable,
     pdf_part_index: int,
 ) -> float:
     """
     Negative log-likelihood of a marginal distribution of a sample X from model, where
-    the upper truncation is a random variable Y ~ fixed truncation - T, and T is a random
-    variable following a part of PFA distribution.
-    The distribution support is (0, inf), meaning the sum of probabilities of the given bins
-    may not be 1. This is why here, to include the log-likelihood term of not observing an
-    event due to truncation, we can do 1 - sum(probabilities_bins).
+    the upper truncation is a random variable Y ~ fixed truncation - T, and T is a
+    random variable following a part of PFA distribution.
+    The distribution support is (0, inf), meaning the sum of probabilities of the given
+    bins may not be 1. This is why here, to include the log-likelihood term of not
+    observing an event due to truncation, we can do 1 - sum(probabilities_bins).
 
     Parameters
     ----------
+    model
+        A custom marginal distribution (class) defined in distributions.py.
+    params
+        Parameters of the distribution.
+    counts
+        Counts of the histogram.
+    bin_edges
+        Edges of the histogram bins.
+    counts_not_observed
+        Number of events not observed due to truncation.
+    truncation_low
+        Fixed lower truncation.
+    truncation_up
+        Fixed upper truncation.
+    pfa_pdf_part
+        PDF part of the PFA distribution to be used in the marginal distribution.
+    pdf_part_index
+        Index of the PDF part of the PFA distribution to be used in the marginal
+        distribution.
     """
     if truncation_low != 0:
         raise ValueError("Marginal distribution only defined for truncation_low = 0.")
@@ -264,17 +288,61 @@ def log_likelihood_hist_marginal_v2(
 
 
 def fit_multiple_mixture_v1(
-    datasets,
-    bin_edges,
-    z=-1,
-    constr=True,
-    norm=False,
-    counts_not_observed=None,
-    pfa_bin_edges=None,
-    pfa_counts=None,
-    pfa_counts_not_observed=None,
+    datasets: list[npt.ArrayLike],
+    bin_edges: npt.ArrayLike,
+    z: int = -1,
+    constr: bool = True,
+    norm: bool = False,
+    counts_not_observed: list[float] = None,
+    pfa_bin_edges: npt.ArrayLike = None,
+    pfa_counts: npt.ArrayLike = None,
+    pfa_counts_not_observed: float = None,
     **diff_ev,
-):
+) -> OptimizeResult:
+    """
+    Fit multiple datasets with exponential mixture models using maximum likelihood
+    estimation. One dataset can be fitted with a three-component mixture model, while
+    the others are fitted with two-component mixture models.
+    If pfa_bin_edges and pfa_counts are provided, the PFA distribution is also fitted,
+    sharing parameters with the mixture models.
+
+    v1 because it uses the v1 version of the log-likelihood functions, which include
+    the log likelihood term of not observing an event due to truncation in a different
+    way to the v2 version.
+
+    Parameters
+    ----------
+    datasets
+        List of datasets to be fitted. Each dataset should be a 1D array-like of
+        histogram counts.
+    bin_edges
+        Edges of the histogram bins. Should be the same for all datasets.
+    z
+        Index of the dataset to be fitted with a three-component mixture model. If -1,
+        all datasets are fitted with two-component mixture models.
+    constr
+        Whether to apply constraints on the parameters.
+    norm
+        Whether to normalize the negative log-likelihood by the number of observed
+        events in each dataset.
+    counts_not_observed
+        List of number of events not observed due to truncation for each dataset.
+        If None, assumed to be 0 for all datasets.
+    pfa_bin_edges
+        Edges of the histogram bins for the PFA data. If None, no PFA data is fitted.
+    pfa_counts
+        Counts of the histogram for the PFA data. If None, no PFA data is fitted.
+    pfa_counts_not_observed
+        Number of events not observed due to truncation for the PFA data. If None,
+        assumed to be 0.
+    diff_ev
+        Additional arguments to be passed to scipy.optimize.differential_evolution.
+
+    Returns
+    -------
+    result : OptimizeResult
+        The optimization result represented as a OptimizeResult object.
+    """
     if counts_not_observed is None:
         counts_not_observed = [0 for _ in datasets]
     else:
@@ -373,17 +441,61 @@ def fit_multiple_mixture_v1(
 
 
 def fit_multiple_mixture_v2(
-    datasets,
-    bin_edges,
-    z=-1,
-    constr=True,
-    norm=False,
-    counts_not_observed=None,
-    pfa_bin_edges=None,
-    pfa_counts=None,
-    pfa_counts_not_observed=None,
+    datasets: list[npt.ArrayLike],
+    bin_edges: npt.ArrayLike,
+    z: int = -1,
+    constr: bool = True,
+    norm: bool = False,
+    counts_not_observed: list[float] = None,
+    pfa_bin_edges: npt.ArrayLike = None,
+    pfa_counts: npt.ArrayLike = None,
+    pfa_counts_not_observed: float = None,
     **diff_ev,
-):
+) -> OptimizeResult:
+    """
+    Fit multiple datasets with exponential mixture models using maximum likelihood
+    estimation. One dataset can be fitted with a three-component mixture model, while
+    the others are fitted with two-component mixture models.
+    If pfa_bin_edges and pfa_counts are provided, the PFA distribution is also fitted,
+    sharing parameters with the mixture models.
+
+    v2 because it uses the v2 version of the log-likelihood functions, which include
+    the log likelihood term of not observing an event due to truncation in a different
+    way to the v1 version.
+
+    Parameters
+    ----------
+    datasets
+        List of datasets to be fitted. Each dataset should be a 1D array-like of
+        histogram counts.
+    bin_edges
+        Edges of the histogram bins. Should be the same for all datasets.
+    z
+        Index of the dataset to be fitted with a three-component mixture model. If -1,
+        all datasets are fitted with two-component mixture models.
+    constr
+        Whether to apply constraints on the parameters.
+    norm
+        Whether to normalize the negative log-likelihood by the number of observed
+        events in each dataset.
+    counts_not_observed
+        List of number of events not observed due to truncation for each dataset.
+        If None, assumed to be 0 for all datasets.
+    pfa_bin_edges
+        Edges of the histogram bins for the PFA data. If None, no PFA data is fitted.
+    pfa_counts
+        Counts of the histogram for the PFA data. If None, no PFA data is fitted.
+    pfa_counts_not_observed
+        Number of events not observed due to truncation for the PFA data. If None,
+        assumed to be 0.
+    diff_ev
+        Additional arguments to be passed to scipy.optimize.differential_evolution.
+
+    Returns
+    -------
+    result : OptimizeResult
+        The optimization result represented as a OptimizeResult object.
+    """
     if counts_not_observed is None:
         counts_not_observed = [0 for _ in datasets]
     else:
@@ -456,7 +568,7 @@ def fit_multiple_mixture_v2(
             negative_log_likelihood = log_likelihood_hist_v2(
                 model=dist.Photoswitching_fingerprint_model,
                 params=pfa_params,
-                ccounts=pfa_counts,
+                counts=pfa_counts,
                 bin_edges=pfa_bin_edges,
                 counts_not_observed=pfa_counts_not_observed,
             )
@@ -477,7 +589,28 @@ def fit_multiple_mixture_v2(
     return result
 
 
-def prepare_constraints(n, z):
+def prepare_constraints(n: int, z: int) -> tuple[LinearConstraint, Bounds]:
+    """
+    Prepare constraints for the optimization problem.
+    lam_b[i] > lam_b[i+1], lam_b[i] > lam_nb[i], p[i] > pi[i+1],
+    lam_nb[i] > lam_nb[i+1]. For lam_b and lam_nb, a minimum difference of 1e-3 is
+    enforced to ensure inequality.
+
+    Parameters
+    ----------
+    n
+        Number of datasets.
+    z
+        Index of the dataset to be fitted with a three-component mixture model. If -1,
+        all datasets are fitted with two-component mixture models.
+
+    Returns
+    -------
+    linear_constraint : LinearConstraint
+        Linear constraints for the optimization problem.
+    bounds : Bounds
+        Bounds for the optimization problem.
+    """
     linear_constraint = None
     bounds = None
     A = []
@@ -608,7 +741,25 @@ def prepare_constraints(n, z):
     return linear_constraint, bounds
 
 
-def prepare_pfa_parameters(z, n, params):
+def prepare_pfa_parameters(z: int, n: int, params: list) -> dict:
+    """
+    Prepare parameters for the PFA distribution.
+
+    Parameters
+    ----------
+    z
+        Index of the dataset to be fitted with a three-component mixture model. If -1,
+        all datasets are fitted with two-component mixture models.
+    n
+        Number of datasets.
+    params
+        List of parameters from the optimization.
+
+    Returns
+    -------
+    parameters : dict
+        Dictionary of parameters for the PFA distribution.
+    """
     parameters = {}
     if z != -1:
         uz = params[0]
@@ -637,7 +788,25 @@ def prepare_pfa_parameters(z, n, params):
     return parameters
 
 
-def prepare_exp_mixture_parameters(z, n, params):
+def prepare_exp_mixture_parameters(z: int, n: int, params: list) -> dict:
+    """
+    Prepare parameters for the exponential mixture model.
+
+    Parameters
+    ----------
+    z
+        Index of the dataset to be fitted with a three-component mixture model. If -1,
+        all datasets are fitted with two-component mixture models.
+    n
+        Number of datasets.
+    params
+        List of parameters from the optimization.
+
+    Returns
+    -------
+    parameters : dict
+        Dictionary of parameters for the exponential mixture model.
+    """
     parameters = {}
     if z != -1:
         uz = params[0]
@@ -667,7 +836,18 @@ def prepare_exp_mixture_parameters(z, n, params):
     return parameters
 
 
-def save_as_array(parameter_dict, filepath):
+def save_as_array(parameter_dict: dict, filepath: str) -> None:
+    """
+    Save parameters as a numpy array. The dictionary keys are repeated for each
+    parameter value, and the values are flattened into a single array.
+
+    Parameters
+    ----------
+    parameter_dict
+        Dictionary of parameters to be saved.
+    filepath
+        Path to the file where the parameters will be saved.
+    """
     indices = []
     parameters = []
     for key, value in parameter_dict.items():
@@ -678,7 +858,22 @@ def save_as_array(parameter_dict, filepath):
     np.save(file=filepath, arr=save_array)
 
 
-def load_from_array(filepath):
+def load_from_array(filepath: str) -> dict:
+    """
+    Load parameters from a numpy array saved in a file. The array is expected to
+    have two rows: the first row contains the dictionary keys, and the second row
+    contains the corresponding parameter values.
+
+    Parameters
+    ----------
+    filepath
+        Path to the file from which the parameters will be loaded.
+
+    Returns
+    -------
+    parameter_dict : dict
+        Dictionary of parameters loaded from the file.
+    """
     parameter_array = np.load(filepath)
     parameter_df = pd.DataFrame(parameter_array.T, columns=["key", "value"])
     parameter_df["key"] = parameter_df["key"].astype(int)
@@ -686,7 +881,20 @@ def load_from_array(filepath):
     return parameter_dict
 
 
-def convert_dicts(pfa_dict):
+def convert_dicts(pfa_dict: dict) -> dict:
+    """
+    Convert a dictionary of PFA parameters to a dictionary of exponential mixture
+    parameters.
+
+    Parameters
+    ----------
+    pfa_dict
+        Parameters of the underlying exponential mixture distributions. Dict indexed
+        by (0, 1, ..., n-1). The indices denote the number of photobleaching events
+        that have occurred. Each entry is a list of length 4, one of the entries
+        can be of length 6. The first half of the list contains the pis, the second
+        half the lambdas.
+    """
     exp_mixture_dict = {}
     for key, value in pfa_dict.items():
         if len(value) == 6:

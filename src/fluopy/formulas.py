@@ -17,7 +17,7 @@ def convert_wavenumber_wavelength_frequency(
     wavenumber: float | npt.ArrayLike | None = None,
     wavelength: float | npt.ArrayLike | None = None,
     frequency: float | npt.ArrayLike | None = None,
-) -> tuple[npt.NDArray[np.float64]]:
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
     Convert either wavenumber, wavelength or frequency into the other two.
 
@@ -235,7 +235,7 @@ def calculate_pet_rate(
     reducing_agent: Literal["mea", "betaME"] = "mea",
     concentration: float = 143,
     k_pet: float = 1,
-    ph=8,
+    ph: float = 8.0,
 ) -> float:
     """
     Returns the dSTORM reduction rate for a given reducing agent and its concentration.

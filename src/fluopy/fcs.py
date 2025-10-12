@@ -30,15 +30,15 @@ logger = logging.getLogger(__name__)
 
 class FCS:
     """
-    Container of FCS-assocciated attributes and methods.
+    Container of FCS-associated attributes and methods.
 
     Attributes
     ----------
     emissions : fluopy.emissions.Emissions
         Container for emission-associated attributes.
-    autocorrelation : npt.NDArray[np.foat64]
+    autocorrelation : npt.NDArray[np.float64]
         Autocorrelation values.
-    tau : npt.NDArray[np.foat64]
+    tau : npt.NDArray[np.float64]
         Time differences (i.e., τ, lag times).
     """
 
@@ -114,7 +114,7 @@ class FCS:
     ) -> Self:
         """
         Autocorrelation of emissions.event_time_series. The minimum lag time is equal
-        to resample value of series.
+        to sampling interval of series.
 
         Parameters
         ----------
@@ -125,7 +125,7 @@ class FCS:
         m
             Defines the number of points on each log level. E.g., m=4 leads to
             |1, 2, 3, 4| |2, 4, 6, 8| |4, 8, 12, 16| ..., hence
-            |1, 2, 3, 4, 6, 8, 12, 16, ...|. Only used if log ist True.
+            |1, 2, 3, 4, 6, 8, 12, 16, ...|. Only used if log is True.
         normalize
             Whether to normalize the autocorrelation.
 
@@ -278,7 +278,7 @@ def fit_dark(
 
     Returns
     -------
-    autocorrelation : : npt.NDArray[np.float64]
+    autocorrelation : npt.NDArray[np.float64]
         Autocorrelation values.
     norm : float
         Steady state fraction of other states. Number between 0 and 1.
@@ -352,7 +352,7 @@ def fit_triplet_cis(
 
     Returns
     -------
-    autocorrelation : tuple[npt.NDArray[np.float64]
+    autocorrelation : npt.NDArray[np.float64]
         Autocorrelation values.
     norm : float
         Steady state fraction of other states. Number between 0 and 1.
@@ -411,7 +411,7 @@ def make_loglags(
     Example:
 
         Compute log10-spaced bins with 5 bins per decade, starting from 1
-        (10⁰) and stopping at 10⁶::
+        (10^0) and stopping at 10^6::
 
             >>> make_loglags(0, 6, 5)
             array([      1,       2,       3,       4,       6,      10,      16,
@@ -421,7 +421,7 @@ def make_loglags(
                     398107,  630957, 1000000])
 
         Compute log10-spaced bins with 2 bins per decade, starting
-        from 10⁻¹ and stopping at 10³::
+        from 10^-1 and stopping at 10^3::
 
             >>> make_loglags(-1, 3, 2, return_int=False)
             array([  1.00000000e-01,   3.16227766e-01,   1.00000000e+00,
@@ -598,8 +598,10 @@ def coincidence_numpy(
         Photon arrival times from the second detector.
     tau_max
         Maximum time difference to consider for the histogram.
+        Shares units with arr1 and arr2.
     bin_width
         Width of the histogram bins.
+        Shares units with arr1 and arr2.
 
     Returns
     -------
@@ -640,8 +642,10 @@ def coincidence_numba(
         Photon arrival times from the second detector.
     tau_max
         Maximum time difference to consider.
+        Shares units with arr1 and arr2.
     bin_width
         Width of histogram bins.
+        Shares units with arr1 and arr2.
 
     Returns
     -------
@@ -680,7 +684,7 @@ def coincidence_numba(
 
 
 def coincidence(
-    photon_arrival_times: npt.ArrayLike,
+    photon_arrival_times: npt.NDArray[np.float64],
     tau_max: float,
     bin_width: float,
     seed: RandomGeneratorSeed = None,
@@ -709,8 +713,8 @@ def coincidence(
     -------
     hist : npt.NDArray[np.float64]
         Coincidence histogram.
-    bins : npt.NDArray[np.float64]
-        Bin edges of the histogram.
+    bin_centers : npt.NDArray[np.float64]
+        Bin centers of the histogram.
     """
     rng = np.random.default_rng(seed)
     mask = rng.random(photon_arrival_times.size) < 0.5
@@ -728,13 +732,13 @@ def coincidence(
     else:
         raise ValueError(f"Unknown method: {method}. Use 'numpy' or 'numba'.")
 
-    hist = hist[:-1]
+    bin_centers = (bins[:-1] + bins[1:]) / 2
     # normalization to avoid finite window effects
-    hist = hist / (np.max(photon_arrival_times) - np.abs(bins[1:-1]))
+    hist = hist / (np.max(photon_arrival_times) - np.abs(bin_centers))
     # standard normalization
     average_signal_1 = arr1.size / np.max(arr1) if arr1.size > 0 else 0
     average_signal_2 = arr2.size / np.max(arr2) if arr2.size > 0 else 0
     if average_signal_1 > 0 and average_signal_2 > 0:
         hist = hist / (average_signal_1 * average_signal_2 * bin_width)
 
-    return hist, bins
+    return hist, bin_centers

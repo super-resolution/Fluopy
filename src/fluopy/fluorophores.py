@@ -5,7 +5,7 @@ Define and work with fluorophores.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -21,6 +21,8 @@ from .transitions import (
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
+
+    from fluopy.transitions import Transition
 
 __all__: list[str] = ["Fluorophore", "FluorophoreSystem"]
 
@@ -39,8 +41,8 @@ class Fluorophore:
         FluorophoreSystem.
     name : str
         Name of the fluorophore.
-    position : npt.NDArray[float, float]
-        The position of the fluorophore in 2D space.
+    position : Collection[float]
+        The position of the fluorophore in space in nm.
     constants : FluorophoreData | None
         If None an instance of FluorophoreData with the same name is inserted
         if available in fluopy.fluo_data.
@@ -48,7 +50,7 @@ class Fluorophore:
 
     identity: int = field(init=False, default=None)
     name: str = field()
-    position: npt.ArrayLike = field()
+    position: Collection[float] = field()
     constants: fd.FluorophoreData | None = None
 
     def __post_init__(self) -> None:
@@ -79,6 +81,7 @@ class FluorophoreSystem:
         Whether there are multiple types of fluorophores in the system.
     distances :  dict[tuple[int, int], np.float64]
         Contains tuples of 2 fluorophore ids as keys and their distance as values.
+        The distances are given in nm and are rounded to 3 decimals.
     count : int
         The total number of fluorophores given.
     """
@@ -132,30 +135,32 @@ class FluorophoreSystem:
             | None
         ) = None,
         dstorm_parameters: dict[str, Any] | None = None,
-    ) -> dict[str, list[Any]]:
+    ) -> dict[str, list[Transition]]:
         """
         Derives transitions based on fluorophore and the experimental conditions to be
         mimicked.
 
         Parameters
         ----------
+        summarize
+            Whether to summarize some transitions into fewer.
         irradiance
             Irradiance in kW/cm².
         wavelength
             Wavelength in nm.
         bleaching
-            Whether to incooperate bleaching as a possible transition.
+            Whether to incorporate bleaching as a possible transition.
         energy_transfer
-            Whether to incooperate energy transfers as possible transitions.
+            Whether to incorporate energy transfers as possible transitions.
         dstorm
-            Whether to incooperate dstorm photoswitching as possible transitions.
+            Whether to incorporate dstorm photoswitching as possible transitions.
         energy_transfer_parameters
             May contain the following keys: dipole_orientation_factor, refractive_index,
             overwrite, exclude, include.
             Only used if energy_transfer is True.
             - overwrite : dict
                 Contains the type of acceptor state as key and a list with a factor for
-                the rate as well as an efficiency (of not recylcing acceptor state) as
+                the rate as well as an efficiency (of not recycling acceptor state) as
                 value.
             - exclude : list
                 Contains the type of acceptor state (lowercase) to be excluded.
@@ -172,7 +177,8 @@ class FluorophoreSystem:
         -------
         transitions : dict[str, list[Transition]]
             Contains lists of transitions of type Transition as values and fluorophores
-            or fluorophore-combinations as keys.
+            or fluorophore-combinations (D: <donor>, A: <acceptor>, dist: <distance>) as
+            keys.
         """
         transitions = {}
 

@@ -1,5 +1,5 @@
 """
-Compute rotational effects expressed by kappa_squared.
+Compute rotational effects expressed by κ².
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ def random_unit_vector(
     size
         The number of random unit vectors to generate.
     seed
-        Seed.
+        A seed to initialize the BitGenerator.
 
     Returns
     -------
@@ -46,7 +46,10 @@ def random_unit_vector(
 
 
 def rotational_diffusion_step(
-    v: npt.ArrayLike, dt: float, tau_rot: float, seed: RandomGeneratorSeed = None
+    v: npt.NDArray[np.float64],
+    dt: float,
+    tau_rot: float,
+    seed: RandomGeneratorSeed = None,
 ) -> npt.NDArray[np.float64]:
     """
     Apply a random rotation to vector(s) v. Equivalent to Rodrigues' rotation formula.
@@ -87,7 +90,7 @@ def rotational_diffusion_step(
 def simulate_rotational_motion(
     tau_rot: float,
     tau_life: float,
-    dt: float | None = 1e-12,
+    dt: float = 1e-12,
     seed: RandomGeneratorSeed = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
@@ -108,6 +111,7 @@ def simulate_rotational_motion(
     -------
     tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
         Two arrays containing the dipole orientations over time for two dipoles.
+        Of length int(tau_life / dt).
     """
     rng = np.random.default_rng(seed)
     n_steps = int(tau_life / dt)
@@ -133,11 +137,11 @@ def kappa_squared(
     Parameters
     ----------
     d
-        Donor dipole vectors.
+        Donor dipole vectors of shape (N, 3).
     a
-        Acceptor dipole vectors.
+        Acceptor dipole vectors of shape (N, 3).
     r
-        Unit vector from donor to acceptor.
+        Unit vector from donor to acceptor of shape (N, 3).
 
     Returns
     -------
@@ -160,16 +164,16 @@ def integral_kappa_squared(
     r: npt.ArrayLike | None = None,
 ) -> float:
     """
-    Calculate the time-averaged κ² using integration.
+    Calculate the time-averaged κ² using trapezoidal integration.
 
     Parameters
     ----------
     traj1
-        Array of dipole orientations for the first dipole.
+        Array of dipole orientations for the first dipole. Shape (N, 3).
     traj2
-        Array of dipole orientations for the second dipole.
+        Array of dipole orientations for the second dipole. Shape (N, 3).
     dt
-        The time step for the simulation.
+        The time step for the simulation in s.
     r
         Unit vector from donor to acceptor. If None, assumes z-axis [0, 0, 1].
 
@@ -188,7 +192,7 @@ def integral_kappa_squared(
 
 
 def sample_kappa_squared_distribution(
-    k2_values: npt.ArrayLike, size: int | None = 100, seed: RandomGeneratorSeed = None
+    k2_values: npt.ArrayLike, size: int = 100, seed: RandomGeneratorSeed = None
 ) -> npt.NDArray[np.float64]:
     """
     Sample from the distribution of κ² values utilizing Gaussian kernel-density
@@ -197,11 +201,11 @@ def sample_kappa_squared_distribution(
     Parameters
     ----------
     k2_values
-        Array of κ² values.
+        Array of κ² values between 0 and 4.
     size
         Number of samples to generate.
     seed
-        Seed.
+        A seed to initialize the BitGenerator.
 
     Returns
     -------

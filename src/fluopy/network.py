@@ -192,12 +192,12 @@ def plot_graph(
         Contains two colors as Hex values of type str.
     scale
         Factor to scale the figure.
-    ax : matplotlib.axes.Axes
+    ax : mpl.Axes
         The axes on which to show the image
 
     Returns
     -------
-    matplotlib.axes.Axes
+    mpl.Axes
         Axes object with the plot.
     """
     if ax is None:
@@ -314,7 +314,7 @@ def draw_networkx_curved_edge_labels(
 
     Returns
     -------
-    ax : matplotlib.axes._subplots.AxesSubplot
+    ax : mpl.Axes
     """
     if ax is None:
         ax = plt.gca()
