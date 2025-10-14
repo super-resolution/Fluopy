@@ -523,26 +523,10 @@ class TransitionSet:
         """
         transitions = copy.deepcopy(self.transitions)
 
-        for fluorophore_comb, f_transitions in transitions.items():
-            i = 0
-            keep_transitions = []
-            df_constructor = []
-            for transition in f_transitions:
-                if transition.rate != 0:
-                    transition.identity = i
-                    i += 1
-                    keep_transitions.append(transition)
-                    df_constructor.append(asdict(transition))
-            if keep_transitions:
-                transitions[fluorophore_comb] = keep_transitions
-                transition_df = pd.DataFrame(df_constructor)
-                transition_df = transition_df.set_index("identity")
-                transition_df = pd.concat(
-                    {fluorophore_comb: transition_df}, names=["Fluorophore"]
-                )
-
         new_transition_set = TransitionSet(
-            transitions=transitions, fluorophore_system=self.fluorophore_system
+            transitions=transitions,
+            fluorophore_system=self.fluorophore_system,
+            keep_zero_rates=False,
         )
         return new_transition_set
 

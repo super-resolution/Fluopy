@@ -452,7 +452,6 @@ def photoswitching_fingerprint_prepare(
         Combinations of lambdas and pis for the photoswitching fingerprint model.
     """
     valid_combinations = generate_combinations(n=n, z=z)
-    print(valid_combinations)
     lambdas = map_to_lambdas(combos=valid_combinations, params=params, z=z)
     pis = get_pis(combos=valid_combinations, params=params, z=z)
 

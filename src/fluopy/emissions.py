@@ -183,10 +183,14 @@ class Emissions:
         not discriminate between the number or kind of energy transfers. Note that if
         energy transfer is available, the emitting fluorophore could have been the donor
         even if other potential donors exist, because all implemented energy transfers
-        have S1 as the donor, which is also the only implemented emitting state.
+        have S1 as the donor (e.g., S1|S1|S0 goes to S0|S1|S0 --> S0 potential acceptor,
+        first S1 emitted, both S1 could have been donors).
         Also note that energy transfer may have become available during the S1 lifetime
         of the emitting fluorophore. Also note that the fluorescence lifetimes are the
         time differences of photon emission to last laser pulse.
+        For processes other than S0 excitation that are also dependent on the
+        irradiance, the given rates should correspond to the mean irradiance. They will
+        not be adjusted to pulsed excitation.
 
         Parameters
         ----------
