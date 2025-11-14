@@ -178,16 +178,16 @@ class Emissions:
     ]:
         """
         Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence
-        lifetime measurements). The return value lifetimes_DA contains the fluorescence
-        lifetimes of detected emissions when energy transfer is available. This does
-        not discriminate between the number or kind of energy transfers. Note that if
-        energy transfer is available, the emitting fluorophore could have been the donor
-        even if other potential donors exist, because all implemented energy transfers
-        have S1 as the donor (e.g., S1|S1|S0 goes to S0|S1|S0 --> S0 potential acceptor,
+        lifetime measurements). The return value lifetimes_DA contains the S1 durations
+        of detected emissions when energy transfer is available. This does not
+        discriminate between the number or kind of energy transfers. Note that if energy
+        transfer is available, the emitting fluorophore could have been the donor even
+        if other potential donors exist, because all implemented energy transfers have
+        S1 as the donor (e.g., S1|S1|S0 goes to S0|S1|S0 --> S0 potential acceptor,
         first S1 emitted, both S1 could have been donors).
-        Also note that energy transfer may have become available during the S1 lifetime
-        of the emitting fluorophore. Also note that the fluorescence lifetimes are the
-        time differences of photon emission to last laser pulse.
+        Also note that energy transfer may have become available during the S1 duration
+        of the emitting fluorophore. Also note that the S1 durations are the time
+        differences of photon emission to last laser pulse.
         For processes other than S0 excitation that are also dependent on the
         irradiance, the given rates should correspond to the mean irradiance. They will
         not be adjusted to pulsed excitation.
@@ -206,6 +206,8 @@ class Emissions:
         excitation_rates
             Contains the fluorophore names as keys and the excitation rates as values.
             Assumes uniform irradiance over the pulse duration.
+            If None, the irradiance used for the excitation rates in transition_set is
+            assumed to be the mean irradiance of pulse and no pulse duration.
         size
             Size of random_numbers drawn at once.
         store_time_points
@@ -216,13 +218,13 @@ class Emissions:
         Returns
         -------
         lifetimes_DA : 1-D array_like
-            Contains the fluorescence lifetimes of detected emissions when energy
+            Contains the S1 durations of detected emissions when energy
             transfer available.
         lifetimes_D : 1-D array_like
-            Contains the fluorescence lifetimes of detected emissions when energy
+            Contains the S1 durations of detected emissions when energy
             transfer not available.
         lifetimes_all : 1-D array_like
-            Contains the fluorescence lifetimes of all detected emissions.
+            Contains the S1 durations of all detected emissions.
         simulation_object : fluopy.simulation.Simulation
             Container for simulation-associated attributes and methods. Only returned if
             details is True.

@@ -282,12 +282,36 @@ def format_axis_labels(label: str, offset: str) -> str:
         Formatted label
     """
     _, exponent = offset.split("e")
-    offset = rf"$10^{{{exponent}}}$"
+    offset = rf"$10^{{{exponent}}} \\times$"
     if "(" in label and ")" in label:
-        label = re.sub(pattern=r"\((.*?)\)", repl=rf"({offset} x \1)", string=label)
+        label = re.sub(pattern=r"\((.*?)\)", repl=rf"({offset} \1)", string=label)
     elif "[" in label and "]" in label:
-        label = re.sub(pattern=r"\[(.*?)\]", repl=rf"[{offset} × \1]", string=label)
+        label = re.sub(pattern=r"\[(.*?)\]", repl=rf"[{offset} \1]", string=label)
     else:
-        label = f"{label} (× {offset})"
+        offset = rf"$ \times 10^{{{exponent}}}$"
+        label = rf"{label} ({offset})"
 
     return label
+
+
+def compute_tight_bbox(fig, pad_inches: float = 0.0):
+    """
+    Compute tight bounding box of a figure with specified padding. The width is not
+    changed.
+    """
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    tight = fig.get_tightbbox(renderer)
+    not_tight = fig.bbox
+    width, current_height = fig.get_size_inches()
+
+    from matplotlib.transforms import Bbox
+
+    bbox = Bbox.from_bounds(
+        not_tight.x0,
+        tight.y0 - pad_inches,
+        width,
+        tight.height + 2 * pad_inches,
+    )
+
+    return bbox

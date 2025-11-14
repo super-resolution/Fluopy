@@ -329,6 +329,8 @@ class Analysis:
     ) -> npt.NDArray[np.float64]:
         """
         Get the fluorescence lifetime (i.e., S1 lifetime) of the specified fluorophore.
+        Note that this does not consider whether the S1 state decays via photon
+        emission.
 
         Parameters
         ----------
@@ -859,7 +861,7 @@ class Analysis:
         kwargs.setdefault(
             "xlabel",
             rf"{format_electronic_state(SingleState(state_identity).name)}"
-            "duration (s)",
+            " duration (s)",
         )
         kwargs.setdefault("density", True)
         index = np.where(

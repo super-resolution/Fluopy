@@ -48,9 +48,10 @@ def simulate_TCSPC(
     Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence lifetime
     measurement). Methodically the direct method of the gillespie algorithm.
     The simulation is bound to start at the state configuration where all fluorophores
-    are in the ground state. The fluorescence lifetimes are the time differences of
-    photon emission to last laser pulse. Only photons that pass the bandpass filter are
-    taken into account. The simulation approximates laser pulses to be instantaneous.
+    are in the ground state. The S1 durations used for fluorescence lifetimes are the
+    time differences of photon emission to last laser pulse. Only photons that pass the
+    bandpass filter are taken into account. The simulation approximates laser pulses to
+    be instantaneous.
 
     Parameters
     ----------
@@ -91,13 +92,13 @@ def simulate_TCSPC(
         The time points at which emissions are detected.
         If store_time_points is False, this will be None.
     lifetimes_DA : npt.NDArray[np.float64]
-        Contains the fluorescence lifetimes of detected emissions when energy transfer
+        Contains the S1 durations of detected emissions when energy transfer
         available.
     lifetimes_D : npt.NDArray[np.float64]
-        Contains the fluorescence lifetimes of detected emissions when energy transfer
+        Contains the S1 durations of detected emissions when energy transfer
         not available.
     lifetimes_all : npt.NDArray[np.float64]
-        Contains the fluorescence lifetimes of all detected emissions.
+        Contains the S1 durations of all detected emissions.
     """
     number_pulses = int(number_pulses)
     size = int(size)
@@ -395,12 +396,12 @@ def simulate_TCSPC_detailed(
     Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence lifetime
     measurement). Methodically the direct method of the gillespie algorithm.
     The simulation is bound to start at the state configuration where all fluorophores
-    are in the ground state. The fluorescence lifetimes are the time differences of
-    photon emission to last laser pulse. This is the detailed version of the simulation,
-    meaning that it additionally provides a simulation object that contains all
-    transitions, their time points and the corresponding states. The simulation
-    approximates laser pulses to be instantaneous. If multiple excitations occur at the
-    same time point, the time points are spaced by a minimal amount.
+    are in the ground state. The S1 durations used for fluorescence lifetimes are the
+    time differences of photon emission to last laser pulse. This is the detailed
+    version of the simulation, meaning that it additionally provides a simulation object
+    that contains all transitions, their time points and the corresponding states. The
+    simulation approximates laser pulses to be instantaneous. If multiple excitations
+    occur at the same time point, the time points are spaced by a minimal amount.
 
     Parameters
     ----------
@@ -441,13 +442,13 @@ def simulate_TCSPC_detailed(
         The time points at which emissions are detected.
         If store_time_points is False, this will be None.
     lifetimes_DA : npt.NDArray[np.float64]
-        Contains the fluorescence lifetimes of detected emissions when energy transfer
+        Contains the S1 durations of detected emissions when energy transfer
         available.
     lifetimes_D : npt.NDArray[np.float64]
-        Contains the fluorescence lifetimes of detected emissions when energy transfer
+        Contains the S1 durations of detected emissions when energy transfer
         not available.
     lifetimes_all : npt.NDArray[np.float64]
-        Contains the fluorescence lifetimes of all detected emissions.
+        Contains the S1 durations of all detected emissions.
     simulation_object : fluopy.simulation.Simulation
         Container for simulation-associated attributes and methods.
     """
@@ -942,13 +943,13 @@ def prepare_return_values(
     time_points
         The time points at which emissions are detected.
     lifetimes_DA
-        Contains the fluorescence lifetimes of detected emissions when energy transfer
+        Contains the S1 durations of detected emissions when energy transfer
         available.
     lifetimes_D
-        Contains the fluorescence lifetimes of detected emissions when energy transfer
+        Contains the S1 durations of detected emissions when energy transfer
         not available.
     lifetimes_all
-        Contains the fluorescence lifetimes of all detected emissions.
+        Contains the S1 durations of all detected emissions.
     time_series
         Contains the time points at which transitions occur. Also includes the time
         points at which excitations occur. Note that if multiple excitations occur at
@@ -969,13 +970,13 @@ def prepare_return_values(
     event_time_points : npt.NDArray[np.float64] | None
         The time points at which emissions are detected.
     lifetimes_DA : npt.NDArray[np.float64]
-        Contains the fluorescence lifetimes of detected emissions when energy transfer
+        Contains the S1 durations of detected emissions when energy transfer
         available.
     lifetimes_D : npt.NDArray[np.float64]
-        Contains the fluorescence lifetimes of detected emissions when energy transfer
+        Contains the S1 durations of detected emissions when energy transfer
         not available.
     lifetimes_all : npt.NDArray[np.float64]
-        Contains the fluorescence lifetimes of all detected emissions.
+        Contains the S1 durations of all detected emissions.
     simulation_object : fluopy.simulation.Simulation
         Container for simulation-associated attributes and methods.
     """

@@ -69,6 +69,8 @@ class PairedState(Enum):
     S0_OFF2 = [SingleState.S0, SingleState.OFF2]
     S0_OFF = [SingleState.S0, SingleState.OFF]
     S0_B = [SingleState.S0, SingleState.B]
+    S1_R = [SingleState.S1, SingleState.R]
+    S0_R = [SingleState.S0, SingleState.R]
 
     @property
     def single_state_values(self) -> tuple[int, int]:
@@ -188,6 +190,8 @@ class TransitionType(Enum):
     S_T_ANNI_BLEACH = TransitionAttributes(
         "STA_B", PairedState.S1_T1, PairedState.S0_B, False
     )
+    R_FRET_1 = TransitionAttributes("RET_1", PairedState.S1_R, PairedState.S0_R, False)
+    R_FRET_2 = TransitionAttributes("RET_2", PairedState.S1_R, PairedState.S0_S0, False)
 
     # rhodamines
     H2O_ATTACK_S = TransitionAttributes("H2OS", SingleState.S1, SingleState.OFF, False)

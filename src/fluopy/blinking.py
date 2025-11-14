@@ -394,7 +394,7 @@ def plot_off_statistics(
     """
     kwargs.setdefault("type_", "line")
     kwargs.setdefault("fontsize", 16)
-    kwargs.setdefault("xlabel", "time [s]")
+    kwargs.setdefault("xlabel", "Time (s)")
     kwargs.setdefault("yticklabels", {"labels": ["OFF", "ON"]})
     kwargs.setdefault("yticks", [0, 1])
     kwargs.setdefault("ylabel", "")

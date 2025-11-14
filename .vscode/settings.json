@@ -359,6 +359,41 @@
         {
             "folderPath": "Photoswitching\\src\\fluopy\\fitting.py\\",
             "color": "foldercolorizer.color_0000cc"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\fluorescence_lifetimes\\fluorescence_lifetimes.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\fluorescence_lifetimes\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_13_multi_f_et_adjustments\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_17_ON_OFF_periods\\on_off_periods.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_17_ON_OFF_periods\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\data_gen_OET_RET.ipynb\\"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_15_comprehensive_photophys_model\\compr_model.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_15_comprehensive_photophys_model\\data_gen.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_15_comprehensive_photophys_model\\",
+            "color": "foldercolorizer.color_009933"
         }
     ],
     "git.decorations.enabled": false,
