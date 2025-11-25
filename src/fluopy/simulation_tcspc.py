@@ -132,7 +132,6 @@ def simulate_TCSPC(
             -excitation_rate * pulse_duration
         )  # CDF of exponential distribution
         excitation_probabilities[fluorophore_ids] = excitation_probability
-
     excitable_indices = np.where(excitation_probabilities != 0)[0]
     rng = np.random.default_rng(seed)
     frame_time = pd.Timedelta(frame_time) / np.timedelta64(1, "s")
@@ -178,12 +177,6 @@ def simulate_TCSPC(
     not_broken = True
     random_numbers_exc = rng.uniform(low=0, high=1, size=(size, excitable_indices.size))
     random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
-    random_indices = np.array(
-        [
-            rng.integers(low=0, high=num + 1, size=size)
-            for num in range(excitable_indices.size)
-        ]
-    )
     if store_time_points:
         time_points = []
     else:
@@ -196,117 +189,109 @@ def simulate_TCSPC(
             random_numbers_exc = rng.uniform(
                 low=0, high=1, size=(size, excitable_indices.size)
             )
-            random_indices = np.array(
-                [
-                    rng.integers(low=0, high=num + 1, size=size)
-                    for num in range(excitable_indices.size)
-                ]
-            )
         time = (i - 1) * time_between_pulses
         last_pulse_time = time
         next_pulse_time = time + time_between_pulses
         current_states = np.array(df["final_state"][current_state_index])
-        S0s = np.where(current_states[excitable_indices] == S0)[0]
-        # if there are any S0 states, excitations can occur
-        if S0s.size != 0:
-            not_broken = True
-            # multiple excitations can occur within one pulse
-            excitations = np.where(
-                random_numbers_exc[i - (j - 1) * size, S0s]
-                < excitation_probabilities[excitable_indices[S0s]]
-            )[0]
-            # if excitations occur, the fluorophores are set to S1
-            if excitations.size != 0:
-                current_states[excitable_indices[S0s[excitations]]] = S1
-            # if no excitation happened and if a transition that is remembered could
-            # take place, the simulation continues from there
-            elif remember[1] < next_pulse_time and not checked:
-                skip = True
-                next_transition = remember[0]
-                time = remember[1]
-                # here no new calculation of next_pulse_time since the time is smaller
-                # than current next_pulse_time, hence the calculation would result
-                # in the same value
-            # if no excitation happened and if a potentially remembered transition
-            # could not take place, and if the number of pulses until an excitation
-            # event have not been checked immediately before, the number of pulses
-            # until the next excitation event is calculated
-            elif not checked:
-                number_pulses_until_next_excitation = rng.geometric(
-                    p=excitation_probabilities[excitable_indices[S0s]]
-                )
-                indices_minimum = np.where(
-                    number_pulses_until_next_excitation
-                    == np.min(number_pulses_until_next_excitation)
+        if not checked:
+            S0s = np.where(current_states[excitable_indices] == S0)[0]
+            # if there are any S0 states, excitations can occur
+            if S0s.size != 0:
+                not_broken = True
+                # multiple excitations can occur within one pulse
+                excitations = np.where(
+                    random_numbers_exc[i - (j - 1) * size, S0s]
+                    < excitation_probabilities[excitable_indices[S0s]]
                 )[0]
-                random_index = indices_minimum[
-                    random_indices[indices_minimum.size - 1][i - (j - 1) * size]
-                ]
-                potential_i = i + number_pulses_until_next_excitation[random_index] - 1
-                # if the next excitation event is before a remembered transition takes
-                # place, the excitation is realized at the calculated pulse (the pulse
-                # still happens in case multiple fluorophores are excited, thats why
-                # continue is used)
-                if potential_i * time_between_pulses < remember[1]:
-                    current_states[excitable_indices[S0s[random_index]]] = S1
-                    current_state_index = df[
-                        df["final_state"] == tuple(current_states)
-                    ].index[0]
-                    i = potential_i
-                    checked = True
-                    continue
-                # if the next excitation event is after a remembered transition takes
-                # place, the simulation continues from there
-                else:
+                # if excitations occur, the fluorophores are set to S1
+                if excitations.size != 0:
+                    current_states[excitable_indices[S0s[excitations]]] = S1
+                # if no excitation happened and if a transition that is remembered could
+                # take place, the simulation continues from there
+                elif remember[1] < next_pulse_time:
                     skip = True
                     next_transition = remember[0]
                     time = remember[1]
-                    # here the calculation is necessary since the time is larger than
+                    # here no new calculation of next_pulse_time since the time is smaller
+                    # than current next_pulse_time, hence the calculation would result
+                    # in the same value
+                # if no excitation happened and if a potentially remembered transition
+                # could not take place, and if the number of pulses until an excitation
+                # event have not been checked immediately before, the number of pulses
+                # until the next excitation event is calculated
+                else:
+                    number_pulses_until_next_excitation = rng.geometric(
+                        p=excitation_probabilities[excitable_indices[S0s]]
+                    )
+                    indices_minimum = np.where(
+                        number_pulses_until_next_excitation
+                        == np.min(number_pulses_until_next_excitation)
+                    )[0]
+                    potential_i = (
+                        i + number_pulses_until_next_excitation[indices_minimum[0]] - 1
+                    )
+                    # if the next excitation event(s) is before a remembered transition takes
+                    # place, the excitation(s) is realized at the calculated pulse
+                    if potential_i * time_between_pulses < remember[1]:
+                        current_states[excitable_indices[S0s[indices_minimum]]] = S1
+                        current_state_index = df[
+                            df["final_state"] == tuple(current_states)
+                        ].index[0]
+                        i = potential_i
+                        checked = True
+                        continue
+                    # if the next excitation event is after a remembered transition takes
+                    # place, the simulation continues from there
+                    else:
+                        skip = True
+                        next_transition = remember[0]
+                        time = remember[1]
+                        # here the calculation is necessary since the time is larger than
+                        # current next_pulse_time
+                        i = int(np.floor(time / time_between_pulses))
+                        next_pulse_time = (i + 1) * time_between_pulses
+            # if there are no S0 states, no excitations can occur. If something is
+            # remembered, the simulation continues from there
+            else:
+                # if not_broken is False, this means that in the previous pulse it was
+                # already at this point (all non-excitable) and did not get past the
+                # current_state_lambda above 0. This means that the Markov chain has
+                # encountered an absorbing state that is not excitable S0.
+                if not not_broken:
+                    logger.warning(
+                        "All fluorophores underwent photobleaching or entered "
+                        "another Markov chain absorbing state.",
+                        stacklevel=2,
+                    )
+                    event_time_series = pd.Series(
+                        photon_collector, index=time_stamps, dtype=np.int64
+                    )
+                    if store_time_points:
+                        event_time_points = np.array(time_points)
+                    lifetimes_DA = np.array(lifetimes_DA)
+                    lifetimes_D = np.array(lifetimes_D)
+                    lifetimes_all = np.array(lifetimes_all)
+                    return (
+                        event_time_series,
+                        event_time_points,
+                        lifetimes_DA,
+                        lifetimes_D,
+                        lifetimes_all,
+                    )
+                # note that not_broken will be set to False. The rembered transition will be
+                # carried out and after that, if the transition was not to an all-absorbing
+                # state (i.e., current_state_lambda != 0), not_broken will be set to True.
+                # current_state_lambda could also be 0 due to S0 states, but in that case,
+                # not_broken will be set to True since S0s.size != 0.
+                elif remember[1] != np.inf:
+                    skip = True
+                    next_transition = remember[0]
+                    time = remember[1]
+                    # here the calculation can be necessary or result is the same number as
                     # current next_pulse_time
                     i = int(np.floor(time / time_between_pulses))
                     next_pulse_time = (i + 1) * time_between_pulses
-        # if there are no S0 states, no excitations can occur. If something is
-        # remembered, the simulation continues from there
-        else:
-            # if not_broken is False, this means that in the previous pulse it was
-            # already at this point (all non-excitable) and did not get past the
-            # current_state_lambda above 0. This means that the Markov chain has
-            # encountered an absorbing state that is not excitable S0.
-            if not not_broken:
-                logger.warning(
-                    "All fluorophores underwent photobleaching or entered "
-                    "another Markov chain absorbing state.",
-                    stacklevel=2,
-                )
-                event_time_series = pd.Series(
-                    photon_collector, index=time_stamps, dtype=np.int64
-                )
-                if store_time_points:
-                    event_time_points = np.array(time_points)
-                lifetimes_DA = np.array(lifetimes_DA)
-                lifetimes_D = np.array(lifetimes_D)
-                lifetimes_all = np.array(lifetimes_all)
-                return (
-                    event_time_series,
-                    event_time_points,
-                    lifetimes_DA,
-                    lifetimes_D,
-                    lifetimes_all,
-                )
-            # note that not_broken will be set to False. The rembered transition will be
-            # carried out and after that, if the transition was not to an all-absorbing
-            # state (i.e., current_state_lambda != 0), not_broken will be set to True.
-            # current_state_lambda could also be 0 due to S0 states, but in that case,
-            # not_broken will be set to True since S0s.size != 0.
-            elif remember[1] != np.inf and not checked:
-                skip = True
-                next_transition = remember[0]
-                time = remember[1]
-                # here the calculation can be necessary or result is the same number as
-                # current next_pulse_time
-                i = int(np.floor(time / time_between_pulses))
-                next_pulse_time = (i + 1) * time_between_pulses
-            not_broken = False
+                not_broken = False
 
         checked = False
         current_state_index = df[df["final_state"] == tuple(current_states)].index[0]
@@ -524,7 +509,7 @@ def simulate_TCSPC_detailed(
     # skip is True if next transition shall be the remembered one wihtout the chance of
     # another transition that is not excitation to come before it
     skip = False
-    # checked is True if next excitation oulse that excites a fluorophore happens before
+    # checked is True if next excitation pulse that excites a fluorophore happens before
     # a remembered transition
     checked = False
     # not_broken is False if no excitable states AND no possible future transitions
@@ -532,12 +517,6 @@ def simulate_TCSPC_detailed(
     not_broken = True
     random_numbers_exc = rng.uniform(low=0, high=1, size=(size, excitable_indices.size))
     random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
-    random_indices = np.array(
-        [
-            rng.integers(low=0, high=num + 1, size=size)
-            for num in range(excitable_indices.size)
-        ]
-    )
     if store_time_points:
         time_points = []
     else:
@@ -550,121 +529,117 @@ def simulate_TCSPC_detailed(
             random_numbers_exc = rng.uniform(
                 low=0, high=1, size=(size, excitable_indices.size)
             )
-            random_indices = np.array(
-                [
-                    rng.integers(low=0, high=num + 1, size=size)
-                    for num in range(excitable_indices.size)
-                ]
-            )
         time = (i - 1) * time_between_pulses
         last_pulse_time = time
         next_pulse_time = time + time_between_pulses
         current_states = np.array(df["final_state"][current_state_index])
-        S0s = np.where(current_states[excitable_indices] == S0)[0]
-        # if there are any S0 states, excitations can occur
-        if S0s.size != 0:
-            not_broken = True
-            # multiple excitations can occur within one pulse
-            excitations = np.where(
-                random_numbers_exc[i - (j - 1) * size, S0s]
-                < excitation_probabilities[excitable_indices[S0s]]
-            )[0]
-            # if excitations occur, the fluorophores are set to S1
-            if excitations.size != 0:
-                current_states[excitable_indices[S0s[excitations]]] = S1
-                excitation_series.extend(excitable_indices[S0s[excitations]])
-                time_series.extend([time] * excitations.size)
-            # if no excitation happened and if a transition that is remembered could
-            # take place, the simulation continues from there
-            elif remember[1] < next_pulse_time and not checked:
-                skip = True
-                next_transition = remember[0]
-                time = remember[1]
-                # here no new calculation of next_pulse_time since the time is smaller
-                # than current next_pulse_time, hence the calculation would result
-                # in the same value
-            # if no excitation happened and if a potentielly remembered transition
-            # could not take place, and if the number of pulses until an excitation
-            # event have not been checked immidiately before, the number of pulses
-            # until the next excitation event is calculated
-            elif not checked:
-                number_pulses_until_next_excitation = rng.geometric(
-                    p=excitation_probabilities[excitable_indices[S0s]]
-                )
-                indices_minimum = np.where(
-                    number_pulses_until_next_excitation
-                    == np.min(number_pulses_until_next_excitation)
+        if not checked:
+            S0s = np.where(current_states[excitable_indices] == S0)[0]
+            # if there are any S0 states, excitations can occur
+            if S0s.size != 0:
+                not_broken = True
+                # multiple excitations can occur within one pulse
+                excitations = np.where(
+                    random_numbers_exc[i - (j - 1) * size, S0s]
+                    < excitation_probabilities[excitable_indices[S0s]]
                 )[0]
-                random_index = indices_minimum[
-                    random_indices[indices_minimum.size - 1][i - (j - 1) * size]
-                ]
-                potential_i = i + number_pulses_until_next_excitation[random_index] - 1
-                # if the next excitation event is before a remembered transition takes
-                # place, the excitation is realized at the calculated pulse (the pulse
-                # still happens in case multiple fluorophores are excited, thats why
-                # continue is used)
-                if potential_i * time_between_pulses < remember[1]:
-                    current_states[excitable_indices[S0s[random_index]]] = S1
-                    excitation_series.append(excitable_indices[S0s[random_index]])
-                    time_series.append(potential_i * time_between_pulses)
-                    current_state_index = df[
-                        df["final_state"] == tuple(current_states)
-                    ].index[0]
-                    i = potential_i
-                    checked = True
-                    continue
-                # if the next excitation event is after a remembered transition takes
-                # place, the simulation continues from there
-                else:
+                # if excitations occur, the fluorophores are set to S1
+                if excitations.size != 0:
+                    current_states[excitable_indices[S0s[excitations]]] = S1
+                    excitation_series.extend(excitable_indices[S0s[excitations]])
+                    time_series.extend([time] * excitations.size)
+                # if no excitation happened and if a transition that is remembered could
+                # take place, the simulation continues from there
+                elif remember[1] < next_pulse_time:
                     skip = True
                     next_transition = remember[0]
                     time = remember[1]
-                    # here the calculation is necessary since the time is larger than
+                    # here no new calculation of next_pulse_time since the time is smaller
+                    # than current next_pulse_time, hence the calculation would result
+                    # in the same value
+                # if no excitation happened and if a potentielly remembered transition
+                # could not take place, and if the number of pulses until an excitation
+                # event have not been checked immidiately before, the number of pulses
+                # until the next excitation event is calculated
+                else:
+                    number_pulses_until_next_excitation = rng.geometric(
+                        p=excitation_probabilities[excitable_indices[S0s]]
+                    )
+                    indices_minimum = np.where(
+                        number_pulses_until_next_excitation
+                        == np.min(number_pulses_until_next_excitation)
+                    )[0]
+                    potential_i = (
+                        i + number_pulses_until_next_excitation[indices_minimum[0]] - 1
+                    )
+                    # if the next excitation event(s) is before a remembered transition takes
+                    # place, the excitation(s) is realized at the calculated pulse
+                    if potential_i * time_between_pulses < remember[1]:
+                        current_states[excitable_indices[S0s[indices_minimum]]] = S1
+                        excitation_series.extend(
+                            excitable_indices[S0s[indices_minimum]]
+                        )
+                        time_series.extend(
+                            [potential_i * time_between_pulses] * indices_minimum.size
+                        )
+                        current_state_index = df[
+                            df["final_state"] == tuple(current_states)
+                        ].index[0]
+                        i = potential_i
+                        checked = True
+                        continue
+                    # if the next excitation event is after a remembered transition takes
+                    # place, the simulation continues from there
+                    else:
+                        skip = True
+                        next_transition = remember[0]
+                        time = remember[1]
+                        # here the calculation is necessary since the time is larger than
+                        # current next_pulse_time
+                        i = int(np.floor(time / time_between_pulses))
+                        next_pulse_time = (i + 1) * time_between_pulses
+            # if there are no S0 states, no excitations can occur. If something is
+            # remembered, the simulation continues from there
+            else:
+                # if not_broken is False, this means that in the previous pulse it was
+                # already at this point (all non-excitable) and did not get past the
+                # current_state_lambda above 0. This means that the Markov chain has
+                # encountered an absorbing state that is not excitable S0.
+                if not not_broken:
+                    logger.warning(
+                        "All fluorophores underwent photobleaching or entered "
+                        "another Markov chain absorbing state.",
+                        stacklevel=2,
+                    )
+                    return_values = prepare_return_values(
+                        photon_collector=photon_collector,
+                        time_stamps=time_stamps,
+                        time_points=time_points,
+                        lifetimes_DA=lifetimes_DA,
+                        lifetimes_D=lifetimes_D,
+                        lifetimes_all=lifetimes_all,
+                        time_series=time_series,
+                        transition_series=transition_series,
+                        excitation_series=excitation_series,
+                        transition_set=transition_set,
+                    )
+
+                    return return_values
+
+                # note that not_broken will be set to False. The rembered transition will be
+                # carried out and after that, if the transition was not to an all-absorbing
+                # state (i.e., current_state_lambda != 0), not_broken will be set to True.
+                # current_state_lambda could also be 0 due to S0 states, but in that case,
+                # not_broken will be set to True since S0s.size != 0.
+                elif remember[1] != np.inf:
+                    skip = True
+                    next_transition = remember[0]
+                    time = remember[1]
+                    # here the calculation can be necessary or result is the same number as
                     # current next_pulse_time
                     i = int(np.floor(time / time_between_pulses))
                     next_pulse_time = (i + 1) * time_between_pulses
-        # if there are no S0 states, no excitations can occur. If something is
-        # remembered, the simulation continues from there
-        else:
-            # if not_broken is False, this means that in the previous pulse it was
-            # already at this point (all non-excitable) and did not get past the
-            # current_state_lambda above 0. This means that the Markov chain has
-            # encountered an absorbing state that is not excitable S0.
-            if not not_broken:
-                logger.warning(
-                    "All fluorophores underwent photobleaching or entered "
-                    "another Markov chain absorbing state.",
-                    stacklevel=2,
-                )
-                return_values = prepare_return_values(
-                    photon_collector=photon_collector,
-                    time_stamps=time_stamps,
-                    time_points=time_points,
-                    lifetimes_DA=lifetimes_DA,
-                    lifetimes_D=lifetimes_D,
-                    lifetimes_all=lifetimes_all,
-                    time_series=time_series,
-                    transition_series=transition_series,
-                    excitation_series=excitation_series,
-                    transition_set=transition_set,
-                )
-
-                return return_values
-
-            # note that not_broken will be set to False. The rembered transition will be
-            # carried out and after that, if the transition was not to an all-absorbing
-            # state (i.e., current_state_lambda != 0), not_broken will be set to True.
-            # current_state_lambda could also be 0 due to S0 states, but in that case,
-            # not_broken will be set to True since S0s.size != 0.
-            elif remember[1] != np.inf and not checked:
-                skip = True
-                next_transition = remember[0]
-                time = remember[1]
-                # here the calculation can be necessary or result is the same number as
-                # current next_pulse_time
-                i = int(np.floor(time / time_between_pulses))
-                next_pulse_time = (i + 1) * time_between_pulses
-            not_broken = False
+                not_broken = False
 
         checked = False
         current_state_index = df[df["final_state"] == tuple(current_states)].index[0]
@@ -991,7 +966,6 @@ def prepare_return_values(
     time_series = np.array(time_series)
     transition_series = np.array(transition_series, dtype=np.uint32)
     excitation_series = np.array(excitation_series, dtype=np.int16)
-
     space_multiple_excitations(time_series=time_series)
     transition_series = insert_excitations(
         transition_series=transition_series,

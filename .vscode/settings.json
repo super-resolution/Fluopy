@@ -381,7 +381,8 @@
             "color": "foldercolorizer.color_009933"
         },
         {
-            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\data_gen_OET_RET.ipynb\\"
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\data_gen_OET_RET.ipynb\\",
+            "color": "foldercolorizer.color_009933"
         },
         {
             "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_15_comprehensive_photophys_model\\compr_model.ipynb\\",
@@ -393,6 +394,14 @@
         },
         {
             "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_15_comprehensive_photophys_model\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\multi_f_et_antibunching_figure.ipynb\\",
+            "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\multi_f_et_antibunching.ipynb\\",
             "color": "foldercolorizer.color_009933"
         }
     ],

@@ -73,4 +73,4 @@ def test_format_electronic_state():
 def test_format_axis_labels():
     return_value = format_axis_labels(label="___(1)___", offset="e12")
     # print(return_value)
-    assert return_value == "___($10^{12}$ x 1)___"
+    assert return_value == "___($10^{12} \\times$ 1)___"

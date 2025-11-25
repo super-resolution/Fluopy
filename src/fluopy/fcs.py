@@ -738,6 +738,7 @@ def coincidence(
         raise ValueError(f"Unknown method: {method}. Use 'numpy' or 'numba'.")
 
     bin_centers = (bins[:-1] + bins[1:]) / 2
+
     # normalization to avoid finite window effects
     hist = hist / (np.max(photon_arrival_times) - np.abs(bin_centers))
     # standard normalization

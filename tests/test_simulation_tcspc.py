@@ -300,7 +300,7 @@ def test_simulate_TCSPC(
             == event_time_points.size
         )
         np.testing.assert_allclose(
-            np.mean(np.concatenate([lifetimes_DA, lifetimes_D])), 9.96e-10, rtol=1.1e-2
+            np.mean(np.concatenate([lifetimes_DA, lifetimes_D])), 1e-9, rtol=1.1e-2
         )
         # the excitation rate is high enough to ensure that at each pulse, all
         # all fluorophores are excited. The lifetime of only donor consists mostly of
