@@ -403,6 +403,10 @@
         {
             "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\multi_f_et_antibunching.ipynb\\",
             "color": "foldercolorizer.color_009933"
+        },
+        {
+            "folderPath": "Photoswitching\\notebooks\\Chapter_I\\1_12_multi_f_et_antibunching\\",
+            "color": "foldercolorizer.color_009933"
         }
     ],
     "git.decorations.enabled": false,
