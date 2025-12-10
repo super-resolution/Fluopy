@@ -29,7 +29,7 @@ Install from distribution or sources
 In order to get the latest changes install from the GitHub repository
 main branch::
 
-    pip install git+https://github.com/super-resolution/Photoswitching.git@main
+    pip install git+https://github.com/super-resolution/Fluopy.git@main
 
 or download distribution or wheel archive and install with pip::
 
