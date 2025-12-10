@@ -24,7 +24,7 @@ license = {file = "LICENSE.md"}
 authors = [
   {name = "Vincent Ebert"},
   {name = "Sören Doose"},
-  {name = "Photoswitching Developers"},
+  {name = "Fluopy Developers"},
 ]
 maintainers = [
   {name = "Vincent Ebert"},
@@ -76,11 +76,11 @@ gpu = [
 ]
 
 [project.urls]
-homepage = "https://github.com/super-resolution/Photoswitching"
-documentation = "https://github.com/super-resolution/Photoswitching/README.md"
-repository = "https://github.com/super-resolution/Photoswitching"
-issues = "https://github.com/super-resolution/Photoswitching/issues"
-changelog = "https://github.com/super-resolution/Photoswitching"
+homepage = "https://github.com/super-resolution/Fluopy"
+documentation = "https://github.com/super-resolution/Fluopy/README.md"
+repository = "https://github.com/super-resolution/Fluopy"
+issues = "https://github.com/super-resolution/Fluopy/issues"
+changelog = "https://github.com/super-resolution/Fluopy"
 
 [dependency-groups]
 test = [

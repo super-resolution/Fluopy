@@ -1,24 +1,15 @@
-Welcome to Photoswitching
-==================================================
-
-Photoswitching is a project to simulate photophysical processes in organic 
-fluorophores.
-
-It contains project notebooks and the python library fluopy.
-
-
 ![logo](./docs/_static/logo.png) Welcome to Fluopy
 ==================================================
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5722472.svg)](https://doi.org/10.5281/zenodo.5722472)
 [![PyPI](https://img.shields.io/pypi/v/fluopy)](https://pypi.org/project/fluopy/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/fluopy)](https://www.python.org/)
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/super-resolution/Photoswitching)](https://github.com/super-resolution/Photoswitching)
-[![GitHub last commit](https://img.shields.io/github/last-commit/super-resolution/Photoswitching)](https://github.com/super-resolution/Photoswitching/commits/main)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/super-resolution/Fluopy)](https://github.com/super-resolution/Fluopy)
+[![GitHub last commit](https://img.shields.io/github/last-commit/super-resolution/Fluopy)](https://github.com/super-resolution/Fluopy/commits/main)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Tests](https://github.com/super-resolution/Photoswitching/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/super-resolution/Photoswitching/actions/workflows/test.yml)
-[![codecov](https://codecov.io/gh/super-resolution/Photoswitching/branch/main/graph/badge.svg?token=XTZRIIVOGE)](https://codecov.io/gh/super-resolution/Photoswitching)
-[![Documentation Status](https://readthedocs.org/projects/Photoswitching/badge/?version=latest)](https://locan.readthedocs.io/en/latest/?badge=latest)
+[![Tests](https://github.com/super-resolution/Fluopy/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/super-resolution/Fluopy/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/super-resolution/Fluopy/branch/main/graph/badge.svg?token=XTZRIIVOGE)](https://codecov.io/gh/super-resolution/Fluopy)
+[![Documentation Status](https://readthedocs.org/projects/Fluopy/badge/?version=latest)](https://locan.readthedocs.io/en/latest/?badge=latest)
 
 
 Fluopy is a python-based library with code for simulating photophysical processes
@@ -43,10 +34,10 @@ Contributing
 ------------
 
 Development takes place on the 
-[Photoswitching GitHub page](https://github.com/super-resolution/Photoswitching).
+[Fluopy GitHub page](https://github.com/super-resolution/Fluopy).
 
 Please use 
-[GitHub issues](https://github.com/super-resolution/Photoswitching/issues) 
+[GitHub issues](https://github.com/super-resolution/Fluopy/issues) 
 to report bugs and feature requests.
 
 
