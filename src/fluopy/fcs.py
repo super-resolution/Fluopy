@@ -313,8 +313,8 @@ def fit_antibunching(
         Autocorrelation values.
     """
     tau = np.asarray(tau)
-    lifetime_s0_s1 = 1 / (1 / s1_lifetime + excitation_rate)
-    autocorrelation = -np.exp(-tau / lifetime_s0_s1)
+    s0_s1_cycle = 1 / (1 / s1_lifetime + excitation_rate)
+    autocorrelation = -np.exp(-tau / s0_s1_cycle)
 
     return autocorrelation
 
