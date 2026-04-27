@@ -458,9 +458,8 @@ def plot_histogram(
 
     axes = fi.universal_figure(data=data, **kwargs)
 
-    mean_color = "black"
-    if "ylabelcolor" in kwargs:
-        mean_color = kwargs["ylabelcolor"]
+    mean_color = kwargs.get("ylabelcolor", "black")
+    fontsize = kwargs.get("fontsize", 16)
     if display_mean:
         mean = np.mean(data)
         axes[0][0].text(
@@ -468,7 +467,7 @@ def plot_histogram(
             y=0.85,
             s=rf"$\mu = {mean:.2f}$",
             transform=axes[0][0].transAxes,
-            fontsize=16,
+            fontsize=fontsize,
             color=mean_color,
         )
 
