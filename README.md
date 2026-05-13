@@ -1,7 +1,6 @@
 ![logo](./docs/_static/logo.png) Welcome to Fluopy
 ==================================================
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5722472.svg)](https://doi.org/10.5281/zenodo.5722472)
 [![PyPI](https://img.shields.io/pypi/v/fluopy)](https://pypi.org/project/fluopy/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/fluopy)](https://www.python.org/)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/super-resolution/Fluopy)](https://github.com/super-resolution/Fluopy)
