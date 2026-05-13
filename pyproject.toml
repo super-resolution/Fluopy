@@ -88,7 +88,7 @@ test = [
     "coverage",
 ]
 lint = [
-    "black~=25.0",
+    "black~=26.0",
     "ruff",
     "black[jupyter]",
 ]
