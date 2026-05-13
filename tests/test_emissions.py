@@ -152,6 +152,7 @@ def test_emissions_simulate(tr_set_1f_bl):
     pd.testing.assert_series_equal(emis.event_time_series, exp_event_time_series)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "dirname, excitation_rates, expected",
     [
