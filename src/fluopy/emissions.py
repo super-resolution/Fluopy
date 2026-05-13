@@ -72,9 +72,13 @@ class Emissions:
         seed
             A seed to initialize the BitGenerator.
         """
-        self.parameters = {"frame_time": frame_time, "seed": seed, "bandpass": bandpass}
-        self.event_time_points = None
-        self.event_time_series = None
+        self.parameters: dict[str, Any] = {
+            "frame_time": frame_time,
+            "seed": seed,
+            "bandpass": bandpass,
+        }
+        self.event_time_points: npt.NDArray | None = None
+        self.event_time_series: pd.Series | None = None
 
     def extract(self, simulation: Simulation) -> None:
         """
@@ -446,7 +450,7 @@ class Emissions:
             raise ValueError("p has to be between 0 and 1.")
         rng = np.random.default_rng(seed)
         nonzero = self.event_time_series.values.nonzero()
-        self.event_time_series.values[nonzero] = binom.rvs(
+        self.event_time_series.iloc[nonzero] = binom.rvs(
             n=self.event_time_series.values[nonzero], p=p, random_state=rng
         )
 
@@ -471,7 +475,7 @@ class Emissions:
             raise ValueError("p has to be between 0 and 1.")
         rng = np.random.default_rng(seed)
         nonzero = self.event_time_series.values.nonzero()
-        self.event_time_series.values[nonzero] = binom.rvs(
+        self.event_time_series.iloc[nonzero] = binom.rvs(
             n=self.event_time_series.values[nonzero], p=p, random_state=rng
         )
 
@@ -494,7 +498,7 @@ class Emissions:
             raise ValueError("p has to be between 0 and 1.")
         rng = np.random.default_rng(seed)
         nonzero = self.event_time_series.values.nonzero()
-        self.event_time_series.values[nonzero] = binom.rvs(
+        self.event_time_series.iloc[nonzero] = binom.rvs(
             n=self.event_time_series.values[nonzero], p=p, random_state=rng
         )
 
@@ -517,9 +521,9 @@ class Emissions:
         """
         rng = np.random.default_rng(seed)
         nonzero = self.event_time_series.values.nonzero()
-        self.event_time_series.values[nonzero] = gamma.rvs(
+        self.event_time_series.iloc[nonzero] = gamma.rvs(
             a=self.event_time_series.values[nonzero], scale=emccd_gain, random_state=rng
-        )
+        ).astype(np.int64)
 
     def add_gaussian_noise(
         self, mean: float, std: float, seed: RandomGeneratorSeed = None
@@ -545,7 +549,7 @@ class Emissions:
         size = self.event_time_series.size - 1
         variates = norm(loc=mean, scale=std).rvs(size, random_state=rng)
         variates = variates.astype(np.int32)
-        self.event_time_series.values[1:] = self.event_time_series.values[1:] + variates
+        self.event_time_series.iloc[1:] = self.event_time_series.values[1:] + variates
         self.event_time_series.clip(lower=0, inplace=True)
 
     def add_poisson_noise(self, rate: float, seed: RandomGeneratorSeed = None) -> None:
@@ -568,7 +572,7 @@ class Emissions:
         size = self.event_time_series.size - 1
         variates = poisson(rate).rvs(size, random_state=rng)
         variates = variates.astype(np.int32)
-        self.event_time_series.values[1:] = self.event_time_series.values[1:] + variates
+        self.event_time_series.iloc[1:] = self.event_time_series.values[1:] + variates
 
     def apply_threshold(self, threshold: int) -> None:
         """
