@@ -78,7 +78,7 @@ class Emissions:
             "bandpass": bandpass,
         }
         self.event_time_points: npt.NDArray[np.float64] | None = None
-        self.event_time_series: pd.Series[np.uint32] | None = None
+        self.event_time_series: pd.Series[np.int32] | None = None
 
     def extract(self, simulation: Simulation) -> None:
         """
@@ -411,7 +411,7 @@ class Emissions:
         if added_end_time:
             events[-1] = 0
 
-        event_time_series = pd.Series(events, index=time_deltas, dtype=np.uint32)
+        event_time_series = pd.Series(events, index=time_deltas, dtype=np.int32)
         event_time_series_r = event_time_series.resample(
             resample, closed="right", label="right"
         ).sum()
@@ -452,7 +452,7 @@ class Emissions:
         nonzero = self.event_time_series.values.nonzero()
         self.event_time_series.iloc[nonzero] = binom.rvs(
             n=self.event_time_series.values[nonzero], p=p, random_state=rng
-        ).astype(np.uint32)
+        ).astype(np.int32)
 
     def add_quantum_efficiency(
         self, p: float, seed: RandomGeneratorSeed = None
@@ -477,7 +477,7 @@ class Emissions:
         nonzero = self.event_time_series.values.nonzero()
         self.event_time_series.iloc[nonzero] = binom.rvs(
             n=self.event_time_series.values[nonzero], p=p, random_state=rng
-        ).astype(np.uint32)
+        ).astype(np.int32)
 
     def add_transmittance(self, p: float, seed: RandomGeneratorSeed = None) -> None:
         """
@@ -500,7 +500,7 @@ class Emissions:
         nonzero = self.event_time_series.values.nonzero()
         self.event_time_series.iloc[nonzero] = binom.rvs(
             n=self.event_time_series.values[nonzero], p=p, random_state=rng
-        ).astype(np.uint32)
+        ).astype(np.int32)
 
     def add_emccd_gain(
         self, emccd_gain: float, seed: RandomGeneratorSeed = None
@@ -523,7 +523,7 @@ class Emissions:
         nonzero = self.event_time_series.values.nonzero()
         self.event_time_series.iloc[nonzero] = gamma.rvs(
             a=self.event_time_series.values[nonzero], scale=emccd_gain, random_state=rng
-        ).astype(np.uint32)
+        ).astype(np.int32)
 
     def add_gaussian_noise(
         self, mean: float, std: float, seed: RandomGeneratorSeed = None
@@ -548,7 +548,7 @@ class Emissions:
         rng = np.random.default_rng(seed)
         size = self.event_time_series.size - 1
         variates = norm(loc=mean, scale=std).rvs(size, random_state=rng)
-        variates = variates.astype(np.uint32)
+        variates = variates.astype(np.int32)
         self.event_time_series.iloc[1:] = self.event_time_series.values[1:] + variates
         self.event_time_series.clip(lower=0, inplace=True)
 
@@ -571,7 +571,7 @@ class Emissions:
         rng = np.random.default_rng(seed)
         size = self.event_time_series.size - 1
         variates = poisson(rate).rvs(size, random_state=rng)
-        variates = variates.astype(np.uint32)
+        variates = variates.astype(np.int32)
         self.event_time_series.iloc[1:] = self.event_time_series.values[1:] + variates
 
     def apply_threshold(self, threshold: int) -> None:
