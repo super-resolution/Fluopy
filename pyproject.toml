@@ -79,7 +79,7 @@ gpu = [
 
 [project.urls]
 homepage = "https://github.com/super-resolution/Fluopy"
-documentation = "https://github.com/super-resolution/Fluopy/README.md"
+documentation = "https://fluopy.readthedocs.io/"
 repository = "https://github.com/super-resolution/Fluopy"
 issues = "https://github.com/super-resolution/Fluopy/issues"
 changelog = "https://github.com/super-resolution/Fluopy"
