@@ -32,34 +32,27 @@ def convert_wavenumber_wavelength_frequency(
 
     Returns
     -------
-    wavenumber : npt.NDArray[np.float64]
-        In 1/cm.
-    wavelength : npt.NDArray[np.float64]
-        In nm.
-    frequency : npt.NDArray[np.float64]
-        In Hz.
+    tuple[npt.NDArray[np.float64]]
+        (wavenumber in 1/cm, wavelength in nm, frequency in Hz)
     """
     if sum(x is not None for x in [wavelength, wavenumber, frequency]) != 1:
         raise ValueError(
             "One and only one of wavenumber, wavelength and frequency must not be None."
         )
     if wavenumber is not None:
-        wavenumber = np.asarray(wavenumber)
-        wavelength = np.asarray(1 / (wavenumber * 1e2) * 1e9)
-        frequency = np.asarray(wavenumber * 1e2 * constants.c)
+        wavenumber = np.asarray(wavenumber, dtype=np.float64)
+        wavelength = np.asarray(1 / (wavenumber * 1e2) * 1e9, dtype=np.float64)
+        frequency = np.asarray(wavenumber * 1e2 * constants.c, dtype=np.float64)
 
     elif wavelength is not None:
-        wavelength = np.asarray(wavelength)
-        wavenumber = np.asarray(1 / (wavelength * 1e-9) * 1e-2)
-        frequency = np.asarray(constants.c / (wavelength * 1e-9))
+        wavelength = np.asarray(wavelength, dtype=np.float64)
+        wavenumber = np.asarray(1 / (wavelength * 1e-9) * 1e-2, dtype=np.float64)
+        frequency = np.asarray(constants.c / (wavelength * 1e-9), dtype=np.float64)
 
-    elif frequency is not None:
-        frequency = np.asarray(frequency)
-        wavenumber = np.asarray(frequency / constants.c * 1e-2)
-        wavelength = np.asarray(constants.c / frequency * 1e9)
-
-    else:
-        pass
+    else:  # frequency is not None:
+        frequency = np.asarray(frequency, dtype=np.float64)
+        wavenumber = np.asarray(frequency / constants.c * 1e-2, dtype=np.float64)
+        wavelength = np.asarray(constants.c / frequency * 1e9, dtype=np.float64)
 
     return wavenumber, wavelength, frequency
 

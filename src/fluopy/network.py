@@ -333,7 +333,7 @@ def draw_networkx_curved_edge_labels(
         ctrl_mid_1 = 0.5 * pos_1 + 0.5 * ctrl_1
         ctrl_mid_2 = 0.5 * pos_2 + 0.5 * ctrl_1
         bezier_mid = 0.5 * ctrl_mid_1 + 0.5 * ctrl_mid_2
-        (x, y) = ax.transData.inverted().transform(bezier_mid)
+        x, y = ax.transData.inverted().transform(bezier_mid)
 
         trans_angle = 0.0
         # use default box of white with white border

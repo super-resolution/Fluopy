@@ -14,6 +14,7 @@ locan = ["py.typed", "*.pyi"]
 [tool.setuptools_scm]
 version_file = "src/fluopy/_version.py"
 version_scheme = "release-branch-semver"
+fallback_version = "0.0+fallback"
 
 [project]
 name = "fluopy"
@@ -46,6 +47,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX",
     "Operating System :: Unix",
@@ -77,7 +79,7 @@ gpu = [
 
 [project.urls]
 homepage = "https://github.com/super-resolution/Fluopy"
-documentation = "https://github.com/super-resolution/Fluopy/README.md"
+documentation = "https://fluopy.readthedocs.io/"
 repository = "https://github.com/super-resolution/Fluopy"
 issues = "https://github.com/super-resolution/Fluopy/issues"
 changelog = "https://github.com/super-resolution/Fluopy"
@@ -88,7 +90,7 @@ test = [
     "coverage",
 ]
 lint = [
-    "black~=25.0",
+    "black~=26.0",
     "ruff",
     "black[jupyter]",
 ]
@@ -100,12 +102,6 @@ typing = [
 ]
 dev = [
     "pre-commit",
-    "pyarrow",
-    "Jinja2",
-    "ipython",
-    "ipykernel",
-    "brokenaxes",
-    "rdkit",
     {include-group = "test"},
     {include-group = "lint"},
     {include-group = "typing"},

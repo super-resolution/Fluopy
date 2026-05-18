@@ -7,7 +7,6 @@ Welcome to the base module of fluopy!
 import logging
 from importlib import import_module
 
-
 __all__: list[str] = []
 
 logger = logging.getLogger(__name__)
@@ -36,7 +35,6 @@ from .routines import *
 from .simulation import *
 from .simulation_tcspc import *
 from .transitions import *
-
 
 submodules: list[str] = [
     "analysis",

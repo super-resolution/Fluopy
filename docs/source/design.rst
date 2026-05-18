@@ -8,11 +8,8 @@ Package Design
 Aim
 ==========================
 
-We aim at providing a python package with data structures and methods for ...
-
-The package provides:
-
-* ...
+We aim at providing a python package with data structures and methods for
+simulating photophysical processes in fluorescent dyes.
 
 Outline
 ========
