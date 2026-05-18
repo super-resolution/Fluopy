@@ -102,12 +102,6 @@ typing = [
 ]
 dev = [
     "pre-commit",
-    "pyarrow",
-    "Jinja2",
-    "ipython",
-    "ipykernel",
-    "brokenaxes",
-    "rdkit",
     {include-group = "test"},
     {include-group = "lint"},
     {include-group = "typing"},
