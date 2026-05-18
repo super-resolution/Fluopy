@@ -30,3 +30,4 @@ python:
      - method: uv
        command: pip
        requirements: docs/requirements.txt
+       path: .
