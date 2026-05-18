@@ -14,7 +14,7 @@ Tutorials are provided as Jupyter notebooks.
    :caption: Tutorials about fluopy
    :name: toc_tutorials_data
 
-   General introduction <./notebooks/01_introduction.ipynb>
+   General introduction <./notebooks/01_Introduction.ipynb>
    Three state simulation <./notebooks/02_Three_state_simulation.ipynb>
    Cy5 simulation <./notebooks/03_Cy5_simulation.ipynb>
    dSTORM simulation <./notebooks/04_dSTORM_simulation.ipynb>
