@@ -14,7 +14,7 @@ locan = ["py.typed", "*.pyi"]
 [tool.setuptools_scm]
 version_file = "src/fluopy/_version.py"
 version_scheme = "release-branch-semver"
-fallback_version = "fallback"
+fallback_version = "0.0+fallback"
 
 [project]
 name = "fluopy"
