@@ -14,14 +14,13 @@ Tutorials are provided as Jupyter notebooks.
    :caption: Tutorials about fluopy
    :name: toc_tutorials_data
 
-   General introduction <./notebooks/01_introduction>
-   Three_state_simulation <./notebooks/02_Three_state_simulation.ipynb>
-   Cy5_simulation <./notebooks/03_Cy5_simulation.ipynb>
-   dSTORM_simulation <./notebooks/04_dSTORM_simulation.ipynb>
-   FRET_pair_simluation <./notebooks/05_FRET_pair_simluation.ipynb>
-   Cy5_homoFRET_simulation <./notebooks/06_Cy5_homoFRET_simulation.ipynb>
-   Two_fluorophore_dSTORM_simulation <./notebooks/07_Two_fluorophore_dSTORM_simulation.ipynb>
-   Vincent's Tutorial <./notebooks/tutorial$CTB$>
+   General introduction <./notebooks/01_introduction.ipynb>
+   Three state simulation <./notebooks/02_Three_state_simulation.ipynb>
+   Cy5 simulation <./notebooks/03_Cy5_simulation.ipynb>
+   dSTORM simulation <./notebooks/04_dSTORM_simulation.ipynb>
+   FRET pair simluation <./notebooks/05_FRET_pair_simulation.ipynb>
+   Cy5 homoFRET simulation <./notebooks/06_Cy5_homoFRET_simulation.ipynb>
+   Two-fluorophore dSTORM simulation <./notebooks/07_Two_fluorophore_dSTORM_simulation.ipynb>
 
 
 .. toctree::
