@@ -1,8 +1,8 @@
 ![logo](./docs/_static/logo.png) Welcome to Fluopy
 ==================================================
 
-[![PyPI](https://img.shields.io/pypi/v/fluopy)](https://pypi.org/project/fluopy/)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/fluopy)](https://www.python.org/)
+[![PyPI](https://img.shields.io/pypi/v/Fluopy)](https://pypi.org/project/fluopy/)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/Fluopy)](https://www.python.org/)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/super-resolution/Fluopy)](https://github.com/super-resolution/Fluopy)
 [![GitHub last commit](https://img.shields.io/github/last-commit/super-resolution/Fluopy)](https://github.com/super-resolution/Fluopy/commits/main)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
