@@ -2,6 +2,13 @@
 Changelog
 =======================
 
+0.2.1 - 2026-05-19
+=================
+
+Other Changes and Additions
+---------------------------
+- refactor GItHub Action workflows
+
 0.2.0 - 2026-05-19
 =================
 
