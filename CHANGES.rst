@@ -2,15 +2,27 @@
 Changelog
 =======================
 
-0.2.1 - 2026-05-19
-=================
+0.3.x - dev
+=====================
+
+New Features
+------------
+- ...
+
+API Changes
+-----------
+- ...
+
+Bug Fixes
+---------
+- ...
 
 Other Changes and Additions
 ---------------------------
 - refactor GItHub Action workflows
 
 0.2.0 - 2026-05-19
-=================
+=====================
 
 Other Changes and Additions
 ---------------------------
@@ -19,7 +31,7 @@ Other Changes and Additions
 - activate coverage
 
 0.1.0 - 2026-05-13
-=================
+=====================
 
 Other Changes and Additions
 ---------------------------
