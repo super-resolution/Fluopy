@@ -315,3 +315,45 @@ def compute_tight_bbox(fig, pad_inches: float = 0.0):
     )
 
     return bbox
+
+
+def crop_to_content_with_padding(
+    in_file, out_file, 
+    dpi: int = 300, 
+    pad_inches: float = 2/72, 
+    threshold: int = 255
+) -> None:
+    """
+    Crops the image to the content and adds padding, then saves the image.
+    
+    Parameters
+    ----------
+    in_file
+        Path to input image file.
+    out_file
+        Path to output image file.
+    dpi
+        DPI for the output image.
+    pad_inches
+        Padding in inches.
+    threshold
+        Threshold for determining content.
+    """
+    im = Image.open(in_file).convert("RGB")
+
+    gray = ImageOps.grayscale(im)
+
+    mask = gray.point(lambda p: 255 if p < threshold else 0)
+    bbox = mask.getbbox()
+
+    pad_px = round(pad_inches * dpi)
+
+    left, upper, right, lower = bbox
+    left = max(left - pad_px, 0)
+    upper = max(upper - pad_px, 0)
+    right = min(right + pad_px, im.width)
+    lower = min(lower + pad_px, im.height)
+
+    cropped = im.crop((left, upper, right, lower))
+
+    cropped.save(out_file, compression="tiff_lzw", dpi=(dpi, dpi))
