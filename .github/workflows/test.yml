@@ -9,7 +9,7 @@ on:
 
 jobs:
   test:
-    name: "Tests with linux, py${{ matrix.python-version }}, pip"
+    name: "Tests with windows, py${{ matrix.python-version }}, pip"
 
     runs-on: windows-latest
     strategy:

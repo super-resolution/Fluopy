@@ -1,4 +1,4 @@
-name: Test on python matrix
+name: Test on OS matrix
 
 on:
   schedule:
@@ -7,13 +7,13 @@ on:
 
 jobs:
   test:
-    name: "Tests with windows, py${{ matrix.python-version }}, pip"
-
-    runs-on: windows-latest
+    name: "Tests with ${{ matrix.os }}, py${{ matrix.python-version }}, pip"
+    runs-on: ${{ matrix.os }}-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        os: [ "macos", "linux" ]
+        python-version: [ "3.14" ]
 
     steps:
     - uses: actions/checkout@v6

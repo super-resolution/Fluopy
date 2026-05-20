@@ -14,7 +14,7 @@
 Fluopy is a python-based library with code for simulating photophysical processes
 of organic dyes.
 
-For details on usage and development please read the [documentation]("https://fluopy.readthedocs.io/")
+For details on usage and development please read the [documentation](https://fluopy.readthedocs.io/)
 
 Getting Started
 ----------------
