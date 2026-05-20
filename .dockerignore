@@ -1,0 +1,88 @@
+# Python cache
+**/__pycache__
+**/*.py[cod]
+**/*$py.class
+
+# C extensions
+**/*.so
+
+# Virtual environments
+**/env
+**/.env
+**/.env*
+**/venv
+**/.venv
+**/.venv*
+
+# Distribution / packaging
+.Python
+build
+develop-eggs
+dist
+downloads
+eggs
+.eggs
+lib
+lib64
+parts
+sdist
+var
+wheels
+**/*.egg-info
+.installed.cfg
+**/*.egg
+
+# Type checking and linting
+**/.mypy_cache
+**/.dmypy.json
+**/dmypy.json
+**/.ruff_cache
+
+# Testing
+**/.pytest_cache
+**/.coverage
+**/htmlcov
+coverage.xml
+htmlcov
+test-results-*.xml
+
+# Documentation builds
+docs/build
+
+# Lock files
+#uv.lock
+
+# Git
+#.git  # needed for setuptools_scm
+#.gitignore
+#.gitattributes
+
+# CI/CD
+.github
+
+# IDE
+**/.vscode
+**/.idea
+
+# Development configuration
+.pre-commit-config.yaml
+.readthedocs.yaml
+
+# Local database
+**/*.sqlite3
+
+# Local media/static
+media
+staticfiles
+
+# OS stuff
+**/.DS_store
+
+# Various
+**/.ssh
+
+# Jupyter Notebook
+**/.ipynb_checkpoints
+
+# Project specific
+src/fluopy/_version.py
