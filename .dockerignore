@@ -50,15 +50,21 @@ test-results-*.xml
 docs/build
 
 # Lock files
-#uv.lock
+uv.lock
+
+# Secrets
+**/secrets
+**/credentials.json
 
 # Git
-#.git  # needed for setuptools_scm
-#.gitignore
-#.gitattributes
+.git
+.gitignore
+.gitattributes
 
 # CI/CD
 .github
+docker
+.dockerignore
 
 # IDE
 **/.vscode
@@ -71,10 +77,6 @@ docs/build
 # Local database
 **/*.sqlite3
 
-# Local media/static
-media
-staticfiles
-
 # OS stuff
 **/.DS_store
 
@@ -86,3 +88,5 @@ staticfiles
 
 # Project specific
 src/fluopy/_version.py
+README.md
+CHANGES_*
