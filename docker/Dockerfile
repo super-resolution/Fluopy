@@ -49,7 +49,9 @@ RUN uv sync --inexact
 ENV PATH="/fluopy/.venv/bin:$PATH"
 
 # Volume for data
-VOLUME ["/shared"]
+VOLUME /shared
+RUN mkdir /shared
+RUN chown -R nonroot:nonroot /shared
 
 # Reset the entrypoint, don't invoke `uv`
 ENTRYPOINT []
