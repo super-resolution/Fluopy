@@ -5,6 +5,9 @@ on:
     - cron: "47 4 * * 4"
   workflow_dispatch:
 
+env:
+  MPLBACKEND: Agg
+
 jobs:
   test:
     name: "Tests with windows, py${{ matrix.python-version }}, pip"
