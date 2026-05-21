@@ -10,7 +10,19 @@ import numpy as np
 import numpy.typing as npt
 from scipy import constants
 
-__all__: list[str] = []
+__all__: list[str] = [
+    "convert_wavenumber_wavelength_frequency",
+    "calculate_photon_flux",
+    "calculate_excitation_rate",
+    "calculate_emission_rate",
+    "calculate_internal_conversion_rate",
+    "henderson_hasselbalch_equation",
+    "calculate_pet_rate",
+    "calculate_spectral_overlap_integral",
+    "calculate_fret_rate",
+    "calculate_fret_efficiency",
+    "calculate_photon_collection_rate",
+]
 
 
 def convert_wavenumber_wavelength_frequency(
@@ -215,7 +227,7 @@ def henderson_hasselbalch_equation(
 
     Returns
     -------
-    base_concentration : float
+    float
         Concentration of the base in mM.
     """
     base_to_acid = 10 ** (ph - pka)
@@ -290,7 +302,7 @@ def calculate_spectral_overlap_integral(
 
     Returns
     -------
-    spectral_overlap_integral : float
+    float
         The value of the spectral overlap integral in (nm**4)/(M cm).
     """
     donor = np.asarray(donor)
