@@ -22,6 +22,7 @@ Tutorials are provided as Jupyter notebooks.
    Cy5 homoFRET simulation <./notebooks/06_Cy5_homoFRET_simulation.ipynb>
    Two-fluorophore dSTORM simulation <./notebooks/07_Two_fluorophore_dSTORM_simulation.ipynb>
 
+   Extending fluopy data <./notebooks/Tutorial_extending_fluopy.ipynb>
    Fluopy IO <./notebooks/Tutorial_fluopy_io.ipynb>
 
 
