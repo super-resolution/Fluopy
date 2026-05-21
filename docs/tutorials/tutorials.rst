@@ -24,6 +24,7 @@ Tutorials are provided as Jupyter notebooks.
 
    Extending fluopy data <./notebooks/Tutorial_extending_fluopy.ipynb>
    Fluopy IO <./notebooks/Tutorial_fluopy_io.ipynb>
+   Distributed simulation <./notebooks/Tutorial_distributed_simulation.ipynb>
 
 
 .. toctree::
