@@ -18,7 +18,19 @@ if TYPE_CHECKING:
     pass
 
 
-__all__: list[str] = []
+__all__: list[str] = [
+    "hypoexponential_distribution_cdf",
+    "hypoexponential_distribution_pdf",
+    "hypoexponential_distribution_pdf_1st_order_derivative",
+    "hypoexponential_distribution_pdf_2nd_order_derivative",
+    "Photoswitching_fingerprint_model",
+    "photoswitching_fingerprint_prepare",
+    "generate_combinations",
+    "map_to_lambdas",
+    "get_pis",
+    "ExponentialMixtureModel",
+    "ExponentialMixtureMarginalModel",
+]
 
 
 def hypoexponential_distribution_cdf(
@@ -92,7 +104,7 @@ def hypoexponential_distribution_pdf_1st_order_derivative(
 
     Returns
     -------
-    pdf_1st_order_derivative : float | npt.NDArray[np.float64]
+    float | npt.NDArray[np.float64]
         First order derivative of the PDF of the hypoexponential distribution.
     """
     all_args = np.array(args)
@@ -122,7 +134,7 @@ def hypoexponential_distribution_pdf_2nd_order_derivative(
 
     Returns
     -------
-    pdf_2nd_order_derivative : float | npt.NDArray[np.float64]
+    float | npt.NDArray[np.float64]
         Second order derivative of the PDF of the hypoexponential distribution.
     """
     all_args = np.array(args)
@@ -145,7 +157,7 @@ class Photoswitching_fingerprint_model:
     def __init__(
         self,
         params: dict,
-        weights: float | npt.ArrayLike = None,
+        weights: float | npt.ArrayLike | None = None,
         domain: tuple[float, float] = (0, np.inf),
     ) -> None:
         """
@@ -196,6 +208,11 @@ class Photoswitching_fingerprint_model:
             PDF parts are summarized into the full PDF, the full PDF is normalized. If
             PDF parts are used for other purposes (e.g., marginal distribution), they
             have to be normalized individually.
+
+        Returns
+        -------
+        float | npt.NDArray[np.float64]
+            PDF for the arrival times
         """
         if call is None:
             call = hypoexponential_distribution_pdf
@@ -240,8 +257,8 @@ class Photoswitching_fingerprint_model:
 
         Returns
         -------
-        pdf : float | npt.NDArray[np.float64]
-            Model output.
+        float | npt.NDArray[np.float64]
+            PDF
         """
         if order == 0:
             call = hypoexponential_distribution_pdf
@@ -296,6 +313,11 @@ class Photoswitching_fingerprint_model:
             CDF parts are summarized into the full CDF, the full CDF is normalized. If
             CDF parts are used for other purposes (e.g., marginal distribution), they
             have to be normalized individually.
+
+        Returns
+        -------
+        float | npt.NDArray[np.float64]
+            CDF for the arrival times
         """
         lambdas, pis = photoswitching_fingerprint_prepare(
             params=self.params,
@@ -340,8 +362,8 @@ class Photoswitching_fingerprint_model:
 
         Returns
         -------
-        cdf : float | npt.NDArray[np.float64]
-            Model output.
+        float | npt.NDArray[np.float64]
+            CDF
         """
         n = len(self.params)
         cdf = 0
@@ -372,8 +394,8 @@ class Photoswitching_fingerprint_model:
 
         Returns
         -------
-        dpdf : float | npt.NDArray[np.float64]
-            Model output.
+        float | npt.NDArray[np.float64]
+            First derivative of PDF
         """
         dpdf = self.pdf(x, order=1)
 
@@ -390,8 +412,8 @@ class Photoswitching_fingerprint_model:
 
         Returns
         -------
-        ddpdf : float | npt.NDArray[np.float64]
-            Model output.
+        float | npt.NDArray[np.float64]
+            Second derivative of PDF
         """
         ddpdf = self.pdf(x, order=2)
 
@@ -408,8 +430,8 @@ class Photoswitching_fingerprint_model:
 
         Returns
         -------
-        logp : float | npt.NDArray[np.float64]
-            Model output.
+        float | npt.NDArray[np.float64]
+            Logarithm of the PDF
         """
         logp = np.log(self.pdf(x))  # lower-level implementation of log does not provide
         # much numerical stability since sum of e^x terms has to be calculated first.
@@ -419,6 +441,10 @@ class Photoswitching_fingerprint_model:
     def quantile_function(self) -> None:
         """
         Quantile function.
+
+        Returns
+        -------
+        None
         """
         raise ValueError(
             "Quantile function has no closed form. Inverse CDF has to be "
@@ -460,7 +486,7 @@ def photoswitching_fingerprint_prepare(
 
 def generate_combinations(n: int, z: int) -> npt.NDArray[np.int64]:
     """
-    Generate all valid convolutions of exponential distributions.
+    Generate combinations for all valid convolutions of exponential distributions.
 
     Parameters
     ----------
@@ -473,7 +499,7 @@ def generate_combinations(n: int, z: int) -> npt.NDArray[np.int64]:
 
     Returns
     -------
-    valid_combos : 2-D np.ndarray
+    npt.NDArray[np.int64]
         All valid combinations of exponential distributions. Array of shape (m, n) where
         m is the number of valid combinations.
         For each m, the n columns represent the n delta arrival time groups needed to be
@@ -518,7 +544,7 @@ def map_to_lambdas(
 
     Returns
     -------
-    result : 2-D np.ndarray
+    npt.NDArray[np.float64]
         Mapped lambdas. Array of shape (m, n) where m is the number of valid
         combinations and n the number of delta arrival time groups needed to be
         considered.
@@ -551,7 +577,7 @@ def get_pis(
 
     Returns
     -------
-    pis : 2-D np.ndarray
+    npt.NDArray[np.float64]
         Mapped pis. Array of shape (m, n) where m is the number of valid combinations
         and n the number of delta arrival time groups needed to be considered.
     """
@@ -748,11 +774,37 @@ class ExponentialMixtureMarginalModel:
         self.P_obs = P_obs
 
     def pdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
+        """
+        Probability distribution function
+
+        Parameters
+        ----------
+        x
+            Sample.
+
+        Returns
+        -------
+        float | npt.NDArray[np.float64]
+            PDF
+        """
         pdf = np.interp(x, xp=self.x_grid, fp=self.pdf_grid, left=0.0, right=0.0)
 
         return pdf
 
     def cdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
+        """
+        Cumulative distribution function
+
+        Parameters
+        ----------
+        x
+            Sample.
+
+        Returns
+        -------
+        float | npt.NDArray[np.float64]
+            CDF
+        """
         cdf = np.interp(x, xp=self.x_grid, fp=self.cdf_grid, left=0.0, right=1.0)
 
         return cdf
