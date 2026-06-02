@@ -2,24 +2,23 @@
 Changelog
 =======================
 
-0.3.x - dev
+0.3.0 - 2026-06-02
 =================
-
-New Features
-------------
-- ...
 
 API Changes
 -----------
-- ...
+- include more functions in __all__
 
 Bug Fixes
 ---------
-- ...
+- fix tests on linux by sorting file names from iterdir()
 
 Other Changes and Additions
 ---------------------------
-- ...
+- some changes to tutorials
+- add tutorial on distributed simulation
+- some changes to GitHub actions
+- modify Dockerfile and add .dockerignore
 
 0.2.0 - 2026-05-19
 =====================
