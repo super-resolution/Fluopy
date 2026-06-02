@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from scipy.stats.distributions import rv_frozen
 
 
-__all__: list[str] = []
+__all__: list[str] = ["universal_figure"]
 
 
 def universal_figure(
