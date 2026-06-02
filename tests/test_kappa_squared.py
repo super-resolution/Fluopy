@@ -1,6 +1,6 @@
 import numpy as np
 
-from fluopy import kappa_squared as kappa_sq
+import fluopy.kappa_squared as kappa_sq
 
 
 def test_random_unit_vector():
