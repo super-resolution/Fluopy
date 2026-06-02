@@ -15,7 +15,12 @@ from scipy.stats import gaussian_kde
 if TYPE_CHECKING:
     from .fluopy_types import RandomGeneratorSeed
 
-__all__: list[str] = []
+__all__: list[str] = [
+    "simulate_rotational_motion",
+    "kappa_squared",
+    "integral_kappa_squared",
+    "sample_kappa_squared_distribution",
+]
 
 
 def random_unit_vector(
