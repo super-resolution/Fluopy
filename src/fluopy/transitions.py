@@ -1071,7 +1071,7 @@ def derive_energy_transfer_transitions(
     """
     data_dir = Path(__file__).parent / "fluorophore_spectra"
     donor_emission = pd.read_csv(data_dir / donor_data.data_files / "emission.csv")
-    acceptor_files = Path(data_dir / acceptor_data.data_files).iterdir()
+    acceptor_files = sorted(Path(data_dir / acceptor_data.data_files).iterdir())
     acceptor_abs_files = [
         data_file
         for data_file in acceptor_files
