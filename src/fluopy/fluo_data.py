@@ -15,6 +15,77 @@ class FluorophoreData:
     """
     Container for all constant photophysical attributes of a fluorophore.
     The naming of constants is closely related to TransitionType.
+
+    Attributes
+    ----------
+    data_files : str | Path | None
+        The name of the folder containing the spectra data files. The folder should be
+        located in src/fluopy/fluorophore_spectra. Needed to infer excitation rate
+        and energy transfer rates. If None, no automatic inference of rates will be
+        performed.
+    QUANTUM_YIELD : float
+        The fluorescence quantum yield of the fluorophore. Should be between 0 and 1.
+    FLUORESCENCE_LIFETIME : float
+        The fluorescence lifetime of the fluorophore in s.
+    ISC_ST_RATE : float
+        The intersystem crossing rate from S1 to T1 in 1/s.
+    ISC_TS_RATE : float
+        The intersystem crossing rate from T1 to S0 in 1/s.
+    RISC_RATE : float
+        The reverse intersystem crossing rate from T2 to S1 in 1/s.
+    STA_EFFICIENCY : float
+        The efficiency of STA (singlet-triplet annihilation) resulting in an effective
+        transition of the acceptor state: S1|T1 -> S0|T2 -> S0|S1. The step in between
+        (S0|T2) is not explicitly modeled, but the overall efficiency of the process is
+        captured in this constant. Should be between 0 and 1.
+    PHOTOBLEACH_T1_RATE : float
+        The photobleaching rate from T1 to B in 1/s.
+    PHOTOBLEACH_T2_RATE : float
+        The photobleaching rate from T2 to B in 1/s.
+    CROSS_SECTION_WAVELENGTH : int | None
+        The wavelength in nm at which absorption cross sections are defined. The
+        standard excitation of S0 is handled via data_files (entire absorption
+        spectrum), but for other transitions (e.g., cis absorption to define
+        photoinduced back-isomerization), a single cross section should be provided.
+        The cross_section_wavelength is used to check whether the provided cross
+        sections are given for the same wavelength as a specified wavelength.
+    DSTORM_PET_T_RATE_MOL : float
+        The concentration-dependent PET rate that targets T1 in 1/(M*s).
+    DSTORM_PET_S_RATE_MOL : float
+        The concentration-dependent PET rate that targets S1 in 1/(M*s).
+    DSTORM_PET_SUCCESS_RATE : float
+        The efficiency of PET resulting in the long-living OFF state in dSTORM.
+        Should be between 0 and 1.
+    DSTORM_TH_EL_RATE_1 : float
+        The rate of thermal elimination, returning OFF to S0 in 1/s.
+    DSTORM_TH_EL_RATE_2 : float
+        In case of a second long-living OFF state, the rate of thermal elimination,
+        returning OFF2 to S0 in 1/s.
+    DSTORM_P_EL_CROSS_SECTION : float
+        The cross section of the photoinduced uncaging, returning OFF to S0 in
+        cm^2.
+    RAD_ESCAPE_EFFICIENCY: float
+        The efficiency of radical escape, resulting in the radical anion following
+        PET. Should be between 0 and 1.
+    RAD_RELAX_RATE: float
+        The rate of relaxation of the radical anion back to S0 in 1/s.
+    OFRET_EFFICIENCY: float
+        The efficiency of OET (FRET to OFF state) resulting in an effective transition
+        of the acceptor state: S1|OFF -> S0|OFF* -> S0|S0. The step in between (S0|OFF*)
+        is not explicitly modeled, but the overall efficiency of the process is captured
+        in this constant. Should be between 0 and 1.
+    ISO_RATE: float
+        The rate of trans S1 to cis isomerization in 1/s.
+    BISO_CROSS_SECTION: float
+        The cross section of the photoinduced back-isomerization, returning cis to S0 in
+        cm^2.
+    BISO_THERMAL_RATE: float
+        The rate of thermal back-isomerization, returning cis to S0 in 1/s.
+    BISO_EFFICIENCY: float
+        The efficiency of CET (FRET to cis state) resulting in an effective transition
+        of the acceptor state: S1|cis -> S0|cis* -> S0|S0. The step in between (S0|cis*)
+        is not explicitly modeled, but the overall efficiency of the process is captured
+        in this constant. Should be between 0 and 1.
     """
 
     # spectra
