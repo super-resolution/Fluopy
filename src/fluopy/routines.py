@@ -27,7 +27,7 @@ __all__: list[str] = []
 
 def emission_post_processing(emis: Emissions, seed: RandomGeneratorSeed) -> None:
     """
-    Post-processing of the emission data.
+    A typical post-processing routine for emission data.
 
     Parameters
     ----------
