@@ -582,7 +582,7 @@ class Emissions:
         ----------
         threshold : int
             The minimum number of events per frame to be considered.
-        
+
         Returns
         -------
         None
