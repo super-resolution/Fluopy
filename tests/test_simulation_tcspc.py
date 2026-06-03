@@ -1,4 +1,5 @@
 import logging
+from copy import deepcopy
 
 import numpy as np
 import pytest
@@ -6,9 +7,63 @@ import pytest
 from fluopy import simulation_tcspc as si
 from fluopy import transitions as tr
 
-pytestmark = pytest.mark.slow
+
+def test_compare_simulate_TCSPC_and_simulate_TCSPC_detailed(tr_set_1f):
+    tr_set = deepcopy(tr_set_1f)
+    tr_set = tr_set.adjust_rates({0: 0}, keep_zero_rates=True)
+    tr_set.finalize()
+
+    rng = np.random.default_rng(42)
+    (
+        event_time_series,
+        event_time_points,
+        lifetimes_DA,
+        lifetimes_D,
+        lifetimes_all,
+    ) = si.simulate_TCSPC(
+        transition_set=tr_set,
+        emitting_transition_ids={1: 1},
+        et_transition_ids=[],
+        number_pulses=41000,
+        pulse_duration=5e-11,
+        time_between_pulses=25e-9,
+        excitation_rates={"testfluo_1": 1e11},
+        frame_time="1ms",
+        store_time_points=True,
+        seed=rng,
+    )
+
+    rng = np.random.default_rng(42)
+    (
+        event_time_series_,
+        event_time_points_,
+        lifetimes_DA_,
+        lifetimes_D_,
+        lifetimes_all_,
+        simulation,
+    ) = si.simulate_TCSPC_detailed(
+        transition_set=tr_set,
+        emitting_transition_ids={1: 1},
+        et_transition_ids=[],
+        number_pulses=41000,
+        pulse_duration=5e-11,
+        time_between_pulses=25e-9,
+        excitation_rates={"testfluo_1": 1e11},
+        frame_time="1ms",
+        store_time_points=True,
+        seed=rng,
+    )
+
+    assert len(event_time_series) == 3
+    assert event_time_series.equals(event_time_series_)
+    assert np.array_equal(event_time_points, event_time_points_)
+    assert np.array_equal(lifetimes_DA, lifetimes_DA_)
+    assert np.array_equal(lifetimes_D, lifetimes_D_)
+    assert np.array_equal(lifetimes_all, lifetimes_all_)
+    assert len(simulation.time_series) == 4462
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "dirname, emitting_transition_ids, et_transition_ids, \
                          number_pulses, pulse_duration, time_between_pulses, \
