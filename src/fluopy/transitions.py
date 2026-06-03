@@ -1319,7 +1319,7 @@ def derive_transitions(
     )
     risc = Transition(
         rate=fd.RISC_RATE,
-        transition_type=TransitionType.RISC,
+        transition_type=TransitionType.REVERSE_INTERSYSTEM_CROSSING,
         fluorophore_ids=fluorophore_ids,
     )
 
