@@ -32,7 +32,7 @@ class FluorophoreData:
     ISC_TS_RATE : float
         The intersystem crossing rate from T1 to S0 in 1/s.
     RISC_RATE : float
-        The reverse intersystem crossing rate from T2 to S1 in 1/s.
+        The reverse intersystem crossing rate from T1 to S1 in 1/s.
     STA_EFFICIENCY : float
         The efficiency of STA (singlet-triplet annihilation) resulting in an effective
         transition of the acceptor state: S1|T1 -> S0|T2 -> S0|S1. The step in between
@@ -40,8 +40,6 @@ class FluorophoreData:
         captured in this constant. Should be between 0 and 1.
     PHOTOBLEACH_T1_RATE : float
         The photobleaching rate from T1 to B in 1/s.
-    PHOTOBLEACH_T2_RATE : float
-        The photobleaching rate from T2 to B in 1/s.
     CROSS_SECTION_WAVELENGTH : int | None
         The wavelength in nm at which absorption cross sections are defined. The
         standard excitation of S0 is handled via data_files (entire absorption
@@ -58,9 +56,6 @@ class FluorophoreData:
         Should be between 0 and 1.
     DSTORM_TH_EL_RATE_1 : float
         The rate of thermal elimination, returning OFF to S0 in 1/s.
-    DSTORM_TH_EL_RATE_2 : float
-        In case of a second long-living OFF state, the rate of thermal elimination,
-        returning OFF2 to S0 in 1/s.
     DSTORM_P_EL_CROSS_SECTION : float
         The cross section of the photoinduced uncaging, returning OFF to S0 in
         cm^2.
@@ -100,7 +95,6 @@ class FluorophoreData:
     RISC_RATE: float = 0
     STA_EFFICIENCY: float = 0
     PHOTOBLEACH_T1_RATE: float = 0
-    PHOTOBLEACH_T2_RATE: float = 0
     CROSS_SECTION_WAVELENGTH: int | None = None
 
     # dstorm
@@ -108,7 +102,6 @@ class FluorophoreData:
     DSTORM_PET_S_RATE_MOL: float = 0
     DSTORM_PET_SUCCESS_RATE: float = 0
     DSTORM_TH_EL_RATE_1: float = 0
-    DSTORM_TH_EL_RATE_2: float = 0
     DSTORM_P_EL_CROSS_SECTION: float = 0
     RAD_ESCAPE_EFFICIENCY: float = 0
     RAD_RELAX_RATE: float = 0
@@ -135,13 +128,11 @@ cy5_dna = FluorophoreData(
     RISC_RATE=0,
     STA_EFFICIENCY=0,
     PHOTOBLEACH_T1_RATE=1e1,
-    PHOTOBLEACH_T2_RATE=0,
     CROSS_SECTION_WAVELENGTH=640,
     DSTORM_PET_T_RATE_MOL=1e8,
     DSTORM_PET_S_RATE_MOL=1e9,
     DSTORM_PET_SUCCESS_RATE=1e-3,
     DSTORM_TH_EL_RATE_1=1e-2,
-    DSTORM_TH_EL_RATE_2=0,
     DSTORM_P_EL_CROSS_SECTION=6e-24,
     RAD_ESCAPE_EFFICIENCY=0.01,
     RAD_RELAX_RATE=1.3e3,
@@ -166,7 +157,6 @@ atto643 = FluorophoreData(
     ISC_TS_RATE=1e5,  # to be updated
     RISC_RATE=0,  # to be updated
     PHOTOBLEACH_T1_RATE=1,  # to be updated
-    PHOTOBLEACH_T2_RATE=0,
     H2O_ATTACK_S=3e4,  # to be updated
     H2O_ATTACK_T=0,  # to be updated
     BACK_REACTION=1e-1,  # to be updated
@@ -182,12 +172,10 @@ testfluo_1 = FluorophoreData(
     ISC_TS_RATE=5e3,
     RISC_RATE=0,
     PHOTOBLEACH_T1_RATE=1,
-    PHOTOBLEACH_T2_RATE=0,
     DSTORM_PET_T_RATE_MOL=1e8,
     DSTORM_PET_S_RATE_MOL=1e9,
     DSTORM_PET_SUCCESS_RATE=1e-3,
     DSTORM_TH_EL_RATE_1=2e-2,
-    DSTORM_TH_EL_RATE_2=0,
     ISO_RATE=2e7,
     BISO_CROSS_SECTION=1.7e-17,
 )
@@ -204,7 +192,6 @@ testfluo_2 = FluorophoreData(
     ISC_TS_RATE=1e5,
     RISC_RATE=0,
     PHOTOBLEACH_T1_RATE=1,
-    PHOTOBLEACH_T2_RATE=0,
     H2O_ATTACK_S=3e4,
     H2O_ATTACK_T=0,
     BACK_REACTION=1e-1,

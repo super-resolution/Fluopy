@@ -143,7 +143,7 @@ class TransitionType(Enum):
         "IC", SingleState.S1, SingleState.S0, False
     )
     REVERSE_INTERSYSTEM_CROSSING = TransitionAttributes(
-        "RISC", SingleState.T2, SingleState.S1, False
+        "RISC", SingleState.T1, SingleState.S1, False
     )
     PHOTOBLEACHING_1 = TransitionAttributes("BLE", SingleState.T1, SingleState.B, False)
     PHOTOBLEACHING_2 = TransitionAttributes(
@@ -1317,6 +1317,11 @@ def derive_transitions(
         transition_type=TransitionType.INTERNAL_CONVERSION_S,
         fluorophore_ids=fluorophore_ids,
     )
+    risc = Transition(
+        rate=fd.RISC_RATE,
+        transition_type=TransitionType.RISC,
+        fluorophore_ids=fluorophore_ids,
+    )
 
     dstorm_transitions = []
     if dstorm:
@@ -1403,6 +1408,7 @@ def derive_transitions(
             photo_bisomerization,
             thermal_bisomerization,
             internal_conversion,
+            risc,
         ]
         + dstorm_transitions
         + bleach
