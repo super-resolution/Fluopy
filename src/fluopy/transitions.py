@@ -1234,12 +1234,13 @@ def derive_transitions(
         Contains transitions of type Transition.
     """
     fd = fluorophore_data
-    if wavelength != fd.CROSS_SECTION_WAVELENGTH:
-        logger.warning(
-            f"The excitation wavelength is set to {wavelength} nm, but the "
-            f"cross sections of states other than S0 are defined at "
-            f"{fd.CROSS_SECTION_WAVELENGTH} nm."
-        )
+    if fd.CROSS_SECTION_WAVELENGTH is not None:
+        if wavelength != fd.CROSS_SECTION_WAVELENGTH:
+            logger.warning(
+                f"The excitation wavelength is set to {wavelength} nm, but the "
+                f"cross sections of states other than S0 are defined at "
+                f"{fd.CROSS_SECTION_WAVELENGTH} nm."
+            )
     _, _, frequency = fo.convert_wavenumber_wavelength_frequency(wavelength=wavelength)
     photon_flux = fo.calculate_photon_flux(irradiance=irradiance, frequency=frequency)
     path_absorption = (

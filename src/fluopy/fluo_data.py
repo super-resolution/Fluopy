@@ -30,7 +30,7 @@ class FluorophoreData:
     STA_EFFICIENCY: float = 0
     PHOTOBLEACH_T1_RATE: float = 0
     PHOTOBLEACH_T2_RATE: float = 0
-    CROSS_SECTION_WAVELENGTH: int = 0
+    CROSS_SECTION_WAVELENGTH: int | None = None
 
     # dstorm
     DSTORM_PET_T_RATE_MOL: float = 0
