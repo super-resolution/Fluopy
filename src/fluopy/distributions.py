@@ -5,18 +5,14 @@ Random variable distributions.
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from itertools import product
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
 from scipy.integrate import cumulative_trapezoid
 from scipy.stats import expon
-
-if TYPE_CHECKING:
-    pass
-
 
 __all__: list[str] = [
     "hypoexponential_distribution_cdf",
@@ -24,17 +20,13 @@ __all__: list[str] = [
     "hypoexponential_distribution_pdf_1st_order_derivative",
     "hypoexponential_distribution_pdf_2nd_order_derivative",
     "Photoswitching_fingerprint_model",
-    "photoswitching_fingerprint_prepare",
-    "generate_combinations",
-    "map_to_lambdas",
-    "get_pis",
     "ExponentialMixtureModel",
     "ExponentialMixtureMarginalModel",
 ]
 
 
 def hypoexponential_distribution_cdf(
-    x: float | npt.ArrayLike, *args: Any
+    x: npt.ArrayLike, *args: int | float
 ) -> float | npt.NDArray[np.float64]:
     """
     CDF of the hypoexponential distribution.
@@ -43,7 +35,7 @@ def hypoexponential_distribution_cdf(
     ----------
     x
         Sample.
-    args : float, 1-D array_like
+    args
         Parameters (lambdas) of the hypoexponential distribution. Must be distinct and
         positive.
 
@@ -52,6 +44,7 @@ def hypoexponential_distribution_cdf(
     float | npt.NDArray[np.float64]
         CDF of the hypoexponential distribution.
     """
+    x = np.asarray(x)
     cdf = 1
     for arg in args:
         other_args = np.array([other for other in args if other != arg])
@@ -61,7 +54,7 @@ def hypoexponential_distribution_cdf(
 
 
 def hypoexponential_distribution_pdf(
-    x: float | npt.ArrayLike, *args: Any
+    x: npt.ArrayLike, *args: int | float
 ) -> float | npt.NDArray[np.float64]:
     """
     PDF of the hypoexponential distribution.
@@ -70,7 +63,7 @@ def hypoexponential_distribution_pdf(
     ----------
     x
         Sample.
-    args : float, 1-D array_like
+    args
         Parameters (lambdas) of the hypoexponential distribution. Must be distinct and
         positive.
 
@@ -79,7 +72,8 @@ def hypoexponential_distribution_pdf(
     float | npt.NDArray[np.float64]
         PDF of the hypoexponential distribution.
     """
-    all_args = np.array(args)
+    x = np.asarray(x)
+    all_args = np.asarray(args)
     pdf = 0
     for arg in args:
         other_args = np.array([other for other in args if other != arg])
@@ -89,7 +83,7 @@ def hypoexponential_distribution_pdf(
 
 
 def hypoexponential_distribution_pdf_1st_order_derivative(
-    x: float | npt.ArrayLike, *args: Any
+    x: npt.ArrayLike, *args: int | float
 ) -> float | npt.NDArray[np.float64]:
     """
     First order derivative of the PDF of the hypoexponential distribution.
@@ -98,7 +92,7 @@ def hypoexponential_distribution_pdf_1st_order_derivative(
     ----------
     x
         Sample.
-    args : float, 1-D array_like
+    args
         Parameters (lambdas) of the hypoexponential distribution. Must be distinct and
         positive.
 
@@ -107,6 +101,7 @@ def hypoexponential_distribution_pdf_1st_order_derivative(
     float | npt.NDArray[np.float64]
         First order derivative of the PDF of the hypoexponential distribution.
     """
+    x = np.asarray(x)
     all_args = np.array(args)
     pdf_1st_order_derivative = 0
     for arg in args:
@@ -119,7 +114,7 @@ def hypoexponential_distribution_pdf_1st_order_derivative(
 
 
 def hypoexponential_distribution_pdf_2nd_order_derivative(
-    x: float | npt.ArrayLike, *args: Any
+    x: npt.ArrayLike, *args: int | float
 ) -> float | npt.NDArray[np.float64]:
     """
     Second order derivative of the PDF of the hypoexponential distribution.
@@ -128,7 +123,7 @@ def hypoexponential_distribution_pdf_2nd_order_derivative(
     ----------
     x
         Sample.
-    args : float, 1-D array_like
+    args
         Parameters (lambdas) of the hypoexponential distribution. Must be distinct and
         positive.
 
@@ -137,6 +132,7 @@ def hypoexponential_distribution_pdf_2nd_order_derivative(
     float | npt.NDArray[np.float64]
         Second order derivative of the PDF of the hypoexponential distribution.
     """
+    x = np.asarray(x)
     all_args = np.array(args)
     pdf_2nd_order_derivative = 0
     for arg in args:
@@ -453,7 +449,7 @@ class Photoswitching_fingerprint_model:
 
 
 def photoswitching_fingerprint_prepare(
-    params: dict,
+    params: dict[int, Sequence[int | float]],
     n: int,
     z: int,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
@@ -528,7 +524,7 @@ def generate_combinations(n: int, z: int) -> npt.NDArray[np.int64]:
 
 
 def map_to_lambdas(
-    combos: npt.NDArray[np.int_], params: dict, z: int
+    combos: npt.NDArray[np.int_], params: dict[int, Sequence[int | float]], z: int
 ) -> npt.NDArray[np.float64]:
     """
     Map combinations to lambdas.
@@ -561,7 +557,7 @@ def map_to_lambdas(
 
 
 def get_pis(
-    combos: npt.NDArray[np.int_], params: dict, z: int
+    combos: npt.NDArray[np.int_], params: dict[int, Sequence[int | float]], z: int
 ) -> npt.NDArray[np.float64]:
     """
     Get pis for each combination.
@@ -629,7 +625,7 @@ class ExponentialMixtureModel:
 
     def __init__(
         self,
-        params: dict,
+        params: dict[str, Sequence[int | float]],
         domain: tuple[float, float] = (0, np.inf),
     ) -> None:
         """
@@ -733,8 +729,8 @@ class ExponentialMixtureMarginalModel:
 
     def __init__(
         self,
-        params: dict,
-        pfa_cdf_part: Callable,
+        params: dict[str, Sequence[int | float]],
+        pfa_cdf_part: Callable[[Any, int, bool], float | npt.NDArray[np.float64]],
         cdf_part_index: int,
         truncation_up: float,
     ) -> None:
@@ -752,6 +748,11 @@ class ExponentialMixtureMarginalModel:
         truncation_up
             Fixed upper truncation.
         """
+        self.params = params
+        self.pfa_cdf_part = pfa_cdf_part
+        self.cdf_part_index = cdf_part_index
+        self.truncation_up = truncation_up
+
         x_grid = np.logspace(np.log10(0.01), np.log10(truncation_up), 200)
         x_grid = np.insert(arr=x_grid, obj=0, values=0.0)
         pdf_grid = ExponentialMixtureModel(params=params, domain=(0, np.inf)).pdf(

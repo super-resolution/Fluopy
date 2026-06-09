@@ -9,7 +9,7 @@ from fluopy import prediction as pr
 from fluopy import simulation as si
 
 
-class TestSimualation:
+class TestSimulation:
 
     def test_init_empty(self):
         with pytest.raises(TypeError):
