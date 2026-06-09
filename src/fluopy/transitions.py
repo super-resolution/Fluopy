@@ -5,6 +5,7 @@ Define and handle photophysical transitions.
 from __future__ import annotations
 
 import copy
+import logging
 import re
 from collections.abc import Collection, Iterable
 from dataclasses import asdict, dataclass, field
@@ -29,6 +30,8 @@ if TYPE_CHECKING:
 
 
 __all__: list[str] = ["SingleState", "PairedState", "Transition", "TransitionSet"]
+
+logger = logging.getLogger(__name__)
 
 
 class SingleState(Enum):
@@ -140,7 +143,7 @@ class TransitionType(Enum):
         "IC", SingleState.S1, SingleState.S0, False
     )
     REVERSE_INTERSYSTEM_CROSSING = TransitionAttributes(
-        "RISC", SingleState.T2, SingleState.S1, False
+        "RISC", SingleState.T1, SingleState.S1, False
     )
     PHOTOBLEACHING_1 = TransitionAttributes("BLE", SingleState.T1, SingleState.B, False)
     PHOTOBLEACHING_2 = TransitionAttributes(
@@ -1231,6 +1234,13 @@ def derive_transitions(
         Contains transitions of type Transition.
     """
     fd = fluorophore_data
+    if fd.CROSS_SECTION_WAVELENGTH is not None:
+        if wavelength != fd.CROSS_SECTION_WAVELENGTH:
+            logger.warning(
+                f"The excitation wavelength is set to {wavelength} nm, but the "
+                f"cross sections of states other than S0 are defined at "
+                f"{fd.CROSS_SECTION_WAVELENGTH} nm."
+            )
     _, _, frequency = fo.convert_wavenumber_wavelength_frequency(wavelength=wavelength)
     photon_flux = fo.calculate_photon_flux(irradiance=irradiance, frequency=frequency)
     path_absorption = (
@@ -1305,6 +1315,11 @@ def derive_transitions(
     internal_conversion = Transition(
         rate=internal_conversion_rate,
         transition_type=TransitionType.INTERNAL_CONVERSION_S,
+        fluorophore_ids=fluorophore_ids,
+    )
+    risc = Transition(
+        rate=fd.RISC_RATE,
+        transition_type=TransitionType.REVERSE_INTERSYSTEM_CROSSING,
         fluorophore_ids=fluorophore_ids,
     )
 
@@ -1393,6 +1408,7 @@ def derive_transitions(
             photo_bisomerization,
             thermal_bisomerization,
             internal_conversion,
+            risc,
         ]
         + dstorm_transitions
         + bleach

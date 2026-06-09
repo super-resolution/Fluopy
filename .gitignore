@@ -145,3 +145,6 @@ dmypy.json
 
 # Project specific
 src/fluopy/_version.py
+
+# notebooks
+notebooks_dev/
