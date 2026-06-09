@@ -5,7 +5,8 @@ Tools for fitting.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
-from typing import TYPE_CHECKING
+from os import PathLike
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
@@ -18,10 +19,6 @@ from scipy.optimize import (
 )
 
 from . import distributions as dist
-
-if TYPE_CHECKING:
-    pass
-
 
 __all__: list[str] = []
 
@@ -61,7 +58,7 @@ def log_likelihood_hist_v1(
 
     Returns
     -------
-    negative_log_likelihood : float
+    float
         Negative log-likelihood.
     """
     a = bin_edges[:-1]
@@ -132,7 +129,7 @@ def log_likelihood_hist_marginal_v1(
 
     Returns
     -------
-    negative_log_likelihood : float
+    float
         Negative log-likelihood.
     """
     if truncation_low != 0:
@@ -193,7 +190,7 @@ def log_likelihood_hist_v2(
 
     Returns
     -------
-    negative_log_likelihood : float
+    float
         Negative log-likelihood.
     """
     a = bin_edges[:-1]
@@ -253,6 +250,11 @@ def log_likelihood_hist_marginal_v2(
     pdf_part_index
         Index of the PDF part of the PFA distribution to be used in the marginal
         distribution.
+
+    Returns
+    -------
+    float
+        Negative log-likelihood.
     """
     if truncation_low != 0:
         raise ValueError("Marginal distribution only defined for truncation_low = 0.")
@@ -288,16 +290,16 @@ def log_likelihood_hist_marginal_v2(
 
 
 def fit_multiple_mixture_v1(
-    datasets: list[npt.ArrayLike],
+    datasets: list[npt.NDArray[np.int64]],
     bin_edges: npt.ArrayLike,
     z: int = -1,
     constr: bool = True,
     norm: bool = False,
-    counts_not_observed: list[float] = None,
-    pfa_bin_edges: npt.ArrayLike = None,
-    pfa_counts: npt.ArrayLike = None,
-    pfa_counts_not_observed: float = None,
-    **diff_ev,
+    counts_not_observed: list[float] | None = None,
+    pfa_bin_edges: npt.ArrayLike | None = None,
+    pfa_counts: npt.ArrayLike | None = None,
+    pfa_counts_not_observed: float | None = None,
+    **diff_ev: dict[str, Any],
 ) -> OptimizeResult:
     """
     Fit multiple datasets with exponential mixture models using maximum likelihood
@@ -340,7 +342,7 @@ def fit_multiple_mixture_v1(
 
     Returns
     -------
-    result : OptimizeResult
+    OptimizeResult
         The optimization result represented as a OptimizeResult object.
     """
     if counts_not_observed is None:
@@ -441,16 +443,16 @@ def fit_multiple_mixture_v1(
 
 
 def fit_multiple_mixture_v2(
-    datasets: list[npt.ArrayLike],
+    datasets: list[npt.NDArray[np.int64]],
     bin_edges: npt.ArrayLike,
     z: int = -1,
     constr: bool = True,
     norm: bool = False,
-    counts_not_observed: list[float] = None,
-    pfa_bin_edges: npt.ArrayLike = None,
-    pfa_counts: npt.ArrayLike = None,
-    pfa_counts_not_observed: float = None,
-    **diff_ev,
+    counts_not_observed: list[float] | None = None,
+    pfa_bin_edges: npt.ArrayLike | None = None,
+    pfa_counts: npt.ArrayLike | None = None,
+    pfa_counts_not_observed: float | None = None,
+    **diff_ev: dict[str, Any],
 ) -> OptimizeResult:
     """
     Fit multiple datasets with exponential mixture models using maximum likelihood
@@ -493,7 +495,7 @@ def fit_multiple_mixture_v2(
 
     Returns
     -------
-    result : OptimizeResult
+    OptimizeResult
         The optimization result represented as a OptimizeResult object.
     """
     if counts_not_observed is None:
@@ -858,7 +860,7 @@ def save_as_array(parameter_dict: dict, filepath: str) -> None:
     np.save(file=filepath, arr=save_array)
 
 
-def load_from_array(filepath: str) -> dict:
+def load_from_array(filepath: str | PathLike[str]) -> dict:
     """
     Load parameters from a numpy array saved in a file. The array is expected to
     have two rows: the first row contains the dictionary keys, and the second row
