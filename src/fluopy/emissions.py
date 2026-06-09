@@ -535,9 +535,9 @@ class Emissions:
         Parameters
         ----------
         mean
-            Mean of the normal distributed artificial noise.
+            Mean of normal distributed noise events per frame.
         std
-            Standard deviation of the normal distributed artificial noise.
+            Standard deviation of normal distributed noise events per frame.
         seed
             A seed to initialize the BitGenerator.
 
@@ -560,7 +560,7 @@ class Emissions:
         Parameters
         ----------
         rate
-            Rate of the Poisson distributed artificial noise.
+            Expected number of Poisson-distributed noise events per frame.
         seed
             A seed to initialize the BitGenerator.
 
@@ -581,7 +581,7 @@ class Emissions:
         Parameters
         ----------
         threshold : int
-            The minimum value of events to be considered.
+            The minimum number of events per frame to be considered.
 
         Returns
         -------
