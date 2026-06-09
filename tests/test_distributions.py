@@ -1,6 +1,7 @@
+from collections.abc import Callable
+
 import numpy as np
 import pytest
-from mypy.nodes import Callable
 
 from fluopy import (
     ExponentialMixtureMarginalModel,
