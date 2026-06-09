@@ -5,19 +5,14 @@ Random variable distributions.
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from itertools import product
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
-from mypyc.ir.ops import Sequence
 from scipy.integrate import cumulative_trapezoid
 from scipy.stats import expon
-
-if TYPE_CHECKING:
-    pass
-
 
 __all__: list[str] = [
     "hypoexponential_distribution_cdf",
