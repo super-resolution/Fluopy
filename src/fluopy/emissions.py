@@ -14,6 +14,7 @@ import pandas as pd
 from scipy.stats import binom, gamma, norm, poisson
 
 from . import figure as fi
+from .fluo_data import Spectrum
 from .fluorophores import Fluorophore
 from .simulation import (
     Simulation,
@@ -777,26 +778,39 @@ def get_p_filter(
         The probability of a photon passing the bandpass filter.
     """
 
-    if bandpass[0] < 200 or bandpass[0] > 1000:
-        raise ValueError("The lower bandpass limit has to be between 200 and 1000 nm.")
-    if bandpass[1] < 200 or bandpass[1] > 1000:
-        raise ValueError("The upper bandpass limit has to be between 200 and 1000 nm.")
-    if bandpass[0] >= bandpass[1]:
+    lower, upper = bandpass
+
+    if not np.isfinite(lower) or not np.isfinite(upper):
+        raise ValueError("bandpass limits must be finite.")
+    if lower >= upper:
         raise ValueError(
             "The lower bandpass limit has to be smaller than the upper limit."
         )
 
-    emission_data = pd.read_csv(
-        Path(data_dir) / fluorophore.constants.data_files / "emission.csv"
+    constants = fluorophore.constants
+
+    if constants is None:
+        raise ValueError(f"emission spectrum is not available for {fluorophore.name}.")
+
+    if constants.emission_spectrum is not None:
+        emission_spectrum = constants.emission_spectrum
+    elif constants.data_files is not None:
+        emission_path = Path(data_dir) / constants.data_files / "emission.csv"
+        emission_spectrum = Spectrum.from_csv(emission_path)
+    else:
+        raise ValueError(f"emission spectrum is not available for {fluorophore.name}.")
+
+    total_emission = emission_spectrum.integral()
+    if total_emission == 0:
+        raise ValueError(
+            f"emission spectrum for {fluorophore.name} has zero total intensity."
+        )
+
+    passed_emission = emission_spectrum.integral(
+        lower=lower,
+        upper=upper,
     )
-
-    minimum_wavelength = 200
-
-    emissions = emission_data["y"]
-    bandpass_low = bandpass[0] - minimum_wavelength
-    bandpass_high = bandpass_low + (bandpass[1] - bandpass[0])
-    rel_emission = emissions[bandpass_low:bandpass_high] / emissions.sum()
-    p_passed = rel_emission.sum()
+    p_passed = passed_emission / total_emission
 
     return p_passed
 
