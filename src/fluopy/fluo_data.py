@@ -69,6 +69,39 @@ class Spectrum:
 
         return value
 
+    def integral(
+        self,
+        lower: float | None = None,
+        upper: float | None = None,
+    ) -> float:
+        if lower is None:
+            lower = float(self.wavelengths[0])
+        if upper is None:
+            upper = float(self.wavelengths[-1])
+
+        if not np.isfinite(lower) or not np.isfinite(upper):
+            raise ValueError("integration limits must be finite.")
+        if lower >= upper:
+            raise ValueError(
+                "the lower integration limit must be smaller than the upper limit."
+            )
+
+        lower = max(lower, float(self.wavelengths[0]))
+        upper = min(upper, float(self.wavelengths[-1]))
+
+        if lower >= upper:
+            return 0.0
+
+        inside = (self.wavelengths > lower) & (self.wavelengths < upper)
+        wavelengths = np.concatenate(([lower], self.wavelengths[inside], [upper]))
+        values = np.interp(
+            wavelengths,
+            self.wavelengths,
+            self.values,
+        )
+
+        return float(np.trapezoid(values, wavelengths))
+
     def __post_init__(self) -> None:
         self.wavelengths = np.asarray(self.wavelengths, dtype=float).copy()
         self.values = np.asarray(self.values, dtype=float).copy()

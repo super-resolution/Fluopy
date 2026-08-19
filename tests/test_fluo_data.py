@@ -260,6 +260,47 @@ def test_spectrum_at_non_finite_wavelength():
         spectrum.at(np.nan)
 
 
+def test_spectrum_integral():
+    spectrum = fd.Spectrum(
+        wavelengths=[500, 510, 520],
+        values=[0, 1, 0],
+    )
+
+    assert spectrum.integral() == pytest.approx(10)
+
+
+def test_spectrum_partial_integral():
+    spectrum = fd.Spectrum(
+        wavelengths=[500, 510, 520],
+        values=[0, 1, 0],
+    )
+
+    assert spectrum.integral(505, 515) == pytest.approx(7.5)
+
+
+def test_spectrum_integral_clips_to_range():
+    spectrum = fd.Spectrum(
+        wavelengths=[500, 510, 520],
+        values=[0, 1, 0],
+    )
+
+    assert spectrum.integral(400, 600) == pytest.approx(10)
+    assert spectrum.integral(400, 450) == 0
+
+
+def test_spectrum_integral_limits_error():
+    spectrum = fd.Spectrum(
+        wavelengths=[500, 510],
+        values=[0, 1],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=("the lower integration limit must be smaller than the upper limit."),
+    ):
+        spectrum.integral(510, 500)
+
+
 def test_init_cy5_dna():
     fluorophore_data = fd.cy5_dna
     # print(fluophore_data.__doc__)
