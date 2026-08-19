@@ -372,8 +372,8 @@ class TransitionSet:
                     match = re.fullmatch(pattern=pattern, string=fluorophore_comb)
                     if match is None:
                         raise ValueError(
-                            "energy transfers have to be defined in transitions with the "
-                            "key 'D: {name of donor}, A: {name of acceptor}, dist: "
+                            "energy transfers have to be defined in transitions with "
+                            "the key 'D: {name of donor}, A: {name of acceptor}, dist: "
                             "{distance between them in nm}'."
                         )
                     d, a, dist = match.groups()
@@ -523,8 +523,8 @@ class TransitionSet:
 
     def remove_zero_rates(self) -> TransitionSet:
         """
-        Returns another TransitionSet with all transitions removed that have a rate constant
-        of zero.
+        Returns another TransitionSet with all transitions removed that have a rate
+        constant of zero.
 
         Returns
         -------
