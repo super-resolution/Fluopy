@@ -681,6 +681,98 @@ def test_derive_energy_transfer_transitions(
         assert assert_rate == 0.5 * assert_total_rate
 
 
+def test_derive_energy_transfer_with_in_memory_spectra():
+    donor_emission = fd.Spectrum(
+        wavelengths=[500, 510, 520],
+        values=[0, 1, 0],
+    )
+    acceptor_absorption = fd.Spectrum(
+        wavelengths=[505, 515],
+        values=[1000, 1000],
+    )
+
+    donor_data = fd.FluorophoreData(
+        QUANTUM_YIELD=0.5,
+        FLUORESCENCE_LIFETIME=2e-9,
+        emission_spectrum=donor_emission,
+    )
+    acceptor_data = fd.FluorophoreData(
+        absorption_spectra={"s0": acceptor_absorption},
+    )
+
+    transitions = tr.derive_energy_transfer_transitions(
+        donor_data=donor_data,
+        acceptor_data=acceptor_data,
+        fluorophore_ids=[(0, 1)],
+        dipole_orientation_factor=2 / 3,
+        distance=5,
+        refractive_index=1.33,
+    )
+
+    assert len(transitions) == 1
+    assert transitions[0].transition_type is tr.TransitionType.FRET
+    assert transitions[0].rate > 0
+
+
+def test_derive_energy_transfer_without_spectral_overlap():
+    donor_data = fd.FluorophoreData(
+        QUANTUM_YIELD=0.5,
+        FLUORESCENCE_LIFETIME=2e-9,
+        emission_spectrum=fd.Spectrum(
+            wavelengths=[500, 510],
+            values=[0, 1],
+        ),
+    )
+    acceptor_data = fd.FluorophoreData(
+        absorption_spectra={
+            "s0": fd.Spectrum(
+                wavelengths=[600, 610],
+                values=[1000, 2000],
+            )
+        },
+    )
+
+    transitions = tr.derive_energy_transfer_transitions(
+        donor_data=donor_data,
+        acceptor_data=acceptor_data,
+        fluorophore_ids=[(0, 1)],
+        dipole_orientation_factor=2 / 3,
+        distance=5,
+        refractive_index=1.33,
+    )
+
+    assert len(transitions) == 1
+    assert transitions[0].rate == 0
+
+
+def test_derive_energy_transfer_without_donor_emission():
+    with pytest.raises(
+        ValueError,
+        match=(
+            "cannot derive energy-transfer transitions without "
+            "a donor emission spectrum."
+        ),
+    ):
+        tr.derive_energy_transfer_transitions(
+            donor_data=fd.FluorophoreData(
+                QUANTUM_YIELD=0.5,
+                FLUORESCENCE_LIFETIME=2e-9,
+            ),
+            acceptor_data=fd.FluorophoreData(
+                absorption_spectra={
+                    "s0": fd.Spectrum(
+                        wavelengths=[500, 510],
+                        values=[1000, 2000],
+                    )
+                }
+            ),
+            fluorophore_ids=[(0, 1)],
+            dipole_orientation_factor=2 / 3,
+            distance=5,
+            refractive_index=1.33,
+        )
+
+
 @pytest.mark.parametrize(
     "irradiance, bleaching, dstorm, summarize",
     [[0, False, False, False], [1, False, False, True], [1, True, True, False]],

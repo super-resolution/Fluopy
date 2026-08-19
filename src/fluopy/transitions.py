@@ -1075,21 +1075,45 @@ def derive_energy_transfer_transitions(
     transitions : list[Transition]
         Contains energy transfer transitions of type Transition.
     """
+
     data_dir = Path(__file__).parent / "fluorophore_spectra"
-    donor_emission = pd.read_csv(data_dir / donor_data.data_files / "emission.csv")
-    acceptor_files = sorted(Path(data_dir / acceptor_data.data_files).iterdir())
-    acceptor_abs_files = [
-        data_file
-        for data_file in acceptor_files
-        if data_file.name.startswith("absorption")
-    ]
+
+    if donor_data.emission_spectrum is not None:
+        donor_emission = donor_data.emission_spectrum
+    elif donor_data.data_files is not None:
+        donor_emission = Spectrum.from_csv(
+            data_dir / donor_data.data_files / "emission.csv"
+        )
+    else:
+        raise ValueError(
+            "cannot derive energy-transfer transitions without a donor "
+            "emission spectrum."
+        )
+
+    if acceptor_data.absorption_spectra:
+        acceptor_absorptions = acceptor_data.absorption_spectra
+    elif acceptor_data.data_files is not None:
+        acceptor_directory = data_dir / acceptor_data.data_files
+        acceptor_absorptions = {
+            path.stem.removeprefix("absorption_"): Spectrum.from_csv(path)
+            for path in sorted(acceptor_directory.glob("absorption_*.csv"))
+        }
+    else:
+        raise ValueError(
+            "cannot derive energy-transfer transitions without acceptor "
+            "absorption spectra."
+        )
+
+    if not acceptor_absorptions:
+        raise ValueError(
+            "cannot derive energy-transfer transitions without acceptor "
+            "absorption spectra."
+        )
 
     emission_rate = fo.calculate_emission_rate(
         quantum_yield=donor_data.QUANTUM_YIELD,
         fluorescence_lifetime=donor_data.FLUORESCENCE_LIFETIME,
     )
-    minimum, maximum = 200, 1000
-    wavelengths_of_interest = np.arange(minimum, maximum + 1, 1, dtype=float)
 
     which_et = {
         "s0": [(TransitionType.FRET, 1)],
@@ -1164,24 +1188,69 @@ def derive_energy_transfer_transitions(
                 )
 
     transitions = []
-    for acceptor_abs_file in acceptor_abs_files:
-        acceptor_abs = pd.read_csv(
-            Path(data_dir) / acceptor_data.data_files / acceptor_abs_file
+    for acceptor_state, acceptor_absorption in sorted(acceptor_absorptions.items()):
+        minimum = max(
+            donor_emission.wavelengths[0],
+            acceptor_absorption.wavelengths[0],
+        )
+        maximum = min(
+            donor_emission.wavelengths[-1],
+            acceptor_absorption.wavelengths[-1],
         )
 
-        J = fo.calculate_spectral_overlap_integral(
-            donor=donor_emission["y"],
-            acceptor=acceptor_abs["y"],
-            wavelengths=wavelengths_of_interest,
-        )
+        if minimum >= maximum:
+            spectral_overlap_integral = 0.0
+        else:
+            donor_inside = donor_emission.wavelengths[
+                (donor_emission.wavelengths > minimum)
+                & (donor_emission.wavelengths < maximum)
+            ]
+            acceptor_inside = acceptor_absorption.wavelengths[
+                (acceptor_absorption.wavelengths > minimum)
+                & (acceptor_absorption.wavelengths < maximum)
+            ]
+            wavelengths = np.unique(
+                np.concatenate(
+                    (
+                        [minimum],
+                        donor_inside,
+                        acceptor_inside,
+                        [maximum],
+                    )
+                )
+            )
+
+            donor_values = np.interp(
+                wavelengths,
+                donor_emission.wavelengths,
+                donor_emission.values,
+            )
+            acceptor_values = np.interp(
+                wavelengths,
+                acceptor_absorption.wavelengths,
+                acceptor_absorption.values,
+            )
+
+            spectral_overlap_integral = fo.calculate_spectral_overlap_integral(
+                donor=donor_values,
+                acceptor=acceptor_values,
+                wavelengths=wavelengths,
+            )
+
         rate = fo.calculate_fret_rate(
             distance=distance,
             emission_rate=emission_rate,
-            spectral_overlap_integral=J,
+            spectral_overlap_integral=spectral_overlap_integral,
             dipole_orientation_factor=dipole_orientation_factor,
             refractive_index=refractive_index,
         )
-        acceptor_state = acceptor_abs_file.name.split("_")[1].split(".")[0]
+
+        if acceptor_state not in which_et_new:
+            raise ValueError(
+                f"energy transfer to acceptor state {acceptor_state!r} "
+                "is not supported."
+            )
+
         if exclude is not None and acceptor_state in exclude:
             continue
         for transition_type, factor in which_et_new[acceptor_state]:
