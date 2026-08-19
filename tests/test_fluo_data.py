@@ -90,16 +90,55 @@ def test_spectrum_errors(wavelengths, values, message):
 
 
 def test_init_FluorophoreData():
-    fluophore_data = fd.FluorophoreData()
-    assert fluophore_data.QUANTUM_YIELD == 0
+    fluorophore_data = fd.FluorophoreData()
+    assert fluorophore_data.QUANTUM_YIELD == 0
+    assert fluorophore_data.emission_spectrum is None
+    assert fluorophore_data.absorption_spectra == {}
+
+
+def test_fluorophore_data_with_spectra():
+    emission = fd.Spectrum(
+        wavelengths=[600, 610, 620],
+        values=[0.1, 1.0, 0.4],
+    )
+    absorption = fd.Spectrum(
+        wavelengths=[500, 510, 520],
+        values=[1000, 2000, 500],
+    )
+
+    fluorophore_data = fd.FluorophoreData(
+        QUANTUM_YIELD=0.7,
+        FLUORESCENCE_LIFETIME=3e-9,
+        emission_spectrum=emission,
+        absorption_spectra={"s0": absorption},
+    )
+
+    assert fluorophore_data.emission_spectrum is emission
+    assert fluorophore_data.absorption_spectra["s0"] is absorption
+
+
+def test_fluorophore_data_emission_spectrum_error():
+    with pytest.raises(
+        TypeError,
+        match="emission_spectrum must be a Spectrum or None.",
+    ):
+        fd.FluorophoreData(emission_spectrum=[0.1, 0.2])
+
+
+def test_fluorophore_data_absorption_spectrum_error():
+    with pytest.raises(
+        TypeError,
+        match="absorption spectrum for state 's0' must be a Spectrum.",
+    ):
+        fd.FluorophoreData(absorption_spectra={"s0": [0.1, 0.2]})
 
 
 def test_init_cy5_dna():
-    fluophore_data = fd.cy5_dna
+    fluorophore_data = fd.cy5_dna
     # print(fluophore_data.__doc__)
-    assert fluophore_data.QUANTUM_YIELD == 0.27
+    assert fluorophore_data.QUANTUM_YIELD == 0.27
 
 
 def test_init_atto643():
-    fluophore_data = fd.atto643
-    assert fluophore_data.QUANTUM_YIELD == 0.6
+    fluorophore_data = fd.atto643
+    assert fluorophore_data.QUANTUM_YIELD == 0.6

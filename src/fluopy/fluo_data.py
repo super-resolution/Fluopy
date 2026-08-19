@@ -4,7 +4,7 @@ Photophysical constants for specific fluorophores.
 This module provides a dataclass container to hold photophysical constants.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -117,6 +117,8 @@ class FluorophoreData:
 
     # spectra
     data_files: str | Path | None = None
+    emission_spectrum: Spectrum | None = None
+    absorption_spectra: dict[str, Spectrum] = field(default_factory=dict)
 
     # general
     QUANTUM_YIELD: float = 0
@@ -149,6 +151,20 @@ class FluorophoreData:
     H2O_ATTACK_S: float = 0
     H2O_ATTACK_T: float = 0
     BACK_REACTION: float = 0
+
+    def __post_init__(self) -> None:
+        if self.emission_spectrum is not None and not isinstance(
+            self.emission_spectrum, Spectrum
+        ):
+            raise TypeError("emission_spectrum must be a Spectrum or None.")
+
+        for state, spectrum in self.absorption_spectra.items():
+            if not isinstance(state, str) or not state:
+                raise TypeError("absorption_spectra keys must be non-empty strings.")
+            if not isinstance(spectrum, Spectrum):
+                raise TypeError(
+                    f"absorption spectrum for state {state!r} must be a Spectrum."
+                )
 
 
 cy5_dna = FluorophoreData(
