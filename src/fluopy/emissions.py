@@ -68,7 +68,7 @@ class Emissions:
             https://pandas.pydata.org/docs/user_guide/timeseries.html -> Offset aliases.
         bandpass
             The lowest and highest emission wavelength to be passed by the bandpass
-            filter.
+            filter. Requires emission spectrum data when specified.
         seed
             A seed to initialize the BitGenerator.
         """

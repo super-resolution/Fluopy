@@ -208,7 +208,7 @@ class TestTransitionSet:
                 ValueError,
                 match="energy transfers have to be defined in transitions with the "
                 "key 'D: {name of donor}, A: {name of acceptor}, dist: "
-                "{distance between them}'",
+                "{distance between them in nm}'",
             ):
                 tr.TransitionSet(
                     transitions=transitions, fluorophore_system=fluorophore_system
