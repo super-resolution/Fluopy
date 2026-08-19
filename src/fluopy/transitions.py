@@ -314,7 +314,9 @@ class TransitionSet:
     ----------
     transitions : dict[str, list[Transition]]
         Contains lists of transitions of type Transition with non-zero rate as values
-        and fluorophores or fluorophore-combinations as keys.
+        and fluorophores or fluorophore-combinations as keys. Fluorophore-combination
+        keys require the format 'D: {name of donor}, A: {name of acceptor}, dist:
+        {distance between them in nm}'.
     fluorophore_system : fluopy.fluorophores.FluorophoreSystem
         Container for attributes of multiple, interrelated fluorophores.
     combined_state_transitions_df : pd.DataFrame
@@ -346,7 +348,9 @@ class TransitionSet:
         ----------
         transitions
             Contains lists of transitions of type Transition as values and fluorophores
-            or fluorophore-combinations as keys.
+            or fluorophore-combinations as keys. Fluorophore-combination keys require
+            the format 'D: {name of donor}, A: {name of acceptor}, dist: {distance
+            between them in nm}'.
         fluorophore_system
             Container for attributes of multiple, interrelated fluorophores.
         keep_zero_rates
@@ -361,18 +365,18 @@ class TransitionSet:
             keep_transitions = []
             df_constructor = []
             for transition in f_transitions:
-                if "dist" not in fluorophore_comb and isinstance(
-                    transition.initial_state, PairedState
-                ):
-                    raise ValueError(
-                        "energy transfers have to be defined in transitions with the "
-                        "key 'D: {name of donor}, A: {name of acceptor}, dist: "
-                        "{distance between them}'."
+                if isinstance(transition.initial_state, PairedState):
+                    pattern = (
+                        r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*(\d+(?:\.\d+)?)\s*"
                     )
-                if "dist" in fluorophore_comb:
-                    pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
-                    match = re.match(pattern=pattern, string=fluorophore_comb)
-                    d, a, dist = match.group(1), match.group(2), match.group(3)
+                    match = re.fullmatch(pattern=pattern, string=fluorophore_comb)
+                    if match is None:
+                        raise ValueError(
+                            "energy transfers have to be defined in transitions with "
+                            "the key 'D: {name of donor}, A: {name of acceptor}, dist: "
+                            "{distance between them in nm}'."
+                        )
+                    d, a, dist = match.groups()
                     for d_t, a_t in transition.fluorophore_ids:
                         if self.fluorophore_system.fluorophores[d_t].name != d:
                             raise ValueError(
@@ -386,11 +390,10 @@ class TransitionSet:
                                 f"{self.fluorophore_system.fluorophores[a_t].name} "
                                 "found."
                             )
-                        if str(self.fluorophore_system.distances[(d_t, a_t)]) != dist:
+                        actual_dist = self.fluorophore_system.distances[(d_t, a_t)]
+                        if float(dist) != actual_dist:
                             raise ValueError(
-                                f"{dist} nm indicated, "
-                                f"{self.fluorophore_system.distances[(d_t, a_t)]} nm "
-                                "found."
+                                f"{dist} nm indicated, {actual_dist} nm found."
                             )
                 else:
                     for j in transition.fluorophore_ids:
@@ -520,8 +523,8 @@ class TransitionSet:
 
     def remove_zero_rates(self) -> TransitionSet:
         """
-        Returns another TransitionSet with all transitions removed that have a rate constant
-        of zero.
+        Returns another TransitionSet with all transitions removed that have a rate
+        constant of zero.
 
         Returns
         -------
