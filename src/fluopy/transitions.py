@@ -21,11 +21,11 @@ from scipy import interpolate as itp
 
 from . import formulas as fo
 from . import network as net
+from .fluo_data import FluorophoreData, Spectrum
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
 
-    from fluopy.fluo_data import FluorophoreData
     from fluopy.fluorophores import Fluorophore, FluorophoreSystem
 
 
@@ -1246,18 +1246,26 @@ def derive_transitions(
             )
     _, _, frequency = fo.convert_wavenumber_wavelength_frequency(wavelength=wavelength)
     photon_flux = fo.calculate_photon_flux(irradiance=irradiance, frequency=frequency)
-    path_absorption = (
-        Path(__file__).parent
-        / "fluorophore_spectra"
-        / fd.data_files
-        / "absorption_s0.csv"
-    )
+
+    if "s0" in fd.absorption_spectra:
+        absorption_spectrum = fd.absorption_spectra["s0"]
+    elif fd.data_files is not None:
+        path_absorption = (
+            Path(__file__).parent
+            / "fluorophore_spectra"
+            / fd.data_files
+            / "absorption_s0.csv"
+        )
+        absorption_spectrum = Spectrum.from_csv(path_absorption)
+    else:
+        raise ValueError(
+            "cannot derive excitation transition without an S0 absorption spectrum."
+        )
+
     if fluorophore_ids is None:
         fluorophore_ids = [0]
 
-    dataframe_absorption = pd.read_csv(filepath_or_buffer=path_absorption, index_col=0)
-
-    extinction_coefficient = dataframe_absorption.loc[int(wavelength), "y"]
+    extinction_coefficient = absorption_spectrum.at(wavelength)
 
     excitation_rate = fo.calculate_excitation_rate(
         photon_flux=photon_flux, extinction_coefficient=extinction_coefficient

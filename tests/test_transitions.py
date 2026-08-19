@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from fluopy import fluo_data as fd
+from fluopy import formulas as fo
 from fluopy import transitions as tr
 
 
@@ -734,6 +736,61 @@ def test_derive_transitions(irradiance, bleaching, dstorm, summarize, request):
     else:
         for transition in transitions:
             assert transition.abbreviation not in summarize_checker
+
+
+def test_derive_transitions_with_in_memory_absorption():
+    absorption = fd.Spectrum(
+        wavelengths=[600, 650],
+        values=[1000, 2000],
+    )
+    fluorophore_data = fd.FluorophoreData(
+        QUANTUM_YIELD=0.5,
+        FLUORESCENCE_LIFETIME=2e-9,
+        absorption_spectra={"s0": absorption},
+    )
+
+    transitions = tr.derive_transitions(
+        fluorophore_data=fluorophore_data,
+        wavelength=625,
+        irradiance=1,
+        dstorm=False,
+    )
+
+    excitation = next(
+        transition
+        for transition in transitions
+        if transition.transition_type is tr.TransitionType.EXCITATION
+    )
+
+    _, _, frequency = fo.convert_wavenumber_wavelength_frequency(wavelength=625)
+    photon_flux = fo.calculate_photon_flux(
+        irradiance=1,
+        frequency=frequency,
+    )
+    expected = fo.calculate_excitation_rate(
+        photon_flux=photon_flux,
+        extinction_coefficient=1500,
+    )
+
+    assert excitation.rate == pytest.approx(expected)
+
+
+def test_derive_transitions_without_absorption_error():
+    fluorophore_data = fd.FluorophoreData(
+        QUANTUM_YIELD=0.5,
+        FLUORESCENCE_LIFETIME=2e-9,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "cannot derive excitation transition without an S0 absorption spectrum."
+        ),
+    ):
+        tr.derive_transitions(
+            fluorophore_data=fluorophore_data,
+            dstorm=False,
+        )
 
 
 def test_interpolate_data():
