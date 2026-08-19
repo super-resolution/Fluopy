@@ -7,7 +7,39 @@ This module provides a dataclass container to hold photophysical constants.
 from dataclasses import dataclass
 from pathlib import Path
 
-__all__: list[str] = ["FluorophoreData", "cy5_dna", "atto643"]
+import numpy as np
+import numpy.typing as npt
+
+__all__: list[str] = ["Spectrum", "FluorophoreData", "cy5_dna", "atto643"]
+
+
+@dataclass
+class Spectrum:
+    wavelengths: npt.ArrayLike
+    values: npt.ArrayLike
+
+    def __post_init__(self) -> None:
+        self.wavelengths = np.asarray(self.wavelengths, dtype=float).copy()
+        self.values = np.asarray(self.values, dtype=float).copy()
+
+        if self.wavelengths.ndim != 1:
+            raise ValueError("spectrum wavelengths must be one-dimensional.")
+        if self.values.ndim != 1:
+            raise ValueError("spectrum values must be one-dimensional.")
+        if self.wavelengths.size != self.values.size:
+            raise ValueError(
+                "spectrum wavelengths and values must have the same length."
+            )
+        if self.wavelengths.size < 2:
+            raise ValueError("a spectrum must contain at least two data points.")
+        if not np.all(np.isfinite(self.wavelengths)):
+            raise ValueError("spectrum wavelengths must be finite.")
+        if not np.all(np.isfinite(self.values)):
+            raise ValueError("spectrum values must be finite.")
+        if not np.all(np.diff(self.wavelengths) > 0):
+            raise ValueError("spectrum wavelengths must be strictly increasing.")
+        if np.any(self.values < 0):
+            raise ValueError("spectrum values must be non-negative.")
 
 
 @dataclass

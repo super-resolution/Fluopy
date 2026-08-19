@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from PIL import Image, ImageOps
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
@@ -318,14 +319,11 @@ def compute_tight_bbox(fig, pad_inches: float = 0.0):
 
 
 def crop_to_content_with_padding(
-    in_file, out_file, 
-    dpi: int = 300, 
-    pad_inches: float = 2/72, 
-    threshold: int = 255
+    in_file, out_file, dpi: int = 300, pad_inches: float = 2 / 72, threshold: int = 255
 ) -> None:
     """
     Crops the image to the content and adds padding, then saves the image.
-    
+
     Parameters
     ----------
     in_file
