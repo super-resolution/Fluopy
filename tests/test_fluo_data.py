@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -131,6 +133,79 @@ def test_fluorophore_data_absorption_spectrum_error():
         match="absorption spectrum for state 's0' must be a Spectrum.",
     ):
         fd.FluorophoreData(absorption_spectra={"s0": [0.1, 0.2]})
+
+
+def test_spectrum_from_arrays():
+    spectrum = fd.Spectrum.from_arrays(
+        wavelengths=[500, 510, 520],
+        values=[0.1, 0.8, 0.2],
+    )
+
+    np.testing.assert_array_equal(
+        spectrum.wavelengths,
+        np.array([500.0, 510.0, 520.0]),
+    )
+    np.testing.assert_array_equal(
+        spectrum.values,
+        np.array([0.1, 0.8, 0.2]),
+    )
+
+
+def test_spectrum_from_csv(tmp_path):
+    path = tmp_path / "spectrum.csv"
+    path.write_text("Wavelengths,y\n500,0.1\n510,0.8\n520,0.2\n", encoding="utf-8")
+
+    spectrum = fd.Spectrum.from_csv(path)
+
+    np.testing.assert_array_equal(
+        spectrum.wavelengths,
+        np.array([500.0, 510.0, 520.0]),
+    )
+    np.testing.assert_array_equal(
+        spectrum.values,
+        np.array([0.1, 0.8, 0.2]),
+    )
+
+
+def test_spectrum_from_csv_custom_columns(tmp_path):
+    path = tmp_path / "spectrum.csv"
+    path.write_text("wavelength,intensity\n500,0.1\n510,0.8\n", encoding="utf-8")
+
+    spectrum = fd.Spectrum.from_csv(
+        path,
+        wavelength_column="wavelength",
+        value_column="intensity",
+    )
+
+    np.testing.assert_array_equal(
+        spectrum.wavelengths,
+        np.array([500.0, 510.0]),
+    )
+    np.testing.assert_array_equal(
+        spectrum.values,
+        np.array([0.1, 0.8]),
+    )
+
+
+def test_spectrum_from_csv_missing_column(tmp_path):
+    path = tmp_path / "spectrum.csv"
+    path.write_text("wavelength,intensity\n500,0.1\n510,0.8\n", encoding="utf-8")
+
+    with pytest.raises(
+        ValueError,
+        match="spectrum CSV is missing columns: Wavelengths, y.",
+    ):
+        fd.Spectrum.from_csv(path)
+
+
+def test_spectrum_from_existing_csv():
+    data_dir = Path(fd.__file__).parent / "fluorophore_spectra" / "testing_data_1"
+
+    spectrum = fd.Spectrum.from_csv(data_dir / "emission.csv")
+
+    assert spectrum.wavelengths[0] == 200
+    assert spectrum.wavelengths[-1] == 1000
+    assert spectrum.wavelengths.size == spectrum.values.size
 
 
 def test_init_cy5_dna():

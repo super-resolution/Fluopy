@@ -5,10 +5,13 @@ This module provides a dataclass container to hold photophysical constants.
 """
 
 from dataclasses import dataclass, field
+from os import PathLike
 from pathlib import Path
+from typing import Self
 
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 
 __all__: list[str] = ["Spectrum", "FluorophoreData", "cy5_dna", "atto643"]
 
@@ -17,6 +20,37 @@ __all__: list[str] = ["Spectrum", "FluorophoreData", "cy5_dna", "atto643"]
 class Spectrum:
     wavelengths: npt.ArrayLike
     values: npt.ArrayLike
+
+    @classmethod
+    def from_arrays(
+        cls,
+        wavelengths: npt.ArrayLike,
+        values: npt.ArrayLike,
+    ) -> Self:
+        return cls(wavelengths=wavelengths, values=values)
+
+    @classmethod
+    def from_csv(
+        cls,
+        path: str | PathLike[str],
+        wavelength_column: str = "Wavelengths",
+        value_column: str = "y",
+    ) -> Self:
+        data = pd.read_csv(path)
+
+        missing_columns = {
+            wavelength_column,
+            value_column,
+        }.difference(data.columns)
+
+        if missing_columns:
+            missing = ", ".join(sorted(missing_columns))
+            raise ValueError(f"spectrum CSV is missing columns: {missing}.")
+
+        return cls(
+            wavelengths=data[wavelength_column].to_numpy(),
+            values=data[value_column].to_numpy(),
+        )
 
     def __post_init__(self) -> None:
         self.wavelengths = np.asarray(self.wavelengths, dtype=float).copy()
