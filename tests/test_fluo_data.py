@@ -208,6 +208,58 @@ def test_spectrum_from_existing_csv():
     assert spectrum.wavelengths.size == spectrum.values.size
 
 
+def test_spectrum_at_existing_wavelength():
+    spectrum = fd.Spectrum(
+        wavelengths=[500, 510, 520],
+        values=[1000, 2000, 500],
+    )
+
+    assert spectrum.at(510) == 2000
+
+
+def test_spectrum_at_interpolated_wavelength():
+    spectrum = fd.Spectrum(
+        wavelengths=[500, 510, 520],
+        values=[1000, 2000, 500],
+    )
+
+    assert spectrum.at(505) == 1500
+
+
+def test_spectrum_at_boundaries():
+    spectrum = fd.Spectrum(
+        wavelengths=[500, 510, 520],
+        values=[1000, 2000, 500],
+    )
+
+    assert spectrum.at(500) == 1000
+    assert spectrum.at(520) == 500
+
+
+@pytest.mark.parametrize("wavelength", [499, 521])
+def test_spectrum_at_outside_range(wavelength):
+    spectrum = fd.Spectrum(
+        wavelengths=[500, 510, 520],
+        values=[1000, 2000, 500],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="is outside the spectrum range",
+    ):
+        spectrum.at(wavelength)
+
+
+def test_spectrum_at_non_finite_wavelength():
+    spectrum = fd.Spectrum(
+        wavelengths=[500, 510],
+        values=[1000, 2000],
+    )
+
+    with pytest.raises(ValueError, match="wavelength must be finite."):
+        spectrum.at(np.nan)
+
+
 def test_init_cy5_dna():
     fluorophore_data = fd.cy5_dna
     # print(fluophore_data.__doc__)

@@ -52,6 +52,23 @@ class Spectrum:
             values=data[value_column].to_numpy(),
         )
 
+    def at(self, wavelength: float) -> float:
+        if not np.isfinite(wavelength):
+            raise ValueError("wavelength must be finite.")
+
+        minimum = self.wavelengths[0]
+        maximum = self.wavelengths[-1]
+
+        if wavelength < minimum or wavelength > maximum:
+            raise ValueError(
+                f"wavelength {wavelength} nm is outside the spectrum range "
+                f"{minimum}-{maximum} nm."
+            )
+
+        value = float(np.interp(wavelength, self.wavelengths, self.values))
+
+        return value
+
     def __post_init__(self) -> None:
         self.wavelengths = np.asarray(self.wavelengths, dtype=float).copy()
         self.values = np.asarray(self.values, dtype=float).copy()
