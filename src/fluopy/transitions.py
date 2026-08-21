@@ -45,6 +45,13 @@ logger = logging.getLogger(__name__)
 class SingleState:
     """
     Contains the name and numerical identifier of a photophysical state.
+
+    Attributes
+    ----------
+    name : str
+        Name of the state.
+    value : int
+        Unique numerical identifier of the state.
     """
 
     name: str
@@ -90,7 +97,19 @@ BUILTIN_SINGLE_STATES = (
 @dataclass(frozen=True, slots=True)
 class PairedState:
     """
-    Contains two single states involved in an energy-transfer transition.
+    Contains the donor and acceptor states of a paired transition.
+
+    Built-in paired states are available as class attributes and in
+    BUILTIN_PAIRED_STATES. Additional paired states can be constructed directly.
+
+    Attributes
+    ----------
+    name : str
+        Name of the paired state.
+    donor : SingleState
+        State of the donor.
+    acceptor : SingleState
+        State of the acceptor.
     """
 
     name: str
@@ -115,10 +134,16 @@ class PairedState:
 
     @property
     def value(self) -> tuple[SingleState, SingleState]:
+        """
+        Return the donor and acceptor states.
+        """
         return self.donor, self.acceptor
 
     @property
     def single_state_values(self) -> tuple[int, int]:
+        """
+        Return the numerical donor and acceptor state values.
+        """
         return self.donor.value, self.acceptor.value
 
 
@@ -161,7 +186,11 @@ BUILTIN_PAIRED_STATES = (
 @dataclass(frozen=True, slots=True)
 class TransitionType:
     """
-    Contains constant attributes of photophysical transitions.
+    Contains constant attributes of a photophysical transition.
+
+    Built-in transition types are available as class attributes and in
+    BUILTIN_TRANSITION_TYPES. Additional transition types can be constructed
+    directly.
 
     Attributes
     ----------
@@ -383,12 +412,11 @@ class Transition:
     fluorophore_ids: list[int] | list[tuple[int, int]] = field()
 
     def __post_init__(self) -> None:
-        # __setattr__ needed if frozen=True
-        object.__setattr__(self, "abbreviation", self.transition_type.abbreviation)
-        object.__setattr__(self, "initial_state", self.transition_type.initial_state)
-        object.__setattr__(self, "final_state", self.transition_type.final_state)
-        object.__setattr__(self, "photon", self.transition_type.photon)
-        object.__setattr__(self, "identity", None)
+        self.abbreviation = self.transition_type.abbreviation
+        self.initial_state = self.transition_type.initial_state
+        self.final_state = self.transition_type.final_state
+        self.photon = self.transition_type.photon
+        self.identity = None
         for fluorophore_id in self.fluorophore_ids:
             if isinstance(self.initial_state, PairedState):
                 if not isinstance(fluorophore_id, tuple) or len(fluorophore_id) != 2:
@@ -405,12 +433,31 @@ class Transition:
                     )
 
     def to_dict(self) -> dict[str, object]:
+        """
+        Return the transition fields as a shallow dictionary.
+        """
         return {item.name: getattr(self, item.name) for item in fields(self)}
 
 
 def get_states_by_value(
     transitions: dict[str, list[Transition]],
 ) -> dict[int, SingleState]:
+    """
+    Collect single states by value and reject ambiguous names or values.
+
+    Parameters
+    ----------
+    transitions
+        Contains lists of transitions as values and fluorophore names or
+        fluorophore-combination as keys. Fluorophore-combination keys require the
+        format 'D: {name of donor}, A: {name of acceptor}, dist: {distance between them
+        in nm}'.
+
+    Returns
+    -------
+    states_by_value : dict[int, SingleState]
+        Built-in and custom single states indexed by their numerical value.
+    """
     states_by_value = {state.value: state for state in BUILTIN_SINGLE_STATES}
     values_by_name = {state.name: state.value for state in BUILTIN_SINGLE_STATES}
 

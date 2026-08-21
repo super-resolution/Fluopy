@@ -484,6 +484,49 @@ def test_transition_set_states_by_value(tr_set_1f):
     assert tr_set_1f.states_by_value[tr.SingleState.S1.value] is tr.SingleState.S1
 
 
+def test_transition_set_accepts_custom_state(flu_sys_cy5):
+    dark = tr.SingleState(name="DARK", value=10)
+    recovery = tr.TransitionType(
+        abbreviation="REC",
+        initial_state=dark,
+        final_state=tr.SingleState.S0,
+        photon=False,
+    )
+    transitions = {
+        "testfluo_1": [
+            tr.Transition(recovery, rate=1, fluorophore_ids=[0]),
+        ]
+    }
+
+    transition_set = tr.TransitionSet(transitions, flu_sys_cy5)
+
+    assert transition_set.states_by_value[10] is dark
+    np.testing.assert_array_equal(
+        transition_set.single_states["testfluo_1"],
+        [10, 0],
+    )
+    assert transition_set.combined_state_transitions_df.loc[0, "initial_state"] == (10,)
+    assert transition_set.combined_state_transitions_df.loc[0, "final_state"] == (0,)
+
+
+def test_transition_set_rejects_duplicate_state_value(flu_sys_cy5):
+    dark = tr.SingleState(name="DARK", value=tr.SingleState.B.value)
+    recovery = tr.TransitionType("REC", dark, tr.SingleState.S0, False)
+    transitions = {"testfluo_1": [tr.Transition(recovery, rate=1, fluorophore_ids=[0])]}
+
+    with pytest.raises(ValueError, match="state value 5 is already assigned to B"):
+        tr.TransitionSet(transitions, flu_sys_cy5)
+
+
+def test_transition_set_rejects_duplicate_state_name(flu_sys_cy5):
+    dark = tr.SingleState(name="B", value=10)
+    recovery = tr.TransitionType("REC", dark, tr.SingleState.S0, False)
+    transitions = {"testfluo_1": [tr.Transition(recovery, rate=1, fluorophore_ids=[0])]}
+
+    with pytest.raises(ValueError, match="state name B is already assigned to value 5"):
+        tr.TransitionSet(transitions, flu_sys_cy5)
+
+
 @pytest.mark.parametrize(
     "single_states, dirnames, expected",
     [
