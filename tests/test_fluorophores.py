@@ -123,6 +123,38 @@ def test_fluorophore_system(
         assert fluorophore_system.multi_type == multi_type
 
 
+def test_same_name_requires_same_fluorophore_data():
+    data_1 = FluorophoreData()
+    data_2 = FluorophoreData()
+
+    fluorophores = [
+        fl.Fluorophore("custom", [0, 0], data_1),
+        fl.Fluorophore("custom", [1, 0], data_2),
+    ]
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "fluorophores with the same name must share the same "
+            "FluorophoreData object: custom"
+        ),
+    ):
+        fl.FluorophoreSystem(fluorophores)
+
+
+def test_same_name_accepts_shared_fluorophore_data():
+    data = FluorophoreData()
+
+    fluorophores = [
+        fl.Fluorophore("custom", [0, 0], data),
+        fl.Fluorophore("custom", [1, 0], data),
+    ]
+
+    system = fl.FluorophoreSystem(fluorophores)
+
+    assert not system.multi_type
+
+
 # all other load_transitions parameters are tested in derive_transitions
 @pytest.mark.parametrize("energy_transfer", [[True], [False]])
 @pytest.mark.parametrize(

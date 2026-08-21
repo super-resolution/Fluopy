@@ -92,6 +92,18 @@ class FluorophoreSystem:
     count: int = field(init=False)
 
     def __post_init__(self) -> None:
+        constants_by_name = {}
+
+        for fluorophore in self.fluorophores:
+            if fluorophore.name in constants_by_name:
+                if fluorophore.constants is not constants_by_name[fluorophore.name]:
+                    raise ValueError(
+                        "fluorophores with the same name must share the same "
+                        f"FluorophoreData object: {fluorophore.name}"
+                    )
+            else:
+                constants_by_name[fluorophore.name] = fluorophore.constants
+
         for i, fluorophore in enumerate(self.fluorophores):
             fluorophore.identity = i
         if all(
