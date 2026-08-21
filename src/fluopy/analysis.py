@@ -105,7 +105,6 @@ class Analysis:
             Whether at least one of the fluorophores has reached a Markovian absorbing
             state.
         """
-        from .transitions import SingleState
 
         initial_states = self.simulation.transition_set.transition_df[
             "initial_state"
@@ -133,7 +132,7 @@ class Analysis:
                     is_abs = True
                     print(
                         f"fluorophore {i} has reached the Markovian absorbing state "
-                        f"{SingleState(last_state)}"
+                        f"{self.simulation.transition_set.states_by_value[last_state].name}"
                     )
 
         return is_abs
@@ -514,7 +513,6 @@ class Analysis:
         npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
-        from .transitions import SingleState
 
         single_states = self.simulation.transition_set.single_states
         colormap = mpl.colors.ListedColormap(
@@ -531,7 +529,9 @@ class Analysis:
             data_merged.append(self.frequency_states[fluorophore])
             labels.extend(
                 [
-                    format_electronic_state(SingleState(identity).name)
+                    format_electronic_state(
+                        self.simulation.transition_set.states_by_value[identity].name
+                    )
                     for identity in states
                 ]
             )
@@ -687,7 +687,6 @@ class Analysis:
         npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
-        from .transitions import SingleState
 
         single_states = self.simulation.transition_set.single_states
         colormap = mpl.colors.ListedColormap(
@@ -704,7 +703,9 @@ class Analysis:
             data_merged.append(self.mean_lifetimes[fluorophore])
             labels.extend(
                 [
-                    format_electronic_state(SingleState(identity).name)
+                    format_electronic_state(
+                        self.simulation.transition_set.states_by_value[identity].name
+                    )
                     for identity in states
                 ]
             )
@@ -766,7 +767,6 @@ class Analysis:
         npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
-        from .transitions import SingleState
 
         single_states = self.simulation.transition_set.single_states
         colormap = mpl.colors.ListedColormap(
@@ -783,7 +783,9 @@ class Analysis:
             data_merged.append(self.state_occupations[fluorophore])
             labels.extend(
                 [
-                    format_electronic_state(SingleState(identity).name)
+                    format_electronic_state(
+                        self.simulation.transition_set.states_by_value[identity].name
+                    )
                     for identity in states
                 ]
             )
@@ -852,7 +854,6 @@ class Analysis:
         npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
-        from .transitions import SingleState
 
         kwargs.setdefault("type_", "hist")
         kwargs.setdefault("ylabel", "Prob. density")
@@ -860,7 +861,7 @@ class Analysis:
         kwargs.setdefault("yscale", "log")
         kwargs.setdefault(
             "xlabel",
-            rf"{format_electronic_state(SingleState(state_identity).name)}"
+            rf"{format_electronic_state(self.simulation.transition_set.states_by_value[state_identity].name)}"
             " duration (s)",
         )
         kwargs.setdefault("density", True)

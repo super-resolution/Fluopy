@@ -11,7 +11,7 @@ from collections.abc import Collection, Iterable
 from dataclasses import dataclass, field, fields
 from enum import Enum
 from itertools import product
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, ClassVar, Self
 
 import numpy as np
 import numpy.typing as npt
@@ -28,26 +28,61 @@ if TYPE_CHECKING:
     from fluopy.fluorophores import Fluorophore, FluorophoreSystem
 
 
-__all__: list[str] = ["SingleState", "PairedState", "Transition", "TransitionSet"]
+__all__: list[str] = [
+    "SingleState",
+    "BUILTIN_SINGLE_STATES",
+    "PairedState",
+    "Transition",
+    "TransitionSet",
+]
 
 logger = logging.getLogger(__name__)
 
 
-class SingleState(Enum):
+@dataclass(frozen=True, slots=True)
+class SingleState:
     """
-    Assigns a unique identifier (value) to each possible photophysical state.
+    Contains the name and numerical identifier of a photophysical state.
     """
 
-    S0 = 0
-    S1 = 1
-    S2 = 2
-    T1 = 3
-    T2 = 4
-    B = 5
-    cis = 6
-    OFF = 7
-    OFF2 = 8
-    R = 9
+    name: str
+    value: int
+
+    S0: ClassVar[SingleState]
+    S1: ClassVar[SingleState]
+    S2: ClassVar[SingleState]
+    T1: ClassVar[SingleState]
+    T2: ClassVar[SingleState]
+    B: ClassVar[SingleState]
+    cis: ClassVar[SingleState]
+    OFF: ClassVar[SingleState]
+    OFF2: ClassVar[SingleState]
+    R: ClassVar[SingleState]
+
+
+SingleState.S0 = SingleState("S0", 0)
+SingleState.S1 = SingleState("S1", 1)
+SingleState.S2 = SingleState("S2", 2)
+SingleState.T1 = SingleState("T1", 3)
+SingleState.T2 = SingleState("T2", 4)
+SingleState.B = SingleState("B", 5)
+SingleState.cis = SingleState("cis", 6)
+SingleState.OFF = SingleState("OFF", 7)
+SingleState.OFF2 = SingleState("OFF2", 8)
+SingleState.R = SingleState("R", 9)
+
+BUILTIN_SINGLE_STATES = (
+    SingleState.S0,
+    SingleState.S1,
+    SingleState.S2,
+    SingleState.T1,
+    SingleState.T2,
+    SingleState.B,
+    SingleState.cis,
+    SingleState.OFF,
+    SingleState.OFF2,
+    SingleState.R,
+)
 
 
 class PairedState(Enum):
@@ -307,6 +342,52 @@ class Transition:
         return {item.name: getattr(self, item.name) for item in fields(self)}
 
 
+def get_states_by_value(
+    transitions: dict[str, list[Transition]],
+) -> dict[int, SingleState]:
+    states_by_value = {state.value: state for state in BUILTIN_SINGLE_STATES}
+    values_by_name = {state.name: state.value for state in BUILTIN_SINGLE_STATES}
+
+    for transition_collection in transitions.values():
+        for transition in transition_collection:
+            for state in (
+                transition.initial_state,
+                transition.final_state,
+            ):
+                if isinstance(state, PairedState):
+                    single_states = state.value
+                else:
+                    single_states = (state,)
+
+                for single_state in single_states:
+                    existing_state = states_by_value.get(single_state.value)
+                    if (
+                        existing_state is not None
+                        and existing_state.name != single_state.name
+                    ):
+                        raise ValueError(
+                            f"state value {single_state.value} is already "
+                            f"assigned to {existing_state.name}, and cannot "
+                            f"be assigned to {single_state.name}."
+                        )
+
+                    existing_value = values_by_name.get(single_state.name)
+                    if (
+                        existing_value is not None
+                        and existing_value != single_state.value
+                    ):
+                        raise ValueError(
+                            f"state name {single_state.name} is already "
+                            f"assigned to value {existing_value}, and cannot "
+                            f"be assigned to {single_state.value}."
+                        )
+
+                    states_by_value[single_state.value] = single_state
+                    values_by_name[single_state.name] = single_state.value
+
+    return states_by_value
+
+
 class TransitionSet:
     """
     Collection of all relevant transitions and related attributes. Allows optional
@@ -426,7 +507,7 @@ class TransitionSet:
                     {fluorophore_comb: transition_df}, names=["Fluorophore"]
                 )
                 self.transition_df = pd.concat([self.transition_df, transition_df])
-
+        self.states_by_value = get_states_by_value(self.transitions)
         self.single_states = get_single_states(self.transitions, self.transition_df)
         # also assigns whether a transition leads to a Markovian absorbing state
 

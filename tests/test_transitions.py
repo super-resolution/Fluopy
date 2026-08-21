@@ -19,7 +19,17 @@ def test_singlestate():
     assert tr.SingleState.OFF.value == 7
     assert tr.SingleState.OFF2.value == 8
     assert tr.SingleState.R.value == 9
-    assert len(tr.SingleState) == 10
+    assert tr.SingleState.S0.name == "S0"
+    assert tr.SingleState.cis.name == "cis"
+    assert len(tr.BUILTIN_SINGLE_STATES) == 10
+
+
+def test_custom_single_state():
+    dark = tr.SingleState(name="DARK", value=10)
+
+    assert dark.name == "DARK"
+    assert dark.value == 10
+    assert dark not in tr.BUILTIN_SINGLE_STATES
 
 
 def test_pairedstate():
@@ -437,6 +447,11 @@ class TestTransitionSet:
         assert isinstance(transition_set.transition_df, pd.DataFrame)
         assert len(transition_set.transition_df) == 1
         assert transition_set.transition_matrix.shape == (1, 1)
+
+
+def test_transition_set_states_by_value(tr_set_1f):
+    assert tr_set_1f.states_by_value[tr.SingleState.S0.value] is tr.SingleState.S0
+    assert tr_set_1f.states_by_value[tr.SingleState.S1.value] is tr.SingleState.S1
 
 
 @pytest.mark.parametrize(
