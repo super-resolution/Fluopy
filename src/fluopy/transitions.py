@@ -1042,7 +1042,7 @@ def derive_energy_transfer_transitions(
     """
     Derive energy transfer transitions based on the experimental conditions and the
     fluorophore-combinations to be mimicked. The type of energy transfer is determined
-    via the data file names.
+    by the state names in acceptor_data.absorption_spectra.
 
     Parameters
     ----------

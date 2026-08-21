@@ -18,6 +18,20 @@ __all__: list[str] = ["Spectrum", "FluorophoreData", "cy5_dna", "atto643"]
 
 @dataclass
 class Spectrum:
+    """
+    Contains wavelength-dependent spectral data.
+
+    Spectrum values can be provided directly as array-like objects or loaded from a csv
+    file. Wavelengths are given in nm and must be strictly increasing.
+
+    Attributes
+    ----------
+    wavelengths : 1-D array_like
+        The wavelength values in nm.
+    values : 1-D array_like
+        Spectrum values corresponding to wavelengths.
+    """
+
     wavelengths: npt.ArrayLike
     values: npt.ArrayLike
 
@@ -27,6 +41,21 @@ class Spectrum:
         wavelengths: npt.ArrayLike,
         values: npt.ArrayLike,
     ) -> Self:
+        """
+        Create a spectrum from wavelength and value arrays.
+
+        Parameters
+        ----------
+        wavlengths
+            Wavelengths in nm.
+        values
+            Spectrum values corresponding to wavelenghts.
+
+        Returns
+        -------
+        Spectrum
+            Spectrum object containing copies of the input arrays.
+        """
         return cls(wavelengths=wavelengths, values=values)
 
     @classmethod
@@ -36,6 +65,23 @@ class Spectrum:
         wavelength_column: str = "Wavelengths",
         value_column: str = "y",
     ) -> Self:
+        """
+        Create a spectrum from a CSV file.
+
+        Parameters
+        ----------
+        path
+            Path to the CSV file.
+        wavelength_column
+            Name of the column containing wavelengths in nm.
+        value_column
+            Name of the column containing spetrum values.
+
+        Returns
+        -------
+        Spectrum
+            Spectrum object loaded from the CSV file.
+        """
         data = pd.read_csv(path)
 
         missing_columns = {
@@ -53,6 +99,22 @@ class Spectrum:
         )
 
     def at(self, wavelength: float) -> float:
+        """
+        Return the spectrum value at a wavelength.
+
+        Values between given wavelengths are linearily interpolated. Extrapolation
+        outside the spectrum range is not supported.
+
+        Parameters
+        ----------
+        wavelength
+            Wavelength in nm.
+
+        Returns
+        -------
+        value
+            Spectrum value at the specified wavelength.
+        """
         if not np.isfinite(wavelength):
             raise ValueError("wavelength must be finite.")
 
@@ -74,6 +136,25 @@ class Spectrum:
         lower: float | None = None,
         upper: float | None = None,
     ) -> float:
+        """
+        Integrate the spectrum over a wavelength interval.
+
+        Integration limits outside the available spectrum are clipped to the spectrum
+        range. An interval without overlap has an integral of zero.
+
+        Parameters
+        ----------
+        lower
+            Lower integration limit in nm. If None, use the lowest available wavelength.
+        upper
+            Upper integration limit in nm. If None, use the highest available
+            wavelength.
+
+        Returns
+        -------
+        integral
+            Trapezoidal integral of the spectrum.
+        """
         if lower is None:
             lower = float(self.wavelengths[0])
         if upper is None:
@@ -99,8 +180,9 @@ class Spectrum:
             self.wavelengths,
             self.values,
         )
+        integral = float(np.trapezoid(values, wavelengths))
 
-        return float(np.trapezoid(values, wavelengths))
+        return integral
 
     def __post_init__(self) -> None:
         self.wavelengths = np.asarray(self.wavelengths, dtype=float).copy()
@@ -135,10 +217,17 @@ class FluorophoreData:
     Attributes
     ----------
     data_files : str | Path | None
-        The name of the folder containing the spectra data files. The folder should be
-        located in src/fluopy/fluorophore_spectra. Needed to infer excitation rate
-        and energy transfer rates. If None, no automatic inference of rates will be
-        performed.
+        Name of a bundled spectrum directory distributed with Fluopy. Used internally
+        for predefined fluorophores when spectra are not stored directly as Spectrum
+        objects. Custom fluorophores should provide emission_spectrum and
+        absorption_spectra instead.
+    emission_spectrum : Spectrum | None
+        Emission spectrum used for bandpass filtering and as the donor spectrum in
+        energy-transfer calculations.
+    absorption_spectra : dict[str, Spectrum]
+        Absorption spectra indexed by lowercase acceptor-state names, for example
+        's0', 't1', 'cis' or 'off'. The S0 spectrum is also used to infer the excitation
+        rate.
     QUANTUM_YIELD : float
         The fluorescence quantum yield of the fluorophore. Should be between 0 and 1.
     FLUORESCENCE_LIFETIME : float

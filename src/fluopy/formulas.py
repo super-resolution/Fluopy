@@ -310,16 +310,6 @@ def calculate_spectral_overlap_integral(
     wavelengths = np.asarray(wavelengths)
     if donor.size != acceptor.size or donor.size != wavelengths.size:
         raise ValueError("donor, acceptor and wavelengths have to be of the same size.")
-    if donor.ndim != 1 or acceptor.ndim != 1 or wavelengths.ndim != 1:
-        raise ValueError("donor, acceptor and wavelengths have to be one-dimensional.")
-    if not np.all(np.isfinite(donor)):
-        raise ValueError("donor emission values must be finite.")
-    if not np.all(np.isfinite(acceptor)):
-        raise ValueError("acceptor absorption values must be finite.")
-    if not np.all(np.isfinite(wavelengths)):
-        raise ValueError("wavelengths must be finite.")
-    if not np.all(np.diff(wavelengths) > 0):
-        raise ValueError("wavelengths must be strictly increasing.")
 
     donor_area = np.trapezoid(donor, x=wavelengths)
     if donor_area <= 0:
