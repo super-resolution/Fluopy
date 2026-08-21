@@ -33,10 +33,30 @@ def test_custom_single_state():
 
 
 def test_pairedstate():
-    assert tr.PairedState.S1_S0.value == [tr.SingleState.S1, tr.SingleState.S0]
+    assert tr.PairedState.S1_S0.value == (
+        tr.SingleState.S1,
+        tr.SingleState.S0,
+    )
     assert tr.PairedState.S1_S0.single_state_values == (1, 0)
     assert tr.PairedState.S1_S0.acceptor == tr.SingleState.S0
     assert tr.PairedState.S1_S0.donor == tr.SingleState.S1
+    assert tr.PairedState.S1_S0.name == "S1_S0"
+    assert len(tr.BUILTIN_PAIRED_STATES) == 15
+
+
+def test_custom_paired_state():
+    dark = tr.SingleState(name="DARK", value=10)
+    paired_state = tr.PairedState(
+        name="S1_DARK",
+        donor=tr.SingleState.S1,
+        acceptor=dark,
+    )
+
+    assert paired_state.name == "S1_DARK"
+    assert paired_state.donor is tr.SingleState.S1
+    assert paired_state.acceptor is dark
+    assert paired_state.single_state_values == (1, 10)
+    assert paired_state not in tr.BUILTIN_PAIRED_STATES
 
 
 def test_transitiontype():

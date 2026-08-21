@@ -105,10 +105,11 @@ class Analysis:
             Whether at least one of the fluorophores has reached a Markovian absorbing
             state.
         """
+        from .transitions import SingleState
 
         initial_states = self.simulation.transition_set.transition_df[
             "initial_state"
-        ].apply(lambda x: x.value if not isinstance(x.value, list) else None)
+        ].apply(lambda state: (state.value if isinstance(state, SingleState) else None))
         initial_states = initial_states.dropna().astype(int).values
         absorbing_states = {}
         is_abs = False

@@ -32,6 +32,7 @@ __all__: list[str] = [
     "SingleState",
     "BUILTIN_SINGLE_STATES",
     "PairedState",
+    "BUILTIN_PAIRED_STATES",
     "Transition",
     "TransitionSet",
 ]
@@ -85,50 +86,75 @@ BUILTIN_SINGLE_STATES = (
 )
 
 
-class PairedState(Enum):
+@dataclass(frozen=True, slots=True)
+class PairedState:
     """
-    Assigns a combination of SingleState to each energy transfer related paired state.
-    E.g., the classical Förster resonance energy transfer needs one fluorophore to be
-    in S1 and another fluorophore closeby to be in S0. After the transition, the first
-    fluorophore will be in S0 and the other in S1.
+    Contains two single states involved in an energy-transfer transition.
     """
 
-    S1_S0 = [SingleState.S1, SingleState.S0]
-    S0_S1 = [SingleState.S0, SingleState.S1]
-    S1_T1 = [SingleState.S1, SingleState.T1]
-    S1_Cis = [SingleState.S1, SingleState.cis]
-    S0_Cis = [SingleState.S0, SingleState.cis]
-    S1_OFF = [SingleState.S1, SingleState.OFF]
-    S0_S0 = [SingleState.S0, SingleState.S0]
-    S0_T2 = [SingleState.S0, SingleState.T2]
-    S1_S1 = [SingleState.S1, SingleState.S1]
-    S0_T1 = [SingleState.S0, SingleState.T1]
-    S0_OFF2 = [SingleState.S0, SingleState.OFF2]
-    S0_OFF = [SingleState.S0, SingleState.OFF]
-    S0_B = [SingleState.S0, SingleState.B]
-    S1_R = [SingleState.S1, SingleState.R]
-    S0_R = [SingleState.S0, SingleState.R]
+    name: str
+    donor: SingleState
+    acceptor: SingleState
+
+    S1_S0: ClassVar[PairedState]
+    S0_S1: ClassVar[PairedState]
+    S1_T1: ClassVar[PairedState]
+    S1_Cis: ClassVar[PairedState]
+    S0_Cis: ClassVar[PairedState]
+    S1_OFF: ClassVar[PairedState]
+    S0_S0: ClassVar[PairedState]
+    S0_T2: ClassVar[PairedState]
+    S1_S1: ClassVar[PairedState]
+    S0_T1: ClassVar[PairedState]
+    S0_OFF2: ClassVar[PairedState]
+    S0_OFF: ClassVar[PairedState]
+    S0_B: ClassVar[PairedState]
+    S1_R: ClassVar[PairedState]
+    S0_R: ClassVar[PairedState]
+
+    @property
+    def value(self) -> tuple[SingleState, SingleState]:
+        return self.donor, self.acceptor
 
     @property
     def single_state_values(self) -> tuple[int, int]:
-        """
-        Returns a tuple of SingleState values.
-        """
-        return self.value[0].value, self.value[1].value
+        return self.donor.value, self.acceptor.value
 
-    @property
-    def acceptor(self) -> SingleState:
-        """
-        Returns the acceptor (second value).
-        """
-        return self.value[1]
 
-    @property
-    def donor(self) -> SingleState:
-        """
-        Returns the donor (first value).
-        """
-        return self.value[0]
+PairedState.S1_S0 = PairedState("S1_S0", SingleState.S1, SingleState.S0)
+PairedState.S0_S1 = PairedState("S0_S1", SingleState.S0, SingleState.S1)
+PairedState.S1_T1 = PairedState("S1_T1", SingleState.S1, SingleState.T1)
+PairedState.S1_Cis = PairedState("S1_Cis", SingleState.S1, SingleState.cis)
+PairedState.S0_Cis = PairedState("S0_Cis", SingleState.S0, SingleState.cis)
+PairedState.S1_OFF = PairedState("S1_OFF", SingleState.S1, SingleState.OFF)
+PairedState.S0_S0 = PairedState("S0_S0", SingleState.S0, SingleState.S0)
+PairedState.S0_T2 = PairedState("S0_T2", SingleState.S0, SingleState.T2)
+PairedState.S1_S1 = PairedState("S1_S1", SingleState.S1, SingleState.S1)
+PairedState.S0_T1 = PairedState("S0_T1", SingleState.S0, SingleState.T1)
+PairedState.S0_OFF2 = PairedState("S0_OFF2", SingleState.S0, SingleState.OFF2)
+PairedState.S0_OFF = PairedState("S0_OFF", SingleState.S0, SingleState.OFF)
+PairedState.S0_B = PairedState("S0_B", SingleState.S0, SingleState.B)
+PairedState.S1_R = PairedState("S1_R", SingleState.S1, SingleState.R)
+PairedState.S0_R = PairedState("S0_R", SingleState.S0, SingleState.R)
+
+
+BUILTIN_PAIRED_STATES = (
+    PairedState.S1_S0,
+    PairedState.S0_S1,
+    PairedState.S1_T1,
+    PairedState.S1_Cis,
+    PairedState.S0_Cis,
+    PairedState.S1_OFF,
+    PairedState.S0_S0,
+    PairedState.S0_T2,
+    PairedState.S1_S1,
+    PairedState.S0_T1,
+    PairedState.S0_OFF2,
+    PairedState.S0_OFF,
+    PairedState.S0_B,
+    PairedState.S1_R,
+    PairedState.S0_R,
+)
 
 
 @dataclass
