@@ -1,5 +1,3 @@
-from dataclasses import asdict
-
 import matplotlib.axes
 import numpy as np
 import pandas as pd
@@ -95,6 +93,20 @@ def test_transition(transition_type, fluorophore_ids, expected):
         assert transition.rate == 1
         assert transition.photon == transition_type.photon
         assert transition.fluorophore_ids == fluorophore_ids
+
+
+def test_transition_to_dict_preserves_objects():
+    transition = tr.Transition(
+        transition_type=tr.TransitionType.EXCITATION,
+        rate=1,
+        fluorophore_ids=[0],
+    )
+
+    transition_dict = transition.to_dict()
+
+    assert transition_dict["transition_type"] is tr.TransitionType.EXCITATION
+    assert transition_dict["initial_state"] is tr.SingleState.S0
+    assert transition_dict["final_state"] is tr.SingleState.S1
 
 
 class TestTransitionSet:
@@ -480,13 +492,11 @@ def test_rate_assignment_standard():
         ((0, 4, 5), (1, 4, 5)),
     ]
     transition = pd.Series(
-        asdict(
-            tr.Transition(
-                transition_type=tr.TransitionType.EXCITATION,
-                rate=1,
-                fluorophore_ids=[0, 1],
-            )
-        )
+        tr.Transition(
+            transition_type=tr.TransitionType.EXCITATION,
+            rate=1,
+            fluorophore_ids=[0, 1],
+        ).to_dict()
     )
     transition_rate_list = tr.rate_assignment_standard(
         transition=transition,
@@ -513,13 +523,11 @@ def test_rate_assignment_energy_transfer():
         ((0, 1, 5), (1, 0, 5)),
     ]
     transition = pd.Series(
-        asdict(
-            tr.Transition(
-                transition_type=tr.TransitionType.FRET,
-                rate=1,
-                fluorophore_ids=[(0, 1), (1, 0)],
-            )
-        )
+        tr.Transition(
+            transition_type=tr.TransitionType.FRET,
+            rate=1,
+            fluorophore_ids=[(0, 1), (1, 0)],
+        ).to_dict()
     )
     transition_rate_list = tr.rate_assignment_energy_transfer(
         transition=transition,
@@ -537,22 +545,18 @@ def test_rate_assignment_energy_transfer():
 
 def test_construct_transition_rate_list():
     transition_1 = pd.Series(
-        asdict(
-            tr.Transition(
-                transition_type=tr.TransitionType.EXCITATION,
-                rate=1,
-                fluorophore_ids=[0, 1],
-            )
-        )
+        tr.Transition(
+            transition_type=tr.TransitionType.EXCITATION,
+            rate=1,
+            fluorophore_ids=[0, 1],
+        ).to_dict()
     )
     transition_2 = pd.Series(
-        asdict(
-            tr.Transition(
-                transition_type=tr.TransitionType.FRET,
-                rate=1,
-                fluorophore_ids=[(0, 1), (1, 0)],
-            )
-        )
+        tr.Transition(
+            transition_type=tr.TransitionType.FRET,
+            rate=1,
+            fluorophore_ids=[(0, 1), (1, 0)],
+        ).to_dict()
     )
     transition_df = pd.concat([transition_1, transition_2], axis=1).transpose()
     transition_df.index = pd.MultiIndex.from_tuples(

@@ -8,7 +8,7 @@ import copy
 import logging
 import re
 from collections.abc import Collection, Iterable
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field, fields
 from enum import Enum
 from itertools import product
 from typing import TYPE_CHECKING, Self
@@ -303,6 +303,9 @@ class Transition:
                         "fluorophore_ids has to be a list of ints."
                     )
 
+    def to_dict(self) -> dict[str, object]:
+        return {item.name: getattr(self, item.name) for item in fields(self)}
+
 
 class TransitionSet:
     """
@@ -409,12 +412,12 @@ class TransitionSet:
                         transition.identity = i
                         i += 1
                         keep_transitions.append(transition)
-                        df_constructor.append(asdict(transition))
+                        df_constructor.append(transition.to_dict())
                 else:
                     transition.identity = i
                     i += 1
                     keep_transitions.append(transition)
-                    df_constructor.append(asdict(transition))
+                    df_constructor.append(transition.to_dict())
             if keep_transitions:
                 transitions[fluorophore_comb] = keep_transitions
                 transition_df = pd.DataFrame(df_constructor)
