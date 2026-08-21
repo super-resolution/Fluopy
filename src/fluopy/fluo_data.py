@@ -208,6 +208,20 @@ class Spectrum:
             raise ValueError("spectrum values must be non-negative.")
 
 
+def _load_bundled_spectra(
+    directory_name: str,
+) -> tuple[Spectrum, dict[str, Spectrum]]:
+    directory = Path(__file__).parent / "fluorophore_spectra" / directory_name
+
+    emission_spectrum = Spectrum.from_csv(directory / "emission.csv")
+    absorption_spectra = {
+        path.stem.removeprefix("absorption_"): Spectrum.from_csv(path)
+        for path in sorted(directory.glob("absorption_*.csv"))
+    }
+
+    return emission_spectrum, absorption_spectra
+
+
 @dataclass
 class FluorophoreData:
     """
@@ -216,11 +230,6 @@ class FluorophoreData:
 
     Attributes
     ----------
-    data_files : str | Path | None
-        Name of a bundled spectrum directory distributed with Fluopy. Used internally
-        for predefined fluorophores when spectra are not stored directly as Spectrum
-        objects. Custom fluorophores should provide emission_spectrum and
-        absorption_spectra instead.
     emission_spectrum : Spectrum | None
         Emission spectrum used for bandpass filtering and as the donor spectrum in
         energy-transfer calculations.
@@ -246,12 +255,12 @@ class FluorophoreData:
     PHOTOBLEACH_T1_RATE : float
         The photobleaching rate from T1 to B in 1/s.
     CROSS_SECTION_WAVELENGTH : int | None
-        The wavelength in nm at which absorption cross sections are defined. The
-        standard excitation of S0 is handled via data_files (entire absorption
-        spectrum), but for other transitions (e.g., cis absorption to define
-        photoinduced back-isomerization), a single cross section should be provided.
-        The cross_section_wavelength is used to check whether the provided cross
-        sections are given for the same wavelength as a specified wavelength.
+        The wavelength in nm at which individual absorption cross sections are defined.
+        Standard excitation from S0 is calculated using the S0 absorption spectrum in
+        absorption_spectra. For other transitions, such as photoinduced
+        back-isomerization from cis, an individual cross section can be provided.
+        CROSS_SECTION_WAVELENGTH is used to check whether these cross sections
+        correspond to the specified excitation wavelength.
     DSTORM_PET_T_RATE_MOL : float
         The concentration-dependent PET rate that targets T1 in 1/(M*s).
     DSTORM_PET_S_RATE_MOL : float
@@ -289,7 +298,6 @@ class FluorophoreData:
     """
 
     # spectra
-    data_files: str | Path | None = None
     emission_spectrum: Spectrum | None = None
     absorption_spectra: dict[str, Spectrum] = field(default_factory=dict)
 
@@ -340,8 +348,15 @@ class FluorophoreData:
                 )
 
 
+_cy5_emission, _cy5_absorption = _load_bundled_spectra("cy5_data")
+_atto643_emission, _atto643_absorption = _load_bundled_spectra("atto643_data")
+_testfluo_1_emission, _testfluo_1_absorption = _load_bundled_spectra("testing_data_1")
+_testfluo_2_emission, _testfluo_2_absorption = _load_bundled_spectra("testing_data_2")
+
+
 cy5_dna = FluorophoreData(
-    data_files="cy5_data",
+    emission_spectrum=_cy5_emission,
+    absorption_spectra=_cy5_absorption,
     QUANTUM_YIELD=0.27,
     FLUORESCENCE_LIFETIME=1.7e-9,
     ISC_ST_RATE=8.3e5,
@@ -370,7 +385,8 @@ cy5_dna.__doc__ += (
 
 
 atto643 = FluorophoreData(
-    data_files="atto643_data",
+    emission_spectrum=_atto643_emission,
+    absorption_spectra=_atto643_absorption,
     QUANTUM_YIELD=0.6,
     FLUORESCENCE_LIFETIME=3e-9,
     S1_QUENCH_RATE=0,  # to be updated
@@ -386,7 +402,8 @@ atto643.__doc__ += "\nConstant photophysical attributes of Atto643."
 
 
 testfluo_1 = FluorophoreData(
-    data_files="testing_data_1",
+    emission_spectrum=_testfluo_1_emission,
+    absorption_spectra=_testfluo_1_absorption,
     QUANTUM_YIELD=0.27,
     FLUORESCENCE_LIFETIME=1e-9,
     ISC_ST_RATE=8.3e5,
@@ -405,7 +422,8 @@ testfluo_1.__doc__ += "\nConstant photophysical attributes of testing fluorophor
 
 
 testfluo_2 = FluorophoreData(
-    data_files="testing_data_2",
+    emission_spectrum=_testfluo_2_emission,
+    absorption_spectra=_testfluo_2_absorption,
     QUANTUM_YIELD=0.6,
     FLUORESCENCE_LIFETIME=3e-9,
     S1_QUENCH_RATE=0,

@@ -15,7 +15,6 @@ from scipy.stats import binom, gamma, norm, poisson
 
 from . import figure as fi
 from .fluo_data import Spectrum
-from .fluorophores import Fluorophore
 from .simulation import (
     Simulation,
     eval_floating_point_precision_error,
@@ -68,8 +67,8 @@ class Emissions:
             For possible input values, see
             https://pandas.pydata.org/docs/user_guide/timeseries.html -> Offset aliases.
         bandpass
-            The lowest and highest emission wavelength to be passed by the bandpass
-            filter. Requires emission spectrum data when specified.
+            The lowest and highest wavelength in nm passed by the bandpass filter.
+            Requires emission spectrum data when specified.
         seed
             A seed to initialize the BitGenerator.
         """
@@ -331,19 +330,20 @@ class Emissions:
             rng = np.random.default_rng(seed)
             processed = []
             collect_emission_indices = []
-            data_dir = Path(__file__).parent / "fluorophore_spectra"
 
             for (
                 fluorophore
             ) in simulation.transition_set.fluorophore_system.fluorophores:
-                if fluorophore.constants is None:
+                constants = fluorophore.constants
+                if constants is None or constants.emission_spectrum is None:
                     raise ValueError(
                         "bandpass not None but emission data not available for "
                         f"this kind of fluorophore: {fluorophore.name}"
                     )
                 if fluorophore.name not in processed:
                     p_passed = get_p_filter(
-                        data_dir=data_dir, fluorophore=fluorophore, bandpass=bandpass
+                        emission_spectrum=constants.emission_spectrum,
+                        bandpass=bandpass,
                     )
                     p_not_passed = 1 - p_passed
                     sub_df = simulation.transition_set.transition_df.loc[
@@ -756,19 +756,16 @@ class Emissions:
 
 
 def get_p_filter(
-    data_dir: str | Path,
-    fluorophore: Fluorophore,
+    emission_spectrum: Spectrum,
     bandpass: tuple[float, float],
 ) -> float:
     """
-    Get the probability of a photon emitted by fluorophore passing the bandpass filter.
+    Get the fraction of an emission spectrum passing the bandpass filter.
 
     Parameters
     ----------
-    data_dir
-        The directory of data files of fluorophores.
-    fluorophore
-        Contains attributes of a fluorophore.
+    emission_spectrum
+        Emission spectrum to which the bandpass filter is applied.
     bandpass
         The lowest and highest emission wavelength to be passed by the bandpass filter.
 
@@ -787,24 +784,9 @@ def get_p_filter(
             "The lower bandpass limit has to be smaller than the upper limit."
         )
 
-    constants = fluorophore.constants
-
-    if constants is None:
-        raise ValueError(f"emission spectrum is not available for {fluorophore.name}.")
-
-    if constants.emission_spectrum is not None:
-        emission_spectrum = constants.emission_spectrum
-    elif constants.data_files is not None:
-        emission_path = Path(data_dir) / constants.data_files / "emission.csv"
-        emission_spectrum = Spectrum.from_csv(emission_path)
-    else:
-        raise ValueError(f"emission spectrum is not available for {fluorophore.name}.")
-
     total_emission = emission_spectrum.integral()
     if total_emission == 0:
-        raise ValueError(
-            f"emission spectrum for {fluorophore.name} has zero total intensity."
-        )
+        raise ValueError("emission spectrum has zero total intensity.")
 
     passed_emission = emission_spectrum.integral(
         lower=lower,
@@ -842,17 +824,16 @@ def get_emitting_transition_ids(
     emitting_transition_ids = {}
     if bandpass is not None:
         processed = []
-        data_dir = Path(__file__).parent / "fluorophore_spectra"
         for fluorophore in transition_set.fluorophore_system.fluorophores:
-            if fluorophore.constants is None:
+            constants = fluorophore.constants
+            if constants is None or constants.emission_spectrum is None:
                 raise ValueError(
                     "bandpass not None but emission data not available for "
                     f"this kind of fluorophore: {fluorophore.name}"
                 )
             if fluorophore.name not in processed:
                 p_passed = get_p_filter(
-                    data_dir=data_dir,
-                    fluorophore=fluorophore,
+                    emission_spectrum=constants.emission_spectrum,
                     bandpass=bandpass,
                 )
                 sub_df = transition_set.transition_df.loc[fluorophore.name]
@@ -863,6 +844,7 @@ def get_emitting_transition_ids(
                 ].index.to_numpy()
                 for emitting_transition_id in emitting_transition_ids_f:
                     emitting_transition_ids[emitting_transition_id] = p_passed
+                processed.append(fluorophore.name)
     else:
         df = transition_set.combined_state_transitions_df
         emitting_transition_ids_ = df.loc[df["photon"]].index.to_numpy()

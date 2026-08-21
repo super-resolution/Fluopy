@@ -11,7 +11,6 @@ from collections.abc import Collection, Iterable
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from itertools import product
-from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
 import numpy as np
@@ -21,7 +20,7 @@ from scipy import interpolate as itp
 
 from . import formulas as fo
 from . import network as net
-from .fluo_data import FluorophoreData, Spectrum
+from .fluo_data import FluorophoreData
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
@@ -1075,35 +1074,14 @@ def derive_energy_transfer_transitions(
     transitions : list[Transition]
         Contains energy transfer transitions of type Transition.
     """
-
-    data_dir = Path(__file__).parent / "fluorophore_spectra"
-
-    if donor_data.emission_spectrum is not None:
-        donor_emission = donor_data.emission_spectrum
-    elif donor_data.data_files is not None:
-        donor_emission = Spectrum.from_csv(
-            data_dir / donor_data.data_files / "emission.csv"
-        )
-    else:
+    donor_emission = donor_data.emission_spectrum
+    if donor_emission is None:
         raise ValueError(
             "cannot derive energy-transfer transitions without a donor "
             "emission spectrum."
         )
 
-    if acceptor_data.absorption_spectra:
-        acceptor_absorptions = acceptor_data.absorption_spectra
-    elif acceptor_data.data_files is not None:
-        acceptor_directory = data_dir / acceptor_data.data_files
-        acceptor_absorptions = {
-            path.stem.removeprefix("absorption_"): Spectrum.from_csv(path)
-            for path in sorted(acceptor_directory.glob("absorption_*.csv"))
-        }
-    else:
-        raise ValueError(
-            "cannot derive energy-transfer transitions without acceptor "
-            "absorption spectra."
-        )
-
+    acceptor_absorptions = acceptor_data.absorption_spectra
     if not acceptor_absorptions:
         raise ValueError(
             "cannot derive energy-transfer transitions without acceptor "
@@ -1316,20 +1294,12 @@ def derive_transitions(
     _, _, frequency = fo.convert_wavenumber_wavelength_frequency(wavelength=wavelength)
     photon_flux = fo.calculate_photon_flux(irradiance=irradiance, frequency=frequency)
 
-    if "s0" in fd.absorption_spectra:
-        absorption_spectrum = fd.absorption_spectra["s0"]
-    elif fd.data_files is not None:
-        path_absorption = (
-            Path(__file__).parent
-            / "fluorophore_spectra"
-            / fd.data_files
-            / "absorption_s0.csv"
-        )
-        absorption_spectrum = Spectrum.from_csv(path_absorption)
-    else:
+    if "s0" not in fd.absorption_spectra:
         raise ValueError(
             "cannot derive excitation transition without an S0 absorption spectrum."
         )
+
+    absorption_spectrum = fd.absorption_spectra["s0"]
 
     if fluorophore_ids is None:
         fluorophore_ids = [0]

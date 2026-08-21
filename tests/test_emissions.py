@@ -8,7 +8,6 @@ import pytest
 
 from fluopy import emissions as em
 from fluopy import fluo_data as fd
-from fluopy import fluorophores as fl
 
 
 @pytest.mark.parametrize(
@@ -20,26 +19,20 @@ from fluopy import fluorophores as fl
     ],
 )
 def test_get_p_filter(bandpass, expected):
-    data_dir = Path(__file__).parents[1] / "src" / "fluopy" / "fluorophore_spectra"
-    fluorophore = fl.Fluorophore(
-        name="testfluo_1",
-        position=[0, 0],
-    )
-
+    emission_spectrum = fd.testfluo_1.emission_spectrum
+    assert emission_spectrum is not None
     if expected == "ValueError":
         with pytest.raises(
             ValueError,
             match=("The lower bandpass limit has to be smaller than the upper limit."),
         ):
-            em.get_p_filter(
-                data_dir=data_dir,
-                fluorophore=fluorophore,
+            p_passed = em.get_p_filter(
+                emission_spectrum=emission_spectrum,
                 bandpass=bandpass,
             )
     else:
         p_passed = em.get_p_filter(
-            data_dir=data_dir,
-            fluorophore=fluorophore,
+            emission_spectrum=emission_spectrum,
             bandpass=bandpass,
         )
         assert p_passed == pytest.approx(expected)
@@ -47,19 +40,16 @@ def test_get_p_filter(bandpass, expected):
 
 @pytest.mark.parametrize("bandpass", [(np.nan, 700), (650, np.inf)])
 def test_get_p_filter_non_finite_bandpass(bandpass):
-    data_dir = Path(__file__).parents[1] / "src" / "fluopy" / "fluorophore_spectra"
-    fluorophore = fl.Fluorophore(
-        name="testfluo_1",
-        position=[0, 0],
+    emission_spectrum = fd.Spectrum(
+        wavelengths=[500, 600],
+        values=[0, 1],
     )
-
     with pytest.raises(
         ValueError,
         match="bandpass limits must be finite.",
     ):
         em.get_p_filter(
-            data_dir=data_dir,
-            fluorophore=fluorophore,
+            emission_spectrum=emission_spectrum,
             bandpass=bandpass,
         )
 
@@ -69,78 +59,39 @@ def test_get_p_filter_with_in_memory_spectrum():
         wavelengths=[500, 510, 520],
         values=[0, 1, 0],
     )
-    fluorophore_data = fd.FluorophoreData(emission_spectrum=emission_spectrum)
-    fluorophore = fl.Fluorophore(
-        name="custom",
-        position=[0, 0],
-        constants=fluorophore_data,
-    )
 
     p_passed = em.get_p_filter(
-        data_dir="unused",
-        fluorophore=fluorophore,
+        emission_spectrum=emission_spectrum,
         bandpass=(505, 515),
     )
 
     assert p_passed == pytest.approx(0.75)
 
 
-def test_get_p_filter_without_emission_spectrum():
-    fluorophore = fl.Fluorophore(
-        name="custom",
-        position=[0, 0],
-        constants=fd.FluorophoreData(),
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="emission spectrum is not available for custom.",
-    ):
-        em.get_p_filter(
-            data_dir="unused",
-            fluorophore=fluorophore,
-            bandpass=(500, 600),
-        )
-
-
 def test_get_p_filter_zero_emission_spectrum():
-    fluorophore = fl.Fluorophore(
-        name="custom",
-        position=[0, 0],
-        constants=fd.FluorophoreData(
-            emission_spectrum=fd.Spectrum(
-                wavelengths=[500, 600],
-                values=[0, 0],
-            )
-        ),
+    emission_spectrum = fd.Spectrum(
+        wavelengths=[500, 600],
+        values=[0, 0],
     )
 
     with pytest.raises(
         ValueError,
-        match="emission spectrum for custom has zero total intensity.",
+        match="emission spectrum has zero total intensity.",
     ):
         em.get_p_filter(
-            data_dir="unused",
-            fluorophore=fluorophore,
+            emission_spectrum=emission_spectrum,
             bandpass=(500, 600),
         )
 
 
 def test_get_p_filter_without_spectral_overlap():
-    fluorophore = fl.Fluorophore(
-        name="custom",
-        position=[0, 0],
-        constants=fd.FluorophoreData(
-            emission_spectrum=fd.Spectrum(
-                wavelengths=[500, 600],
-                values=[0, 1],
-            )
-        ),
+    emission_spectrum = fd.Spectrum(
+        wavelengths=[500, 600],
+        values=[0, 1],
     )
 
     p_passed = em.get_p_filter(
-        data_dir="unused",
-        fluorophore=fluorophore,
+        emission_spectrum=emission_spectrum,
         bandpass=(700, 800),
     )
 
