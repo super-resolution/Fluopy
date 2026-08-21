@@ -509,6 +509,54 @@ def test_transition_set_accepts_custom_state(flu_sys_cy5):
     assert transition_set.combined_state_transitions_df.loc[0, "final_state"] == (0,)
 
 
+def test_transition_set_accepts_paired_only_states(flu_sys_unk_cy5):
+    donor_dark = tr.SingleState(name="DONOR_DARK", value=10)
+    acceptor_dark = tr.SingleState(name="ACCEPTOR_DARK", value=11)
+
+    final_state = tr.PairedState(
+        name="DONOR_DARK_ACCEPTOR_DARK",
+        donor=donor_dark,
+        acceptor=acceptor_dark,
+    )
+    custom_et = tr.TransitionType(
+        abbreviation="DARK_ET",
+        initial_state=tr.PairedState.S1_S0,
+        final_state=final_state,
+        photon=False,
+    )
+
+    donor_id, acceptor_id = 0, 1
+    donor = flu_sys_unk_cy5.fluorophores[donor_id]
+    acceptor = flu_sys_unk_cy5.fluorophores[acceptor_id]
+    distance = flu_sys_unk_cy5.distances[(donor_id, acceptor_id)]
+
+    transitions = {
+        f"D: {donor.name}, A: {acceptor.name}, dist: {distance}": [
+            tr.Transition(
+                transition_type=custom_et,
+                rate=1,
+                fluorophore_ids=[(donor_id, acceptor_id)],
+            )
+        ]
+    }
+
+    transition_set = tr.TransitionSet(transitions, flu_sys_unk_cy5)
+
+    np.testing.assert_array_equal(
+        transition_set.single_states[donor.name],
+        [tr.SingleState.S1.value, donor_dark.value],
+    )
+    np.testing.assert_array_equal(
+        transition_set.single_states[acceptor.name],
+        [tr.SingleState.S0.value, acceptor_dark.value],
+    )
+
+    combined_transition = transition_set.combined_state_transitions_df.iloc[0]
+    assert combined_transition["initial_state"] == (1, 0)
+    assert combined_transition["final_state"] == (10, 11)
+    assert not transition_set.transition_df["absorbing"].any()
+
+
 def test_transition_set_rejects_duplicate_state_value(flu_sys_cy5):
     dark = tr.SingleState(name="DARK", value=tr.SingleState.B.value)
     recovery = tr.TransitionType("REC", dark, tr.SingleState.S0, False)

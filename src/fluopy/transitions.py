@@ -621,7 +621,11 @@ class TransitionSet:
                 )
                 self.transition_df = pd.concat([self.transition_df, transition_df])
         self.states_by_value = get_states_by_value(self.transitions)
-        self.single_states = get_single_states(self.transitions, self.transition_df)
+        self.single_states = get_single_states(
+            self.transitions,
+            self.transition_df,
+            self.fluorophore_system,
+        )
         # also assigns whether a transition leads to a Markovian absorbing state
 
         self._combined_state_transitions_df = None
@@ -891,13 +895,16 @@ class TransitionSet:
 
 
 def get_single_states(
-    transitions: dict[str, Collection[Transition]], transition_df: pd.DataFrame
+    transitions: dict[str, Collection[Transition]],
+    transition_df: pd.DataFrame,
+    fluorophore_system: FluorophoreSystem,
 ) -> dict[str, npt.NDArray[int]]:
     """
-    Gets the values of SingleStates that occur in non-energy transfer transitions.
-    Also assigns whether a transition leads to a Markovian absorbing state (note that
-    hypothetically, an energy transfer onto that state which yields another or the same
-    state could still happen).
+    Get the values of SingleStates occurring in transitions.
+
+    PairedState components are assigned to their corresponding donor and acceptor
+    fluorophore types. Transitions leading to individually Markovian absorbing states
+    are identified using only non-energy-transfer transitions.
 
     Parameters
     ----------
@@ -906,6 +913,8 @@ def get_single_states(
     transition_df
         Dataframe of all given transitions with non-zero rate containing their id as
         index and their other attributes as columns.
+    fluorophore_system
+        Container for attributes of multiple, interrelated fluorophores.
 
     Returns
     -------
@@ -925,30 +934,65 @@ def get_single_states(
                     single_states_.append(initial_state.value)
                 if final_state.value not in single_states_:
                     single_states_.append(final_state.value)
-            single_states_ = np.array(single_states_)
+
             single_states[fluorophore_comb] = single_states_
             single_state_df = pd.DataFrame(single_states_, columns=["single_states"])
             single_state_df["absorbing"] = False
+
+            initial_states = (
+                transition_df.loc[fluorophore_comb, "initial_state"]
+                .apply(lambda x: x.value)
+                .values
+            )
             for i, single_state in single_state_df["single_states"].items():
-                if (
-                    single_state
-                    not in transition_df.loc[fluorophore_comb, "initial_state"]
-                    .apply(lambda x: x.value)
-                    .values
-                ):
+                if single_state not in initial_states:
                     single_state_df.at[i, "absorbing"] = True
+
             final_states = (
                 transition_df.loc[fluorophore_comb, "final_state"]
                 .apply(lambda x: x.value)
                 .values
             )
-            absorbing_states = single_state_df["single_states"][
-                single_state_df["absorbing"]
+            absorbing_states = single_state_df.loc[
+                single_state_df["absorbing"],
+                "single_states",
             ]
             if not absorbing_states.empty:
                 indices = np.where(np.isin(final_states, absorbing_states.values))[0]
                 index_values = transition_df.loc[fluorophore_comb].iloc[indices].index
                 transition_df.loc[(fluorophore_comb, index_values), "absorbing"] = True
+    for f_transitions in transitions.values():
+        for transition in f_transitions:
+            if not isinstance(transition.initial_state, PairedState):
+                continue
+
+            initial_state = transition.initial_state
+            final_state = transition.final_state
+
+            for donor_id, acceptor_id in transition.fluorophore_ids:
+                donor_name = fluorophore_system.fluorophores[donor_id].name
+                acceptor_name = fluorophore_system.fluorophores[acceptor_id].name
+
+                paired_states = (
+                    (
+                        donor_name,
+                        (initial_state.donor.value, final_state.donor.value),
+                    ),
+                    (
+                        acceptor_name,
+                        (initial_state.acceptor.value, final_state.acceptor.value),
+                    ),
+                )
+
+                for fluorophore_name, states in paired_states:
+                    single_states.setdefault(fluorophore_name, [])
+                    for state in states:
+                        if state not in single_states[fluorophore_name]:
+                            single_states[fluorophore_name].append(state)
+    single_states = {
+        fluorophore: np.asarray(states, dtype=np.int64)
+        for fluorophore, states in single_states.items()
+    }
 
     return single_states
 
