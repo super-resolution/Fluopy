@@ -9,7 +9,6 @@ import logging
 import re
 from collections.abc import Collection, Iterable
 from dataclasses import dataclass, field, fields
-from enum import Enum
 from itertools import product
 from typing import TYPE_CHECKING, ClassVar, Self
 
@@ -33,6 +32,8 @@ __all__: list[str] = [
     "BUILTIN_SINGLE_STATES",
     "PairedState",
     "BUILTIN_PAIRED_STATES",
+    "TransitionType",
+    "BUILTIN_TRANSITION_TYPES",
     "Transition",
     "TransitionSet",
 ]
@@ -157,8 +158,8 @@ BUILTIN_PAIRED_STATES = (
 )
 
 
-@dataclass
-class TransitionAttributes:
+@dataclass(frozen=True, slots=True)
+class TransitionType:
     """
     Contains constant attributes of photophysical transitions.
 
@@ -180,133 +181,172 @@ class TransitionAttributes:
     photon: bool
 
 
-class TransitionType(Enum):
-    """
-    Assigns constant attributes to each possible photophysical transition.
-    """
+# general
+TransitionType.EXCITATION = TransitionType("EXC", SingleState.S0, SingleState.S1, False)
+TransitionType.FLUORESCENT_EMISSION = TransitionType(
+    "FLU", SingleState.S1, SingleState.S0, True
+)
+TransitionType.SINGLET_QUENCHING = TransitionType(
+    "SQ", SingleState.S1, SingleState.S0, False
+)
+TransitionType.INTERSYSTEM_CROSSING_ST = TransitionType(
+    "ISC_ST", SingleState.S1, SingleState.T1, False
+)
+TransitionType.INTERSYSTEM_CROSSING_TS = TransitionType(
+    "ISC_TS", SingleState.T1, SingleState.S0, False
+)
+TransitionType.INTERNAL_CONVERSION_S = TransitionType(
+    "IC", SingleState.S1, SingleState.S0, False
+)
+TransitionType.REVERSE_INTERSYSTEM_CROSSING = TransitionType(
+    "RISC", SingleState.T1, SingleState.S1, False
+)
+TransitionType.PHOTOBLEACHING_1 = TransitionType(
+    "BLE", SingleState.T1, SingleState.B, False
+)
+TransitionType.PHOTOBLEACHING_2 = TransitionType(
+    "BLE2", SingleState.T2, SingleState.B, False
+)
 
-    # general
-    EXCITATION = TransitionAttributes("EXC", SingleState.S0, SingleState.S1, False)
-    FLUORESCENT_EMISSION = TransitionAttributes(
-        "FLU", SingleState.S1, SingleState.S0, True
-    )
-    SINGLET_QUENCHING = TransitionAttributes(
-        "SQ", SingleState.S1, SingleState.S0, False
-    )
-    INTERSYSTEM_CROSSING_ST = TransitionAttributes(
-        "ISC_ST", SingleState.S1, SingleState.T1, False
-    )
-    INTERSYSTEM_CROSSING_TS = TransitionAttributes(
-        "ISC_TS", SingleState.T1, SingleState.S0, False
-    )
-    INTERNAL_CONVERSION_S = TransitionAttributes(
-        "IC", SingleState.S1, SingleState.S0, False
-    )
-    REVERSE_INTERSYSTEM_CROSSING = TransitionAttributes(
-        "RISC", SingleState.T1, SingleState.S1, False
-    )
-    PHOTOBLEACHING_1 = TransitionAttributes("BLE", SingleState.T1, SingleState.B, False)
-    PHOTOBLEACHING_2 = TransitionAttributes(
-        "BLE2", SingleState.T2, SingleState.B, False
-    )
+# dstorm
+TransitionType.ET_CYCLE_T = TransitionType(
+    "PET_TS", SingleState.T1, SingleState.S0, False
+)
+TransitionType.ET_CYCLE_S = TransitionType(
+    "PET_SS", SingleState.S1, SingleState.S0, False
+)
+TransitionType.ADDUCT_T = TransitionType(
+    "PET_TO", SingleState.T1, SingleState.OFF, False
+)
+TransitionType.ADDUCT_S = TransitionType(
+    "PET_SO", SingleState.S1, SingleState.OFF, False
+)
+TransitionType.THERM_ELIMINATION = TransitionType(
+    "TE", SingleState.OFF, SingleState.S0, False
+)
+TransitionType.PHOTO_UNCAGING = TransitionType(
+    "PU", SingleState.OFF, SingleState.S0, False
+)
+TransitionType.RAD_ESCAPE = TransitionType(
+    "PET_TR", SingleState.T1, SingleState.R, False
+)
+TransitionType.RAD_RELAX = TransitionType("OXI", SingleState.R, SingleState.S0, False)
 
-    # dstorm
-    ET_CYCLE_T = TransitionAttributes("PET_TS", SingleState.T1, SingleState.S0, False)
-    ET_CYCLE_S = TransitionAttributes("PET_SS", SingleState.S1, SingleState.S0, False)
-    ADDUCT_T = TransitionAttributes("PET_TO", SingleState.T1, SingleState.OFF, False)
-    ADDUCT_S = TransitionAttributes("PET_SO", SingleState.S1, SingleState.OFF, False)
-    THERM_ELIMINATION = TransitionAttributes(
-        "TE", SingleState.OFF, SingleState.S0, False
-    )
-    PHOTO_UNCAGING = TransitionAttributes("PU", SingleState.OFF, SingleState.S0, False)
-    RAD_ESCAPE = TransitionAttributes("PET_TR", SingleState.T1, SingleState.R, False)
-    RAD_RELAX = TransitionAttributes("OXI", SingleState.R, SingleState.S0, False)
+# cis trans isomerization
+TransitionType.ISOMERIZATION = TransitionType(
+    "ISO", SingleState.S1, SingleState.cis, False
+)
+TransitionType.PHOTO_BISO = TransitionType(
+    "PBISO", SingleState.cis, SingleState.S0, False
+)
+TransitionType.THERM_BISO = TransitionType(
+    "TBISO", SingleState.cis, SingleState.S0, False
+)
 
-    # cis trans isomerization
-    ISOMERIZATION = TransitionAttributes("ISO", SingleState.S1, SingleState.cis, False)
-    PHOTO_BISO = TransitionAttributes("PBISO", SingleState.cis, SingleState.S0, False)
-    THERM_BISO = TransitionAttributes("TBISO", SingleState.cis, SingleState.S0, False)
+# energy transfers
+TransitionType.FRET = TransitionType(
+    "FRET", PairedState.S1_S0, PairedState.S0_S1, False
+)
+TransitionType.CIS_FRET_1 = TransitionType(
+    "CET_1", PairedState.S1_Cis, PairedState.S0_Cis, False
+)
+TransitionType.CIS_FRET_2 = TransitionType(
+    "CET_2", PairedState.S1_Cis, PairedState.S0_S0, False
+)
+TransitionType.OFF_FRET_1 = TransitionType(
+    "OET_1", PairedState.S1_OFF, PairedState.S0_OFF, False
+)
+TransitionType.OFF_FRET_2 = TransitionType(
+    "OET_2", PairedState.S1_OFF, PairedState.S0_S0, False
+)
+TransitionType.S_S_ANNIHILATION = TransitionType(
+    "SSA", PairedState.S1_S1, PairedState.S0_S1, False
+)
+TransitionType.S_T_ANNIHILATION = TransitionType(
+    "STA", PairedState.S1_T1, PairedState.S0_T1, False
+)
+TransitionType.S_T_ANNI_RISC = TransitionType(
+    "STA_2", PairedState.S1_T1, PairedState.S0_S1, False
+)
+TransitionType.S_T_ANNI_BLEACH = TransitionType(
+    "STA_B", PairedState.S1_T1, PairedState.S0_B, False
+)
+TransitionType.R_FRET_1 = TransitionType(
+    "RET_1", PairedState.S1_R, PairedState.S0_R, False
+)
+TransitionType.R_FRET_2 = TransitionType(
+    "RET_2", PairedState.S1_R, PairedState.S0_S0, False
+)
 
-    # energy transfers
-    FRET = TransitionAttributes("FRET", PairedState.S1_S0, PairedState.S0_S1, False)
-    CIS_FRET_1 = TransitionAttributes(
-        "CET_1", PairedState.S1_Cis, PairedState.S0_Cis, False
-    )
-    CIS_FRET_2 = TransitionAttributes(
-        "CET_2", PairedState.S1_Cis, PairedState.S0_S0, False
-    )
-    OFF_FRET_1 = TransitionAttributes(
-        "OET_1", PairedState.S1_OFF, PairedState.S0_OFF, False
-    )
-    OFF_FRET_2 = TransitionAttributes(
-        "OET_2", PairedState.S1_OFF, PairedState.S0_S0, False
-    )
-    S_S_ANNIHILATION = TransitionAttributes(
-        "SSA", PairedState.S1_S1, PairedState.S0_S1, False
-    )
-    S_T_ANNIHILATION = TransitionAttributes(
-        "STA", PairedState.S1_T1, PairedState.S0_T1, False
-    )
-    S_T_ANNI_RISC = TransitionAttributes(
-        "STA_2", PairedState.S1_T1, PairedState.S0_S1, False
-    )
-    S_T_ANNI_BLEACH = TransitionAttributes(
-        "STA_B", PairedState.S1_T1, PairedState.S0_B, False
-    )
-    R_FRET_1 = TransitionAttributes("RET_1", PairedState.S1_R, PairedState.S0_R, False)
-    R_FRET_2 = TransitionAttributes("RET_2", PairedState.S1_R, PairedState.S0_S0, False)
+# rhodamines
+TransitionType.H2O_ATTACK_S = TransitionType(
+    "H2OS", SingleState.S1, SingleState.OFF, False
+)
+TransitionType.H2O_ATTACK_T = TransitionType(
+    "H2OT", SingleState.T1, SingleState.OFF, False
+)
+TransitionType.BACK_REACTION = TransitionType(
+    "BR", SingleState.OFF, SingleState.S0, False
+)
 
-    # rhodamines
-    H2O_ATTACK_S = TransitionAttributes("H2OS", SingleState.S1, SingleState.OFF, False)
-    H2O_ATTACK_T = TransitionAttributes("H2OT", SingleState.T1, SingleState.OFF, False)
-    BACK_REACTION = TransitionAttributes("BR", SingleState.OFF, SingleState.S0, False)
-
-    # summarize
-    S1_S0_TRANSITIONS = TransitionAttributes(
-        "S1S0SUM", SingleState.S1, SingleState.S0, False
-    )
-    CIS_S0_TRANSITIONS = TransitionAttributes(
-        "cisS0SUM", SingleState.cis, SingleState.S0, False
-    )
-    T1_S0_TRANSITIONS = TransitionAttributes(
-        "T1S0SUM", SingleState.T1, SingleState.S0, False
-    )
-    OFF_S0_TRANSITIONS = TransitionAttributes(
-        "OFFS0SUM", SingleState.OFF, SingleState.S0, False
-    )
-
-    @property
-    def abbreviation(self) -> str:
-        """
-        Returns the abbreviation of type str.
-        """
-        return self.value.abbreviation
-
-    @property
-    def initial_state(self) -> SingleState | PairedState:
-        """
-        Returns the initial state of type SingleState or PairedState.
-        """
-        return self.value.initial_state
-
-    @property
-    def final_state(self) -> SingleState | PairedState:
-        """
-        Returns the final state of type SingleState or PairedState.
-        """
-        return self.value.final_state
-
-    @property
-    def photon(self) -> bool:
-        """
-        Returns bool indicating whether the transition emits a photon.
-        """
-        return self.value.photon
+# summarize
+TransitionType.S1_S0_TRANSITIONS = TransitionType(
+    "S1S0SUM", SingleState.S1, SingleState.S0, False
+)
+TransitionType.CIS_S0_TRANSITIONS = TransitionType(
+    "cisS0SUM", SingleState.cis, SingleState.S0, False
+)
+TransitionType.T1_S0_TRANSITIONS = TransitionType(
+    "T1S0SUM", SingleState.T1, SingleState.S0, False
+)
+TransitionType.OFF_S0_TRANSITIONS = TransitionType(
+    "OFFS0SUM", SingleState.OFF, SingleState.S0, False
+)
 
 
-@dataclass(
-    slots=True
-)  # frozen=True if code will not be modified (autoreload complications otherwise)
+BUILTIN_TRANSITION_TYPES = (
+    TransitionType.EXCITATION,
+    TransitionType.FLUORESCENT_EMISSION,
+    TransitionType.SINGLET_QUENCHING,
+    TransitionType.INTERSYSTEM_CROSSING_ST,
+    TransitionType.INTERSYSTEM_CROSSING_TS,
+    TransitionType.INTERNAL_CONVERSION_S,
+    TransitionType.REVERSE_INTERSYSTEM_CROSSING,
+    TransitionType.PHOTOBLEACHING_1,
+    TransitionType.PHOTOBLEACHING_2,
+    TransitionType.ET_CYCLE_T,
+    TransitionType.ET_CYCLE_S,
+    TransitionType.ADDUCT_T,
+    TransitionType.ADDUCT_S,
+    TransitionType.THERM_ELIMINATION,
+    TransitionType.PHOTO_UNCAGING,
+    TransitionType.RAD_ESCAPE,
+    TransitionType.RAD_RELAX,
+    TransitionType.ISOMERIZATION,
+    TransitionType.PHOTO_BISO,
+    TransitionType.THERM_BISO,
+    TransitionType.FRET,
+    TransitionType.CIS_FRET_1,
+    TransitionType.CIS_FRET_2,
+    TransitionType.OFF_FRET_1,
+    TransitionType.OFF_FRET_2,
+    TransitionType.S_S_ANNIHILATION,
+    TransitionType.S_T_ANNIHILATION,
+    TransitionType.S_T_ANNI_RISC,
+    TransitionType.S_T_ANNI_BLEACH,
+    TransitionType.R_FRET_1,
+    TransitionType.R_FRET_2,
+    TransitionType.H2O_ATTACK_S,
+    TransitionType.H2O_ATTACK_T,
+    TransitionType.BACK_REACTION,
+    TransitionType.S1_S0_TRANSITIONS,
+    TransitionType.CIS_S0_TRANSITIONS,
+    TransitionType.T1_S0_TRANSITIONS,
+    TransitionType.OFF_S0_TRANSITIONS,
+)
+
+
+@dataclass(slots=True)
 class Transition:
     """
     Contains constant and variable attributes of photophysical transitions.

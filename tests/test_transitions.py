@@ -60,27 +60,37 @@ def test_custom_paired_state():
 
 
 def test_transitiontype():
-    assert tr.TransitionType.EXCITATION.abbreviation == "EXC"
-    assert (
-        tr.TransitionType.EXCITATION.value.abbreviation
-        == tr.TransitionType.EXCITATION.abbreviation
+    transition_type = tr.TransitionType.EXCITATION
+
+    assert transition_type.abbreviation == "EXC"
+    assert transition_type.initial_state is tr.SingleState.S0
+    assert transition_type.final_state is tr.SingleState.S1
+    assert transition_type.photon is False
+    assert transition_type in tr.BUILTIN_TRANSITION_TYPES
+    assert len(tr.BUILTIN_TRANSITION_TYPES) == 38
+
+
+def test_custom_transitiontype():
+    dark = tr.SingleState(name="DARK", value=10)
+    recovery = tr.TransitionType(
+        abbreviation="REC",
+        initial_state=dark,
+        final_state=tr.SingleState.S0,
+        photon=False,
     )
-    assert tr.TransitionType.EXCITATION.initial_state == tr.SingleState.S0
-    assert (
-        tr.TransitionType.EXCITATION.value.initial_state
-        == tr.TransitionType.EXCITATION.initial_state
+
+    transition = tr.Transition(
+        transition_type=recovery,
+        rate=1e3,
+        fluorophore_ids=[0],
     )
-    assert tr.TransitionType.EXCITATION.final_state == tr.SingleState.S1
-    assert (
-        tr.TransitionType.EXCITATION.value.final_state
-        == tr.TransitionType.EXCITATION.final_state
-    )
-    assert tr.TransitionType.EXCITATION.photon is False
-    assert (
-        tr.TransitionType.EXCITATION.value.photon == tr.TransitionType.EXCITATION.photon
-    )
-    for transition_type in tr.TransitionType:
-        assert len(transition_type.value.__dict__) == 4
+
+    assert transition.transition_type is recovery
+    assert transition.abbreviation == "REC"
+    assert transition.initial_state is dark
+    assert transition.final_state is tr.SingleState.S0
+    assert transition.photon is False
+    assert recovery not in tr.BUILTIN_TRANSITION_TYPES
 
 
 @pytest.mark.parametrize(
