@@ -3,8 +3,10 @@ import logging
 import numpy as np
 import pytest
 
+from fluopy import emissions as em
 from fluopy import fluorophores as fl
-from fluopy.fluo_data import FluorophoreData, testfluo_1, testfluo_2
+from fluopy import transitions as tr
+from fluopy.fluo_data import FluorophoreData, Spectrum, testfluo_1, testfluo_2
 
 
 @pytest.mark.parametrize(
@@ -272,3 +274,141 @@ def test_construct_fluorophores(name, distance, count, expected, caplog):
     for fluorophore, position in zip(fluorophores, expected):
         assert fluorophore.name == name
         np.testing.assert_allclose(fluorophore.position, position, rtol=1e-5)
+
+
+def test_custom_fluorophore_automatic_transitions_and_bandpass():
+    fluorophore_data = FluorophoreData(
+        QUANTUM_YIELD=0.5,
+        FLUORESCENCE_LIFETIME=2e-9,
+        emission_spectrum=Spectrum(
+            wavelengths=[500, 510, 520],
+            values=[0, 1, 0],
+        ),
+        absorption_spectra={
+            "s0": Spectrum(
+                wavelengths=[500, 510, 520],
+                values=[1000, 2000, 1000],
+            )
+        },
+    )
+    fluorophore = fl.Fluorophore(
+        name="custom",
+        position=[0, 0],
+        constants=fluorophore_data,
+    )
+    fluorophore_system = fl.FluorophoreSystem(fluorophores=[fluorophore])
+
+    transitions = fluorophore_system.load_transitions(
+        wavelength=510,
+        irradiance=1,
+        energy_transfer=False,
+        dstorm=False,
+    )
+
+    assert list(transitions) == ["custom"]
+
+    excitation = next(
+        transition
+        for transition in transitions["custom"]
+        if transition.transition_type is tr.TransitionType.EXCITATION
+    )
+    emission = next(
+        transition
+        for transition in transitions["custom"]
+        if transition.transition_type is tr.TransitionType.FLUORESCENT_EMISSION
+    )
+
+    assert excitation.rate > 0
+    assert emission.rate > 0
+
+    transition_set = tr.TransitionSet(
+        transitions=transitions,
+        fluorophore_system=fluorophore_system,
+    )
+    emitting_transition_ids = em.get_emitting_transition_ids(
+        bandpass=(505, 515),
+        transition_set=transition_set,
+    )
+
+    assert emitting_transition_ids
+    assert all(
+        probability == pytest.approx(0.75)
+        for probability in emitting_transition_ids.values()
+    )
+
+
+def test_custom_fluorophores_automatic_energy_transfer():
+    donor_data = FluorophoreData(
+        QUANTUM_YIELD=0.5,
+        FLUORESCENCE_LIFETIME=2e-9,
+        emission_spectrum=Spectrum(
+            wavelengths=[500, 510, 520],
+            values=[0, 1, 0],
+        ),
+        absorption_spectra={
+            "s0": Spectrum(
+                wavelengths=[505, 515],
+                values=[1000, 2000],
+            )
+        },
+    )
+    acceptor_data = FluorophoreData(
+        QUANTUM_YIELD=0.6,
+        FLUORESCENCE_LIFETIME=3e-9,
+        emission_spectrum=Spectrum(
+            wavelengths=[505, 515, 525],
+            values=[0, 1, 0],
+        ),
+        absorption_spectra={
+            "s0": Spectrum(
+                wavelengths=[500, 510, 520],
+                values=[500, 2000, 500],
+            )
+        },
+    )
+
+    donor = fl.Fluorophore(
+        name="custom_donor",
+        position=[0, 0],
+        constants=donor_data,
+    )
+    acceptor = fl.Fluorophore(
+        name="custom_acceptor",
+        position=[5, 0],
+        constants=acceptor_data,
+    )
+    fluorophore_system = fl.FluorophoreSystem(fluorophores=[donor, acceptor])
+
+    transitions = fluorophore_system.load_transitions(
+        wavelength=510,
+        irradiance=1,
+        energy_transfer=True,
+        dstorm=False,
+    )
+
+    forward_key = "D: custom_donor, A: custom_acceptor, dist: 5.0"
+    reverse_key = "D: custom_acceptor, A: custom_donor, dist: 5.0"
+
+    assert forward_key in transitions
+    assert reverse_key in transitions
+
+    forward_fret = next(
+        transition
+        for transition in transitions[forward_key]
+        if transition.transition_type is tr.TransitionType.FRET
+    )
+    reverse_fret = next(
+        transition
+        for transition in transitions[reverse_key]
+        if transition.transition_type is tr.TransitionType.FRET
+    )
+
+    assert forward_fret.rate > 0
+    assert reverse_fret.rate > 0
+
+    transition_set = tr.TransitionSet(
+        transitions=transitions,
+        fluorophore_system=fluorophore_system,
+    )
+
+    assert not transition_set.transition_df.empty

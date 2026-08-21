@@ -11,7 +11,6 @@ from collections.abc import Collection, Iterable
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from itertools import product
-from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
 import numpy as np
@@ -21,11 +20,11 @@ from scipy import interpolate as itp
 
 from . import formulas as fo
 from . import network as net
+from .fluo_data import FluorophoreData
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
 
-    from fluopy.fluo_data import FluorophoreData
     from fluopy.fluorophores import Fluorophore, FluorophoreSystem
 
 
@@ -1042,7 +1041,7 @@ def derive_energy_transfer_transitions(
     """
     Derive energy transfer transitions based on the experimental conditions and the
     fluorophore-combinations to be mimicked. The type of energy transfer is determined
-    via the data file names.
+    by the state names in acceptor_data.absorption_spectra.
 
     Parameters
     ----------
@@ -1075,21 +1074,24 @@ def derive_energy_transfer_transitions(
     transitions : list[Transition]
         Contains energy transfer transitions of type Transition.
     """
-    data_dir = Path(__file__).parent / "fluorophore_spectra"
-    donor_emission = pd.read_csv(data_dir / donor_data.data_files / "emission.csv")
-    acceptor_files = sorted(Path(data_dir / acceptor_data.data_files).iterdir())
-    acceptor_abs_files = [
-        data_file
-        for data_file in acceptor_files
-        if data_file.name.startswith("absorption")
-    ]
+    donor_emission = donor_data.emission_spectrum
+    if donor_emission is None:
+        raise ValueError(
+            "cannot derive energy-transfer transitions without a donor "
+            "emission spectrum."
+        )
+
+    acceptor_absorptions = acceptor_data.absorption_spectra
+    if not acceptor_absorptions:
+        raise ValueError(
+            "cannot derive energy-transfer transitions without acceptor "
+            "absorption spectra."
+        )
 
     emission_rate = fo.calculate_emission_rate(
         quantum_yield=donor_data.QUANTUM_YIELD,
         fluorescence_lifetime=donor_data.FLUORESCENCE_LIFETIME,
     )
-    minimum, maximum = 200, 1000
-    wavelengths_of_interest = np.arange(minimum, maximum + 1, 1, dtype=float)
 
     which_et = {
         "s0": [(TransitionType.FRET, 1)],
@@ -1164,24 +1166,69 @@ def derive_energy_transfer_transitions(
                 )
 
     transitions = []
-    for acceptor_abs_file in acceptor_abs_files:
-        acceptor_abs = pd.read_csv(
-            Path(data_dir) / acceptor_data.data_files / acceptor_abs_file
+    for acceptor_state, acceptor_absorption in sorted(acceptor_absorptions.items()):
+        minimum = max(
+            donor_emission.wavelengths[0],
+            acceptor_absorption.wavelengths[0],
+        )
+        maximum = min(
+            donor_emission.wavelengths[-1],
+            acceptor_absorption.wavelengths[-1],
         )
 
-        J = fo.calculate_spectral_overlap_integral(
-            donor=donor_emission["y"],
-            acceptor=acceptor_abs["y"],
-            wavelengths=wavelengths_of_interest,
-        )
+        if minimum >= maximum:
+            spectral_overlap_integral = 0.0
+        else:
+            donor_inside = donor_emission.wavelengths[
+                (donor_emission.wavelengths > minimum)
+                & (donor_emission.wavelengths < maximum)
+            ]
+            acceptor_inside = acceptor_absorption.wavelengths[
+                (acceptor_absorption.wavelengths > minimum)
+                & (acceptor_absorption.wavelengths < maximum)
+            ]
+            wavelengths = np.unique(
+                np.concatenate(
+                    (
+                        [minimum],
+                        donor_inside,
+                        acceptor_inside,
+                        [maximum],
+                    )
+                )
+            )
+
+            donor_values = np.interp(
+                wavelengths,
+                donor_emission.wavelengths,
+                donor_emission.values,
+            )
+            acceptor_values = np.interp(
+                wavelengths,
+                acceptor_absorption.wavelengths,
+                acceptor_absorption.values,
+            )
+
+            spectral_overlap_integral = fo.calculate_spectral_overlap_integral(
+                donor=donor_values,
+                acceptor=acceptor_values,
+                wavelengths=wavelengths,
+            )
+
         rate = fo.calculate_fret_rate(
             distance=distance,
             emission_rate=emission_rate,
-            spectral_overlap_integral=J,
+            spectral_overlap_integral=spectral_overlap_integral,
             dipole_orientation_factor=dipole_orientation_factor,
             refractive_index=refractive_index,
         )
-        acceptor_state = acceptor_abs_file.name.split("_")[1].split(".")[0]
+
+        if acceptor_state not in which_et_new:
+            raise ValueError(
+                f"energy transfer to acceptor state {acceptor_state!r} "
+                "is not supported."
+            )
+
         if exclude is not None and acceptor_state in exclude:
             continue
         for transition_type, factor in which_et_new[acceptor_state]:
@@ -1246,18 +1293,18 @@ def derive_transitions(
             )
     _, _, frequency = fo.convert_wavenumber_wavelength_frequency(wavelength=wavelength)
     photon_flux = fo.calculate_photon_flux(irradiance=irradiance, frequency=frequency)
-    path_absorption = (
-        Path(__file__).parent
-        / "fluorophore_spectra"
-        / fd.data_files
-        / "absorption_s0.csv"
-    )
+
+    if "s0" not in fd.absorption_spectra:
+        raise ValueError(
+            "cannot derive excitation transition without an S0 absorption spectrum."
+        )
+
+    absorption_spectrum = fd.absorption_spectra["s0"]
+
     if fluorophore_ids is None:
         fluorophore_ids = [0]
 
-    dataframe_absorption = pd.read_csv(filepath_or_buffer=path_absorption, index_col=0)
-
-    extinction_coefficient = dataframe_absorption.loc[int(wavelength), "y"]
+    extinction_coefficient = absorption_spectrum.at(wavelength)
 
     excitation_rate = fo.calculate_excitation_rate(
         photon_flux=photon_flux, extinction_coefficient=extinction_coefficient

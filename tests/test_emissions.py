@@ -7,51 +7,95 @@ import pandas as pd
 import pytest
 
 from fluopy import emissions as em
-from fluopy import fluorophores as fl
+from fluopy import fluo_data as fd
 
 
 @pytest.mark.parametrize(
     "bandpass, expected",
     [
-        [(650, 700), 0.685702066268812],
-        [(100, 750), "ValueError1"],
-        [(200, 1001), "ValueError2"],
-        [(450, 400), "ValueError3"],
+        [(650, 700), 0.6820037131347214],
+        [(450, 400), "ValueError"],
         [(200, 1000), 1.0],
     ],
 )
 def test_get_p_filter(bandpass, expected):
-    data_dir = Path(__file__).parents[1] / "src" / "fluopy" / "fluorophore_spectra"
-    fluorophore = fl.Fluorophore(name="testfluo_1", position=[0, 0])
-    if expected == "ValueError1":
+    emission_spectrum = fd.testfluo_1.emission_spectrum
+    assert emission_spectrum is not None
+    if expected == "ValueError":
         with pytest.raises(
             ValueError,
-            match="The lower bandpass limit has to be between 200 and 1000 nm.",
+            match=("The lower bandpass limit has to be smaller than the upper limit."),
         ):
-            em.get_p_filter(
-                data_dir=data_dir, fluorophore=fluorophore, bandpass=bandpass
-            )
-    elif expected == "ValueError2":
-        with pytest.raises(
-            ValueError,
-            match="The upper bandpass limit has to be between 200 and 1000 nm.",
-        ):
-            em.get_p_filter(
-                data_dir=data_dir, fluorophore=fluorophore, bandpass=bandpass
-            )
-    elif expected == "ValueError3":
-        with pytest.raises(
-            ValueError,
-            match="The lower bandpass limit has to be smaller than the upper limit.",
-        ):
-            em.get_p_filter(
-                data_dir=data_dir, fluorophore=fluorophore, bandpass=bandpass
+            p_passed = em.get_p_filter(
+                emission_spectrum=emission_spectrum,
+                bandpass=bandpass,
             )
     else:
         p_passed = em.get_p_filter(
-            data_dir=data_dir, fluorophore=fluorophore, bandpass=bandpass
+            emission_spectrum=emission_spectrum,
+            bandpass=bandpass,
         )
-        assert p_passed == expected
+        assert p_passed == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("bandpass", [(np.nan, 700), (650, np.inf)])
+def test_get_p_filter_non_finite_bandpass(bandpass):
+    emission_spectrum = fd.Spectrum(
+        wavelengths=[500, 600],
+        values=[0, 1],
+    )
+    with pytest.raises(
+        ValueError,
+        match="bandpass limits must be finite.",
+    ):
+        em.get_p_filter(
+            emission_spectrum=emission_spectrum,
+            bandpass=bandpass,
+        )
+
+
+def test_get_p_filter_with_in_memory_spectrum():
+    emission_spectrum = fd.Spectrum(
+        wavelengths=[500, 510, 520],
+        values=[0, 1, 0],
+    )
+
+    p_passed = em.get_p_filter(
+        emission_spectrum=emission_spectrum,
+        bandpass=(505, 515),
+    )
+
+    assert p_passed == pytest.approx(0.75)
+
+
+def test_get_p_filter_zero_emission_spectrum():
+    emission_spectrum = fd.Spectrum(
+        wavelengths=[500, 600],
+        values=[0, 0],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="emission spectrum has zero total intensity.",
+    ):
+        em.get_p_filter(
+            emission_spectrum=emission_spectrum,
+            bandpass=(500, 600),
+        )
+
+
+def test_get_p_filter_without_spectral_overlap():
+    emission_spectrum = fd.Spectrum(
+        wavelengths=[500, 600],
+        values=[0, 1],
+    )
+
+    p_passed = em.get_p_filter(
+        emission_spectrum=emission_spectrum,
+        bandpass=(700, 800),
+    )
+
+    assert p_passed == 0
 
 
 @pytest.mark.parametrize(
@@ -61,15 +105,15 @@ def test_get_p_filter(bandpass, expected):
         [
             (650, 700),
             {
-                4: 0.685702066268812,
-                5: 0.685702066268812,
-                6: 0.685702066268812,
-                7: 0.685702066268812,
-                38: 0.5859441764799607,
-                39: 0.5859441764799607,
-                40: 0.5859441764799607,
-                41: 0.5859441764799607,
-                42: 0.5859441764799607,
+                4: 0.6820037131347214,
+                5: 0.6820037131347214,
+                6: 0.6820037131347214,
+                7: 0.6820037131347214,
+                38: 0.5847564420110373,
+                39: 0.5847564420110373,
+                40: 0.5847564420110373,
+                41: 0.5847564420110373,
+                42: 0.5847564420110373,
             },
         ],
     ],
@@ -144,9 +188,9 @@ def test_emissions_simulate(tr_set_1f_bl):
         frames=10,
         store_time_points=True,
     )
-    assert emis.event_time_points.size == 205
+    assert emis.event_time_points.size == 204
     exp_event_time_series = pd.Series(
-        np.array([0, 80, 0, 0, 0, 0, 0, 16, 52, 7, 50], dtype=np.int64),
+        np.array([0, 80, 0, 0, 0, 0, 0, 16, 51, 7, 50], dtype=np.int64),
         index=np.linspace(0, 0.001, 11),
     )
     pd.testing.assert_series_equal(emis.event_time_series, exp_event_time_series)
@@ -207,15 +251,15 @@ def test_emissions_tcspc_parameters(tr_set_bl_et_2f_diff):
             store_time_points=True,
         )
         emitting_transition_ids = {
-            4: 0.685702066268812,
-            5: 0.685702066268812,
-            6: 0.685702066268812,
-            7: 0.685702066268812,
-            38: 0.5859441764799607,
-            39: 0.5859441764799607,
-            40: 0.5859441764799607,
-            41: 0.5859441764799607,
-            42: 0.5859441764799607,
+            4: 0.6820037131347214,
+            5: 0.6820037131347214,
+            6: 0.6820037131347214,
+            7: 0.6820037131347214,
+            38: 0.5847564420110373,
+            39: 0.5847564420110373,
+            40: 0.5847564420110373,
+            41: 0.5847564420110373,
+            42: 0.5847564420110373,
         }
         args, kwargs = mock_tcspc.call_args
         np.testing.assert_array_equal(
