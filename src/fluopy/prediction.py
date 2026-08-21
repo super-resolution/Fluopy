@@ -437,7 +437,6 @@ class Prediction:
         npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
-        from .transitions import SingleState
 
         single_states = self.transition_set.single_states
         colormap = mpl.colors.ListedColormap(
@@ -454,7 +453,9 @@ class Prediction:
             data_merged.append(self.frequency_states[fluorophore])
             labels.extend(
                 [
-                    format_electronic_state(label=SingleState(identity).name)
+                    format_electronic_state(
+                        label=self.transition_set.states_by_value[identity].name
+                    )
                     for identity in states
                 ]
             )
@@ -548,7 +549,6 @@ class Prediction:
             raise ValueError(
                 "mean_lifetimes not available if energy transfers possible."
             )
-        from .transitions import SingleState
 
         single_states = self.transition_set.single_states
         colormap = mpl.colors.ListedColormap(
@@ -565,7 +565,9 @@ class Prediction:
             data_merged.append(self.mean_lifetimes[fluorophore])
             labels.extend(
                 [
-                    format_electronic_state(label=SingleState(identity).name)
+                    format_electronic_state(
+                        label=self.transition_set.states_by_value[identity].name
+                    )
                     for identity in states
                 ]
             )
@@ -604,7 +606,6 @@ class Prediction:
             raise ValueError(
                 "state_occupations not available if energy transfers possible."
             )
-        from .transitions import SingleState
 
         single_states = self.transition_set.single_states
         colormap = mpl.colors.ListedColormap(
@@ -621,7 +622,9 @@ class Prediction:
             data_merged.append(self.state_occupations[fluorophore])
             labels.extend(
                 [
-                    format_electronic_state(label=SingleState(identity).name)
+                    format_electronic_state(
+                        label=self.transition_set.states_by_value[identity].name
+                    )
                     for identity in states
                 ]
             )
@@ -671,12 +674,12 @@ class Prediction:
             raise ValueError(
                 "lifetime_distributions not available if energy transfers possible."
             )
-        from .transitions import SingleState
 
         kwargs.setdefault("type_", "line")
         kwargs.setdefault("ylabel", "PD")
         kwargs.setdefault(
-            "title", rf"$\tau$ of {fluorophore} {SingleState(state_identity).name}"
+            "title",
+            rf"$\tau$ of {fluorophore} {self.transition_set.states_by_value[state_identity].name}",
         )
         kwargs.setdefault("yscale", "log")
         kwargs.setdefault("xlabel", "lifetime [s]")

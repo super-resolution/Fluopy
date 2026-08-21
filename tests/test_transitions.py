@@ -1,5 +1,3 @@
-from dataclasses import asdict
-
 import matplotlib.axes
 import numpy as np
 import pandas as pd
@@ -21,38 +19,78 @@ def test_singlestate():
     assert tr.SingleState.OFF.value == 7
     assert tr.SingleState.OFF2.value == 8
     assert tr.SingleState.R.value == 9
-    assert len(tr.SingleState) == 10
+    assert tr.SingleState.S0.name == "S0"
+    assert tr.SingleState.cis.name == "cis"
+    assert len(tr.BUILTIN_SINGLE_STATES) == 10
+
+
+def test_custom_single_state():
+    dark = tr.SingleState(name="DARK", value=10)
+
+    assert dark.name == "DARK"
+    assert dark.value == 10
+    assert dark not in tr.BUILTIN_SINGLE_STATES
 
 
 def test_pairedstate():
-    assert tr.PairedState.S1_S0.value == [tr.SingleState.S1, tr.SingleState.S0]
+    assert tr.PairedState.S1_S0.value == (
+        tr.SingleState.S1,
+        tr.SingleState.S0,
+    )
     assert tr.PairedState.S1_S0.single_state_values == (1, 0)
     assert tr.PairedState.S1_S0.acceptor == tr.SingleState.S0
     assert tr.PairedState.S1_S0.donor == tr.SingleState.S1
+    assert tr.PairedState.S1_S0.name == "S1_S0"
+    assert len(tr.BUILTIN_PAIRED_STATES) == 15
+
+
+def test_custom_paired_state():
+    dark = tr.SingleState(name="DARK", value=10)
+    paired_state = tr.PairedState(
+        name="S1_DARK",
+        donor=tr.SingleState.S1,
+        acceptor=dark,
+    )
+
+    assert paired_state.name == "S1_DARK"
+    assert paired_state.donor is tr.SingleState.S1
+    assert paired_state.acceptor is dark
+    assert paired_state.single_state_values == (1, 10)
+    assert paired_state not in tr.BUILTIN_PAIRED_STATES
 
 
 def test_transitiontype():
-    assert tr.TransitionType.EXCITATION.abbreviation == "EXC"
-    assert (
-        tr.TransitionType.EXCITATION.value.abbreviation
-        == tr.TransitionType.EXCITATION.abbreviation
+    transition_type = tr.TransitionType.EXCITATION
+
+    assert transition_type.abbreviation == "EXC"
+    assert transition_type.initial_state is tr.SingleState.S0
+    assert transition_type.final_state is tr.SingleState.S1
+    assert transition_type.photon is False
+    assert transition_type in tr.BUILTIN_TRANSITION_TYPES
+    assert len(tr.BUILTIN_TRANSITION_TYPES) == 38
+
+
+def test_custom_transitiontype():
+    dark = tr.SingleState(name="DARK", value=10)
+    recovery = tr.TransitionType(
+        abbreviation="REC",
+        initial_state=dark,
+        final_state=tr.SingleState.S0,
+        photon=False,
     )
-    assert tr.TransitionType.EXCITATION.initial_state == tr.SingleState.S0
-    assert (
-        tr.TransitionType.EXCITATION.value.initial_state
-        == tr.TransitionType.EXCITATION.initial_state
+
+    transition = tr.Transition(
+        transition_type=recovery,
+        rate=1e3,
+        fluorophore_ids=[0],
     )
-    assert tr.TransitionType.EXCITATION.final_state == tr.SingleState.S1
-    assert (
-        tr.TransitionType.EXCITATION.value.final_state
-        == tr.TransitionType.EXCITATION.final_state
-    )
-    assert tr.TransitionType.EXCITATION.photon is False
-    assert (
-        tr.TransitionType.EXCITATION.value.photon == tr.TransitionType.EXCITATION.photon
-    )
-    for transition_type in tr.TransitionType:
-        assert len(transition_type.value.__dict__) == 4
+
+    assert transition.transition_type is recovery
+    assert transition.abbreviation == "REC"
+    assert transition.initial_state is dark
+    assert transition.final_state is tr.SingleState.S0
+    assert transition.photon is False
+    assert recovery not in tr.BUILTIN_TRANSITION_TYPES
 
 
 @pytest.mark.parametrize(
@@ -95,6 +133,20 @@ def test_transition(transition_type, fluorophore_ids, expected):
         assert transition.rate == 1
         assert transition.photon == transition_type.photon
         assert transition.fluorophore_ids == fluorophore_ids
+
+
+def test_transition_to_dict_preserves_objects():
+    transition = tr.Transition(
+        transition_type=tr.TransitionType.EXCITATION,
+        rate=1,
+        fluorophore_ids=[0],
+    )
+
+    transition_dict = transition.to_dict()
+
+    assert transition_dict["transition_type"] is tr.TransitionType.EXCITATION
+    assert transition_dict["initial_state"] is tr.SingleState.S0
+    assert transition_dict["final_state"] is tr.SingleState.S1
 
 
 class TestTransitionSet:
@@ -427,6 +479,102 @@ class TestTransitionSet:
         assert transition_set.transition_matrix.shape == (1, 1)
 
 
+def test_transition_set_states_by_value(tr_set_1f):
+    assert tr_set_1f.states_by_value[tr.SingleState.S0.value] is tr.SingleState.S0
+    assert tr_set_1f.states_by_value[tr.SingleState.S1.value] is tr.SingleState.S1
+
+
+def test_transition_set_accepts_custom_state(flu_sys_cy5):
+    dark = tr.SingleState(name="DARK", value=10)
+    recovery = tr.TransitionType(
+        abbreviation="REC",
+        initial_state=dark,
+        final_state=tr.SingleState.S0,
+        photon=False,
+    )
+    transitions = {
+        "testfluo_1": [
+            tr.Transition(recovery, rate=1, fluorophore_ids=[0]),
+        ]
+    }
+
+    transition_set = tr.TransitionSet(transitions, flu_sys_cy5)
+
+    assert transition_set.states_by_value[10] is dark
+    np.testing.assert_array_equal(
+        transition_set.single_states["testfluo_1"],
+        [10, 0],
+    )
+    assert transition_set.combined_state_transitions_df.loc[0, "initial_state"] == (10,)
+    assert transition_set.combined_state_transitions_df.loc[0, "final_state"] == (0,)
+
+
+def test_transition_set_accepts_paired_only_states(flu_sys_unk_cy5):
+    donor_dark = tr.SingleState(name="DONOR_DARK", value=10)
+    acceptor_dark = tr.SingleState(name="ACCEPTOR_DARK", value=11)
+
+    final_state = tr.PairedState(
+        name="DONOR_DARK_ACCEPTOR_DARK",
+        donor=donor_dark,
+        acceptor=acceptor_dark,
+    )
+    custom_et = tr.TransitionType(
+        abbreviation="DARK_ET",
+        initial_state=tr.PairedState.S1_S0,
+        final_state=final_state,
+        photon=False,
+    )
+
+    donor_id, acceptor_id = 0, 1
+    donor = flu_sys_unk_cy5.fluorophores[donor_id]
+    acceptor = flu_sys_unk_cy5.fluorophores[acceptor_id]
+    distance = flu_sys_unk_cy5.distances[(donor_id, acceptor_id)]
+
+    transitions = {
+        f"D: {donor.name}, A: {acceptor.name}, dist: {distance}": [
+            tr.Transition(
+                transition_type=custom_et,
+                rate=1,
+                fluorophore_ids=[(donor_id, acceptor_id)],
+            )
+        ]
+    }
+
+    transition_set = tr.TransitionSet(transitions, flu_sys_unk_cy5)
+
+    np.testing.assert_array_equal(
+        transition_set.single_states[donor.name],
+        [tr.SingleState.S1.value, donor_dark.value],
+    )
+    np.testing.assert_array_equal(
+        transition_set.single_states[acceptor.name],
+        [tr.SingleState.S0.value, acceptor_dark.value],
+    )
+
+    combined_transition = transition_set.combined_state_transitions_df.iloc[0]
+    assert combined_transition["initial_state"] == (1, 0)
+    assert combined_transition["final_state"] == (10, 11)
+    assert not transition_set.transition_df["absorbing"].any()
+
+
+def test_transition_set_rejects_duplicate_state_value(flu_sys_cy5):
+    dark = tr.SingleState(name="DARK", value=tr.SingleState.B.value)
+    recovery = tr.TransitionType("REC", dark, tr.SingleState.S0, False)
+    transitions = {"testfluo_1": [tr.Transition(recovery, rate=1, fluorophore_ids=[0])]}
+
+    with pytest.raises(ValueError, match="state value 5 is already assigned to B"):
+        tr.TransitionSet(transitions, flu_sys_cy5)
+
+
+def test_transition_set_rejects_duplicate_state_name(flu_sys_cy5):
+    dark = tr.SingleState(name="B", value=10)
+    recovery = tr.TransitionType("REC", dark, tr.SingleState.S0, False)
+    transitions = {"testfluo_1": [tr.Transition(recovery, rate=1, fluorophore_ids=[0])]}
+
+    with pytest.raises(ValueError, match="state name B is already assigned to value 5"):
+        tr.TransitionSet(transitions, flu_sys_cy5)
+
+
 @pytest.mark.parametrize(
     "single_states, dirnames, expected",
     [
@@ -480,13 +628,11 @@ def test_rate_assignment_standard():
         ((0, 4, 5), (1, 4, 5)),
     ]
     transition = pd.Series(
-        asdict(
-            tr.Transition(
-                transition_type=tr.TransitionType.EXCITATION,
-                rate=1,
-                fluorophore_ids=[0, 1],
-            )
-        )
+        tr.Transition(
+            transition_type=tr.TransitionType.EXCITATION,
+            rate=1,
+            fluorophore_ids=[0, 1],
+        ).to_dict()
     )
     transition_rate_list = tr.rate_assignment_standard(
         transition=transition,
@@ -513,13 +659,11 @@ def test_rate_assignment_energy_transfer():
         ((0, 1, 5), (1, 0, 5)),
     ]
     transition = pd.Series(
-        asdict(
-            tr.Transition(
-                transition_type=tr.TransitionType.FRET,
-                rate=1,
-                fluorophore_ids=[(0, 1), (1, 0)],
-            )
-        )
+        tr.Transition(
+            transition_type=tr.TransitionType.FRET,
+            rate=1,
+            fluorophore_ids=[(0, 1), (1, 0)],
+        ).to_dict()
     )
     transition_rate_list = tr.rate_assignment_energy_transfer(
         transition=transition,
@@ -537,22 +681,18 @@ def test_rate_assignment_energy_transfer():
 
 def test_construct_transition_rate_list():
     transition_1 = pd.Series(
-        asdict(
-            tr.Transition(
-                transition_type=tr.TransitionType.EXCITATION,
-                rate=1,
-                fluorophore_ids=[0, 1],
-            )
-        )
+        tr.Transition(
+            transition_type=tr.TransitionType.EXCITATION,
+            rate=1,
+            fluorophore_ids=[0, 1],
+        ).to_dict()
     )
     transition_2 = pd.Series(
-        asdict(
-            tr.Transition(
-                transition_type=tr.TransitionType.FRET,
-                rate=1,
-                fluorophore_ids=[(0, 1), (1, 0)],
-            )
-        )
+        tr.Transition(
+            transition_type=tr.TransitionType.FRET,
+            rate=1,
+            fluorophore_ids=[(0, 1), (1, 0)],
+        ).to_dict()
     )
     transition_df = pd.concat([transition_1, transition_2], axis=1).transpose()
     transition_df.index = pd.MultiIndex.from_tuples(

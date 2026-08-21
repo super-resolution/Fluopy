@@ -152,6 +152,11 @@ class FluorophoreSystem:
         Derives transitions based on fluorophore and the experimental conditions to be
         mimicked.
 
+        This method derives only the transition types implemented by Fluopy.
+        User-defined SingleState, PairedState, and TransitionType objects are not
+        discovered automatically. Transitions using them must be added manually to
+        the returned dictionary before creating a TransitionSet.
+
         Parameters
         ----------
         summarize

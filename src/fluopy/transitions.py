@@ -8,10 +8,9 @@ import copy
 import logging
 import re
 from collections.abc import Collection, Iterable
-from dataclasses import asdict, dataclass, field
-from enum import Enum
+from dataclasses import dataclass, field, fields
 from itertools import product
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, ClassVar, Self
 
 import numpy as np
 import numpy.typing as npt
@@ -28,78 +27,170 @@ if TYPE_CHECKING:
     from fluopy.fluorophores import Fluorophore, FluorophoreSystem
 
 
-__all__: list[str] = ["SingleState", "PairedState", "Transition", "TransitionSet"]
+__all__: list[str] = [
+    "SingleState",
+    "BUILTIN_SINGLE_STATES",
+    "PairedState",
+    "BUILTIN_PAIRED_STATES",
+    "TransitionType",
+    "BUILTIN_TRANSITION_TYPES",
+    "Transition",
+    "TransitionSet",
+]
 
 logger = logging.getLogger(__name__)
 
 
-class SingleState(Enum):
+@dataclass(frozen=True, slots=True)
+class SingleState:
     """
-    Assigns a unique identifier (value) to each possible photophysical state.
-    """
+    Contains the name and numerical identifier of a photophysical state.
 
-    S0 = 0
-    S1 = 1
-    S2 = 2
-    T1 = 3
-    T2 = 4
-    B = 5
-    cis = 6
-    OFF = 7
-    OFF2 = 8
-    R = 9
-
-
-class PairedState(Enum):
-    """
-    Assigns a combination of SingleState to each energy transfer related paired state.
-    E.g., the classical Förster resonance energy transfer needs one fluorophore to be
-    in S1 and another fluorophore closeby to be in S0. After the transition, the first
-    fluorophore will be in S0 and the other in S1.
+    Attributes
+    ----------
+    name : str
+        Name of the state.
+    value : int
+        Unique numerical identifier of the state.
     """
 
-    S1_S0 = [SingleState.S1, SingleState.S0]
-    S0_S1 = [SingleState.S0, SingleState.S1]
-    S1_T1 = [SingleState.S1, SingleState.T1]
-    S1_Cis = [SingleState.S1, SingleState.cis]
-    S0_Cis = [SingleState.S0, SingleState.cis]
-    S1_OFF = [SingleState.S1, SingleState.OFF]
-    S0_S0 = [SingleState.S0, SingleState.S0]
-    S0_T2 = [SingleState.S0, SingleState.T2]
-    S1_S1 = [SingleState.S1, SingleState.S1]
-    S0_T1 = [SingleState.S0, SingleState.T1]
-    S0_OFF2 = [SingleState.S0, SingleState.OFF2]
-    S0_OFF = [SingleState.S0, SingleState.OFF]
-    S0_B = [SingleState.S0, SingleState.B]
-    S1_R = [SingleState.S1, SingleState.R]
-    S0_R = [SingleState.S0, SingleState.R]
+    name: str
+    value: int
+
+    S0: ClassVar[SingleState]
+    S1: ClassVar[SingleState]
+    S2: ClassVar[SingleState]
+    T1: ClassVar[SingleState]
+    T2: ClassVar[SingleState]
+    B: ClassVar[SingleState]
+    cis: ClassVar[SingleState]
+    OFF: ClassVar[SingleState]
+    OFF2: ClassVar[SingleState]
+    R: ClassVar[SingleState]
+
+
+SingleState.S0 = SingleState("S0", 0)
+SingleState.S1 = SingleState("S1", 1)
+SingleState.S2 = SingleState("S2", 2)
+SingleState.T1 = SingleState("T1", 3)
+SingleState.T2 = SingleState("T2", 4)
+SingleState.B = SingleState("B", 5)
+SingleState.cis = SingleState("cis", 6)
+SingleState.OFF = SingleState("OFF", 7)
+SingleState.OFF2 = SingleState("OFF2", 8)
+SingleState.R = SingleState("R", 9)
+
+BUILTIN_SINGLE_STATES = (
+    SingleState.S0,
+    SingleState.S1,
+    SingleState.S2,
+    SingleState.T1,
+    SingleState.T2,
+    SingleState.B,
+    SingleState.cis,
+    SingleState.OFF,
+    SingleState.OFF2,
+    SingleState.R,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class PairedState:
+    """
+    Contains the donor and acceptor states of a paired transition.
+
+    Built-in paired states are available as class attributes and in
+    BUILTIN_PAIRED_STATES. Additional paired states can be constructed directly.
+
+    Attributes
+    ----------
+    name : str
+        Name of the paired state.
+    donor : SingleState
+        State of the donor.
+    acceptor : SingleState
+        State of the acceptor.
+    """
+
+    name: str
+    donor: SingleState
+    acceptor: SingleState
+
+    S1_S0: ClassVar[PairedState]
+    S0_S1: ClassVar[PairedState]
+    S1_T1: ClassVar[PairedState]
+    S1_Cis: ClassVar[PairedState]
+    S0_Cis: ClassVar[PairedState]
+    S1_OFF: ClassVar[PairedState]
+    S0_S0: ClassVar[PairedState]
+    S0_T2: ClassVar[PairedState]
+    S1_S1: ClassVar[PairedState]
+    S0_T1: ClassVar[PairedState]
+    S0_OFF2: ClassVar[PairedState]
+    S0_OFF: ClassVar[PairedState]
+    S0_B: ClassVar[PairedState]
+    S1_R: ClassVar[PairedState]
+    S0_R: ClassVar[PairedState]
+
+    @property
+    def value(self) -> tuple[SingleState, SingleState]:
+        """
+        Return the donor and acceptor states.
+        """
+        return self.donor, self.acceptor
 
     @property
     def single_state_values(self) -> tuple[int, int]:
         """
-        Returns a tuple of SingleState values.
+        Return the numerical donor and acceptor state values.
         """
-        return self.value[0].value, self.value[1].value
-
-    @property
-    def acceptor(self) -> SingleState:
-        """
-        Returns the acceptor (second value).
-        """
-        return self.value[1]
-
-    @property
-    def donor(self) -> SingleState:
-        """
-        Returns the donor (first value).
-        """
-        return self.value[0]
+        return self.donor.value, self.acceptor.value
 
 
-@dataclass
-class TransitionAttributes:
+PairedState.S1_S0 = PairedState("S1_S0", SingleState.S1, SingleState.S0)
+PairedState.S0_S1 = PairedState("S0_S1", SingleState.S0, SingleState.S1)
+PairedState.S1_T1 = PairedState("S1_T1", SingleState.S1, SingleState.T1)
+PairedState.S1_Cis = PairedState("S1_Cis", SingleState.S1, SingleState.cis)
+PairedState.S0_Cis = PairedState("S0_Cis", SingleState.S0, SingleState.cis)
+PairedState.S1_OFF = PairedState("S1_OFF", SingleState.S1, SingleState.OFF)
+PairedState.S0_S0 = PairedState("S0_S0", SingleState.S0, SingleState.S0)
+PairedState.S0_T2 = PairedState("S0_T2", SingleState.S0, SingleState.T2)
+PairedState.S1_S1 = PairedState("S1_S1", SingleState.S1, SingleState.S1)
+PairedState.S0_T1 = PairedState("S0_T1", SingleState.S0, SingleState.T1)
+PairedState.S0_OFF2 = PairedState("S0_OFF2", SingleState.S0, SingleState.OFF2)
+PairedState.S0_OFF = PairedState("S0_OFF", SingleState.S0, SingleState.OFF)
+PairedState.S0_B = PairedState("S0_B", SingleState.S0, SingleState.B)
+PairedState.S1_R = PairedState("S1_R", SingleState.S1, SingleState.R)
+PairedState.S0_R = PairedState("S0_R", SingleState.S0, SingleState.R)
+
+
+BUILTIN_PAIRED_STATES = (
+    PairedState.S1_S0,
+    PairedState.S0_S1,
+    PairedState.S1_T1,
+    PairedState.S1_Cis,
+    PairedState.S0_Cis,
+    PairedState.S1_OFF,
+    PairedState.S0_S0,
+    PairedState.S0_T2,
+    PairedState.S1_S1,
+    PairedState.S0_T1,
+    PairedState.S0_OFF2,
+    PairedState.S0_OFF,
+    PairedState.S0_B,
+    PairedState.S1_R,
+    PairedState.S0_R,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class TransitionType:
     """
-    Contains constant attributes of photophysical transitions.
+    Contains constant attributes of a photophysical transition.
+
+    Built-in transition types are available as class attributes and in
+    BUILTIN_TRANSITION_TYPES. Additional transition types can be constructed
+    directly.
 
     Attributes
     ----------
@@ -119,133 +210,172 @@ class TransitionAttributes:
     photon: bool
 
 
-class TransitionType(Enum):
-    """
-    Assigns constant attributes to each possible photophysical transition.
-    """
+# general
+TransitionType.EXCITATION = TransitionType("EXC", SingleState.S0, SingleState.S1, False)
+TransitionType.FLUORESCENT_EMISSION = TransitionType(
+    "FLU", SingleState.S1, SingleState.S0, True
+)
+TransitionType.SINGLET_QUENCHING = TransitionType(
+    "SQ", SingleState.S1, SingleState.S0, False
+)
+TransitionType.INTERSYSTEM_CROSSING_ST = TransitionType(
+    "ISC_ST", SingleState.S1, SingleState.T1, False
+)
+TransitionType.INTERSYSTEM_CROSSING_TS = TransitionType(
+    "ISC_TS", SingleState.T1, SingleState.S0, False
+)
+TransitionType.INTERNAL_CONVERSION_S = TransitionType(
+    "IC", SingleState.S1, SingleState.S0, False
+)
+TransitionType.REVERSE_INTERSYSTEM_CROSSING = TransitionType(
+    "RISC", SingleState.T1, SingleState.S1, False
+)
+TransitionType.PHOTOBLEACHING_1 = TransitionType(
+    "BLE", SingleState.T1, SingleState.B, False
+)
+TransitionType.PHOTOBLEACHING_2 = TransitionType(
+    "BLE2", SingleState.T2, SingleState.B, False
+)
 
-    # general
-    EXCITATION = TransitionAttributes("EXC", SingleState.S0, SingleState.S1, False)
-    FLUORESCENT_EMISSION = TransitionAttributes(
-        "FLU", SingleState.S1, SingleState.S0, True
-    )
-    SINGLET_QUENCHING = TransitionAttributes(
-        "SQ", SingleState.S1, SingleState.S0, False
-    )
-    INTERSYSTEM_CROSSING_ST = TransitionAttributes(
-        "ISC_ST", SingleState.S1, SingleState.T1, False
-    )
-    INTERSYSTEM_CROSSING_TS = TransitionAttributes(
-        "ISC_TS", SingleState.T1, SingleState.S0, False
-    )
-    INTERNAL_CONVERSION_S = TransitionAttributes(
-        "IC", SingleState.S1, SingleState.S0, False
-    )
-    REVERSE_INTERSYSTEM_CROSSING = TransitionAttributes(
-        "RISC", SingleState.T1, SingleState.S1, False
-    )
-    PHOTOBLEACHING_1 = TransitionAttributes("BLE", SingleState.T1, SingleState.B, False)
-    PHOTOBLEACHING_2 = TransitionAttributes(
-        "BLE2", SingleState.T2, SingleState.B, False
-    )
+# dstorm
+TransitionType.ET_CYCLE_T = TransitionType(
+    "PET_TS", SingleState.T1, SingleState.S0, False
+)
+TransitionType.ET_CYCLE_S = TransitionType(
+    "PET_SS", SingleState.S1, SingleState.S0, False
+)
+TransitionType.ADDUCT_T = TransitionType(
+    "PET_TO", SingleState.T1, SingleState.OFF, False
+)
+TransitionType.ADDUCT_S = TransitionType(
+    "PET_SO", SingleState.S1, SingleState.OFF, False
+)
+TransitionType.THERM_ELIMINATION = TransitionType(
+    "TE", SingleState.OFF, SingleState.S0, False
+)
+TransitionType.PHOTO_UNCAGING = TransitionType(
+    "PU", SingleState.OFF, SingleState.S0, False
+)
+TransitionType.RAD_ESCAPE = TransitionType(
+    "PET_TR", SingleState.T1, SingleState.R, False
+)
+TransitionType.RAD_RELAX = TransitionType("OXI", SingleState.R, SingleState.S0, False)
 
-    # dstorm
-    ET_CYCLE_T = TransitionAttributes("PET_TS", SingleState.T1, SingleState.S0, False)
-    ET_CYCLE_S = TransitionAttributes("PET_SS", SingleState.S1, SingleState.S0, False)
-    ADDUCT_T = TransitionAttributes("PET_TO", SingleState.T1, SingleState.OFF, False)
-    ADDUCT_S = TransitionAttributes("PET_SO", SingleState.S1, SingleState.OFF, False)
-    THERM_ELIMINATION = TransitionAttributes(
-        "TE", SingleState.OFF, SingleState.S0, False
-    )
-    PHOTO_UNCAGING = TransitionAttributes("PU", SingleState.OFF, SingleState.S0, False)
-    RAD_ESCAPE = TransitionAttributes("PET_TR", SingleState.T1, SingleState.R, False)
-    RAD_RELAX = TransitionAttributes("OXI", SingleState.R, SingleState.S0, False)
+# cis trans isomerization
+TransitionType.ISOMERIZATION = TransitionType(
+    "ISO", SingleState.S1, SingleState.cis, False
+)
+TransitionType.PHOTO_BISO = TransitionType(
+    "PBISO", SingleState.cis, SingleState.S0, False
+)
+TransitionType.THERM_BISO = TransitionType(
+    "TBISO", SingleState.cis, SingleState.S0, False
+)
 
-    # cis trans isomerization
-    ISOMERIZATION = TransitionAttributes("ISO", SingleState.S1, SingleState.cis, False)
-    PHOTO_BISO = TransitionAttributes("PBISO", SingleState.cis, SingleState.S0, False)
-    THERM_BISO = TransitionAttributes("TBISO", SingleState.cis, SingleState.S0, False)
+# energy transfers
+TransitionType.FRET = TransitionType(
+    "FRET", PairedState.S1_S0, PairedState.S0_S1, False
+)
+TransitionType.CIS_FRET_1 = TransitionType(
+    "CET_1", PairedState.S1_Cis, PairedState.S0_Cis, False
+)
+TransitionType.CIS_FRET_2 = TransitionType(
+    "CET_2", PairedState.S1_Cis, PairedState.S0_S0, False
+)
+TransitionType.OFF_FRET_1 = TransitionType(
+    "OET_1", PairedState.S1_OFF, PairedState.S0_OFF, False
+)
+TransitionType.OFF_FRET_2 = TransitionType(
+    "OET_2", PairedState.S1_OFF, PairedState.S0_S0, False
+)
+TransitionType.S_S_ANNIHILATION = TransitionType(
+    "SSA", PairedState.S1_S1, PairedState.S0_S1, False
+)
+TransitionType.S_T_ANNIHILATION = TransitionType(
+    "STA", PairedState.S1_T1, PairedState.S0_T1, False
+)
+TransitionType.S_T_ANNI_RISC = TransitionType(
+    "STA_2", PairedState.S1_T1, PairedState.S0_S1, False
+)
+TransitionType.S_T_ANNI_BLEACH = TransitionType(
+    "STA_B", PairedState.S1_T1, PairedState.S0_B, False
+)
+TransitionType.R_FRET_1 = TransitionType(
+    "RET_1", PairedState.S1_R, PairedState.S0_R, False
+)
+TransitionType.R_FRET_2 = TransitionType(
+    "RET_2", PairedState.S1_R, PairedState.S0_S0, False
+)
 
-    # energy transfers
-    FRET = TransitionAttributes("FRET", PairedState.S1_S0, PairedState.S0_S1, False)
-    CIS_FRET_1 = TransitionAttributes(
-        "CET_1", PairedState.S1_Cis, PairedState.S0_Cis, False
-    )
-    CIS_FRET_2 = TransitionAttributes(
-        "CET_2", PairedState.S1_Cis, PairedState.S0_S0, False
-    )
-    OFF_FRET_1 = TransitionAttributes(
-        "OET_1", PairedState.S1_OFF, PairedState.S0_OFF, False
-    )
-    OFF_FRET_2 = TransitionAttributes(
-        "OET_2", PairedState.S1_OFF, PairedState.S0_S0, False
-    )
-    S_S_ANNIHILATION = TransitionAttributes(
-        "SSA", PairedState.S1_S1, PairedState.S0_S1, False
-    )
-    S_T_ANNIHILATION = TransitionAttributes(
-        "STA", PairedState.S1_T1, PairedState.S0_T1, False
-    )
-    S_T_ANNI_RISC = TransitionAttributes(
-        "STA_2", PairedState.S1_T1, PairedState.S0_S1, False
-    )
-    S_T_ANNI_BLEACH = TransitionAttributes(
-        "STA_B", PairedState.S1_T1, PairedState.S0_B, False
-    )
-    R_FRET_1 = TransitionAttributes("RET_1", PairedState.S1_R, PairedState.S0_R, False)
-    R_FRET_2 = TransitionAttributes("RET_2", PairedState.S1_R, PairedState.S0_S0, False)
+# rhodamines
+TransitionType.H2O_ATTACK_S = TransitionType(
+    "H2OS", SingleState.S1, SingleState.OFF, False
+)
+TransitionType.H2O_ATTACK_T = TransitionType(
+    "H2OT", SingleState.T1, SingleState.OFF, False
+)
+TransitionType.BACK_REACTION = TransitionType(
+    "BR", SingleState.OFF, SingleState.S0, False
+)
 
-    # rhodamines
-    H2O_ATTACK_S = TransitionAttributes("H2OS", SingleState.S1, SingleState.OFF, False)
-    H2O_ATTACK_T = TransitionAttributes("H2OT", SingleState.T1, SingleState.OFF, False)
-    BACK_REACTION = TransitionAttributes("BR", SingleState.OFF, SingleState.S0, False)
-
-    # summarize
-    S1_S0_TRANSITIONS = TransitionAttributes(
-        "S1S0SUM", SingleState.S1, SingleState.S0, False
-    )
-    CIS_S0_TRANSITIONS = TransitionAttributes(
-        "cisS0SUM", SingleState.cis, SingleState.S0, False
-    )
-    T1_S0_TRANSITIONS = TransitionAttributes(
-        "T1S0SUM", SingleState.T1, SingleState.S0, False
-    )
-    OFF_S0_TRANSITIONS = TransitionAttributes(
-        "OFFS0SUM", SingleState.OFF, SingleState.S0, False
-    )
-
-    @property
-    def abbreviation(self) -> str:
-        """
-        Returns the abbreviation of type str.
-        """
-        return self.value.abbreviation
-
-    @property
-    def initial_state(self) -> SingleState | PairedState:
-        """
-        Returns the initial state of type SingleState or PairedState.
-        """
-        return self.value.initial_state
-
-    @property
-    def final_state(self) -> SingleState | PairedState:
-        """
-        Returns the final state of type SingleState or PairedState.
-        """
-        return self.value.final_state
-
-    @property
-    def photon(self) -> bool:
-        """
-        Returns bool indicating whether the transition emits a photon.
-        """
-        return self.value.photon
+# summarize
+TransitionType.S1_S0_TRANSITIONS = TransitionType(
+    "S1S0SUM", SingleState.S1, SingleState.S0, False
+)
+TransitionType.CIS_S0_TRANSITIONS = TransitionType(
+    "cisS0SUM", SingleState.cis, SingleState.S0, False
+)
+TransitionType.T1_S0_TRANSITIONS = TransitionType(
+    "T1S0SUM", SingleState.T1, SingleState.S0, False
+)
+TransitionType.OFF_S0_TRANSITIONS = TransitionType(
+    "OFFS0SUM", SingleState.OFF, SingleState.S0, False
+)
 
 
-@dataclass(
-    slots=True
-)  # frozen=True if code will not be modified (autoreload complications otherwise)
+BUILTIN_TRANSITION_TYPES = (
+    TransitionType.EXCITATION,
+    TransitionType.FLUORESCENT_EMISSION,
+    TransitionType.SINGLET_QUENCHING,
+    TransitionType.INTERSYSTEM_CROSSING_ST,
+    TransitionType.INTERSYSTEM_CROSSING_TS,
+    TransitionType.INTERNAL_CONVERSION_S,
+    TransitionType.REVERSE_INTERSYSTEM_CROSSING,
+    TransitionType.PHOTOBLEACHING_1,
+    TransitionType.PHOTOBLEACHING_2,
+    TransitionType.ET_CYCLE_T,
+    TransitionType.ET_CYCLE_S,
+    TransitionType.ADDUCT_T,
+    TransitionType.ADDUCT_S,
+    TransitionType.THERM_ELIMINATION,
+    TransitionType.PHOTO_UNCAGING,
+    TransitionType.RAD_ESCAPE,
+    TransitionType.RAD_RELAX,
+    TransitionType.ISOMERIZATION,
+    TransitionType.PHOTO_BISO,
+    TransitionType.THERM_BISO,
+    TransitionType.FRET,
+    TransitionType.CIS_FRET_1,
+    TransitionType.CIS_FRET_2,
+    TransitionType.OFF_FRET_1,
+    TransitionType.OFF_FRET_2,
+    TransitionType.S_S_ANNIHILATION,
+    TransitionType.S_T_ANNIHILATION,
+    TransitionType.S_T_ANNI_RISC,
+    TransitionType.S_T_ANNI_BLEACH,
+    TransitionType.R_FRET_1,
+    TransitionType.R_FRET_2,
+    TransitionType.H2O_ATTACK_S,
+    TransitionType.H2O_ATTACK_T,
+    TransitionType.BACK_REACTION,
+    TransitionType.S1_S0_TRANSITIONS,
+    TransitionType.CIS_S0_TRANSITIONS,
+    TransitionType.T1_S0_TRANSITIONS,
+    TransitionType.OFF_S0_TRANSITIONS,
+)
+
+
+@dataclass(slots=True)
 class Transition:
     """
     Contains constant and variable attributes of photophysical transitions.
@@ -282,12 +412,11 @@ class Transition:
     fluorophore_ids: list[int] | list[tuple[int, int]] = field()
 
     def __post_init__(self) -> None:
-        # __setattr__ needed if frozen=True
-        object.__setattr__(self, "abbreviation", self.transition_type.abbreviation)
-        object.__setattr__(self, "initial_state", self.transition_type.initial_state)
-        object.__setattr__(self, "final_state", self.transition_type.final_state)
-        object.__setattr__(self, "photon", self.transition_type.photon)
-        object.__setattr__(self, "identity", None)
+        self.abbreviation = self.transition_type.abbreviation
+        self.initial_state = self.transition_type.initial_state
+        self.final_state = self.transition_type.final_state
+        self.photon = self.transition_type.photon
+        self.identity = None
         for fluorophore_id in self.fluorophore_ids:
             if isinstance(self.initial_state, PairedState):
                 if not isinstance(fluorophore_id, tuple) or len(fluorophore_id) != 2:
@@ -302,6 +431,74 @@ class Transition:
                         f"{self.abbreviation} is not an energy transfer, "
                         "fluorophore_ids has to be a list of ints."
                     )
+
+    def to_dict(self) -> dict[str, object]:
+        """
+        Return the transition fields as a shallow dictionary.
+        """
+        return {item.name: getattr(self, item.name) for item in fields(self)}
+
+
+def get_states_by_value(
+    transitions: dict[str, list[Transition]],
+) -> dict[int, SingleState]:
+    """
+    Collect single states by value and reject ambiguous names or values.
+
+    Parameters
+    ----------
+    transitions
+        Contains lists of transitions as values and fluorophore names or
+        fluorophore-combination as keys. Fluorophore-combination keys require the
+        format 'D: {name of donor}, A: {name of acceptor}, dist: {distance between them
+        in nm}'.
+
+    Returns
+    -------
+    states_by_value : dict[int, SingleState]
+        Built-in and custom single states indexed by their numerical value.
+    """
+    states_by_value = {state.value: state for state in BUILTIN_SINGLE_STATES}
+    values_by_name = {state.name: state.value for state in BUILTIN_SINGLE_STATES}
+
+    for transition_collection in transitions.values():
+        for transition in transition_collection:
+            for state in (
+                transition.initial_state,
+                transition.final_state,
+            ):
+                if isinstance(state, PairedState):
+                    single_states = state.value
+                else:
+                    single_states = (state,)
+
+                for single_state in single_states:
+                    existing_state = states_by_value.get(single_state.value)
+                    if (
+                        existing_state is not None
+                        and existing_state.name != single_state.name
+                    ):
+                        raise ValueError(
+                            f"state value {single_state.value} is already "
+                            f"assigned to {existing_state.name}, and cannot "
+                            f"be assigned to {single_state.name}."
+                        )
+
+                    existing_value = values_by_name.get(single_state.name)
+                    if (
+                        existing_value is not None
+                        and existing_value != single_state.value
+                    ):
+                        raise ValueError(
+                            f"state name {single_state.name} is already "
+                            f"assigned to value {existing_value}, and cannot "
+                            f"be assigned to {single_state.value}."
+                        )
+
+                    states_by_value[single_state.value] = single_state
+                    values_by_name[single_state.name] = single_state.value
+
+    return states_by_value
 
 
 class TransitionSet:
@@ -409,12 +606,12 @@ class TransitionSet:
                         transition.identity = i
                         i += 1
                         keep_transitions.append(transition)
-                        df_constructor.append(asdict(transition))
+                        df_constructor.append(transition.to_dict())
                 else:
                     transition.identity = i
                     i += 1
                     keep_transitions.append(transition)
-                    df_constructor.append(asdict(transition))
+                    df_constructor.append(transition.to_dict())
             if keep_transitions:
                 transitions[fluorophore_comb] = keep_transitions
                 transition_df = pd.DataFrame(df_constructor)
@@ -423,8 +620,12 @@ class TransitionSet:
                     {fluorophore_comb: transition_df}, names=["Fluorophore"]
                 )
                 self.transition_df = pd.concat([self.transition_df, transition_df])
-
-        self.single_states = get_single_states(self.transitions, self.transition_df)
+        self.states_by_value = get_states_by_value(self.transitions)
+        self.single_states = get_single_states(
+            self.transitions,
+            self.transition_df,
+            self.fluorophore_system,
+        )
         # also assigns whether a transition leads to a Markovian absorbing state
 
         self._combined_state_transitions_df = None
@@ -694,13 +895,16 @@ class TransitionSet:
 
 
 def get_single_states(
-    transitions: dict[str, Collection[Transition]], transition_df: pd.DataFrame
+    transitions: dict[str, Collection[Transition]],
+    transition_df: pd.DataFrame,
+    fluorophore_system: FluorophoreSystem,
 ) -> dict[str, npt.NDArray[int]]:
     """
-    Gets the values of SingleStates that occur in non-energy transfer transitions.
-    Also assigns whether a transition leads to a Markovian absorbing state (note that
-    hypothetically, an energy transfer onto that state which yields another or the same
-    state could still happen).
+    Get the values of SingleStates occurring in transitions.
+
+    PairedState components are assigned to their corresponding donor and acceptor
+    fluorophore types. Transitions leading to individually Markovian absorbing states
+    are identified using only non-energy-transfer transitions.
 
     Parameters
     ----------
@@ -709,6 +913,8 @@ def get_single_states(
     transition_df
         Dataframe of all given transitions with non-zero rate containing their id as
         index and their other attributes as columns.
+    fluorophore_system
+        Container for attributes of multiple, interrelated fluorophores.
 
     Returns
     -------
@@ -728,30 +934,65 @@ def get_single_states(
                     single_states_.append(initial_state.value)
                 if final_state.value not in single_states_:
                     single_states_.append(final_state.value)
-            single_states_ = np.array(single_states_)
+
             single_states[fluorophore_comb] = single_states_
             single_state_df = pd.DataFrame(single_states_, columns=["single_states"])
             single_state_df["absorbing"] = False
+
+            initial_states = (
+                transition_df.loc[fluorophore_comb, "initial_state"]
+                .apply(lambda x: x.value)
+                .values
+            )
             for i, single_state in single_state_df["single_states"].items():
-                if (
-                    single_state
-                    not in transition_df.loc[fluorophore_comb, "initial_state"]
-                    .apply(lambda x: x.value)
-                    .values
-                ):
+                if single_state not in initial_states:
                     single_state_df.at[i, "absorbing"] = True
+
             final_states = (
                 transition_df.loc[fluorophore_comb, "final_state"]
                 .apply(lambda x: x.value)
                 .values
             )
-            absorbing_states = single_state_df["single_states"][
-                single_state_df["absorbing"]
+            absorbing_states = single_state_df.loc[
+                single_state_df["absorbing"],
+                "single_states",
             ]
             if not absorbing_states.empty:
                 indices = np.where(np.isin(final_states, absorbing_states.values))[0]
                 index_values = transition_df.loc[fluorophore_comb].iloc[indices].index
                 transition_df.loc[(fluorophore_comb, index_values), "absorbing"] = True
+    for f_transitions in transitions.values():
+        for transition in f_transitions:
+            if not isinstance(transition.initial_state, PairedState):
+                continue
+
+            initial_state = transition.initial_state
+            final_state = transition.final_state
+
+            for donor_id, acceptor_id in transition.fluorophore_ids:
+                donor_name = fluorophore_system.fluorophores[donor_id].name
+                acceptor_name = fluorophore_system.fluorophores[acceptor_id].name
+
+                paired_states = (
+                    (
+                        donor_name,
+                        (initial_state.donor.value, final_state.donor.value),
+                    ),
+                    (
+                        acceptor_name,
+                        (initial_state.acceptor.value, final_state.acceptor.value),
+                    ),
+                )
+
+                for fluorophore_name, states in paired_states:
+                    single_states.setdefault(fluorophore_name, [])
+                    for state in states:
+                        if state not in single_states[fluorophore_name]:
+                            single_states[fluorophore_name].append(state)
+    single_states = {
+        fluorophore: np.asarray(states, dtype=np.int64)
+        for fluorophore, states in single_states.items()
+    }
 
     return single_states
 
