@@ -190,6 +190,31 @@ class FluorophoreSystem:
             May contain the following keys: reducing_agent, concentration, k_pet, ph.
             Only used if dstorm is True.
 
+        Notes
+        -----
+        General transitions are derived for excitation, fluorescence, internal
+        conversion, intersystem crossing, reverse intersystem crossing, and cis-trans
+        isomerization. Setting dstorm to True adds PET, adduct, uncaging, elimination,
+        and radical-state transitions. Setting bleaching to True adds triplet-state
+        photobleaching.
+
+        Energy-transfer transitions are derived from acceptor absorption spectra with
+        the supported state keys s0, s1, t1, cis, and off. These produce standard FRET,
+        singlet-singlet annihilation, singlet-triplet annihilation, cis-state transfer,
+        and off-state transfer, respectively.
+
+        A transition can be returned with rate zero when its corresponding
+        FluorophoreData value is zero or its spectra do not overlap. TransitionSet
+        removes zero-rate transitions by default.
+
+        User-defined transition types are not discovered automatically and must be
+        added manually to the returned dictionary.
+
+        See Also
+        --------
+        fluopy.transitions.derive_transitions
+        fluopy.transitions.derive_energy_transfer_transitions
+
         Returns
         -------
         transitions : dict[str, list[Transition]]
