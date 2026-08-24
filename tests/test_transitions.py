@@ -889,7 +889,7 @@ def test_derive_energy_transfer_without_donor_emission():
     with pytest.raises(
         ValueError,
         match=(
-            "cannot derive energy-transfer transitions without "
+            "cannot derive an energy-transfer rate without "
             "a donor emission spectrum."
         ),
     ):
