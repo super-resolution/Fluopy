@@ -29,7 +29,7 @@ __all__: list[str] = ["Fluorophore", "FluorophoreSystem"]
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(eq=False)
 class Fluorophore:
     """
     Contains attributes of a fluorophore.
@@ -48,13 +48,24 @@ class Fluorophore:
         if available in fluopy.fluo_data.
     """
 
-    identity: int = field(init=False, default=None)
+    identity: int | None = field(init=False, default=None)
     name: str = field()
     position: Collection[float] = field()
     constants: fd.FluorophoreData | None = None
 
     def __post_init__(self) -> None:
-        self.position = np.asarray(self.position)
+        position = np.asarray(self.position, dtype=float).copy()
+
+        if position.ndim != 1:
+            raise ValueError("fluorophore position must be one-dimensional.")
+        if position.size == 0:
+            raise ValueError("fluorophore position must not be empty.")
+        if not np.all(np.isfinite(position)):
+            raise ValueError("fluorophore position must be finite.")
+
+        position.setflags(write=False)
+        self.position = position
+
         if self.constants is None:
             if self.name in dir(fd) and isinstance(
                 getattr(fd, self.name), fd.FluorophoreData
@@ -92,8 +103,23 @@ class FluorophoreSystem:
     count: int = field(init=False)
 
     def __post_init__(self) -> None:
-        constants_by_name = {}
+        self.fluorophores = tuple(self.fluorophores)
+        if not self.fluorophores:
+            raise ValueError(
+                "a fluorophore system must contain at least one fluorophore."
+            )
 
+        if not all(
+            isinstance(fluorophore, Fluorophore) for fluorophore in self.fluorophores
+        ):
+            raise TypeError("fluorophores must contain only Fluorophore objects.")
+
+        dimensions = {fluorophore.position.size for fluorophore in self.fluorophores}
+
+        if len(dimensions) != 1:
+            raise ValueError("all fluorophore positions must have the same dimension.")
+
+        constants_by_name = {}
         for fluorophore in self.fluorophores:
             if fluorophore.name in constants_by_name:
                 if fluorophore.constants is not constants_by_name[fluorophore.name]:
@@ -120,8 +146,8 @@ class FluorophoreSystem:
         )
         if 0 in self.distances.values():
             raise ValueError(
-                "at least two fluorophores share the same position. Also "
-                "check for duplicates."
+                "at least two fluorophores are indistinguishable at the 0.001 nm "
+                "distance resolution. Also check for duplicates."
             )
         object.__setattr__(self, "count", len(self.fluorophores))
 
@@ -224,7 +250,7 @@ class FluorophoreSystem:
         """
         transitions = {}
 
-        skip_warnings = []
+        warned_names = set()
         et_pairs = {}
         for (donor, acceptor), distance in self.distances.items():
             if (
@@ -244,25 +270,22 @@ class FluorophoreSystem:
                     f"{distance}"
                 ] += [(donor, acceptor)]
 
-        if energy_transfer_parameters is None:
-            energy_transfer_parameters = {}
-        else:
-            if any(
-                key in energy_transfer_parameters
-                for key in ["overwrite", "exclude", "include"]
-            ):
-                if self.multi_type:
-                    logger.warning(
-                        "'overwrite', 'exclude' or 'include' in "
-                        "energy_transfer_parameters will effect all types of "
-                        "fluorophores.",
-                        stacklevel=2,
-                    )
+        energy_transfer_parameters = dict(energy_transfer_parameters or {})
+
+        if self.multi_type and any(
+            key in energy_transfer_parameters
+            for key in ["overwrite", "exclude", "include"]
+        ):
+            logger.warning(
+                "'overwrite', 'exclude' or 'include' in "
+                "energy_transfer_parameters will affect all types of "
+                "fluorophores.",
+                stacklevel=2,
+            )
         energy_transfer_parameters.setdefault("dipole_orientation_factor", 2 / 3)
         energy_transfer_parameters.setdefault("refractive_index", 1.33)
 
-        if dstorm_parameters is None:
-            dstorm_parameters = {}
+        dstorm_parameters = dict(dstorm_parameters or {})
         dstorm_parameters.setdefault("reducing_agent", "mea")
         dstorm_parameters.setdefault("concentration", 143)
         dstorm_parameters.setdefault("ph", 7.5)
@@ -272,15 +295,14 @@ class FluorophoreSystem:
                 f.identity for f in self.fluorophores if f.name == fluorophore.name
             ]
             if fluorophore.constants is None:
-                if fluorophore not in skip_warnings:
-                    skip_warnings.append(fluorophore)
+                if fluorophore.name not in warned_names:
+                    warned_names.add(fluorophore.name)
                     logger.warning(
                         "load_transitions() not available for this kind of "
                         f"fluorophore: {fluorophore.name}.",
                         stacklevel=2,
                     )
-                else:
-                    continue
+                continue
             else:
                 if fluorophore.name not in transitions:
                     transitions[fluorophore.name] = derive_transitions(
@@ -297,15 +319,14 @@ class FluorophoreSystem:
                     donor_fluorophore = fluorophore
                     for acceptor_fluorophore in self.fluorophores:
                         if acceptor_fluorophore.constants is None:
-                            if acceptor_fluorophore not in skip_warnings:
-                                skip_warnings.append(acceptor_fluorophore)
+                            if acceptor_fluorophore.name not in warned_names:
+                                warned_names.add(acceptor_fluorophore.name)
                                 logger.warning(
                                     "load_transitions() not available for this kind of "
                                     f"fluorophore: {acceptor_fluorophore.name}.",
                                     stacklevel=2,
                                 )
-                            else:
-                                continue
+                            continue
                         elif (
                             donor_fluorophore.identity,
                             acceptor_fluorophore.identity,
