@@ -768,6 +768,33 @@ def test_transition_set_finalize(tr_set_bl_et_3f):
     assert tr_set_bl_et_3f.row_sums.shape == (516,)
 
 
+def test_derive_energy_transfer_rate_requires_positive_donor_lifetime():
+    donor_data = fd.FluorophoreData(
+        QUANTUM_YIELD=0.5,
+        emission_spectrum=fd.Spectrum(
+            wavelengths=[500, 510],
+            values=[0, 1],
+        ),
+    )
+    acceptor_absorption = fd.Spectrum(
+        wavelengths=[500, 510],
+        values=[1000, 2000],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "donor FLUORESCENCE_LIFETIME must be greater than zero "
+            "to derive an energy-transfer rate."
+        ),
+    ):
+        tr.derive_energy_transfer_rate(
+            donor_data=donor_data,
+            acceptor_absorption=acceptor_absorption,
+            distance=5,
+        )
+
+
 @pytest.mark.parametrize(
     "dirnames, distance, overwrite, exclude, include, expected",
     [
@@ -849,9 +876,31 @@ def test_derive_energy_transfer_with_in_memory_spectra():
         refractive_index=1.33,
     )
 
+    wavelengths = np.array([505, 510, 515])
+    donor_values = np.array([0.5, 1.0, 0.5])
+    acceptor_values = np.array([1000, 1000, 1000])
+
+    expected_overlap = fo.calculate_spectral_overlap_integral(
+        donor=donor_values,
+        acceptor=acceptor_values,
+        wavelengths=wavelengths,
+        donor_area=donor_emission.integral(),
+    )
+    expected_emission_rate = fo.calculate_emission_rate(
+        quantum_yield=donor_data.QUANTUM_YIELD,
+        fluorescence_lifetime=donor_data.FLUORESCENCE_LIFETIME,
+    )
+    expected_rate = fo.calculate_fret_rate(
+        distance=5,
+        emission_rate=expected_emission_rate,
+        spectral_overlap_integral=expected_overlap,
+        dipole_orientation_factor=2 / 3,
+        refractive_index=1.33,
+    )
+
     assert len(transitions) == 1
     assert transitions[0].transition_type is tr.TransitionType.FRET
-    assert transitions[0].rate > 0
+    assert transitions[0].rate == pytest.approx(expected_rate)
 
 
 def test_derive_energy_transfer_without_spectral_overlap():
@@ -968,6 +1017,29 @@ def test_derive_transitions(irradiance, bleaching, dstorm, summarize, request):
     else:
         for transition in transitions:
             assert transition.abbreviation not in summarize_checker
+
+
+def test_derive_transitions_requires_positive_lifetime():
+    spectrum = fd.Spectrum(
+        wavelengths=[500, 510],
+        values=[1000, 2000],
+    )
+    fluorophore_data = fd.FluorophoreData(
+        QUANTUM_YIELD=0.5,
+        absorption_spectra={"s0": spectrum},
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "FLUORESCENCE_LIFETIME must be greater than zero to derive transitions."
+        ),
+    ):
+        tr.derive_transitions(
+            fluorophore_data=fluorophore_data,
+            wavelength=505,
+            dstorm=False,
+        )
 
 
 def test_derive_transitions_with_in_memory_absorption():

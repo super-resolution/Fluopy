@@ -1303,6 +1303,14 @@ def derive_energy_transfer_rate(
             "cannot derive an energy-transfer rate without a donor "
             "emission spectrum."
         )
+    if donor_data.FLUORESCENCE_LIFETIME <= 0:
+        raise ValueError(
+            "donor FLUORESCENCE_LIFETIME must be greater than zero to derive "
+            "an energy-transfer rate."
+        )
+    donor_area = donor_emission.integral()
+    if donor_area <= 0:
+        raise ValueError("donor emission spectrum must have positive area.")
 
     minimum = max(
         donor_emission.wavelengths[0],
@@ -1350,6 +1358,7 @@ def derive_energy_transfer_rate(
             donor=donor_values,
             acceptor=acceptor_values,
             wavelengths=wavelengths,
+            donor_area=donor_area,
         )
 
     emission_rate = fo.calculate_emission_rate(
@@ -1567,6 +1576,10 @@ def derive_transitions(
         Contains transitions of type Transition.
     """
     fd = fluorophore_data
+    if fd.FLUORESCENCE_LIFETIME <= 0:
+        raise ValueError(
+            "FLUORESCENCE_LIFETIME must be greater than zero to derive transitions."
+        )
     if fd.CROSS_SECTION_WAVELENGTH is not None:
         if wavelength != fd.CROSS_SECTION_WAVELENGTH:
             logger.warning(

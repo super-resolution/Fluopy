@@ -283,6 +283,7 @@ def calculate_spectral_overlap_integral(
     donor: npt.ArrayLike | None = None,
     acceptor: npt.ArrayLike | None = None,
     wavelengths: npt.ArrayLike | None = None,
+    donor_area: float | None = None,
 ) -> float:
     """
     Calculates the spectral overlap integral defined as the integral of the
@@ -299,6 +300,9 @@ def calculate_spectral_overlap_integral(
     wavelengths : 1-D array_like
         The wavelength values in nm, that correspond to the respective donor and
         acceptor values.
+    donor_area
+        Area of the complete donor emission spectrum. If None, calculate the are from
+        donor and wavelengths.
 
     Returns
     -------
@@ -311,9 +315,11 @@ def calculate_spectral_overlap_integral(
     if donor.size != acceptor.size or donor.size != wavelengths.size:
         raise ValueError("donor, acceptor and wavelengths have to be of the same size.")
 
-    donor_area = np.trapezoid(donor, x=wavelengths)
-    if donor_area <= 0:
-        raise ValueError("donor emission spectrum must have positive area.")
+    if donor_area is None:
+        donor_area = float(np.trapezoid(donor, x=wavelengths))
+
+    if not np.isfinite(donor_area) or donor_area <= 0:
+        raise ValueError("donor emission spectrum must have positive finite area.")
 
     normalized_donor = donor / donor_area
     integrand = normalized_donor * acceptor * wavelengths**4

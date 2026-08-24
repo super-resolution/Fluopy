@@ -180,6 +180,26 @@ def test_calculate_spectral_overlap_integral(donor, acceptor, wavelengths, expec
         np.testing.assert_allclose(result, expected)
 
 
+def test_calculate_spectral_overlap_integral_with_full_donor_area():
+    wavelengths = np.array([505, 510, 515])
+    donor = np.array([0.5, 1.0, 0.5])
+    acceptor = np.array([1000, 1000, 1000])
+
+    overlap_from_partial_area = fo.calculate_spectral_overlap_integral(
+        donor=donor,
+        acceptor=acceptor,
+        wavelengths=wavelengths,
+    )
+    overlap_from_full_area = fo.calculate_spectral_overlap_integral(
+        donor=donor,
+        acceptor=acceptor,
+        wavelengths=wavelengths,
+        donor_area=10,
+    )
+
+    assert overlap_from_full_area == pytest.approx(0.75 * overlap_from_partial_area)
+
+
 def test_calculate_spectral_overlap_integral_nonuniform_grid():
     result = fo.calculate_spectral_overlap_integral(
         donor=[1, 1, 1],
@@ -193,7 +213,7 @@ def test_calculate_spectral_overlap_integral_nonuniform_grid():
 def test_calculate_spectral_overlap_integral_zero_donor():
     with pytest.raises(
         ValueError,
-        match="donor emission spectrum must have positive area.",
+        match="donor emission spectrum must have positive finite area.",
     ):
         fo.calculate_spectral_overlap_integral(
             donor=[0, 0, 0],

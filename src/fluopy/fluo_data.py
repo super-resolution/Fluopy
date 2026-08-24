@@ -4,9 +4,11 @@ Photophysical constants for specific fluorophores.
 This module provides a dataclass container to hold photophysical constants.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from os import PathLike
 from pathlib import Path
+from types import MappingProxyType
 from typing import Self
 
 import numpy as np
@@ -16,7 +18,7 @@ import pandas as pd
 __all__: list[str] = ["Spectrum", "FluorophoreData", "cy5_dna", "atto643"]
 
 
-@dataclass
+@dataclass(frozen=True, eq=False)
 class Spectrum:
     """
     Contains wavelength-dependent spectral data.
@@ -185,8 +187,11 @@ class Spectrum:
         return integral
 
     def __post_init__(self) -> None:
-        self.wavelengths = np.asarray(self.wavelengths, dtype=float).copy()
-        self.values = np.asarray(self.values, dtype=float).copy()
+        wavelengths = np.asarray(self.wavelengths, dtype=float).copy()
+        values = np.asarray(self.values, dtype=float).copy()
+
+        object.__setattr__(self, "wavelengths", wavelengths)
+        object.__setattr__(self, "values", values)
 
         if self.wavelengths.ndim != 1:
             raise ValueError("spectrum wavelengths must be one-dimensional.")
@@ -207,6 +212,9 @@ class Spectrum:
         if np.any(self.values < 0):
             raise ValueError("spectrum values must be non-negative.")
 
+        self.wavelengths.setflags(write=False)
+        self.values.setflags(write=False)
+
 
 def _load_bundled_spectra(
     directory_name: str,
@@ -222,7 +230,7 @@ def _load_bundled_spectra(
     return emission_spectrum, absorption_spectra
 
 
-@dataclass
+@dataclass(frozen=True, eq=False)
 class FluorophoreData:
     """
     Container for all constant photophysical attributes of a fluorophore.
@@ -299,7 +307,7 @@ class FluorophoreData:
 
     # spectra
     emission_spectrum: Spectrum | None = None
-    absorption_spectra: dict[str, Spectrum] = field(default_factory=dict)
+    absorption_spectra: Mapping[str, Spectrum] = field(default_factory=dict)
 
     # general
     QUANTUM_YIELD: float = 0
@@ -310,7 +318,7 @@ class FluorophoreData:
     RISC_RATE: float = 0
     STA_EFFICIENCY: float = 0
     PHOTOBLEACH_T1_RATE: float = 0
-    CROSS_SECTION_WAVELENGTH: int | None = None
+    CROSS_SECTION_WAVELENGTH: float | None = None
 
     # dstorm
     DSTORM_PET_T_RATE_MOL: float = 0
@@ -347,6 +355,62 @@ class FluorophoreData:
                     f"absorption spectrum for state {state!r} must be a Spectrum."
                 )
 
+        efficiencies = {
+            "QUANTUM_YIELD": self.QUANTUM_YIELD,
+            "STA_EFFICIENCY": self.STA_EFFICIENCY,
+            "DSTORM_PET_SUCCESS_RATE": self.DSTORM_PET_SUCCESS_RATE,
+            "RAD_ESCAPE_EFFICIENCY": self.RAD_ESCAPE_EFFICIENCY,
+            "OFRET_EFFICIENCY": self.OFRET_EFFICIENCY,
+            "BISO_EFFICIENCY": self.BISO_EFFICIENCY,
+        }
+
+        for name, value in efficiencies.items():
+            if not np.isfinite(value) or not 0 <= value <= 1:
+                raise ValueError(f"{name} must be finite and between 0 and 1.")
+
+        non_negative_values = {
+            "FLUORESCENCE_LIFETIME": self.FLUORESCENCE_LIFETIME,
+            "S1_QUENCH_RATE": self.S1_QUENCH_RATE,
+            "ISC_ST_RATE": self.ISC_ST_RATE,
+            "ISC_TS_RATE": self.ISC_TS_RATE,
+            "RISC_RATE": self.RISC_RATE,
+            "PHOTOBLEACH_T1_RATE": self.PHOTOBLEACH_T1_RATE,
+            "DSTORM_PET_T_RATE_MOL": self.DSTORM_PET_T_RATE_MOL,
+            "DSTORM_PET_S_RATE_MOL": self.DSTORM_PET_S_RATE_MOL,
+            "DSTORM_TH_EL_RATE_1": self.DSTORM_TH_EL_RATE_1,
+            "DSTORM_P_EL_CROSS_SECTION": self.DSTORM_P_EL_CROSS_SECTION,
+            "RAD_RELAX_RATE": self.RAD_RELAX_RATE,
+            "ISO_RATE": self.ISO_RATE,
+            "BISO_CROSS_SECTION": self.BISO_CROSS_SECTION,
+            "BISO_THERMAL_RATE": self.BISO_THERMAL_RATE,
+            "H2O_ATTACK_S": self.H2O_ATTACK_S,
+            "H2O_ATTACK_T": self.H2O_ATTACK_T,
+            "BACK_REACTION": self.BACK_REACTION,
+        }
+
+        for name, value in non_negative_values.items():
+            if not np.isfinite(value) or value < 0:
+                raise ValueError(f"{name} must be finite and non-negative.")
+
+        if self.CROSS_SECTION_WAVELENGTH is not None:
+            if (
+                not np.isfinite(self.CROSS_SECTION_WAVELENGTH)
+                or self.CROSS_SECTION_WAVELENGTH <= 0
+            ):
+                raise ValueError(
+                    "CROSS_SECTION_WAVELENGTH must be finite and greater than zero."
+                )
+
+        object.__setattr__(
+            self,
+            "absorption_spectra",
+            MappingProxyType(dict(self.absorption_spectra)),
+        )
+
+    def __deepcopy__(self, memo: dict[int, object]) -> Self:
+        memo[id(self)] = self
+        return self
+
 
 _cy5_emission, _cy5_absorption = _load_bundled_spectra("cy5_data")
 _atto643_emission, _atto643_absorption = _load_bundled_spectra("atto643_data")
@@ -378,9 +442,13 @@ cy5_dna = FluorophoreData(
     BISO_THERMAL_RATE=5e3,
     BISO_EFFICIENCY=0.04,
 )
-cy5_dna.__doc__ += (
-    "\nConstant photophysical attributes of Cy5 on DNA. "
-    "\nAssumes that the buffer is oxygen-depleted."
+object.__setattr__(
+    cy5_dna,
+    "__doc__",
+    (
+        "\nConstant photophysical attributes of Cy5 on DNA. "
+        "\nAssumes that the buffer is oxygen-depleted."
+    ),
 )
 
 
@@ -398,7 +466,11 @@ atto643 = FluorophoreData(
     H2O_ATTACK_T=0,  # to be updated
     BACK_REACTION=1e-1,  # to be updated
 )
-atto643.__doc__ += "\nConstant photophysical attributes of Atto643."
+object.__setattr__(
+    atto643,
+    "__doc__",
+    "\nConstant photophysical attributes of Atto643.",
+)
 
 
 testfluo_1 = FluorophoreData(
@@ -417,8 +489,12 @@ testfluo_1 = FluorophoreData(
     ISO_RATE=2e7,
     BISO_CROSS_SECTION=1.7e-17,
 )
-testfluo_1.__test__ = False
-testfluo_1.__doc__ += "\nConstant photophysical attributes of testing fluorophore 1."
+object.__setattr__(testfluo_1, "__test__", False)
+object.__setattr__(
+    testfluo_1,
+    "__doc__",
+    "\nConstant photophysical attributes of testing fluorophore 1.",
+)
 
 
 testfluo_2 = FluorophoreData(
@@ -435,5 +511,9 @@ testfluo_2 = FluorophoreData(
     H2O_ATTACK_T=0,
     BACK_REACTION=1e-1,
 )
-testfluo_2.__test__ = False
-testfluo_2.__doc__ += "\nConstant photophysical attributes of testing fluorophore 2."
+object.__setattr__(testfluo_2, "__test__", False)
+object.__setattr__(
+    testfluo_2,
+    "__doc__",
+    "\nConstant photophysical attributes of testing fluorophore 2.",
+)
