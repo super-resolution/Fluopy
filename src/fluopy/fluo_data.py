@@ -18,7 +18,7 @@ import pandas as pd
 __all__: list[str] = ["Spectrum", "FluorophoreData", "cy5_dna", "atto643"]
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, eq=False, init=False)
 class Spectrum:
     """
     Contains wavelength-dependent spectral data.
@@ -34,8 +34,8 @@ class Spectrum:
         Spectrum values corresponding to wavelengths.
     """
 
-    wavelengths: npt.ArrayLike
-    values: npt.ArrayLike
+    wavelengths: npt.NDArray[np.float64]
+    values: npt.NDArray[np.float64]
 
     @classmethod
     def from_arrays(
@@ -186,34 +186,38 @@ class Spectrum:
 
         return integral
 
-    def __post_init__(self) -> None:
-        wavelengths = np.asarray(self.wavelengths, dtype=float).copy()
-        values = np.asarray(self.values, dtype=float).copy()
+    def __init__(
+        self,
+        wavelengths: npt.ArrayLike,
+        values: npt.ArrayLike,
+    ) -> None:
+        wavelength_array = np.asarray(wavelengths, dtype=float).copy()
+        value_array = np.asarray(values, dtype=float).copy()
 
-        object.__setattr__(self, "wavelengths", wavelengths)
-        object.__setattr__(self, "values", values)
-
-        if self.wavelengths.ndim != 1:
+        if wavelength_array.ndim != 1:
             raise ValueError("spectrum wavelengths must be one-dimensional.")
-        if self.values.ndim != 1:
+        if value_array.ndim != 1:
             raise ValueError("spectrum values must be one-dimensional.")
-        if self.wavelengths.size != self.values.size:
+        if wavelength_array.size != value_array.size:
             raise ValueError(
                 "spectrum wavelengths and values must have the same length."
             )
-        if self.wavelengths.size < 2:
+        if wavelength_array.size < 2:
             raise ValueError("a spectrum must contain at least two data points.")
-        if not np.all(np.isfinite(self.wavelengths)):
+        if not np.all(np.isfinite(wavelength_array)):
             raise ValueError("spectrum wavelengths must be finite.")
-        if not np.all(np.isfinite(self.values)):
+        if not np.all(np.isfinite(value_array)):
             raise ValueError("spectrum values must be finite.")
-        if not np.all(np.diff(self.wavelengths) > 0):
+        if not np.all(np.diff(wavelength_array) > 0):
             raise ValueError("spectrum wavelengths must be strictly increasing.")
-        if np.any(self.values < 0):
+        if np.any(value_array < 0):
             raise ValueError("spectrum values must be non-negative.")
 
-        self.wavelengths.setflags(write=False)
-        self.values.setflags(write=False)
+        wavelength_array.setflags(write=False)
+        value_array.setflags(write=False)
+
+        object.__setattr__(self, "wavelengths", wavelength_array)
+        object.__setattr__(self, "values", value_array)
 
 
 def _load_bundled_spectra(
