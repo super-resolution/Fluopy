@@ -155,22 +155,24 @@ def calculate_excitation_rate(
             raise ValueError(
                 "extinction_coefficient must contain finite, non-negative values."
             )
-        absorption_cross_section = (
-            extinction_coefficient * 1e3 * np.log(10) / constants.Avogadro
-        )
+        cross_section = extinction_coefficient * 1e3 * np.log(10) / constants.Avogadro
     else:
-        absorption_cross_section = np.asarray(
+        if absorption_cross_section is None:
+            raise RuntimeError("absorption_cross_section unexpectedly missing")
+        cross_section = np.asarray(
             absorption_cross_section,
             dtype=np.float64,
         )
-        if np.any(~np.isfinite(absorption_cross_section)) or np.any(
-            absorption_cross_section < 0
-        ):
+        if np.any(~np.isfinite(cross_section)) or np.any(cross_section < 0):
             raise ValueError(
                 "absorption_cross_section must contain finite, non-negative values."
             )
-    absorption_cross_section = absorption_cross_section * 1e-4
-    excitation_rate = np.asarray(photon_flux) * absorption_cross_section
+    cross_section = cross_section * 1e-4
+    photon_flux_array = np.asarray(photon_flux, dtype=np.float64)
+    excitation_rate = np.asarray(
+        photon_flux_array * cross_section,
+        dtype=np.float64,
+    )
 
     return excitation_rate
 
@@ -212,9 +214,9 @@ def calculate_emission_rate(
         fluorescence_lifetime <= 0
     ):
         raise ValueError("fluorescence_lifetime must contain positive finite values.")
-    emis_rate = quantum_yield / fluorescence_lifetime
+    emission_rate = np.asarray(quantum_yield / fluorescence_lifetime, dtype=np.float64)
 
-    return emis_rate
+    return emission_rate
 
 
 def calculate_internal_conversion_rate(
@@ -245,7 +247,7 @@ def calculate_internal_conversion_rate(
     float | npt.NDArray[np.float64]
         The rate of internal conversion in 1/s.
     """
-    quantum_yield = np.asarray(quantum_yield)
+    quantum_yield = np.asarray(quantum_yield, dtype=np.float64)
     if (
         np.any(~np.isfinite(quantum_yield))
         or np.any(quantum_yield <= 0)
@@ -257,7 +259,9 @@ def calculate_internal_conversion_rate(
     emission_rate = np.asarray(emission_rate, dtype=np.float64)
     if np.any(~np.isfinite(emission_rate)) or np.any(emission_rate < 0):
         raise ValueError("emission_rate must contain finite, non-negative values.")
-    internal_conversion_rate = emission_rate / quantum_yield - emission_rate
+    internal_conversion_rate = np.asarray(
+        emission_rate / quantum_yield - emission_rate, dtype=np.float64
+    )
 
     for outgoing_rate in other_outgoing_rates_args:
         internal_conversion_rate -= outgoing_rate
@@ -401,7 +405,7 @@ def calculate_spectral_overlap_integral(
 
     normalized_donor = donor / donor_area
     integrand = normalized_donor * acceptor * wavelengths**4
-    spectral_overlap_integral = np.trapezoid(integrand, x=wavelengths)
+    spectral_overlap_integral = float(np.trapezoid(integrand, x=wavelengths))
 
     return spectral_overlap_integral
 
@@ -514,6 +518,6 @@ def calculate_photon_collection_rate(NA: float = 1.45, n1: float = 1.51) -> floa
         raise ValueError("NA must be finite and between 0 and n1.")
     half_angle = np.arcsin(NA / n1)
     cone = 2 * np.pi * (1 - np.cos(half_angle))
-    photon_collection_rate = cone / (4 * np.pi)
+    photon_collection_rate = float(cone / (4 * np.pi))
 
     return photon_collection_rate
