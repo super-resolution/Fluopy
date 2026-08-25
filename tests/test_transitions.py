@@ -135,6 +135,31 @@ def test_transition(transition_type, fluorophore_ids, expected):
         assert transition.fluorophore_ids == fluorophore_ids
 
 
+@pytest.mark.parametrize("rate", [-1, np.nan, np.inf, -np.inf, [1], np.array([1])])
+def test_transition_rejects_invalid_rate(rate):
+    with pytest.raises(
+        ValueError,
+        match="rate must be a finite, non-negative scalar.",
+    ):
+        tr.Transition(
+            transition_type=tr.TransitionType.EXCITATION,
+            rate=rate,
+            fluorophore_ids=[0],
+        )
+
+
+@pytest.mark.parametrize("rate", [0, 1, 1.5, np.float64(2)])
+def test_transition_accepts_valid_rate(rate):
+    transition = tr.Transition(
+        transition_type=tr.TransitionType.EXCITATION,
+        rate=rate,
+        fluorophore_ids=[0],
+    )
+
+    assert transition.rate == float(rate)
+    assert isinstance(transition.rate, float)
+
+
 def test_transition_to_dict_preserves_objects():
     transition = tr.Transition(
         transition_type=tr.TransitionType.EXCITATION,
@@ -169,7 +194,17 @@ class TestTransitionSet:
         transition_set = tr.TransitionSet(
             transitions=transitions, fluorophore_system=fluorophore_system
         )
-        assert transition_set.transitions == transitions
+
+        actual = transition_set.transitions["testfluo_1"]
+
+        assert len(actual) == 2
+        assert actual[0] is not transition_1
+        assert actual[1] is not transition_2
+        assert [transition.identity for transition in actual] == [0, 1]
+        assert [transition.rate for transition in actual] == [1e6, 1e9]
+
+        assert transition_1.identity is None
+        assert transition_2.identity is None
         assert transition_set.fluorophore_system == fluorophore_system
         assert isinstance(transition_set.combined_state_transitions_df, pd.DataFrame)
         assert len(transition_set.row_sums) == 2
@@ -183,7 +218,19 @@ class TestTransitionSet:
         )
         transition_set.finalize()
 
-        assert transition_set.transitions == transitions
+        actual = transition_set.transitions["testfluo_1"]
+
+        assert len(actual) == 2
+        assert [transition.identity for transition in actual] == [0, 1]
+        assert [transition.rate for transition in actual] == [1e6, 1e9]
+        assert all(
+            transition is not original
+            for transition, original in zip(
+                actual,
+                transitions["testfluo_1"],
+                strict=True,
+            )
+        )
         assert transition_set.fluorophore_system == fluorophore_system
         assert isinstance(transition_set.combined_state_transitions_df, pd.DataFrame)
         assert len(transition_set.row_sums) == 2
@@ -362,7 +409,23 @@ class TestTransitionSet:
                 i += 1
                 assert transition.abbreviation != "IC"
         assert transition_set.fluorophore_system == fluorophore_system
-        assert transition_set.transitions == transitions
+        assert transition_set.transitions is not transitions
+
+        for key in transition_set.transitions:
+            assert transition_set.transitions[key] is not transitions[key]
+
+        assert all(
+            transition.identity is None
+            for transition_collection in transitions.values()
+            for transition in transition_collection
+        )
+        assert zero_rate_transition in transitions["testfluo_1"]
+        assert zero_rate_transition.identity is None
+        assert all(
+            transition.abbreviation != "IC"
+            for transition_collection in transition_set.transitions.values()
+            for transition in transition_collection
+        )
         assert list(transition_set.transition_df.columns) == [
             "transition_type",
             "abbreviation",
@@ -435,6 +498,13 @@ class TestTransitionSet:
             109542.37650972935,
         ]
 
+    def test_adjust_rates_rejects_invalid_rate(self, tr_set_1f):
+        with pytest.raises(
+            ValueError,
+            match="rate must be a finite, non-negative scalar.",
+        ):
+            tr_set_1f.adjust_rates({0: -1})
+
     def test_transition_set_remove_absorbing_states(self, tr_set_bl_et_3f):
         assert tr_set_bl_et_3f.transition_df["absorbing"].any()
         tr_set_et = tr_set_bl_et_3f.remove_absorbing_states()
@@ -465,11 +535,22 @@ class TestTransitionSet:
             transitions=transitions, fluorophore_system=flu_sys_cy5
         )
 
-        assert transition_set.transitions == transitions
-        transition_set = transition_set.remove_zero_rates()
-        assert transition_set.transitions == {
-            "testfluo_1": [transition_2],
-        }
+        assert transitions["testfluo_1"] == [transition_1, transition_2]
+        assert transition_1.identity is None
+        assert transition_2.identity is None
+
+        assert len(transition_set.transitions["testfluo_1"]) == 1
+        assert transition_set.transitions["testfluo_1"][0].rate == 1e9
+        assert transition_set.transitions["testfluo_1"][0] is not transition_2
+        remaining = transition_set.transitions["testfluo_1"]
+
+        assert len(remaining) == 1
+        assert remaining[0].transition_type is tr.TransitionType.FLUORESCENT_EMISSION
+        assert remaining[0].rate == 1e9
+        assert remaining[0].identity == 0
+        assert remaining[0] is not transition_2
+
+        assert transition_2.identity is None
         assert transition_set.fluorophore_system == flu_sys_cy5
         assert isinstance(transition_set.combined_state_transitions_df, pd.DataFrame)
         assert len(transition_set.row_sums) == 1
@@ -477,6 +558,51 @@ class TestTransitionSet:
         assert isinstance(transition_set.transition_df, pd.DataFrame)
         assert len(transition_set.transition_df) == 1
         assert transition_set.transition_matrix.shape == (1, 1)
+
+
+def test_transition_set_does_not_mutate_input_transitions(flu_sys_cy5):
+    transition = tr.Transition(
+        transition_type=tr.TransitionType.EXCITATION,
+        rate=1e6,
+        fluorophore_ids=[0],
+    )
+    transitions = {"testfluo_1": [transition]}
+
+    transition_set = tr.TransitionSet(
+        transitions=transitions,
+        fluorophore_system=flu_sys_cy5,
+    )
+
+    assert transition.identity is None
+    assert transition_set.transitions is not transitions
+    assert transition_set.transitions["testfluo_1"] is not transitions["testfluo_1"]
+    assert transition_set.transitions["testfluo_1"][0] is not transition
+    assert transition_set.transitions["testfluo_1"][0].identity == 0
+
+
+def test_transition_set_zero_rate_filter_does_not_mutate_input(flu_sys_cy5):
+    zero_rate = tr.Transition(
+        transition_type=tr.TransitionType.EXCITATION,
+        rate=0,
+        fluorophore_ids=[0],
+    )
+    emission = tr.Transition(
+        transition_type=tr.TransitionType.FLUORESCENT_EMISSION,
+        rate=1e9,
+        fluorophore_ids=[0],
+    )
+    transitions = {"testfluo_1": [zero_rate, emission]}
+
+    transition_set = tr.TransitionSet(
+        transitions=transitions,
+        fluorophore_system=flu_sys_cy5,
+    )
+
+    assert transitions["testfluo_1"] == [zero_rate, emission]
+    assert zero_rate.identity is None
+    assert emission.identity is None
+    assert len(transition_set.transitions["testfluo_1"]) == 1
+    assert transition_set.transitions["testfluo_1"][0].rate == 1e9
 
 
 def test_transition_set_states_by_value(tr_set_1f):
@@ -846,6 +972,61 @@ def test_derive_energy_transfer_transitions(
                 if transition.abbreviation == "STA_B":
                     assert_rate = transition.rate
         assert assert_rate == 0.5 * assert_total_rate
+
+
+@pytest.mark.parametrize(
+    "overwrite",
+    [
+        {"t1": [-1, 0.5]},
+        {"t1": [1, -0.1]},
+        {"t1": [1, 1.1]},
+        {"t1": [np.nan, 0.5]},
+        {"t1": [1]},
+    ],
+)
+def test_derive_energy_transfer_rejects_invalid_overwrite(
+    overwrite,
+    flu_obj_cy5_1,
+):
+    with pytest.raises(ValueError):
+        tr.derive_energy_transfer_transitions(
+            donor_data=flu_obj_cy5_1.constants,
+            acceptor_data=flu_obj_cy5_1.constants,
+            fluorophore_ids=[(0, 1)],
+            dipole_orientation_factor=2 / 3,
+            distance=5,
+            refractive_index=1.33,
+            overwrite=overwrite,
+        )
+
+
+@pytest.mark.parametrize(
+    "include",
+    [
+        {"t1": [(tr.TransitionType.S_T_ANNI_BLEACH, -0.1)]},
+        {"t1": [(tr.TransitionType.S_T_ANNI_BLEACH, np.nan)]},
+        {
+            "t1": [
+                (tr.TransitionType.S_T_ANNI_BLEACH, 0.6),
+                (tr.TransitionType.S_T_ANNI_RISC, 0.5),
+            ]
+        },
+    ],
+)
+def test_derive_energy_transfer_rejects_invalid_include(
+    include,
+    flu_obj_cy5_1,
+):
+    with pytest.raises(ValueError):
+        tr.derive_energy_transfer_transitions(
+            donor_data=flu_obj_cy5_1.constants,
+            acceptor_data=flu_obj_cy5_1.constants,
+            fluorophore_ids=[(0, 1)],
+            dipole_orientation_factor=2 / 3,
+            distance=5,
+            refractive_index=1.33,
+            include=include,
+        )
 
 
 def test_derive_energy_transfer_with_in_memory_spectra():

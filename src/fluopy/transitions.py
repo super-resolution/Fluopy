@@ -412,6 +412,10 @@ class Transition:
     fluorophore_ids: list[int] | list[tuple[int, int]] = field()
 
     def __post_init__(self) -> None:
+        if not np.isscalar(self.rate) or not np.isfinite(self.rate) or self.rate < 0:
+            raise ValueError("rate must be a finite, non-negative scalar.")
+
+        self.rate = float(self.rate)
         self.abbreviation = self.transition_type.abbreviation
         self.initial_state = self.transition_type.initial_state
         self.final_state = self.transition_type.final_state
@@ -552,6 +556,10 @@ class TransitionSet:
         keep_zero_rates
             Whether to keep transitions with rate 0.
         """
+        transitions = {
+            key: [copy.copy(transition) for transition in transition_collection]
+            for key, transition_collection in transitions.items()
+        }
         self.transitions = transitions
         self.fluorophore_system = fluorophore_system
 
@@ -712,7 +720,10 @@ class TransitionSet:
         for _, f_transitions in transitions.items():
             for transition in f_transitions:
                 if transition.identity in change_dict:
-                    transition.rate = change_dict[transition.identity]
+                    rate = change_dict[transition.identity]
+                    if not np.isscalar(rate) or not np.isfinite(rate) or rate < 0:
+                        raise ValueError("rate must be a finite, non-negative scalar.")
+                    transition.rate = float(rate)
         adjusted = TransitionSet(
             transitions=transitions,
             fluorophore_system=self.fluorophore_system,
@@ -795,7 +806,7 @@ class TransitionSet:
 
         keep_transitions = {}
         for fluorophore, f_transition in transitions.items():
-            if "dist" not in fluorophore:
+            if not isinstance(f_transition[0].initial_state, PairedState):
                 keep_transitions[fluorophore] = f_transition
 
         no_ets = TransitionSet(
@@ -925,7 +936,7 @@ def get_single_states(
     transition_df["absorbing"] = False
     single_states = {}
     for fluorophore_comb, f_transitions in transitions.items():
-        if "dist" not in fluorophore_comb:
+        if not isinstance(f_transitions[0].initial_state, PairedState):
             single_states_ = []
             for transition in f_transitions:
                 initial_state = transition.initial_state
@@ -1386,9 +1397,9 @@ def derive_energy_transfer_transitions(
     dipole_orientation_factor: float,
     distance: float,
     refractive_index: float,
-    overwrite: dict[str, list[float]] | None = None,
+    overwrite: dict[str, Collection[float]] | None = None,
     exclude: list[str] | None = None,
-    include: dict[str, list[float]] | None = None,
+    include: dict[str, list[tuple[TransitionType, float]]] | None = None,
 ) -> list[Transition]:
     """
     Derive energy transfer transitions based on the experimental conditions and the
@@ -1432,6 +1443,58 @@ def derive_energy_transfer_transitions(
             "cannot derive energy-transfer transitions without acceptor "
             "absorption spectra."
         )
+
+    supported_acceptor_states = {"s0", "t1", "s1", "cis", "off"}
+    if overwrite is not None:
+        for acceptor_state, values in overwrite.items():
+            if acceptor_state not in supported_acceptor_states:
+                raise ValueError(
+                    f"overwrite contains unsupported acceptor state "
+                    f"{acceptor_state!r}."
+                )
+            if len(values) != 2:
+                raise ValueError(
+                    "overwrite values must contain a rate multiplier and an efficiency."
+                )
+
+            rate_multiplier, efficiency = values
+
+            if not np.isfinite(rate_multiplier) or rate_multiplier < 0:
+                raise ValueError(
+                    "overwrite rate multipliers must be finite and non-negative."
+                )
+            if not np.isfinite(efficiency) or not 0 <= efficiency <= 1:
+                raise ValueError(
+                    "overwrite efficiencies must be finite and between 0 and 1."
+                )
+
+    if exclude is not None:
+        unsupported = set(exclude) - supported_acceptor_states
+        if unsupported:
+            raise ValueError(
+                f"exclude contains unsupported acceptor states: "
+                f"{sorted(unsupported)}."
+            )
+
+    if include is not None:
+        for acceptor_state, included_transitions in include.items():
+            if acceptor_state not in supported_acceptor_states:
+                raise ValueError(
+                    f"include contains unsupported acceptor state "
+                    f"{acceptor_state!r}."
+                )
+
+            factors = np.asarray(
+                [factor for _, factor in included_transitions],
+                dtype=float,
+            )
+
+            if np.any(~np.isfinite(factors)) or np.any(factors < 0):
+                raise ValueError("include factors must be finite and non-negative.")
+            if factors.sum() > 1:
+                raise ValueError(
+                    "include factors for each acceptor state must sum to at most 1."
+                )
 
     which_et = {
         "s0": [(TransitionType.FRET, 1)],
