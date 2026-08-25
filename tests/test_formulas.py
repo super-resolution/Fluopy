@@ -39,6 +39,21 @@ def test_convert_wavenumber_wavelength_frequency(
 
 
 @pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"wavelength": 0},
+        {"wavelength": -1},
+        {"frequency": np.inf},
+        {"wavenumber": np.nan},
+        {"wavelength": [500, 0]},
+    ],
+)
+def test_convert_rejects_invalid_values(kwargs):
+    with pytest.raises(ValueError):
+        fo.convert_wavenumber_wavelength_frequency(**kwargs)
+
+
+@pytest.mark.parametrize(
     "irradiance, frequency, expected",
     [[2, 4.5e14, np.array(6.7075e25)], [[0, 1], 1e6, np.array([0, 1.5092e34])]],
 )
@@ -82,8 +97,8 @@ def test_calculate_excitation_rate(
     "quantum_yield, fluorescence_lifetime, expected",
     [
         [1, 2, 0.5],
-        [[1, 2], 2, np.array([0.5, 1])],
-        [[1, 2], [2, 4], np.array([0.5, 0.5])],
+        [[1, 0.2], 2, np.array([0.5, 0.1])],
+        [[1, 0.2], [2, 4], np.array([0.5, 0.05])],
         [1, [2, 4], np.array([0.5, 0.25])],
     ],
 )
@@ -92,6 +107,23 @@ def test_calculate_emission_rate(quantum_yield, fluorescence_lifetime, expected)
         quantum_yield=quantum_yield, fluorescence_lifetime=fluorescence_lifetime
     )
     np.testing.assert_allclose(result, expected)
+
+
+@pytest.mark.parametrize(
+    "quantum_yield",
+    [-0.1, 1.1, np.nan, np.inf, [0.5, 1.1]],
+)
+def test_calculate_emission_rate_rejects_invalid_quantum_yield(
+    quantum_yield,
+):
+    with pytest.raises(
+        ValueError,
+        match="quantum_yield must contain finite values between 0 and 1.",
+    ):
+        fo.calculate_emission_rate(
+            quantum_yield=quantum_yield,
+            fluorescence_lifetime=1e-9,
+        )
 
 
 @pytest.mark.parametrize(
@@ -133,30 +165,21 @@ def test_henderson_hasselbalch_equation(ph, pka, concentration, expected):
 
 
 @pytest.mark.parametrize(
-    "reducing_agent, concentration, k_pet, ph, expected",
+    "reducing_agent, expected",
     [
-        ["ßme", 100, 1, 8, "ValueError"],
-        ["test", 100, 1, 8, 0.003065],
-        ["betaME", 100, 1, 8, 0.00245],
+        ("mea", 0.0091),
+        ("betaME", 0.00245),
     ],
 )
-def test_calculate_pet_rate(reducing_agent, concentration, k_pet, ph, expected):
-    if expected == "ValueError":
-        with pytest.raises(ValueError):
-            fo.calculate_pet_rate(
-                reducing_agent=reducing_agent,
-                concentration=concentration,
-                k_pet=k_pet,
-                ph=ph,
-            )
-    else:
-        result = fo.calculate_pet_rate(
-            reducing_agent=reducing_agent,
-            concentration=concentration,
-            k_pet=k_pet,
-            ph=ph,
-        )
-        np.testing.assert_allclose(result, expected, rtol=1e-3)
+def test_calculate_pet_rate(reducing_agent, expected):
+    result = fo.calculate_pet_rate(
+        reducing_agent=reducing_agent,
+        concentration=100,
+        k_pet=1,
+        ph=8,
+    )
+
+    assert result == pytest.approx(expected, rel=1e-3)
 
 
 @pytest.mark.parametrize(
@@ -178,6 +201,68 @@ def test_calculate_spectral_overlap_integral(donor, acceptor, wavelengths, expec
             donor=donor, acceptor=acceptor, wavelengths=wavelengths
         )
         np.testing.assert_allclose(result, expected)
+
+
+def test_spectral_overlap_rejects_mismatched_shapes():
+    with pytest.raises(
+        ValueError,
+        match="donor, acceptor and wavelengths must have matching shapes.",
+    ):
+        fo.calculate_spectral_overlap_integral(
+            donor=[1, 2, 3],
+            acceptor=[1, 1],
+            wavelengths=[500, 510, 520],
+        )
+
+
+def test_spectral_overlap_rejects_non_1d_inputs():
+    with pytest.raises(
+        ValueError,
+        match="donor, acceptor and wavelengths must be one-dimensional.",
+    ):
+        fo.calculate_spectral_overlap_integral(
+            donor=[[1], [2], [3]],
+            acceptor=[1, 1, 1],
+            wavelengths=[500, 510, 520],
+        )
+
+
+@pytest.mark.parametrize(
+    "wavelengths",
+    [
+        [500, 500, 510],
+        [500, 520, 510],
+    ],
+)
+def test_spectral_overlap_requires_increasing_wavelengths(wavelengths):
+    with pytest.raises(
+        ValueError,
+        match="wavelengths must be strictly increasing.",
+    ):
+        fo.calculate_spectral_overlap_integral(
+            donor=[1, 2, 3],
+            acceptor=[1, 1, 1],
+            wavelengths=wavelengths,
+        )
+
+
+@pytest.mark.parametrize(
+    "donor, acceptor",
+    [
+        ([-1, 1], [1, 1]),
+        ([1, 1], [-1, 1]),
+    ],
+)
+def test_spectral_overlap_rejects_negative_spectra(donor, acceptor):
+    with pytest.raises(
+        ValueError,
+        match="donor and acceptor values must be non-negative.",
+    ):
+        fo.calculate_spectral_overlap_integral(
+            donor=donor,
+            acceptor=acceptor,
+            wavelengths=[500, 510],
+        )
 
 
 def test_calculate_spectral_overlap_integral_with_full_donor_area():

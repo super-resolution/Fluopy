@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, ClassVar, Self
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-from scipy import interpolate as itp
 
 from . import formulas as fo
 from . import network as net
@@ -1852,36 +1851,3 @@ def derive_transitions(
             transitions.append(sum_transition)
 
     return transitions
-
-
-def interpolate_data(
-    minimum_wavelength: int, maximum_wavelength: int, data: pd.DataFrame
-) -> npt.NDArray[np.float64]:
-    """
-    Interpolate missing data points from data.
-
-    Parameters
-    ----------
-    minimum_wavelength
-        The minimum wavelength the interpolated data should cover.
-    maximum_wavelength
-        The maximum wavelength the interpolated data should cover.
-    data
-        Contains emission or absorption data with columns 'Wavelengths' and 'y'.
-
-    Returns
-    -------
-    interpolated : 1-D array_like
-        The data corresponding to each integer wavelength within the defined margins.
-    """
-    data["Wavelengths"] = data["Wavelengths"].astype(int)
-    data = data.drop_duplicates(subset=["Wavelengths"])
-    wavelengths = data["Wavelengths"]
-    add_lower = np.zeros(shape=min(wavelengths) - minimum_wavelength)
-    add_upper = np.zeros(shape=maximum_wavelength - max(wavelengths))
-    wavelengths_stepwise = np.arange(min(wavelengths), max(wavelengths) + 1)
-    interpolated = itp.CubicSpline(wavelengths, data["y"])(wavelengths_stepwise)
-    interpolated = np.where(interpolated < 0, 0, interpolated)
-    interpolated = np.concatenate((add_lower, interpolated, add_upper))
-
-    return interpolated

@@ -1276,16 +1276,3 @@ def test_derive_transitions_without_absorption_error():
             fluorophore_data=fluorophore_data,
             dstorm=False,
         )
-
-
-def test_interpolate_data():
-    data = pd.DataFrame(
-        {"Wavelengths": [617, 619, 620, 621], "y": [0.5, 0.6, 0.7, 0.6]}
-    )
-    interpolated = tr.interpolate_data(
-        minimum_wavelength=610, maximum_wavelength=621, data=data
-    )
-    np.testing.assert_array_equal(
-        interpolated,
-        np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.475, 0.6, 0.7, 0.6]),
-    )
