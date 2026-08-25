@@ -194,7 +194,7 @@ def tr_set_large(flu_sys_cy5):
         bleaching=True,
         energy_transfer=False,
         dstorm=True,
-        dstorm_parameters={"reducing_agent": "test", "ph": 8},
+        dstorm_parameters={"reducing_agent": "mea", "ph": 7.5},
     )
     tset = tr.TransitionSet(transitions=transitions, fluorophore_system=flu_sys_cy5)
     tset.finalize()

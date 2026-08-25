@@ -7,10 +7,11 @@ from __future__ import annotations
 import copy
 import logging
 import re
-from collections.abc import Collection, Iterable
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, fields
 from itertools import product
-from typing import TYPE_CHECKING, ClassVar, Self
+from numbers import Real
+from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import numpy as np
 import numpy.typing as npt
@@ -38,6 +39,11 @@ __all__: list[str] = [
 ]
 
 logger = logging.getLogger(__name__)
+
+
+StateCombination = tuple[int, ...]
+CombinedStateTransition = tuple[StateCombination, StateCombination]
+TransitionRateRecord = list[object]
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,6 +213,50 @@ class TransitionType:
     initial_state: SingleState | PairedState
     final_state: SingleState | PairedState
     photon: bool
+
+    EXCITATION: ClassVar[TransitionType]
+    FLUORESCENT_EMISSION: ClassVar[TransitionType]
+    SINGLET_QUENCHING: ClassVar[TransitionType]
+    INTERSYSTEM_CROSSING_ST: ClassVar[TransitionType]
+    INTERSYSTEM_CROSSING_TS: ClassVar[TransitionType]
+    INTERNAL_CONVERSION_S: ClassVar[TransitionType]
+    REVERSE_INTERSYSTEM_CROSSING: ClassVar[TransitionType]
+    PHOTOBLEACHING_1: ClassVar[TransitionType]
+    PHOTOBLEACHING_2: ClassVar[TransitionType]
+
+    ET_CYCLE_T: ClassVar[TransitionType]
+    ET_CYCLE_S: ClassVar[TransitionType]
+    ADDUCT_T: ClassVar[TransitionType]
+    ADDUCT_S: ClassVar[TransitionType]
+    THERM_ELIMINATION: ClassVar[TransitionType]
+    PHOTO_UNCAGING: ClassVar[TransitionType]
+    RAD_ESCAPE: ClassVar[TransitionType]
+    RAD_RELAX: ClassVar[TransitionType]
+
+    ISOMERIZATION: ClassVar[TransitionType]
+    PHOTO_BISO: ClassVar[TransitionType]
+    THERM_BISO: ClassVar[TransitionType]
+
+    FRET: ClassVar[TransitionType]
+    CIS_FRET_1: ClassVar[TransitionType]
+    CIS_FRET_2: ClassVar[TransitionType]
+    OFF_FRET_1: ClassVar[TransitionType]
+    OFF_FRET_2: ClassVar[TransitionType]
+    S_S_ANNIHILATION: ClassVar[TransitionType]
+    S_T_ANNIHILATION: ClassVar[TransitionType]
+    S_T_ANNI_RISC: ClassVar[TransitionType]
+    S_T_ANNI_BLEACH: ClassVar[TransitionType]
+    R_FRET_1: ClassVar[TransitionType]
+    R_FRET_2: ClassVar[TransitionType]
+
+    H2O_ATTACK_S: ClassVar[TransitionType]
+    H2O_ATTACK_T: ClassVar[TransitionType]
+    BACK_REACTION: ClassVar[TransitionType]
+
+    S1_S0_TRANSITIONS: ClassVar[TransitionType]
+    CIS_S0_TRANSITIONS: ClassVar[TransitionType]
+    T1_S0_TRANSITIONS: ClassVar[TransitionType]
+    OFF_S0_TRANSITIONS: ClassVar[TransitionType]
 
 
 # general
@@ -401,7 +451,7 @@ class Transition:
         and the second is the acceptor.
     """
 
-    identity: int = field(init=False)
+    identity: int | None = field(init=False, default=None)
     transition_type: TransitionType = field()
     abbreviation: str = field(init=False)
     initial_state: SingleState | PairedState = field(init=False)
@@ -411,15 +461,18 @@ class Transition:
     fluorophore_ids: list[int] | list[tuple[int, int]] = field()
 
     def __post_init__(self) -> None:
-        if not np.isscalar(self.rate) or not np.isfinite(self.rate) or self.rate < 0:
+        if not isinstance(self.rate, Real):
             raise ValueError("rate must be a finite, non-negative scalar.")
 
-        self.rate = float(self.rate)
+        rate = float(self.rate)
+        if not np.isfinite(rate) or rate < 0:
+            raise ValueError("rate must be a finite, non-negative scalar.")
+
+        self.rate = rate
         self.abbreviation = self.transition_type.abbreviation
         self.initial_state = self.transition_type.initial_state
         self.final_state = self.transition_type.final_state
         self.photon = self.transition_type.photon
-        self.identity = None
         for fluorophore_id in self.fluorophore_ids:
             if isinstance(self.initial_state, PairedState):
                 if not isinstance(fluorophore_id, tuple) or len(fluorophore_id) != 2:
@@ -440,6 +493,39 @@ class Transition:
         Return the transition fields as a shallow dictionary.
         """
         return {item.name: getattr(self, item.name) for item in fields(self)}
+
+    def get_identity(self) -> int:
+        if self.identity is None:
+            raise RuntimeError(
+                "transition identity is only available after adding it "
+                "to a TransitionSet."
+            )
+        return self.identity
+
+    def get_single_fluorophore_ids(self) -> list[int]:
+        fluorophore_ids: list[int] = []
+
+        for fluorophore_id in self.fluorophore_ids:
+            if not isinstance(fluorophore_id, int):
+                raise RuntimeError(
+                    "a non-paired transition must contain integer "
+                    "fluorophore identities."
+                )
+            fluorophore_ids.append(fluorophore_id)
+
+        return fluorophore_ids
+
+    def get_fluorophore_pairs(self) -> list[tuple[int, int]]:
+        fluorophore_pairs: list[tuple[int, int]] = []
+
+        for fluorophore_pair in self.fluorophore_ids:
+            if not isinstance(fluorophore_pair, tuple):
+                raise RuntimeError(
+                    "a paired transition must contain fluorophore identity pairs."
+                )
+            fluorophore_pairs.append(fluorophore_pair)
+
+        return fluorophore_pairs
 
 
 def get_states_by_value(
@@ -470,6 +556,7 @@ def get_states_by_value(
                 transition.initial_state,
                 transition.final_state,
             ):
+                single_states: tuple[SingleState, ...]
                 if isinstance(state, PairedState):
                     single_states = state.value
                 else:
@@ -536,6 +623,10 @@ class TransitionSet:
         possible combined_state_transition at the corresponding index pair.
     """
 
+    _combined_state_transitions_df: pd.DataFrame | None
+    _row_sums: npt.NDArray[np.float64] | None
+    _transition_matrix: npt.NDArray[np.float64] | None
+
     def __init__(
         self,
         transitions: dict[str, list[Transition]],
@@ -580,7 +671,7 @@ class TransitionSet:
                             "{distance between them in nm}'."
                         )
                     d, a, dist = match.groups()
-                    for d_t, a_t in transition.fluorophore_ids:
+                    for d_t, a_t in transition.get_fluorophore_pairs():
                         if self.fluorophore_system.fluorophores[d_t].name != d:
                             raise ValueError(
                                 f"{d} indicated to be at identity {d_t}, "
@@ -599,14 +690,14 @@ class TransitionSet:
                                 f"{dist} nm indicated, {actual_dist} nm found."
                             )
                 else:
-                    for j in transition.fluorophore_ids:
+                    for fluorophore_id in transition.get_single_fluorophore_ids():
                         if (
-                            self.fluorophore_system.fluorophores[j].name
+                            self.fluorophore_system.fluorophores[fluorophore_id].name
                             != fluorophore_comb
                         ):
                             raise ValueError(
-                                f"{fluorophore_comb} indicated to be at identity {j}, "
-                                f"{self.fluorophore_system.fluorophores[j].name} found."
+                                f"{fluorophore_comb} indicated to be at identity {fluorophore_id}, "
+                                f"{self.fluorophore_system.fluorophores[fluorophore_id].name} found."
                             )
                 if not keep_zero_rates:
                     if transition.rate != 0:
@@ -643,22 +734,38 @@ class TransitionSet:
     def combined_state_transitions_df(self) -> pd.DataFrame:
         if self._combined_state_transitions_df is None:
             self.finalize()
-        return self._combined_state_transitions_df
+        result = self._combined_state_transitions_df
+        if result is None:
+            raise RuntimeError(
+                "transition set finalization did not create a DataFrame."
+            )
+
+        return result
 
     @property
     def row_sums(self) -> npt.NDArray[np.float64]:
         if self._row_sums is None:
             self.finalize()
-        return self._row_sums
+        result = self._row_sums
+        if result is None:
+            raise RuntimeError("transition set finalization did not create row sums.")
+
+        return result
 
     @property
     def transition_matrix(self) -> npt.NDArray[np.float64]:
         if self._transition_matrix is None:
             self.finalize()
-        return self._transition_matrix
+        result = self._transition_matrix
+        if result is None:
+            raise RuntimeError(
+                "transition set finalization did not create a transition matrix."
+            )
+
+        return result
 
     def filter_by_identity(
-        self, remove_list: Collection = None, keep_zero_rates: bool = False
+        self, remove_list: Collection[int] | None = None, keep_zero_rates: bool = False
     ) -> TransitionSet:
         """
         Returns another TransitionSet with transitions removed by their identity.
@@ -676,16 +783,18 @@ class TransitionSet:
             Re-initialization of the object with the modified transition collection.
         """
         transitions = copy.deepcopy(self.transitions)
+
         if remove_list is None:
             remove_list = []
-        filtered_transitions = {}
+
+        filtered_transitions: dict[str, list[Transition]] = {}
+
         for fluorophore, f_transitions in transitions.items():
             for transition in f_transitions:
-                if transition.identity not in remove_list:
-                    if fluorophore in filtered_transitions:
-                        filtered_transitions[fluorophore] += [transition]
-                    else:
-                        filtered_transitions[fluorophore] = [transition]
+                if transition.get_identity() in remove_list:
+                    continue
+                filtered_transitions.setdefault(fluorophore, []).append(transition)
+
         filtered = TransitionSet(
             transitions=filtered_transitions,
             fluorophore_system=self.fluorophore_system,
@@ -695,7 +804,9 @@ class TransitionSet:
         return filtered
 
     def adjust_rates(
-        self, change_dict: dict[int, float] = None, keep_zero_rates: bool = False
+        self,
+        change_dict: Mapping[int, float] | None = None,
+        keep_zero_rates: bool = False,
     ) -> TransitionSet:
         """
         Returns another TransitionSet with transition rates modified.
@@ -718,11 +829,20 @@ class TransitionSet:
             change_dict = {}
         for _, f_transitions in transitions.items():
             for transition in f_transitions:
-                if transition.identity in change_dict:
-                    rate = change_dict[transition.identity]
-                    if not np.isscalar(rate) or not np.isfinite(rate) or rate < 0:
-                        raise ValueError("rate must be a finite, non-negative scalar.")
-                    transition.rate = float(rate)
+                identity = transition.get_identity()
+                if identity not in change_dict:
+                    continue
+                rate = change_dict[identity]
+
+                if not isinstance(rate, Real):
+                    raise ValueError("rate must be a finite, non-negative scalar.")
+
+                float_rate = float(rate)
+                if not np.isfinite(float_rate) or float_rate < 0:
+                    raise ValueError("rate must be a finite, non-negative scalar.")
+
+                transition.rate = float_rate
+
         adjusted = TransitionSet(
             transitions=transitions,
             fluorophore_system=self.fluorophore_system,
@@ -767,16 +887,17 @@ class TransitionSet:
         transitions = copy.deepcopy(self.transitions)  # transitions are objects
         # if no deep copy, the transition objects of the new TransitionSet are the
         # very same objects as in the old one
-        keep_transitions = {}
+        keep_transitions: dict[str, list[Transition]] = {}
         for fluorophore, f_transitions in transitions.items():
             for transition in f_transitions:
-                if not self.transition_df.loc[
-                    (fluorophore, transition.identity), "absorbing"
-                ]:
-                    if fluorophore in keep_transitions:
-                        keep_transitions[fluorophore] += [transition]
-                    else:
-                        keep_transitions[fluorophore] = [transition]
+                identity = transition.get_identity()
+                is_absorbing = self.transition_df.loc[
+                    (fluorophore, identity),
+                    "absorbing",
+                ]
+
+                if not bool(is_absorbing):
+                    keep_transitions.setdefault(fluorophore, []).append(transition)
 
         no_abs = TransitionSet(
             transitions=keep_transitions,
@@ -803,10 +924,14 @@ class TransitionSet:
         """
         transitions = copy.deepcopy(self.transitions)
 
-        keep_transitions = {}
-        for fluorophore, f_transition in transitions.items():
-            if not isinstance(f_transition[0].initial_state, PairedState):
-                keep_transitions[fluorophore] = f_transition
+        keep_transitions: dict[str, list[Transition]] = {}
+        for fluorophore, f_transitions in transitions.items():
+            first_transition = next(iter(f_transitions), None)
+            if first_transition is None:
+                continue
+
+            if not isinstance(first_transition.initial_state, PairedState):
+                keep_transitions[fluorophore] = f_transitions
 
         no_ets = TransitionSet(
             transitions=keep_transitions,
@@ -862,7 +987,7 @@ class TransitionSet:
     def plot(
         self,
         graph_type: str = "shell",
-        colors: Collection | None = None,
+        colors: Sequence[str] | None = None,
         scale: float = 1,
         axes: Iterable[mplAxes] | None = None,
     ) -> list[mplAxes]:
@@ -888,15 +1013,23 @@ class TransitionSet:
         graphs = net.construct_state_graphs(transition_df=self.transition_df)
 
         if axes is None:
-            axes = [None] * len(graphs)
+            plot_axes: Iterable[mplAxes | None] = [None] * len(graphs)
+        else:
+            plot_axes = axes
 
-        return_axes = []
+        return_axes: list[mplAxes] = []
+
         try:
-            for graph, ax in zip(graphs, axes, strict=True):
-                ax = net.plot_graph(
-                    G=graph, graph_type=graph_type, colors=colors, scale=scale, ax=ax
+            for graph, ax in zip(graphs, plot_axes, strict=True):
+                result_ax = net.plot_graph(
+                    G=graph,
+                    graph_type=graph_type,
+                    colors=colors,
+                    scale=scale,
+                    ax=ax,
                 )
-                return_axes.append(ax)
+                return_axes.append(result_ax)
+
         except ValueError as exception:
             raise ValueError(
                 f"The number of axes elements must be {len(graphs)} or None"
@@ -905,10 +1038,10 @@ class TransitionSet:
 
 
 def get_single_states(
-    transitions: dict[str, Collection[Transition]],
+    transitions: Mapping[str, Collection[Transition]],
     transition_df: pd.DataFrame,
     fluorophore_system: FluorophoreSystem,
-) -> dict[str, npt.NDArray[int]]:
+) -> dict[str, npt.NDArray[np.int64]]:
     """
     Get the values of SingleStates occurring in transitions.
 
@@ -928,18 +1061,30 @@ def get_single_states(
 
     Returns
     -------
-    single_states : dict
+    single_state_arrays : dict
         Contains the values of all relevant SingleStates as values. Name of
         fluorophores as keys.
     """
     transition_df["absorbing"] = False
-    single_states = {}
+    single_states: dict[str, list[int]] = {}
+
     for fluorophore_comb, f_transitions in transitions.items():
-        if not isinstance(f_transitions[0].initial_state, PairedState):
-            single_states_ = []
+        first_transition = next(iter(f_transitions), None)
+        if first_transition is None:
+            continue
+        if not isinstance(first_transition.initial_state, PairedState):
+            single_states_: list[int] = []
             for transition in f_transitions:
                 initial_state = transition.initial_state
                 final_state = transition.final_state
+                if not isinstance(initial_state, SingleState):
+                    raise TypeError(
+                        "a non-paired transition must have a SingleState initial state."
+                    )
+                if not isinstance(final_state, SingleState):
+                    raise TypeError(
+                        "a non-paired transition must have a SingleState final state."
+                    )
                 if initial_state.value not in single_states_:
                     single_states_.append(initial_state.value)
                 if final_state.value not in single_states_:
@@ -949,20 +1094,29 @@ def get_single_states(
             single_state_df = pd.DataFrame(single_states_, columns=["single_states"])
             single_state_df["absorbing"] = False
 
-            initial_states = (
-                transition_df.loc[fluorophore_comb, "initial_state"]
-                .apply(lambda x: x.value)
-                .values
-            )
+            initial_state_series = transition_df.loc[
+                fluorophore_comb,
+                "initial_state",
+            ]
+            if not isinstance(initial_state_series, pd.Series):
+                raise TypeError("initial_state selection must produce a pandas Series.")
+
+            initial_states = initial_state_series.map(
+                lambda state: state.value
+            ).to_numpy()
+
             for i, single_state in single_state_df["single_states"].items():
                 if single_state not in initial_states:
                     single_state_df.at[i, "absorbing"] = True
 
-            final_states = (
-                transition_df.loc[fluorophore_comb, "final_state"]
-                .apply(lambda x: x.value)
-                .values
-            )
+            final_state_series = transition_df.loc[
+                fluorophore_comb,
+                "final_state",
+            ]
+            if not isinstance(final_state_series, pd.Series):
+                raise TypeError("final_state selection must produce a pandas Series.")
+
+            final_states = final_state_series.map(lambda state: state.value).to_numpy()
             absorbing_states = single_state_df.loc[
                 single_state_df["absorbing"],
                 "single_states",
@@ -973,13 +1127,16 @@ def get_single_states(
                 transition_df.loc[(fluorophore_comb, index_values), "absorbing"] = True
     for f_transitions in transitions.values():
         for transition in f_transitions:
-            if not isinstance(transition.initial_state, PairedState):
-                continue
-
             initial_state = transition.initial_state
             final_state = transition.final_state
+            if not isinstance(initial_state, PairedState):
+                continue
+            if not isinstance(final_state, PairedState):
+                raise TypeError(
+                    "a paired transition must have a PairedState final state."
+                )
 
-            for donor_id, acceptor_id in transition.fluorophore_ids:
+            for donor_id, acceptor_id in transition.get_fluorophore_pairs():
                 donor_name = fluorophore_system.fluorophores[donor_id].name
                 acceptor_name = fluorophore_system.fluorophores[acceptor_id].name
 
@@ -999,16 +1156,16 @@ def get_single_states(
                     for state in states:
                         if state not in single_states[fluorophore_name]:
                             single_states[fluorophore_name].append(state)
-    single_states = {
+    single_state_arrays = {
         fluorophore: np.asarray(states, dtype=np.int64)
         for fluorophore, states in single_states.items()
     }
 
-    return single_states
+    return single_state_arrays
 
 
 def get_state_combinations(
-    single_states: dict[str, Collection[int]],
+    single_states: Mapping[str, Collection[int]],
     fluorophores: Collection[Fluorophore],
 ) -> list[tuple[int, ...]]:
     """
@@ -1035,8 +1192,8 @@ def get_state_combinations(
 
 
 def get_combined_state_transitions(
-    state_combinations: Collection[tuple[int, ...]],
-) -> list[tuple[tuple[int, ...], ...]]:
+    state_combinations: Collection[StateCombination],
+) -> list[CombinedStateTransition]:
     """
     Combines all given state_combinations with themselves 2 times. Cartesian product,
     see itertools.product(). Each combination resembles a combined_state_transition.
@@ -1051,15 +1208,20 @@ def get_combined_state_transitions(
     list
         Contains combinations of state_combinations of type tuple.
     """
-    return list(product(state_combinations, repeat=2))
+    cartesian_product = [
+        (current_state, future_state)
+        for current_state in state_combinations
+        for future_state in state_combinations
+    ]
+    return cartesian_product
 
 
 def rate_assignment_standard(
     transition: pd.Series,
     transition_id: int,
-    transition_rate_list: list[float],
-    combined_state_transitions: Collection[tuple[int, ...]],
-) -> list[float]:
+    transition_rate_list: list[TransitionRateRecord],
+    combined_state_transitions: Collection[CombinedStateTransition],
+) -> list[TransitionRateRecord]:
     """
     Adds a realizable combined_state_transition that is no energy transfer as a list to
     the transition_rate_list. Here, a combined_state_transition is realizable, if its
@@ -1115,9 +1277,9 @@ def rate_assignment_standard(
 def rate_assignment_energy_transfer(
     transition: pd.Series,
     transition_id: int,
-    transition_rate_list: list[float],
-    combined_state_transitions: Collection[tuple[int, ...]],
-) -> list[float]:
+    transition_rate_list: list[TransitionRateRecord],
+    combined_state_transitions: Collection[CombinedStateTransition],
+) -> list[TransitionRateRecord]:
     """
     Adds a realizable combined_state_transition that is also an energy transfer as a
     list to the transition_rate_list. Here, a combined_state_transition is realizable,
@@ -1183,8 +1345,9 @@ def rate_assignment_energy_transfer(
 
 
 def construct_transition_rate_list(
-    transition_df: pd.DataFrame, combined_state_transitions: Collection[tuple[int, ...]]
-) -> list[tuple[int, ...]]:
+    transition_df: pd.DataFrame,
+    combined_state_transitions: Collection[CombinedStateTransition],
+) -> list[TransitionRateRecord]:
     """
     Constructs a list that contains lists of each realizable combined_state_transition.
     The inner lists contain initial state_combination, final state_combination,
@@ -1205,8 +1368,14 @@ def construct_transition_rate_list(
     transition_rate_list : list
         Contains lists of each realizable combined_state_transition.
     """
-    transition_rate_list = list()
-    for (_, identity), transition in transition_df.iterrows():
+    transition_rate_list: list[TransitionRateRecord] = []
+    for index, transition in transition_df.iterrows():
+        if not isinstance(index, tuple) or len(index) != 2:
+            raise TypeError("transition DataFrame must have a two-level index.")
+
+        identity = index[1]
+        if not isinstance(identity, int):
+            raise TypeError("transition identity must be an integer.")
         if isinstance(transition["initial_state"], SingleState):
             transition_rate_list = rate_assignment_standard(
                 transition=transition,
@@ -1256,14 +1425,18 @@ def construct_transition_matrix(
         shape=(transition_count, transition_count), dtype=np.float64
     )
 
-    for i, row in combined_state_transitions_df.iterrows():
+    for index, row in combined_state_transitions_df.iterrows():
+        if not isinstance(index, int):
+            raise TypeError("combined transition index must be an integer.")
+
         final_state = row["final_state"]
-        indices = combined_state_transitions_df[
+        matching_rows = combined_state_transitions_df[
             combined_state_transitions_df["initial_state"] == final_state
-        ].index
-        transition_rate_matrix[i][indices] = combined_state_transitions_df["rate"][
-            indices
         ]
+        indices = matching_rows.index.to_numpy(dtype=np.intp)
+        rates = matching_rows["rate"].to_numpy(dtype=np.float64)
+
+        transition_rate_matrix[index, indices] = rates
 
     row_sums = transition_rate_matrix.sum(axis=1, dtype=np.float64)
     row_sums_exp = np.tile(np.expand_dims(row_sums, axis=1), reps=row_sums.size)
@@ -1371,9 +1544,11 @@ def derive_energy_transfer_rate(
             donor_area=donor_area,
         )
 
-    emission_rate = fo.calculate_emission_rate(
-        quantum_yield=donor_data.QUANTUM_YIELD,
-        fluorescence_lifetime=donor_data.FLUORESCENCE_LIFETIME,
+    emission_rate = float(
+        fo.calculate_emission_rate(
+            quantum_yield=donor_data.QUANTUM_YIELD,
+            fluorescence_lifetime=donor_data.FLUORESCENCE_LIFETIME,
+        )
     )
 
     rate = fo.calculate_fret_rate(
@@ -1396,7 +1571,7 @@ def derive_energy_transfer_transitions(
     dipole_orientation_factor: float,
     distance: float,
     refractive_index: float,
-    overwrite: dict[str, Collection[float]] | None = None,
+    overwrite: Mapping[str, Sequence[float]] | None = None,
     exclude: list[str] | None = None,
     include: dict[str, list[tuple[TransitionType, float]]] | None = None,
 ) -> list[Transition]:
@@ -1495,7 +1670,7 @@ def derive_energy_transfer_transitions(
                     "include factors for each acceptor state must sum to at most 1."
                 )
 
-    which_et = {
+    which_et: dict[str, list[tuple[TransitionType, float]]] = {
         "s0": [(TransitionType.FRET, 1)],
         "t1": [
             (
@@ -1515,7 +1690,7 @@ def derive_energy_transfer_transitions(
                 ),
             ),
         ],
-        "s1": [(TransitionType.S_S_ANNIHILATION, 1)],
+        "s1": [(TransitionType.S_S_ANNIHILATION, 1.0)],
         "cis": [
             (
                 TransitionType.CIS_FRET_1,
@@ -1554,11 +1729,14 @@ def derive_energy_transfer_transitions(
         ],
     }
 
-    which_et_new = which_et.copy()
+    which_et_new: dict[str, list[tuple[TransitionType, float]]] = {
+        acceptor_state: transitions.copy()
+        for acceptor_state, transitions in which_et.items()
+    }
     if include is not None:
         for acceptor_state in include:
             which_et_new[acceptor_state] = []
-            total_factor = 0
+            total_factor = 0.0
             for transition_type, factor in include[acceptor_state]:
                 total_factor += factor
                 which_et_new[acceptor_state].append((transition_type, factor))
@@ -1567,7 +1745,7 @@ def derive_energy_transfer_transitions(
                     (transition_type, factor * (1 - total_factor))
                 )
 
-    transitions = []
+    transitions: list[Transition] = []
     for acceptor_state, acceptor_absorption in sorted(acceptor_absorptions.items()):
         rate = derive_energy_transfer_rate(
             donor_data=donor_data,
@@ -1601,14 +1779,14 @@ def derive_energy_transfer_transitions(
 
 
 def derive_transitions(
-    summarize: bool = False,
-    fluorophore_data: FluorophoreData | None = None,
+    fluorophore_data: FluorophoreData,
     fluorophore_ids: list[int] | None = None,
+    summarize: bool = False,
     irradiance: float = 2,
     wavelength: float = 640,
     bleaching: bool = False,
     dstorm: bool = True,
-    **dstorm_parameters,
+    **dstorm_parameters: Any,
 ) -> list[Transition]:
     """
     Derive non-energy transfer transitions based on the experimental conditions and the
@@ -1616,12 +1794,12 @@ def derive_transitions(
 
     Parameters
     ----------
-    summarize
-        Whether to summarize some transitions into fewer.
     fluorophore_data
         Contains all constant photophysical attributes of the fluorophore.
     fluorophore_ids
         All identities of a fluorophore within a FluorophoreSystem.
+    summarize
+        Whether to summarize some transitions into fewer.
     irradiance
         Irradiance in kW/cm².
     wavelength
@@ -1664,8 +1842,10 @@ def derive_transitions(
 
     extinction_coefficient = absorption_spectrum.at(wavelength)
 
-    excitation_rate = fo.calculate_excitation_rate(
-        photon_flux=photon_flux, extinction_coefficient=extinction_coefficient
+    excitation_rate = float(
+        fo.calculate_excitation_rate(
+            photon_flux=photon_flux, extinction_coefficient=extinction_coefficient
+        )
     )
     excitation = Transition(
         rate=excitation_rate,
@@ -1673,8 +1853,11 @@ def derive_transitions(
         fluorophore_ids=fluorophore_ids,
     )
 
-    emission_rate = fo.calculate_emission_rate(
-        quantum_yield=fd.QUANTUM_YIELD, fluorescence_lifetime=fd.FLUORESCENCE_LIFETIME
+    emission_rate = float(
+        fo.calculate_emission_rate(
+            quantum_yield=fd.QUANTUM_YIELD,
+            fluorescence_lifetime=fd.FLUORESCENCE_LIFETIME,
+        )
     )
     emission = Transition(
         rate=emission_rate,
@@ -1700,8 +1883,10 @@ def derive_transitions(
         fluorophore_ids=fluorophore_ids,
     )
 
-    biso_rate = fo.calculate_excitation_rate(
-        photon_flux=photon_flux, absorption_cross_section=fd.BISO_CROSS_SECTION
+    biso_rate = float(
+        fo.calculate_excitation_rate(
+            photon_flux=photon_flux, absorption_cross_section=fd.BISO_CROSS_SECTION
+        )
     )
     photo_bisomerization = Transition(
         rate=biso_rate,
@@ -1714,11 +1899,13 @@ def derive_transitions(
         fluorophore_ids=fluorophore_ids,
     )
 
-    internal_conversion_rate = fo.calculate_internal_conversion_rate(
-        quantum_yield=fd.QUANTUM_YIELD,
-        emission_rate=emission_rate,
-        iso_rate=fd.ISO_RATE,
-        isc_st_rate=fd.ISC_ST_RATE,
+    internal_conversion_rate = float(
+        fo.calculate_internal_conversion_rate(
+            quantum_yield=fd.QUANTUM_YIELD,
+            emission_rate=emission_rate,
+            iso_rate=fd.ISO_RATE,
+            isc_st_rate=fd.ISC_ST_RATE,
+        )
     )
     internal_conversion = Transition(
         rate=internal_conversion_rate,
@@ -1733,11 +1920,11 @@ def derive_transitions(
 
     dstorm_transitions = []
     if dstorm:
-        dstorm_pet_t_rate = fo.calculate_pet_rate(
-            k_pet=fd.DSTORM_PET_T_RATE_MOL, **dstorm_parameters
+        dstorm_pet_t_rate = float(
+            fo.calculate_pet_rate(k_pet=fd.DSTORM_PET_T_RATE_MOL, **dstorm_parameters)
         )
-        dstorm_pet_s_rate = fo.calculate_pet_rate(
-            k_pet=fd.DSTORM_PET_S_RATE_MOL, **dstorm_parameters
+        dstorm_pet_s_rate = float(
+            fo.calculate_pet_rate(k_pet=fd.DSTORM_PET_S_RATE_MOL, **dstorm_parameters)
         )
         dstorm_pet_t = Transition(
             rate=dstorm_pet_t_rate,
@@ -1761,9 +1948,11 @@ def derive_transitions(
             transition_type=TransitionType.ADDUCT_S,
             fluorophore_ids=fluorophore_ids,
         )
-        photo_uncage = fo.calculate_excitation_rate(
-            photon_flux=photon_flux,
-            absorption_cross_section=fd.DSTORM_P_EL_CROSS_SECTION,
+        photo_uncage = float(
+            fo.calculate_excitation_rate(
+                photon_flux=photon_flux,
+                absorption_cross_section=fd.DSTORM_P_EL_CROSS_SECTION,
+            )
         )
         photo_uncaging = Transition(
             rate=photo_uncage,
@@ -1832,7 +2021,7 @@ def derive_transitions(
     transitions_copy = transitions[:]
     if summarize:
         for summarized_transition in summarized_transitions:
-            rate = 0
+            rate = 0.0
             for transition in transitions_copy:
                 if not transition.transition_type.photon:
                     if (
