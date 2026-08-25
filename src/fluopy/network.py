@@ -180,7 +180,7 @@ def determine_node_order(
 def plot_graph(
     G: nx.MultiDiGraph,
     graph_type: str = "shell",
-    colors: Sequence[str] = None,
+    colors: Sequence[str] | None = None,
     scale: float = 1,
     ax: mplAxes | None = None,
 ) -> mplAxes:

@@ -46,6 +46,33 @@ def test_fluorophore(
         assert fluorophore.constants is None
 
 
+def test_fluorophore_uses_identity_equality():
+    first = fl.Fluorophore("testfluo_1", [0, 0])
+    second = fl.Fluorophore("testfluo_1", [0, 0])
+
+    assert first == first
+    assert first != second
+
+
+def test_fluorophore_copies_position():
+    position = np.array([1.0, 2.0])
+    fluorophore = fl.Fluorophore("testfluo_1", position)
+
+    position[0] = 10
+
+    np.testing.assert_array_equal(
+        fluorophore.position,
+        [1.0, 2.0],
+    )
+
+
+def test_fluorophore_position_is_read_only():
+    fluorophore = fl.Fluorophore("testfluo_1", [1, 2])
+
+    with pytest.raises(ValueError, match="read-only"):
+        fluorophore.position[0] = 10
+
+
 @pytest.mark.parametrize(
     "positions, expected",
     [
@@ -107,8 +134,8 @@ def test_fluorophore_system(
     if exp_distances == "ValueError1":
         with pytest.raises(
             ValueError,
-            match="at least two fluorophores share the same position. Also "
-            "check for duplicates.",
+            match="at least two fluorophores are indistinguishable at the 0.001 nm "
+            "distance resolution. Also check for duplicates.",
         ):
             fluorophore_system = fl.FluorophoreSystem(fluorophores=fluorophores)
     else:
@@ -121,6 +148,54 @@ def test_fluorophore_system(
         assert fluorophore_system.distances == exp_distances
         assert fluorophore_system.count == exp_count
         assert fluorophore_system.multi_type == multi_type
+
+
+def test_fluorophore_system_copies_input_sequence():
+    fluorophores = [
+        fl.Fluorophore("testfluo_1", [0, 0]),
+        fl.Fluorophore("testfluo_1", [1, 0]),
+    ]
+    system = fl.FluorophoreSystem(fluorophores)
+
+    fluorophores.append(fl.Fluorophore("testfluo_1", [2, 0]))
+
+    assert isinstance(system.fluorophores, tuple)
+    assert len(system.fluorophores) == 2
+    assert system.count == 2
+
+
+def test_fluorophore_system_rejects_positions_below_distance_resolution():
+    fluorophores = [
+        fl.Fluorophore("testfluo_1", [0, 0]),
+        fl.Fluorophore("testfluo_1", [0.0004, 0]),
+    ]
+
+    with pytest.raises(
+        ValueError,
+        match="indistinguishable at the 0.001 nm distance resolution",
+    ):
+        fl.FluorophoreSystem(fluorophores)
+
+
+def test_fluorophore_system_requires_fluorophores():
+    with pytest.raises(
+        ValueError,
+        match="a fluorophore system must contain at least one fluorophore.",
+    ):
+        fl.FluorophoreSystem([])
+
+
+def test_fluorophore_system_requires_matching_dimensions():
+    fluorophores = [
+        fl.Fluorophore("testfluo_1", [0, 0]),
+        fl.Fluorophore("testfluo_1", [1, 0, 0]),
+    ]
+
+    with pytest.raises(
+        ValueError,
+        match="all fluorophore positions must have the same dimension.",
+    ):
+        fl.FluorophoreSystem(fluorophores)
 
 
 def test_same_name_requires_same_fluorophore_data():
@@ -217,7 +292,7 @@ def test_fluorophore_system_load_transitions(
                 energy_transfer_parameters=energy_transfer_parameters,
             )
             assert (
-                "'overwrite', 'exclude' or 'include' in energy_transfer_parameters will effect all types of fluorophores."
+                "'overwrite', 'exclude' or 'include' in energy_transfer_parameters will affect all types of fluorophores."
                 in caplog.text
             )
         caplog.clear()
@@ -229,6 +304,64 @@ def test_fluorophore_system_load_transitions(
         assert list(transitions) == expected_true
     else:
         assert list(transitions) == expected_false
+
+
+def test_load_transitions_warns_once_per_unknown_name(caplog):
+    fluorophores = [
+        fl.Fluorophore("unknown", [0, 0]),
+        fl.Fluorophore("unknown", [1, 0]),
+    ]
+    system = fl.FluorophoreSystem(fluorophores)
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        transitions = system.load_transitions()
+
+    assert transitions == {}
+    assert (
+        caplog.text.count(
+            "load_transitions() not available for this kind of fluorophore: unknown."
+        )
+        == 1
+    )
+
+
+def test_load_transitions_does_not_mutate_energy_transfer_parameters(
+    flu_sys_cy5,
+):
+    parameters = {
+        "refractive_index": 1.4,
+        "exclude": ["t1"],
+    }
+    original = {
+        "refractive_index": 1.4,
+        "exclude": ["t1"],
+    }
+
+    flu_sys_cy5.load_transitions(
+        energy_transfer_parameters=parameters,
+        dstorm=False,
+    )
+
+    assert parameters == original
+
+
+def test_load_transitions_does_not_mutate_dstorm_parameters(
+    flu_sys_cy5,
+):
+    parameters = {
+        "concentration": 100,
+    }
+
+    flu_sys_cy5.load_transitions(
+        energy_transfer=False,
+        dstorm=True,
+        dstorm_parameters=parameters,
+    )
+
+    assert parameters == {
+        "concentration": 100,
+    }
 
 
 @pytest.mark.parametrize(

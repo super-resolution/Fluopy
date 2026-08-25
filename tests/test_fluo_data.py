@@ -1,3 +1,5 @@
+from copy import deepcopy
+from dataclasses import FrozenInstanceError
 from pathlib import Path
 
 import numpy as np
@@ -24,6 +26,16 @@ def test_init_spectrum():
     assert spectrum.values.dtype == np.float64
 
 
+def test_spectrum_is_frozen():
+    spectrum = fd.Spectrum(
+        wavelengths=[500, 510],
+        values=[0.2, 0.8],
+    )
+
+    with pytest.raises(FrozenInstanceError):
+        spectrum.values = np.array([0.3, 0.7])
+
+
 def test_spectrum_copies_input_arrays():
     wavelengths = np.array([600.0, 610.0])
     values = np.array([0.2, 0.8])
@@ -34,6 +46,19 @@ def test_spectrum_copies_input_arrays():
 
     assert spectrum.wavelengths[0] == 600
     assert spectrum.values[0] == 0.2
+
+
+def test_spectrum_arrays_are_read_only():
+    spectrum = fd.Spectrum(
+        wavelengths=[500, 510],
+        values=[0.2, 0.8],
+    )
+
+    with pytest.raises(ValueError, match="read-only"):
+        spectrum.values[0] = 1
+
+    with pytest.raises(ValueError, match="read-only"):
+        spectrum.wavelengths[0] = 400
 
 
 @pytest.mark.parametrize(
@@ -98,6 +123,40 @@ def test_init_FluorophoreData():
     assert fluorophore_data.absorption_spectra == {}
 
 
+def test_fluorophore_data_is_frozen():
+    fluorophore_data = fd.FluorophoreData(
+        QUANTUM_YIELD=0.5,
+        FLUORESCENCE_LIFETIME=2e-9,
+    )
+
+    with pytest.raises(FrozenInstanceError):
+        fluorophore_data.QUANTUM_YIELD = 0.9
+
+
+def test_absorption_spectra_are_read_only():
+    absorption = fd.Spectrum(
+        wavelengths=[500, 510],
+        values=[1000, 2000],
+    )
+    fluorophore_data = fd.FluorophoreData(absorption_spectra={"s0": absorption})
+
+    with pytest.raises(TypeError):
+        fluorophore_data.absorption_spectra["t1"] = absorption
+
+
+def test_fluorophore_data_copies_absorption_mapping():
+    absorption = fd.Spectrum(
+        wavelengths=[500, 510],
+        values=[1000, 2000],
+    )
+    absorption_spectra = {"s0": absorption}
+    fluorophore_data = fd.FluorophoreData(absorption_spectra=absorption_spectra)
+
+    absorption_spectra.clear()
+
+    assert fluorophore_data.absorption_spectra == {"s0": absorption}
+
+
 def test_fluorophore_data_with_spectra():
     emission = fd.Spectrum(
         wavelengths=[600, 610, 620],
@@ -133,6 +192,59 @@ def test_fluorophore_data_absorption_spectrum_error():
         match="absorption spectrum for state 's0' must be a Spectrum.",
     ):
         fd.FluorophoreData(absorption_spectra={"s0": [0.1, 0.2]})
+
+
+@pytest.mark.parametrize(
+    "name, value",
+    [
+        ("QUANTUM_YIELD", -0.1),
+        ("QUANTUM_YIELD", 1.1),
+        ("STA_EFFICIENCY", 1.1),
+        ("RAD_ESCAPE_EFFICIENCY", np.nan),
+        ("BISO_EFFICIENCY", np.inf),
+    ],
+)
+def test_fluorophore_data_efficiency_errors(name, value):
+    with pytest.raises(
+        ValueError,
+        match=rf"{name} must be finite and between 0 and 1.",
+    ):
+        fd.FluorophoreData(**{name: value})
+
+
+@pytest.mark.parametrize(
+    "name, value",
+    [
+        ("FLUORESCENCE_LIFETIME", -1e-9),
+        ("ISC_ST_RATE", -1),
+        ("PHOTOBLEACH_T1_RATE", np.nan),
+        ("BISO_CROSS_SECTION", np.inf),
+    ],
+)
+def test_fluorophore_data_non_negative_value_errors(name, value):
+    with pytest.raises(
+        ValueError,
+        match=rf"{name} must be finite and non-negative.",
+    ):
+        fd.FluorophoreData(**{name: value})
+
+
+def test_partial_fluorophore_data_allows_zero_lifetime():
+    fluorophore_data = fd.FluorophoreData()
+
+    assert fluorophore_data.FLUORESCENCE_LIFETIME == 0
+
+
+def test_deepcopy_fluorophore_data_with_absorption_spectra():
+    absorption = fd.Spectrum(
+        wavelengths=[500, 510],
+        values=[1000, 2000],
+    )
+    fluorophore_data = fd.FluorophoreData(absorption_spectra={"s0": absorption})
+
+    copied = deepcopy(fluorophore_data)
+
+    assert copied is fluorophore_data
 
 
 def test_spectrum_from_arrays():

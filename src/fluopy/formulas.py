@@ -25,6 +25,12 @@ __all__: list[str] = [
 ]
 
 
+_REDUCING_AGENT_PKA = {
+    "mea": 9.0,
+    "betaME": 9.6,
+}
+
+
 def convert_wavenumber_wavelength_frequency(
     wavenumber: float | npt.ArrayLike | None = None,
     wavelength: float | npt.ArrayLike | None = None,
@@ -53,16 +59,22 @@ def convert_wavenumber_wavelength_frequency(
         )
     if wavenumber is not None:
         wavenumber = np.asarray(wavenumber, dtype=np.float64)
+        if np.any(~np.isfinite(wavenumber)) or np.any(wavenumber <= 0):
+            raise ValueError("wavenumber must contain positive finite values.")
         wavelength = np.asarray(1 / (wavenumber * 1e2) * 1e9, dtype=np.float64)
         frequency = np.asarray(wavenumber * 1e2 * constants.c, dtype=np.float64)
 
     elif wavelength is not None:
         wavelength = np.asarray(wavelength, dtype=np.float64)
+        if np.any(~np.isfinite(wavelength)) or np.any(wavelength <= 0):
+            raise ValueError("wavelength must contain positive finite values.")
         wavenumber = np.asarray(1 / (wavelength * 1e-9) * 1e-2, dtype=np.float64)
         frequency = np.asarray(constants.c / (wavelength * 1e-9), dtype=np.float64)
 
     else:  # frequency is not None:
         frequency = np.asarray(frequency, dtype=np.float64)
+        if np.any(~np.isfinite(frequency)) or np.any(frequency <= 0):
+            raise ValueError("frequency must contain positive finite values.")
         wavenumber = np.asarray(frequency / constants.c * 1e-2, dtype=np.float64)
         wavelength = np.asarray(constants.c / frequency * 1e9, dtype=np.float64)
 
@@ -87,8 +99,12 @@ def calculate_photon_flux(
     npt.NDArray[np.float64]
         The photon flux in 1/(m² s).
     """
-    irradiance = np.asarray(irradiance)
-    frequency = np.asarray(frequency)
+    irradiance = np.asarray(irradiance, dtype=np.float64)
+    frequency = np.asarray(frequency, dtype=np.float64)
+    if np.any(~np.isfinite(irradiance)) or np.any(irradiance < 0):
+        raise ValueError("irradiance must contain finite, non-negative values.")
+    if np.any(~np.isfinite(frequency)) or np.any(frequency <= 0):
+        raise ValueError("frequency must contain positive finite values.")
     irradiance = irradiance * 1e3 * 1e4
     photon_flux = np.asarray(irradiance / (constants.h * frequency))
 
@@ -129,12 +145,34 @@ def calculate_excitation_rate(
             "must not be None."
         )
     if extinction_coefficient is not None:
-        absorption_cross_section = (
-            np.asarray(extinction_coefficient) * 1e3 * np.log(10) / constants.Avogadro
+        extinction_coefficient = np.asarray(
+            extinction_coefficient,
+            dtype=np.float64,
         )
-
-    absorption_cross_section = np.asarray(absorption_cross_section) * 1e-4
-    excitation_rate = np.asarray(photon_flux) * np.asarray(absorption_cross_section)
+        if np.any(~np.isfinite(extinction_coefficient)) or np.any(
+            extinction_coefficient < 0
+        ):
+            raise ValueError(
+                "extinction_coefficient must contain finite, non-negative values."
+            )
+        cross_section = extinction_coefficient * 1e3 * np.log(10) / constants.Avogadro
+    else:
+        if absorption_cross_section is None:
+            raise RuntimeError("absorption_cross_section unexpectedly missing")
+        cross_section = np.asarray(
+            absorption_cross_section,
+            dtype=np.float64,
+        )
+        if np.any(~np.isfinite(cross_section)) or np.any(cross_section < 0):
+            raise ValueError(
+                "absorption_cross_section must contain finite, non-negative values."
+            )
+    cross_section = cross_section * 1e-4
+    photon_flux_array = np.asarray(photon_flux, dtype=np.float64)
+    excitation_rate = np.asarray(
+        photon_flux_array * cross_section,
+        dtype=np.float64,
+    )
 
     return excitation_rate
 
@@ -159,9 +197,26 @@ def calculate_emission_rate(
     float | npt.NDArray[np.float64]
         The rate of emission in 1/s.
     """
-    emis_rate = np.asarray(quantum_yield) / np.asarray(fluorescence_lifetime)
+    quantum_yield = np.asarray(quantum_yield, dtype=np.float64)
+    fluorescence_lifetime = np.asarray(
+        fluorescence_lifetime,
+        dtype=np.float64,
+    )
 
-    return emis_rate
+    if (
+        np.any(~np.isfinite(quantum_yield))
+        or np.any(quantum_yield < 0)
+        or np.any(quantum_yield > 1)
+    ):
+        raise ValueError("quantum_yield must contain finite values between 0 and 1.")
+
+    if np.any(~np.isfinite(fluorescence_lifetime)) or np.any(
+        fluorescence_lifetime <= 0
+    ):
+        raise ValueError("fluorescence_lifetime must contain positive finite values.")
+    emission_rate = np.asarray(quantum_yield / fluorescence_lifetime, dtype=np.float64)
+
+    return emission_rate
 
 
 def calculate_internal_conversion_rate(
@@ -192,12 +247,22 @@ def calculate_internal_conversion_rate(
     float | npt.NDArray[np.float64]
         The rate of internal conversion in 1/s.
     """
-    quantum_yield = np.asarray(quantum_yield)
-    if np.any(quantum_yield < 0) or np.any(quantum_yield > 1):
-        raise ValueError("Quantum yield has to be between 0 and 1.")
-    internal_conversion_rate = np.asarray(emission_rate) / quantum_yield - np.asarray(
-        emission_rate
+    quantum_yield = np.asarray(quantum_yield, dtype=np.float64)
+    if (
+        np.any(~np.isfinite(quantum_yield))
+        or np.any(quantum_yield <= 0)
+        or np.any(quantum_yield > 1)
+    ):
+        raise ValueError(
+            "quantum_yield must contain finite values greater than 0 and at most 1."
+        )
+    emission_rate = np.asarray(emission_rate, dtype=np.float64)
+    if np.any(~np.isfinite(emission_rate)) or np.any(emission_rate < 0):
+        raise ValueError("emission_rate must contain finite, non-negative values.")
+    internal_conversion_rate = np.asarray(
+        emission_rate / quantum_yield - emission_rate, dtype=np.float64
     )
+
     for outgoing_rate in other_outgoing_rates_args:
         internal_conversion_rate -= outgoing_rate
     for _, outgoing_rate in other_outgoing_rates_kwargs.items():
@@ -261,14 +326,10 @@ def calculate_pet_rate(
     float
         The PeT rate in 1/s.
     """
-    if reducing_agent == "betaME":
-        pka = 9.6
-    elif reducing_agent == "mea":
-        pka = 9.0
-    elif reducing_agent == "test":
-        pka = 9.5
-    else:
-        raise ValueError('reducing_agent has to be one of "betaME", "mea".')
+    try:
+        pka = _REDUCING_AGENT_PKA[reducing_agent]
+    except KeyError:
+        raise ValueError('reducing_agent has to be one of "betaME", "mea".') from None
 
     concentration = (
         henderson_hasselbalch_equation(ph=ph, pka=pka, concentration=concentration)
@@ -280,9 +341,10 @@ def calculate_pet_rate(
 
 
 def calculate_spectral_overlap_integral(
-    donor: npt.ArrayLike | None = None,
-    acceptor: npt.ArrayLike | None = None,
-    wavelengths: npt.ArrayLike | None = None,
+    donor: npt.ArrayLike,
+    acceptor: npt.ArrayLike,
+    wavelengths: npt.ArrayLike,
+    donor_area: float | None = None,
 ) -> float:
     """
     Calculates the spectral overlap integral defined as the integral of the
@@ -299,25 +361,51 @@ def calculate_spectral_overlap_integral(
     wavelengths : 1-D array_like
         The wavelength values in nm, that correspond to the respective donor and
         acceptor values.
+    donor_area
+        Area of the complete donor emission spectrum. If None, calculate the are from
+        donor and wavelengths.
 
     Returns
     -------
     float
         The value of the spectral overlap integral in (nm**4)/(M cm).
     """
-    donor = np.asarray(donor)
-    acceptor = np.asarray(acceptor)
-    wavelengths = np.asarray(wavelengths)
-    if donor.size != acceptor.size or donor.size != wavelengths.size:
-        raise ValueError("donor, acceptor and wavelengths have to be of the same size.")
+    donor = np.asarray(donor, dtype=np.float64)
+    acceptor = np.asarray(acceptor, dtype=np.float64)
+    wavelengths = np.asarray(wavelengths, dtype=np.float64)
 
-    donor_area = np.trapezoid(donor, x=wavelengths)
-    if donor_area <= 0:
-        raise ValueError("donor emission spectrum must have positive area.")
+    if donor.ndim != 1 or acceptor.ndim != 1 or wavelengths.ndim != 1:
+        raise ValueError("donor, acceptor and wavelengths must be one-dimensional.")
+
+    if donor.shape != acceptor.shape or donor.shape != wavelengths.shape:
+        raise ValueError("donor, acceptor and wavelengths must have matching shapes.")
+
+    if donor.size < 2:
+        raise ValueError(
+            "donor, acceptor and wavelengths must contain at least two values."
+        )
+
+    if (
+        np.any(~np.isfinite(donor))
+        or np.any(~np.isfinite(acceptor))
+        or np.any(~np.isfinite(wavelengths))
+    ):
+        raise ValueError("donor, acceptor and wavelengths must contain finite values.")
+
+    if np.any(np.diff(wavelengths) <= 0):
+        raise ValueError("wavelengths must be strictly increasing.")
+    if np.any(donor < 0) or np.any(acceptor < 0):
+        raise ValueError("donor and acceptor values must be non-negative.")
+
+    if donor_area is None:
+        donor_area = float(np.trapezoid(donor, x=wavelengths))
+
+    if not np.isfinite(donor_area) or donor_area <= 0:
+        raise ValueError("donor emission spectrum must have positive finite area.")
 
     normalized_donor = donor / donor_area
     integrand = normalized_donor * acceptor * wavelengths**4
-    spectral_overlap_integral = np.trapezoid(integrand, x=wavelengths)
+    spectral_overlap_integral = float(np.trapezoid(integrand, x=wavelengths))
 
     return spectral_overlap_integral
 
@@ -350,8 +438,21 @@ def calculate_fret_rate(
     float
         fret rate in 1/s.
     """
-    if distance <= 0:
-        raise ValueError("distance has to be greater than 0.")
+    if not np.isfinite(distance) or distance <= 0:
+        raise ValueError("distance must be positive and finite.")
+    if not np.isfinite(emission_rate) or emission_rate < 0:
+        raise ValueError("emission_rate must be finite and non-negative.")
+    if not np.isfinite(spectral_overlap_integral) or spectral_overlap_integral < 0:
+        raise ValueError("spectral_overlap_integral must be finite and non-negative.")
+    if (
+        not np.isfinite(dipole_orientation_factor)
+        or not 0 <= dipole_orientation_factor <= 4
+    ):
+        raise ValueError(
+            "dipole_orientation_factor must be finite and between 0 and 4."
+        )
+    if not np.isfinite(refractive_index) or refractive_index <= 0:
+        raise ValueError("refractive_index must be positive and finite.")
     fret_rate = (
         8.785
         * 1e-11
@@ -383,6 +484,10 @@ def calculate_fret_efficiency(
     float
         The FRET efficiency (dimensionless). Between 0 and 1.
     """
+    if not np.isfinite(fret_rate) or fret_rate < 0:
+        raise ValueError("fret_rate must be finite and non-negative.")
+    if not np.isfinite(fluorescence_lifetime) or fluorescence_lifetime <= 0:
+        raise ValueError("fluorescence_lifetime must be positive and finite.")
     tau_1 = fluorescence_lifetime
     tau_2 = 1 / (1 / fluorescence_lifetime + fret_rate)
     efficiency = 1 - tau_2 / tau_1
@@ -407,8 +512,12 @@ def calculate_photon_collection_rate(NA: float = 1.45, n1: float = 1.51) -> floa
     float
         The photon collection rate.
     """
+    if not np.isfinite(n1) or n1 <= 0:
+        raise ValueError("n1 must be positive and finite.")
+    if not np.isfinite(NA) or not 0 <= NA <= n1:
+        raise ValueError("NA must be finite and between 0 and n1.")
     half_angle = np.arcsin(NA / n1)
     cone = 2 * np.pi * (1 - np.cos(half_angle))
-    photon_collection_rate = cone / (4 * np.pi)
+    photon_collection_rate = float(cone / (4 * np.pi))
 
     return photon_collection_rate
