@@ -5,7 +5,7 @@ Define and work with fluorophores.
 from __future__ import annotations
 
 import logging
-from collections.abc import Collection, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -20,8 +20,6 @@ from .transitions import (
 )
 
 if TYPE_CHECKING:
-    from matplotlib.axes import Axes as mplAxes
-
     from fluopy.transitions import Transition
 
 __all__: list[str] = ["Fluorophore", "FluorophoreSystem"]
@@ -50,7 +48,7 @@ class Fluorophore:
 
     identity: int | None = field(init=False, default=None)
     name: str = field()
-    position: Collection[float] = field()
+    position: npt.NDArray[np.float64] = field()
     constants: fd.FluorophoreData | None = None
 
     def __post_init__(self) -> None:
@@ -77,6 +75,14 @@ class Fluorophore:
                     f"Parameters have to be defined manually.",
                     stacklevel=2,
                 )
+
+    def get_identity(self) -> int:
+        if self.identity is None:
+            raise RuntimeError(
+                "fluorophore identity is only available after adding it "
+                "to a FluorophoreSystem."
+            )
+        return self.identity
 
 
 @dataclass
@@ -119,7 +125,7 @@ class FluorophoreSystem:
         if len(dimensions) != 1:
             raise ValueError("all fluorophore positions must have the same dimension.")
 
-        constants_by_name = {}
+        constants_by_name: dict[str, fd.FluorophoreData | None] = {}
         for fluorophore in self.fluorophores:
             if fluorophore.name in constants_by_name:
                 if fluorophore.constants is not constants_by_name[fluorophore.name]:
@@ -248,10 +254,10 @@ class FluorophoreSystem:
             or fluorophore-combinations (D: <donor>, A: <acceptor>, dist: <distance>) as
             keys.
         """
-        transitions = {}
+        transitions: dict[str, list[Transition]] = {}
+        warned_names: set[str] = set()
+        et_pairs: dict[str, list[tuple[int, int]]] = {}
 
-        warned_names = set()
-        et_pairs = {}
         for (donor, acceptor), distance in self.distances.items():
             if (
                 f"{self.fluorophores[donor].name}, "
@@ -291,10 +297,13 @@ class FluorophoreSystem:
         dstorm_parameters.setdefault("ph", 7.5)
 
         for fluorophore in self.fluorophores:
-            fluorophore_ids: list[int] | list[tuple[int, int]] = [
-                f.identity for f in self.fluorophores if f.name == fluorophore.name
+            fluorophore_ids: list[int] = [
+                f.get_identity()
+                for f in self.fluorophores
+                if f.name == fluorophore.name
             ]
-            if fluorophore.constants is None:
+            donor_data = fluorophore.constants
+            if donor_data is None:
                 if fluorophore.name not in warned_names:
                     warned_names.add(fluorophore.name)
                     logger.warning(
@@ -307,7 +316,7 @@ class FluorophoreSystem:
                 if fluorophore.name not in transitions:
                     transitions[fluorophore.name] = derive_transitions(
                         summarize=summarize,
-                        fluorophore_data=fluorophore.constants,
+                        fluorophore_data=donor_data,
                         fluorophore_ids=fluorophore_ids,
                         irradiance=irradiance,
                         wavelength=wavelength,
@@ -327,31 +336,29 @@ class FluorophoreSystem:
                                     stacklevel=2,
                                 )
                             continue
-                        elif (
-                            donor_fluorophore.identity,
-                            acceptor_fluorophore.identity,
-                        ) in self.distances:
-                            distance = self.distances[
-                                donor_fluorophore.identity,
-                                acceptor_fluorophore.identity,
-                            ]
-                            fluorophore_ids = et_pairs[
+                        pair = (
+                            donor_fluorophore.get_identity(),
+                            acceptor_fluorophore.get_identity(),
+                        )
+                        if pair in self.distances:
+                            distance = self.distances[pair]
+                            energy_transfer_ids = et_pairs[
                                 f"{donor_fluorophore.name}, {acceptor_fluorophore.name}, {distance}"
                             ]
 
                             transitions[
                                 f"D: {donor_fluorophore.name}, A: {acceptor_fluorophore.name}, dist: {distance}"
                             ] = derive_energy_transfer_transitions(
-                                donor_data=donor_fluorophore.constants,
+                                donor_data=donor_data,
                                 acceptor_data=acceptor_fluorophore.constants,
-                                fluorophore_ids=fluorophore_ids,
+                                fluorophore_ids=energy_transfer_ids,
                                 distance=distance,
                                 **energy_transfer_parameters,
                             )
 
         return transitions
 
-    def plot(self, quadratic: bool = True, **kwargs) -> npt.NDArray[mplAxes]:
+    def plot(self, quadratic: bool = True, **kwargs: Any) -> npt.NDArray[Any]:
         """
         Plot the positions of fluorophores.
 
@@ -369,8 +376,8 @@ class FluorophoreSystem:
         """
         if self.fluorophores[0].position.shape[0] != 2:
             raise ValueError("Only 2D positions can be plotted.")
-        positions = np.empty(shape=(2, self.count))
-        labels = []
+        positions = np.empty(shape=(2, self.count), dtype=float)
+        labels: list[str] = []
         for i, fluorophore in enumerate(self.fluorophores):
             positions[:, i] = fluorophore.position
             labels.append(fluorophore.name + f" ({fluorophore.identity})")
@@ -404,7 +411,7 @@ def get_distances(
         Contains tuples of ids (order as positions) as keys and their distance as
         values.
     """
-    distances = dict()
+    distances: dict[tuple[int, int], np.float64] = {}
     positions = np.asarray(positions)
     for i, position_1 in enumerate(positions):
         for j, position_2 in enumerate(positions):
@@ -413,7 +420,7 @@ def get_distances(
                     np.linalg.norm(position_1 - position_2), decimals=3
                 )
 
-    return distances  # type: ignore[return-value]
+    return distances
 
 
 def triangle_third_position(
