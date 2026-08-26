@@ -735,6 +735,8 @@ def space_multiple_excitations(time_series: npt.NDArray[np.float64]) -> None:
     -------
     None
     """
+    if not np.issubdtype(time_series.dtype, np.floating):
+        raise ValueError("time_series must be of float type.")
     logger.warning(
         "Multiple excitations at the same time point are spaced by a minimal "
         "amount. This also spaces other transitions whose time was too small "
@@ -743,8 +745,6 @@ def space_multiple_excitations(time_series: npt.NDArray[np.float64]) -> None:
         "time higher than expected.",
         stacklevel=2,
     )
-    if time_series.dtype == int:
-        raise ValueError("time_series must be of float type.")
     indices = np.unique(time_series, return_index=True)[1]
     while indices.size != time_series.size:
         mask = np.ones(time_series.shape, dtype=bool)

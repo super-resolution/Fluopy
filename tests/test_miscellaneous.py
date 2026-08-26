@@ -17,14 +17,14 @@ def test_delete_subplots():
     fig, axes = plt.subplots(2, 3)
     assert delete_subplots(axes=axes.ravel(), keep_number=1, del_positions=None) is None
     assert axes.shape == (2, 3)
-    plt.close()
+    plt.close(fig)
 
 
 def test_create_row_subtitles():
     fig, axes = plt.subplots(2, 3)
     create_row_subtitles(axes=axes.ravel(), nrows=2, ncols=3, titles=["one", "two"])
     # plt.show()
-    plt.close()
+    plt.close(fig)
 
 
 def test_add_table():
@@ -36,7 +36,7 @@ def test_add_table():
     )
     assert return_value is ax
     # plt.show()
-    plt.close()
+    plt.close(fig)
 
 
 def test_get_figures():
@@ -47,7 +47,7 @@ def test_get_figures():
     assert return_value is fig
     return_value = get_figure(axes=axes.ravel()[4])
     assert return_value is fig
-    plt.close()
+    plt.close(fig)
 
 
 def test_print_class(capsys):
