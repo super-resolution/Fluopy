@@ -1,3 +1,7 @@
+import os
+
+os.environ.setdefault("MPLBACKEND", "Agg")
+
 from pathlib import Path
 
 import numpy as np

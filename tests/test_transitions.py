@@ -1,4 +1,5 @@
 import matplotlib.axes
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
@@ -258,13 +259,14 @@ class TestTransitionSet:
         )
         transition_set.finalize()
 
-        axes = transition_set.plot()
+        fig, ax = plt.subplots()
+        axes = transition_set.plot(axes=[ax])
         for ax_ in axes:
             assert isinstance(ax_, matplotlib.axes.Axes)
 
         with pytest.raises(ValueError):
             transition_set.plot(axes=[])
-        # plt.show()
+        plt.close(fig)
 
     @pytest.mark.parametrize(
         "transition_type, fluorophore_ids, fluo_comb, expected",
