@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import matplotlib as mpl
 import numpy as np
@@ -101,6 +101,11 @@ class Prediction:
             self.absorbing_chain = True
 
         self.transition_set = transition_set
+        self.transition_time_distributions: npt.NDArray[Any] | None
+        self.lifetime_distributions: dict[str, npt.NDArray[Any]] | None
+        self.mean_transition_times: npt.NDArray[np.float64] | None
+        self.mean_lifetimes: dict[str, npt.NDArray[np.float64]] | None
+        self.state_occupations: dict[str, npt.NDArray[np.float64]] | None
         if self.absorbing_chain:
             self.frequency_transitions = self.predict_transition_occurrences_abs()
         else:
@@ -155,13 +160,18 @@ class Prediction:
                 stationary_distribution_combined_state_transitions[indices].sum()
             )
 
-        grouper = {}
-        for fluorophore_comb, group in self.transition_set.transition_df.groupby(
+        grouper: dict[str, list[int]] = {}
+        for fluorophore_comb_raw, group in self.transition_set.transition_df.groupby(
             level=0, sort=False
         ):
+            fluorophore_comb = cast(str, fluorophore_comb_raw)
             if "dist" in fluorophore_comb:
                 pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
                 match = re.match(pattern=pattern, string=fluorophore_comb)
+                if match is None:
+                    raise ValueError(
+                        f"invalid energy transfer label: {fluorophore_comb}"
+                    )
                 d, _, _ = match.group(1), match.group(2), match.group(3)
             else:
                 d = fluorophore_comb
@@ -187,11 +197,11 @@ class Prediction:
         """
         transition_abs = self.transition_set.transition_df["absorbing"]
         transition_abs_df = self.transition_set.transition_df[transition_abs]
-        abs_final_state = []
+        abs_final_state_values: list[Any] = []
         for fluorophore in self.transition_set.fluorophore_system.fluorophores:
             states = transition_abs_df["final_state"].xs(fluorophore.name, level=0)
-            abs_final_state.append(states.iloc[0].value)
-        abs_final_state = tuple(abs_final_state)
+            abs_final_state_values.append(states.iloc[0].value)
+        abs_final_state = tuple(abs_final_state_values)
         abs_indices = transition_abs[transition_abs].index.get_level_values(1)
         df = self.transition_set.combined_state_transitions_df
         abs_indices_combined = df[df["transition_id"].isin(abs_indices)].index
@@ -218,13 +228,18 @@ class Prediction:
             indices = df.index[df["transition_id"] == i].tolist()
             frequency_transitions[i] = expected_visits[indices].sum()
 
-        grouper = {}
-        for fluorophore_comb, group in self.transition_set.transition_df.groupby(
+        grouper: dict[str, list[int]] = {}
+        for fluorophore_comb_raw, group in self.transition_set.transition_df.groupby(
             level=0, sort=False
         ):
+            fluorophore_comb = cast(str, fluorophore_comb_raw)
             if "dist" in fluorophore_comb:
                 pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
                 match = re.match(pattern=pattern, string=fluorophore_comb)
+                if match is None:
+                    raise ValueError(
+                        f"invalid energy transfer label: {fluorophore_comb}"
+                    )
                 d, _, _ = match.group(1), match.group(2), match.group(3)
             else:
                 d = fluorophore_comb
@@ -254,15 +269,21 @@ class Prediction:
             key: np.zeros(len(value)) for key, value in single_states.items()
         }
         grouped = self.transition_set.transition_df.groupby(level=0)
-        for fluorophore_comb, f_transitions in grouped:
+        for fluorophore_comb_raw, f_transitions in grouped:
+            fluorophore_comb = cast(str, fluorophore_comb_raw)
             if "dist" in fluorophore_comb:
                 pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
                 match = re.match(pattern=pattern, string=fluorophore_comb)
+                if match is None:
+                    raise ValueError(
+                        f"invalid energy transfer label: {fluorophore_comb}"
+                    )
                 d, a, _ = match.group(1), match.group(2), match.group(3)
                 single_states_a = single_states[a]
                 single_states_d = single_states[d]
-                factor = 1
-                for (_, identity), transition in f_transitions.iterrows():
+                factor = 1.0
+                for row_index, transition in f_transitions.iterrows():
+                    identity = int(cast(tuple[Any, int], row_index)[1])
                     _, acceptor_i = transition["initial_state"].single_state_values
                     donor_f, acceptor_f = transition["final_state"].single_state_values
                     index_1 = np.where(single_states_d == donor_f)[0][0]
@@ -281,7 +302,8 @@ class Prediction:
 
             else:
                 single_states_f = single_states[fluorophore_comb]
-                for (_, identity), transition in f_transitions.iterrows():
+                for row_index, transition in f_transitions.iterrows():
+                    identity = int(cast(tuple[Any, int], row_index)[1])
                     index = np.where(
                         single_states_f == transition["final_state"].value
                     )[0][0]
@@ -295,7 +317,7 @@ class Prediction:
 
     def predict_lifetimes(
         self,
-    ) -> tuple[npt.NDArray[np.float64], dict[str, npt.NDArray[np.float64]]]:
+    ) -> tuple[npt.NDArray[Any], dict[str, npt.NDArray[Any]]]:
         """
         Predict the lifetime distributions of states and the time until occurrence
         distributions of transitions.
@@ -319,18 +341,18 @@ class Prediction:
 
         for fluorophore, states in self.transition_set.single_states.items():
             for i, state in enumerate(states):
-                total_rate = 0
-                associated_transitions = []
+                total_rate = 0.0
+                associated_transitions: list[int] = []
                 for j, transition in self.transition_set.transition_df.loc[
                     fluorophore
                 ].iterrows():
                     source = transition.initial_state.value
                     if source == state:
                         total_rate += transition.rate
-                        associated_transitions.append(j)
+                        associated_transitions.append(cast(int, j))
                 if total_rate == 0:
                     lifetime_mean = np.inf
-                    lifetime_pdf = np.inf
+                    lifetime_pdf: Any = np.inf
                 else:
                     lifetime_mean = 1 / total_rate
                     lifetime_pdf = expon(scale=lifetime_mean)
@@ -354,9 +376,12 @@ class Prediction:
             Name of fluorophores as keys and their state's expected probability of
             being occupied at any given point in time (array) as values.
         """
-        mean_lifetimes = {}
-        state_occupations = {}
-        for fluorophore, distributions in self.lifetime_distributions.items():
+        lifetime_distributions = self.lifetime_distributions
+        if lifetime_distributions is None:
+            raise ValueError("lifetime statistics are unavailable for energy transfer.")
+        mean_lifetimes: dict[str, npt.NDArray[np.float64]] = {}
+        state_occupations: dict[str, npt.NDArray[np.float64]] = {}
+        for fluorophore, distributions in lifetime_distributions.items():
             mean_lifetimes[fluorophore] = np.array(
                 [distr.mean() if distr != np.inf else np.inf for distr in distributions]
             )
@@ -444,12 +469,16 @@ class Prediction:
                 for value in np.linspace(0, 1, len(single_states))
             ]
         )
-        colors, patches, xticks, data_merged, labels = [], [], 0, [], []
+        colors: list[Any] = []
+        patches: list[Any] = []
+        xticks = 0
+        data_parts: list[npt.NDArray[np.float64]] = []
+        labels: list[str] = []
         for i, (fluorophore, states) in enumerate(single_states.items()):
             colors.extend([colormap(i) for _ in range(states.size)])
             patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
             xticks += states.size
-            data_merged.append(self.frequency_states[fluorophore])
+            data_parts.append(self.frequency_states[fluorophore])
             labels.extend(
                 [
                     format_electronic_state(
@@ -458,7 +487,7 @@ class Prediction:
                     for identity in states
                 ]
             )
-        data_merged = np.concatenate(data_merged)
+        data_merged = np.concatenate(data_parts)
         data = [np.arange(xticks), data_merged]
         kwargs.setdefault("type_", "bar")
         kwargs.setdefault("xlabel", None)
@@ -492,8 +521,11 @@ class Prediction:
             raise ValueError(
                 "mean_transition_times not available if energy transfers possible."
             )
+        mean_transition_times = self.mean_transition_times
+        if mean_transition_times is None:
+            raise ValueError("mean transition times are unavailable.")
         df = self.transition_set.transition_df
-        data = [np.arange(df.shape[0]), self.mean_transition_times]
+        data = [np.arange(df.shape[0]), mean_transition_times]
         kwargs.setdefault("type_", "bar")
         kwargs.setdefault("xlabel", None)
         kwargs.setdefault("yscale", "log")
@@ -548,6 +580,9 @@ class Prediction:
             raise ValueError(
                 "mean_lifetimes not available if energy transfers possible."
             )
+        mean_lifetimes = self.mean_lifetimes
+        if mean_lifetimes is None:
+            raise ValueError("mean lifetimes are unavailable.")
 
         single_states = self.transition_set.single_states
         colormap = mpl.colors.ListedColormap(
@@ -556,12 +591,16 @@ class Prediction:
                 for value in np.linspace(0, 1, len(single_states))
             ]
         )
-        colors, patches, xticks, data_merged, labels = [], [], 0, [], []
+        colors: list[Any] = []
+        patches: list[Any] = []
+        xticks = 0
+        data_parts: list[npt.NDArray[np.float64]] = []
+        labels: list[str] = []
         for i, (fluorophore, states) in enumerate(single_states.items()):
             colors.extend([colormap(i) for _ in range(states.size)])
             patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
             xticks += states.size
-            data_merged.append(self.mean_lifetimes[fluorophore])
+            data_parts.append(mean_lifetimes[fluorophore])
             labels.extend(
                 [
                     format_electronic_state(
@@ -570,7 +609,7 @@ class Prediction:
                     for identity in states
                 ]
             )
-        data_merged = np.concatenate(data_merged)
+        data_merged = np.concatenate(data_parts)
         data = [np.arange(xticks), data_merged]
         kwargs.setdefault("type_", "bar")
         kwargs.setdefault("xlabel", None)
@@ -605,6 +644,9 @@ class Prediction:
             raise ValueError(
                 "state_occupations not available if energy transfers possible."
             )
+        state_occupations = self.state_occupations
+        if state_occupations is None:
+            raise ValueError("state occupations are unavailable.")
 
         single_states = self.transition_set.single_states
         colormap = mpl.colors.ListedColormap(
@@ -613,12 +655,16 @@ class Prediction:
                 for value in np.linspace(0, 1, len(single_states))
             ]
         )
-        colors, patches, xticks, data_merged, labels = [], [], 0, [], []
+        colors: list[Any] = []
+        patches: list[Any] = []
+        xticks = 0
+        data_parts: list[npt.NDArray[np.float64]] = []
+        labels: list[str] = []
         for i, (fluorophore, states) in enumerate(single_states.items()):
             colors.extend([colormap(i) for _ in range(states.size)])
             patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
             xticks += states.size
-            data_merged.append(self.state_occupations[fluorophore])
+            data_parts.append(state_occupations[fluorophore])
             labels.extend(
                 [
                     format_electronic_state(
@@ -627,7 +673,7 @@ class Prediction:
                     for identity in states
                 ]
             )
-        data_merged = np.concatenate(data_merged)
+        data_merged = np.concatenate(data_parts)
         data = [np.arange(xticks), data_merged]
         kwargs.setdefault("type_", "bar")
         kwargs.setdefault("xlabel", None)
@@ -673,6 +719,10 @@ class Prediction:
             raise ValueError(
                 "lifetime_distributions not available if energy transfers possible."
             )
+        lifetime_distributions = self.lifetime_distributions
+        mean_lifetimes = self.mean_lifetimes
+        if lifetime_distributions is None or mean_lifetimes is None:
+            raise ValueError("lifetime distributions are unavailable.")
 
         kwargs.setdefault("type_", "line")
         kwargs.setdefault("ylabel", "PD")
@@ -685,15 +735,13 @@ class Prediction:
         index = np.where(
             self.transition_set.single_states[fluorophore] == state_identity
         )[0][0]
-        if isinstance(self.lifetime_distributions[fluorophore][index], float):
-            raise ValueError(
-                "The lifetimes are all equal to "
-                f"{self.lifetime_distributions[fluorophore][index]}"
-            )
+        distribution = lifetime_distributions[fluorophore][index]
+        if isinstance(distribution, float):
+            raise ValueError(f"The lifetimes are all equal to {distribution}")
 
         if x is None:
-            x = np.linspace(0, self.mean_lifetimes[fluorophore][index] * 10, 1000)
-        data = [x, self.lifetime_distributions[fluorophore][index].pdf(x)]
+            x = np.linspace(0, mean_lifetimes[fluorophore][index] * 10, 1000)
+        data = [x, distribution.pdf(x)]
         axes = fi.universal_figure(data=data, **kwargs)
 
         return axes
@@ -729,6 +777,10 @@ class Prediction:
                 "transition_time_distributions not available if energy transfers "
                 "possible."
             )
+        transition_distributions = self.transition_time_distributions
+        mean_transition_times = self.mean_transition_times
+        if transition_distributions is None or mean_transition_times is None:
+            raise ValueError("transition-time distributions are unavailable.")
         kwargs.setdefault("type_", "line")
         kwargs.setdefault("ylabel", "PD")
         kwargs.setdefault(
@@ -740,8 +792,8 @@ class Prediction:
         kwargs.setdefault("yscale", "log")
         kwargs.setdefault("xlabel", "time to transition [s]")
         if x is None:
-            x = np.linspace(0, self.mean_transition_times[transition_id] * 10, 1000)
-        data = [x, self.transition_time_distributions[transition_id].pdf(x)]
+            x = np.linspace(0, mean_transition_times[transition_id] * 10, 1000)
+        data = [x, transition_distributions[transition_id].pdf(x)]
 
         axes = fi.universal_figure(data=data, **kwargs)
 
@@ -769,8 +821,10 @@ def get_Q(
     # Q takes the original transition matrix into account, because within Q the state
     # that leads to the absorbing state has to take on the probability GIVEN the
     # possibility of the transition to the absorbing state.
-    Q = np.delete(P, drop_transitions, axis=0)
-    Q = np.delete(Q, drop_transitions, axis=1)
+    matrix = np.asarray(P, dtype=np.float64)
+    indices = np.asarray(drop_transitions, dtype=np.int64)
+    Q = np.delete(matrix, indices, axis=0)
+    Q = np.delete(Q, indices, axis=1)
 
     return Q
 
@@ -789,7 +843,8 @@ def get_I_t(Q: npt.ArrayLike) -> npt.NDArray[np.float64]:
     npt.NDArray[np.float64]
         Identity matrix I_t of Q.
     """
-    I_t = np.identity(Q.shape[0])
+    matrix = np.asarray(Q, dtype=np.float64)
+    I_t = np.identity(matrix.shape[0])
 
     return I_t
 
@@ -812,6 +867,8 @@ def get_N(I_t: npt.ArrayLike, Q: npt.ArrayLike) -> npt.NDArray[np.float64]:
     npt.NDArray[np.float64]
         Fundamental matrix N of absorbing Markov chain.
     """
-    N = np.linalg.inv(I_t - Q)
+    identity = np.asarray(I_t, dtype=np.float64)
+    transition_matrix = np.asarray(Q, dtype=np.float64)
+    N = np.linalg.inv(identity - transition_matrix)
 
-    return N
+    return np.asarray(N, dtype=np.float64)

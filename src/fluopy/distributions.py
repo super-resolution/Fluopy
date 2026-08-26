@@ -5,9 +5,9 @@ Random variable distributions.
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from itertools import product
-from typing import Any
+from typing import Protocol, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -23,6 +23,13 @@ __all__: list[str] = [
     "ExponentialMixtureModel",
     "ExponentialMixtureMarginalModel",
 ]
+
+
+DistributionValue = float | npt.NDArray[np.float64]
+
+
+class HypoexponentialCall(Protocol):
+    def __call__(self, x: npt.ArrayLike, *args: int | float) -> DistributionValue: ...
 
 
 def hypoexponential_distribution_cdf(
@@ -152,7 +159,7 @@ class Photoswitching_fingerprint_model:
 
     def __init__(
         self,
-        params: dict,
+        params: Mapping[int, Sequence[int | float]],
         weights: float | npt.ArrayLike | None = None,
         domain: tuple[float, float] = (0, np.inf),
     ) -> None:
@@ -180,7 +187,7 @@ class Photoswitching_fingerprint_model:
 
     def pdf_part(
         self,
-        call: Callable | None,
+        call: HypoexponentialCall | None,
         x: float | npt.ArrayLike,
         i: int,
         normalize: bool = False,
@@ -217,7 +224,7 @@ class Photoswitching_fingerprint_model:
             n=i + 1,
             z=self.z,
         )
-        pdf_part = 0
+        pdf_part: DistributionValue = 0.0
         for lambda_combo, pi_combo in zip(lambdas, pis):
             pi_set = np.prod(pi_combo)
             pdf_part += pi_set * call(
@@ -229,6 +236,7 @@ class Photoswitching_fingerprint_model:
             return pdf_part
 
         if self.domain != (0, np.inf):
+            F_1: DistributionValue
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
@@ -272,12 +280,13 @@ class Photoswitching_fingerprint_model:
             raise ValueError("Order has to be 0, 1, or 2.")
 
         n = len(self.params)
-        pdf = 0
+        pdf: DistributionValue = 0.0
         for i in range(n):
             pdf_part = self.pdf_part(call=call, x=x, i=i, normalize=False)
             pdf += self.weights[i] * pdf_part
 
         if self.domain != (0, np.inf):
+            F_1: DistributionValue
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
@@ -320,7 +329,7 @@ class Photoswitching_fingerprint_model:
             n=i + 1,
             z=self.z,
         )
-        cdf_part = 0
+        cdf_part: DistributionValue = 0.0
         for lambda_combo, pi_combo in zip(lambdas, pis):
             pi_set = np.prod(pi_combo)
             cdf_part += pi_set * hypoexponential_distribution_cdf(
@@ -331,6 +340,7 @@ class Photoswitching_fingerprint_model:
             return cdf_part
 
         if self.domain != (0, np.inf):
+            F_1: DistributionValue
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
@@ -362,7 +372,7 @@ class Photoswitching_fingerprint_model:
             CDF
         """
         n = len(self.params)
-        cdf = 0
+        cdf: DistributionValue = 0.0
         for i in range(n):
             cdf_part = self.cdf_part(x=x, i=i, normalize=False)
             cdf += self.weights[i] * cdf_part
@@ -370,6 +380,7 @@ class Photoswitching_fingerprint_model:
             return cdf
 
         if self.domain != (0, np.inf):
+            F_1: DistributionValue
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
@@ -449,7 +460,7 @@ class Photoswitching_fingerprint_model:
 
 
 def photoswitching_fingerprint_prepare(
-    params: dict[int, Sequence[int | float]],
+    params: Mapping[int, Sequence[int | float]],
     n: int,
     z: int,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
@@ -524,7 +535,7 @@ def generate_combinations(n: int, z: int) -> npt.NDArray[np.int64]:
 
 
 def map_to_lambdas(
-    combos: npt.NDArray[np.int_], params: dict[int, Sequence[int | float]], z: int
+    combos: npt.NDArray[np.int_], params: Mapping[int, Sequence[int | float]], z: int
 ) -> npt.NDArray[np.float64]:
     """
     Map combinations to lambdas.
@@ -557,7 +568,7 @@ def map_to_lambdas(
 
 
 def get_pis(
-    combos: npt.NDArray[np.int_], params: dict[int, Sequence[int | float]], z: int
+    combos: npt.NDArray[np.int_], params: Mapping[int, Sequence[int | float]], z: int
 ) -> npt.NDArray[np.float64]:
     """
     Get pis for each combination.
@@ -605,8 +616,8 @@ def get_pis(
                 mask = combos[1:, :][ones, idx - 1] == 0
                 pis[1:, :][ones[mask], idx] = mapper(col_filt[ones[mask]])
 
-            twos_threes = np.isin(col_filt, [2, 3])
-            twos_threes = np.where(twos_threes)[0]
+            twos_threes_mask = np.isin(col_filt, [2, 3])
+            twos_threes = np.where(twos_threes_mask)[0]
             if idx == 0:
                 pis[1:, :][twos_threes, idx] = mapper(col_filt[twos_threes])
             else:
@@ -658,7 +669,7 @@ class ExponentialMixtureModel:
         float | npt.NDArray[np.float64]
             PDF of the mixture of exponential distributions.
         """
-        pdf = 0
+        pdf: DistributionValue = 0.0
         for i, lam in enumerate(self.params["lambdas"]):
             if i == len(self.params["lambdas"]) - 1:
                 p = 1 - np.sum(self.params["pis"])
@@ -667,6 +678,7 @@ class ExponentialMixtureModel:
             pdf += p * expon.pdf(x, scale=1 / lam)
 
         if self.domain != (0, np.inf):
+            F_1: DistributionValue
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
@@ -696,7 +708,7 @@ class ExponentialMixtureModel:
         float | npt.NDArray[np.float64]
             CDF of the mixture of exponential distributions.
         """
-        cdf = 0
+        cdf: DistributionValue = 0.0
         for i, lam in enumerate(self.params["lambdas"]):
             if i == len(self.params["lambdas"]) - 1:
                 p = 1 - np.sum(self.params["pis"])
@@ -709,6 +721,7 @@ class ExponentialMixtureModel:
             return cdf
 
         if self.domain != (0, np.inf):
+            F_1: DistributionValue
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
@@ -730,7 +743,7 @@ class ExponentialMixtureMarginalModel:
     def __init__(
         self,
         params: dict[str, Sequence[int | float]],
-        pfa_cdf_part: Callable[[Any, int, bool], float | npt.NDArray[np.float64]],
+        pfa_cdf_part: Callable[[npt.ArrayLike, int, bool], DistributionValue],
         cdf_part_index: int,
         truncation_up: float,
     ) -> None:
@@ -757,7 +770,7 @@ class ExponentialMixtureMarginalModel:
         x_grid = np.insert(arr=x_grid, obj=0, values=0.0)
         pdf_grid = ExponentialMixtureModel(params=params, domain=(0, np.inf)).pdf(
             x_grid
-        ) * pfa_cdf_part(x=truncation_up - x_grid, i=cdf_part_index, normalize=True)
+        ) * pfa_cdf_part(truncation_up - x_grid, cdf_part_index, True)
         # pfa_cdf_part because we want the distribution of T of the (n-1)th fluorophore,
         # not of all n-x fluorophores
         # CDF(truncation_up - x) because Pr(actual_truncation >= x) = Pr(truncation_up - T >= x) = Pr(T <= truncation_up - x) = CDF(truncation_up - x)
@@ -788,7 +801,8 @@ class ExponentialMixtureMarginalModel:
         float | npt.NDArray[np.float64]
             PDF
         """
-        pdf = np.interp(x, xp=self.x_grid, fp=self.pdf_grid, left=0.0, right=0.0)
+        values = np.asarray(x, dtype=np.float64)
+        pdf = np.interp(values, xp=self.x_grid, fp=self.pdf_grid, left=0.0, right=0.0)
 
         return pdf
 
@@ -806,6 +820,7 @@ class ExponentialMixtureMarginalModel:
         float | npt.NDArray[np.float64]
             CDF
         """
-        cdf = np.interp(x, xp=self.x_grid, fp=self.cdf_grid, left=0.0, right=1.0)
+        values = np.asarray(x, dtype=np.float64)
+        cdf = np.interp(values, xp=self.x_grid, fp=self.cdf_grid, left=0.0, right=1.0)
 
-        return cdf
+        return cast(DistributionValue, cdf)

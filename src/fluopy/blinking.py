@@ -54,13 +54,16 @@ class Blinking:
             Number of OFF frames to be neglected. They are included in the ON times.
         """
         self.emissions = emissions
+        event_time_series = self.emissions.event_time_series
+        if event_time_series is None:
+            raise ValueError("blinking statistics require extracted emissions.")
         (
             self.on_periods,
             self.off_periods,
             self.on_periods_frames,
             self.off_periods_frames,
         ) = get_blinking_statistics(
-            event_time_series=self.emissions.event_time_series,
+            event_time_series=event_time_series,
             threshold=threshold,
             memory=memory,
         )
@@ -93,10 +96,10 @@ class Blinking:
         npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
-        sec_per_frame = (
-            self.emissions.event_time_series.index[1]
-            - self.emissions.event_time_series.index[0]
-        )
+        event_time_series = self.emissions.event_time_series
+        if event_time_series is None:
+            raise ValueError("plotting requires extracted emissions.")
+        sec_per_frame = float(event_time_series.index[1] - event_time_series.index[0])
         if mode == "on_histogram":
             data = self.on_periods
             axes = plot_histogram(
@@ -130,7 +133,7 @@ class Blinking:
 
 
 def get_blinking_statistics(
-    event_time_series: pd.Series, threshold: int = 0, memory: int = 0
+    event_time_series: pd.Series[Any], threshold: int = 0, memory: int = 0
 ) -> tuple[
     npt.NDArray[np.int64],
     npt.NDArray[np.int64],
@@ -164,14 +167,8 @@ def get_blinking_statistics(
     off_periods_frames : npt.NDArray[np.int64]
         Contains the first frame of each OFF period.
     """
-    df = pd.DataFrame(
-        {
-            "frame": np.arange(0, event_time_series.size),
-            "intensity": event_time_series.values,
-        }
-    )
-    df = df[df.intensity > threshold]
-    frames = df.frame.values
+    intensities = event_time_series.to_numpy(dtype=np.int64)
+    frames = np.flatnonzero(intensities > threshold).astype(np.int64)
     remove_last_on_period = False
     if frames.size != 0:
         if frames[-1] + 1 == event_time_series.size:
@@ -239,16 +236,16 @@ def get_blinking_statistics(
                 off_periods = np.insert(arr=off_periods, obj=0, values=frames[0])
                 # add an initial off period if the series doesn't start with on period
                 off_periods_frames = np.insert(arr=off_periods_frames, obj=0, values=0)
-                on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
+                on_periods_frames = off_periods_frames + off_periods
                 off_periods = np.delete(off_periods, 0)
                 off_periods_frames = np.delete(off_periods_frames, 0)
             elif frames[0] != 0:
-                on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
+                on_periods_frames = off_periods_frames + off_periods
                 on_periods_frames = np.insert(
                     arr=on_periods_frames, obj=0, values=frames[0]
                 )
             else:
-                on_periods_frames = np.sum([off_periods_frames, off_periods], axis=0)
+                on_periods_frames = off_periods_frames + off_periods
                 on_periods_frames = np.insert(arr=on_periods_frames, obj=0, values=0)
             on_periods_frames = on_periods_frames[: on_periods.size]
 
@@ -286,15 +283,17 @@ def get_off_statistics(
         Values that correspond to on_off_times. 0 if time is associated with OFF, 1
         otherwise.
     """
-    if index + 1 > simulation.state_series.shape[0]:
+    state_series = simulation.state_series
+    time_series = simulation.time_series
+    if state_series is None or time_series is None:
+        raise ValueError("OFF statistics require a completed simulation.")
+    if index + 1 > state_series.shape[0]:
         raise ValueError(
             f"index assumes {index + 1} fluorophores but "
-            f"{simulation.state_series.shape[0]} are present."
+            f"{state_series.shape[0]} are present."
         )
-    off_index = np.where(simulation.state_series[index] == tr.SingleState.OFF.value)[0]
-    off2_index = np.where(simulation.state_series[index] == tr.SingleState.OFF2.value)[
-        0
-    ]
+    off_index = np.where(state_series[index] == tr.SingleState.OFF.value)[0]
+    off2_index = np.where(state_series[index] == tr.SingleState.OFF2.value)[0]
     off_indices = np.sort(np.concatenate([off_index, off2_index]))
     if off_indices.size == 0:
         raise ValueError("no photophysical OFF states found.")
@@ -302,8 +301,8 @@ def get_off_statistics(
     starting_indices = off_indices[high_diffs + 1]
     starting_indices = np.insert(arr=starting_indices, obj=0, values=off_indices[0])
     ending_indices = off_indices[high_diffs] + 1  # ends when new state (s0) is reached
-    off_start = simulation.time_series[starting_indices]
-    off_end = simulation.time_series[ending_indices]
+    off_start = time_series[starting_indices]
+    off_end = time_series[ending_indices]
     on_start = np.copy(off_end)
     on_start = np.insert(arr=on_start, obj=0, values=0)
     on_end = np.copy(off_start)
@@ -363,9 +362,8 @@ def get_analytical_off_statistics(
     if on_off_values.size != on_off_frames.size:
         on_off_values = np.append(on_off_values, np.array([0], dtype=np.int8))
 
-    on_off_times = on_off_frames * (
-        pd.to_timedelta(frame_time) / np.timedelta64(1, "s")
-    )
+    seconds_per_frame = float(pd.to_timedelta(frame_time) / np.timedelta64(1, "s"))
+    on_off_times = np.asarray(on_off_frames * seconds_per_frame, dtype=np.float64)
 
     return on_off_times, on_off_values
 
@@ -437,30 +435,33 @@ def plot_histogram(
     npt.NDArray[mplAxes]
         Contains matplotlib.axes._subplots.AxesSubplots.
     """
+    data_array = np.asarray(data, dtype=np.float64)
     kwargs.setdefault("type_", "hist")
     if density:
         kwargs.setdefault("ylabel", "Prob. density")
         kwargs.setdefault("density", True)
     else:
         kwargs.setdefault("ylabel", "Probability")
-        kwargs.setdefault("weights", np.ones_like(data) / data.size)
+        kwargs.setdefault("weights", np.ones_like(data_array) / data_array.size)
     if as_time is not None:
+        if sec_per_frame is None:
+            raise ValueError("sec_per_frame is required when as_time is specified.")
         kwargs.setdefault("xlabel", f"{mode} period ({as_time})")
         if as_time == "ms":
-            data = data * sec_per_frame * 1000
+            data_array = data_array * sec_per_frame * 1000
         elif as_time == "s":
-            data = data * sec_per_frame
+            data_array = data_array * sec_per_frame
         else:
             raise ValueError("given unit not implemented.")
     else:
         kwargs.setdefault("xlabel", "Consecutive frames")
 
-    axes = fi.universal_figure(data=data, **kwargs)
+    axes = fi.universal_figure(data=data_array, **kwargs)
 
     mean_color = kwargs.get("ylabelcolor", "black")
     fontsize = kwargs.get("fontsize", 16)
     if display_mean:
-        mean = np.mean(data)
+        mean = np.mean(data_array)
         axes[0][0].text(
             x=0.3,
             y=0.85,
@@ -501,20 +502,23 @@ def plot_boxplot(
     npt.NDArray[mplAxes]
         Contains matplotlib.axes._subplots.AxesSubplots.
     """
+    data_array = np.asarray(data, dtype=np.float64)
     kwargs.setdefault("type_", "boxplot")
     kwargs.setdefault("fontsize", 16)
     if as_time is not None:
+        if sec_per_frame is None:
+            raise ValueError("sec_per_frame is required when as_time is specified.")
         kwargs.setdefault("ylabel", f"{mode} period ({as_time})")
         if as_time == "ms":
-            data = data * sec_per_frame * 1000
+            data_array = data_array * sec_per_frame * 1000
         elif as_time == "s":
-            data = data * sec_per_frame
+            data_array = data_array * sec_per_frame
         else:
             raise ValueError("given unit not implemented.")
     else:
         kwargs.setdefault("ylabel", "consecutive frames")
 
-    axes = fi.universal_figure(data=data, **kwargs)
+    axes = fi.universal_figure(data=data_array, **kwargs)
 
     return axes
 

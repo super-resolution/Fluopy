@@ -77,7 +77,17 @@ class Emissions:
             "bandpass": bandpass,
         }
         self.event_time_points: npt.NDArray[np.float64] | None = None
-        self.event_time_series: pd.Series[np.int32] | None = None
+        self.event_time_series: pd.Series[Any] | None = None
+
+    def _require_event_time_series(self) -> pd.Series[Any]:
+        if self.event_time_series is None:
+            raise ValueError("event time series is unavailable.")
+        return self.event_time_series
+
+    def _require_event_time_points(self) -> npt.NDArray[np.float64]:
+        if self.event_time_points is None:
+            raise ValueError("event time points are unavailable.")
+        return self.event_time_points
 
     def extract(self, simulation: Simulation) -> None:
         """
@@ -92,7 +102,7 @@ class Emissions:
         -------
         None
         """
-        if simulation.transition_series is None:
+        if simulation.transition_series is None or simulation.time_series is None:
             raise ValueError("emissions not available if simulation has not been run.")
         emission_indices = self.get_emission_indices(
             simulation=simulation,
@@ -109,7 +119,7 @@ class Emissions:
         self,
         transition_set: TransitionSet,
         start_at: tuple[int, ...] | None = None,
-        size: int = 1e5,
+        size: int = 100_000,
         frames: int = 10,
         store_time_points: bool = False,
     ) -> None:
@@ -166,11 +176,11 @@ class Emissions:
     def tcspc(
         self,
         transition_set: TransitionSet,
-        number_pulses: int = 1e4,
+        number_pulses: int = 10_000,
         pulse_duration: float = 5e-11,
         time_between_pulses: float = 1e-7,
         excitation_rates: dict[str, float] | None = None,
-        size: int = 1e5,
+        size: int = 100_000,
         store_time_points: bool = False,
         details: bool = False,
     ) -> tuple[
@@ -268,36 +278,53 @@ class Emissions:
         # while energy transfer was also an option
         et_transition_ids = df.iloc[emit_ids_list][
             df.iloc[emit_ids_list]["initial_state"].isin(et_initial_states)
-        ].index.to_numpy()
+        ].index.to_list()
         if details:
-            func = simulate_TCSPC_detailed
             eval_floating_point_precision_error(
                 transition_set=transition_set,
                 largest_number=number_pulses * time_between_pulses,
             )
+            (
+                self.event_time_series,
+                self.event_time_points,
+                lifetimes_DA,
+                lifetimes_D,
+                lifetimes_all,
+                simulation_object,
+            ) = simulate_TCSPC_detailed(
+                transition_set=transition_set,
+                emitting_transition_ids=emitting_transition_ids,
+                et_transition_ids=et_transition_ids,
+                number_pulses=number_pulses,
+                pulse_duration=pulse_duration,
+                time_between_pulses=time_between_pulses,
+                excitation_rates=excitation_rates,
+                frame_time=self.parameters["frame_time"],
+                size=size,
+                store_time_points=store_time_points,
+                seed=self.parameters["seed"],
+            )
+            return lifetimes_DA, lifetimes_D, lifetimes_all, simulation_object
         else:
-            func = simulate_TCSPC
-        return_values = func(
-            transition_set=transition_set,
-            emitting_transition_ids=emitting_transition_ids,
-            et_transition_ids=et_transition_ids,
-            number_pulses=number_pulses,
-            pulse_duration=pulse_duration,
-            time_between_pulses=time_between_pulses,
-            excitation_rates=excitation_rates,
-            frame_time=self.parameters["frame_time"],
-            size=size,
-            store_time_points=store_time_points,
-            seed=self.parameters["seed"],
-        )
-        self.event_time_series = return_values[0]
-        self.event_time_points = return_values[1]
-        lifetimes_DA = return_values[2]
-        lifetimes_D = return_values[3]
-        lifetimes_all = return_values[4]
-        if details:
-            return lifetimes_DA, lifetimes_D, lifetimes_all, return_values[5]
-        else:
+            (
+                self.event_time_series,
+                self.event_time_points,
+                lifetimes_DA,
+                lifetimes_D,
+                lifetimes_all,
+            ) = simulate_TCSPC(
+                transition_set=transition_set,
+                emitting_transition_ids=emitting_transition_ids,
+                et_transition_ids=et_transition_ids,
+                number_pulses=number_pulses,
+                pulse_duration=pulse_duration,
+                time_between_pulses=time_between_pulses,
+                excitation_rates=excitation_rates,
+                frame_time=self.parameters["frame_time"],
+                size=size,
+                store_time_points=store_time_points,
+                seed=self.parameters["seed"],
+            )
             return lifetimes_DA, lifetimes_D, lifetimes_all, None
 
     def get_emission_indices(
@@ -325,6 +352,9 @@ class Emissions:
         emission_indices : npt.NDArray[np.int64]
             Indices of emitting transitions to apply to simulation.transition_series.
         """
+        transition_series = simulation.transition_series
+        if transition_series is None:
+            raise ValueError("emission indices require a completed simulation.")
         if bandpass is not None:
             rng = np.random.default_rng(seed)
             processed = []
@@ -354,7 +384,7 @@ class Emissions:
                         df["transition_id"].isin(emitting_transitions_f)
                     ].index.to_numpy()
                     emission_indices_f = np.isin(
-                        simulation.transition_series, emitting_transition_ids_f
+                        transition_series, emitting_transition_ids_f
                     ).nonzero()[0]
                     amount_not_detected = binom.rvs(
                         n=emission_indices_f.size, p=p_not_passed, random_state=rng
@@ -374,7 +404,7 @@ class Emissions:
             df = simulation.transition_set.combined_state_transitions_df
             emitting_transition_ids = df.loc[df["photon"]].index.to_numpy()
             emission_indices = np.isin(
-                simulation.transition_series, emitting_transition_ids
+                transition_series, emitting_transition_ids
             ).nonzero()[0]
 
         return emission_indices
@@ -397,12 +427,17 @@ class Emissions:
         -------
         None
         """
-        event_time_points = np.insert(arr=self.event_time_points, obj=0, values=0)
+        event_time_points = np.insert(
+            arr=self._require_event_time_points(), obj=0, values=0
+        )
+        time_series = simulation.time_series
+        if time_series is None:
+            raise ValueError("event time series requires a completed simulation.")
 
         added_end_time = False
-        if event_time_points[-1] != simulation.time_series[-1]:
+        if event_time_points[-1] != time_series[-1]:
             added_end_time = True
-            event_time_points = np.append(event_time_points, simulation.time_series[-1])
+            event_time_points = np.append(event_time_points, time_series[-1])
 
         time_deltas = pd.to_timedelta(event_time_points, unit="s")
         events = np.ones(shape=event_time_points.shape[0])
@@ -422,8 +457,10 @@ class Emissions:
             event_time_series_r = event_time_series_r.drop(
                 event_time_series_r.index[-1]
             )
-        time_deltas = event_time_series_r.index
-        in_seconds = time_deltas / np.timedelta64(1, "s")
+        resampled_index = event_time_series_r.index
+        in_seconds = np.asarray(
+            resampled_index.to_numpy() / np.timedelta64(1, "s"), dtype=np.float64
+        )
         in_seconds = np.round(in_seconds, decimals=12)
         event_time_series_r.index = in_seconds
 
@@ -449,9 +486,11 @@ class Emissions:
         if p > 1 or p < 0:
             raise ValueError("p has to be between 0 and 1.")
         rng = np.random.default_rng(seed)
-        nonzero = self.event_time_series.values.nonzero()
-        self.event_time_series.iloc[nonzero] = binom.rvs(
-            n=self.event_time_series.values[nonzero], p=p, random_state=rng
+        event_time_series = self._require_event_time_series()
+        values = event_time_series.to_numpy(dtype=np.int32)
+        nonzero = np.flatnonzero(values)
+        event_time_series.iloc[nonzero] = binom.rvs(
+            n=values[nonzero], p=p, random_state=rng
         ).astype(np.int32)
 
     def add_quantum_efficiency(
@@ -474,9 +513,11 @@ class Emissions:
         if p > 1 or p < 0:
             raise ValueError("p has to be between 0 and 1.")
         rng = np.random.default_rng(seed)
-        nonzero = self.event_time_series.values.nonzero()
-        self.event_time_series.iloc[nonzero] = binom.rvs(
-            n=self.event_time_series.values[nonzero], p=p, random_state=rng
+        event_time_series = self._require_event_time_series()
+        values = event_time_series.to_numpy(dtype=np.int32)
+        nonzero = np.flatnonzero(values)
+        event_time_series.iloc[nonzero] = binom.rvs(
+            n=values[nonzero], p=p, random_state=rng
         ).astype(np.int32)
 
     def add_transmittance(self, p: float, seed: RandomGeneratorSeed = None) -> None:
@@ -497,9 +538,11 @@ class Emissions:
         if p > 1 or p < 0:
             raise ValueError("p has to be between 0 and 1.")
         rng = np.random.default_rng(seed)
-        nonzero = self.event_time_series.values.nonzero()
-        self.event_time_series.iloc[nonzero] = binom.rvs(
-            n=self.event_time_series.values[nonzero], p=p, random_state=rng
+        event_time_series = self._require_event_time_series()
+        values = event_time_series.to_numpy(dtype=np.int32)
+        nonzero = np.flatnonzero(values)
+        event_time_series.iloc[nonzero] = binom.rvs(
+            n=values[nonzero], p=p, random_state=rng
         ).astype(np.int32)
 
     def add_emccd_gain(
@@ -520,9 +563,11 @@ class Emissions:
         None
         """
         rng = np.random.default_rng(seed)
-        nonzero = self.event_time_series.values.nonzero()
-        self.event_time_series.iloc[nonzero] = gamma.rvs(
-            a=self.event_time_series.values[nonzero], scale=emccd_gain, random_state=rng
+        event_time_series = self._require_event_time_series()
+        values = event_time_series.to_numpy(dtype=np.int32)
+        nonzero = np.flatnonzero(values)
+        event_time_series.iloc[nonzero] = gamma.rvs(
+            a=values[nonzero], scale=emccd_gain, random_state=rng
         ).astype(np.int32)
 
     def add_gaussian_noise(
@@ -546,11 +591,13 @@ class Emissions:
         None
         """
         rng = np.random.default_rng(seed)
-        size = self.event_time_series.size - 1
+        event_time_series = self._require_event_time_series()
+        values = event_time_series.to_numpy(dtype=np.int32)
+        size = event_time_series.size - 1
         variates = norm(loc=mean, scale=std).rvs(size, random_state=rng)
         variates = variates.astype(np.int32)
-        self.event_time_series.iloc[1:] = self.event_time_series.values[1:] + variates
-        self.event_time_series.clip(lower=0, inplace=True)
+        event_time_series.iloc[1:] = values[1:] + variates
+        event_time_series[event_time_series < 0] = 0
 
     def add_poisson_noise(self, rate: float, seed: RandomGeneratorSeed = None) -> None:
         """
@@ -569,10 +616,12 @@ class Emissions:
         None
         """
         rng = np.random.default_rng(seed)
-        size = self.event_time_series.size - 1
+        event_time_series = self._require_event_time_series()
+        values = event_time_series.to_numpy(dtype=np.int32)
+        size = event_time_series.size - 1
         variates = poisson(rate).rvs(size, random_state=rng)
         variates = variates.astype(np.int32)
-        self.event_time_series.iloc[1:] = self.event_time_series.values[1:] + variates
+        event_time_series.iloc[1:] = values[1:] + variates
 
     def apply_threshold(self, threshold: int) -> None:
         """
@@ -587,7 +636,8 @@ class Emissions:
         -------
         None
         """
-        self.event_time_series[self.event_time_series < threshold] = 0
+        event_time_series = self._require_event_time_series()
+        event_time_series[event_time_series < threshold] = 0
 
     def plot_cumulative_events(self, **kwargs: Any) -> fi.AxesArray:
         """
@@ -603,9 +653,10 @@ class Emissions:
         npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
-        cum_events = self.event_time_series.cumsum()
+        event_time_series = self._require_event_time_series()
+        cum_events = event_time_series.cumsum()
         cum_events = cum_events / cum_events.max()
-        data = [self.event_time_series.index, cum_events.values]
+        data = [event_time_series.index, cum_events.to_numpy()]
         kwargs.setdefault("type_", "line")
         kwargs.setdefault("xlabel", "Photon arrival time (s)")
         kwargs.setdefault("ylabel", "Cumulative prob.")
@@ -643,7 +694,7 @@ class Emissions:
         npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
-        data = self.event_time_series
+        data = self._require_event_time_series()
         if not include_0:
             data = data[data != 0]
 
@@ -687,7 +738,8 @@ class Emissions:
         npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
-        data = [self.event_time_series.index, self.event_time_series.values]
+        event_time_series = self._require_event_time_series()
+        data = [event_time_series.index, event_time_series.to_numpy()]
         kwargs.setdefault("type_", "line")
         kwargs.setdefault("xlabel", "Time (s)")
         kwargs.setdefault("ylabel", r"$\frac{photons}{frame}$")
@@ -713,8 +765,8 @@ class Emissions:
         """
         time_series_file = Path(path) / ("event_time_series" + name_extension + ".csv")
         time_points_file = Path(path) / ("event_time_points" + name_extension + ".npy")
-        self.event_time_series.to_csv(time_series_file, header=False)
-        np.save(time_points_file, self.event_time_points)
+        self._require_event_time_series().to_csv(time_series_file, header=False)
+        np.save(time_points_file, self._require_event_time_points())
 
     @classmethod
     def load(cls, path: str | Path, name_extension: str = "") -> Emissions:
@@ -737,18 +789,21 @@ class Emissions:
             Instance of Emissions constructed with existing data.
         """
         obj = cls.__new__(cls)
-        obj.event_time_series = pd.read_csv(
+        loaded_series = pd.read_csv(
             Path(path) / ("event_time_series" + name_extension + ".csv"),
             index_col=0,
             header=None,
         )
         obj.event_time_series = pd.Series(
-            obj.event_time_series.values.flatten(), index=obj.event_time_series.index
+            loaded_series.to_numpy().flatten(), index=loaded_series.index
         )
         obj.event_time_series.index.name = None
-        obj.event_time_points = np.load(
-            Path(path) / ("event_time_points" + name_extension + ".npy"),
-            allow_pickle=True,
+        obj.event_time_points = np.asarray(
+            np.load(
+                Path(path) / ("event_time_points" + name_extension + ".npy"),
+                allow_pickle=True,
+            ),
+            dtype=np.float64,
         )
 
         return obj
