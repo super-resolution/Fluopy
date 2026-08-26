@@ -14,7 +14,6 @@ from . import figure as fi
 from . import transitions as tr
 
 if TYPE_CHECKING:
-    from matplotlib.axes import Axes as mplAxes
 
     from fluopy.emissions import Emissions
     from fluopy.simulation import Simulation
@@ -77,7 +76,7 @@ class Blinking:
             "off_boxplot",
         ] = "off_histogram",
         **kwargs: Any,
-    ) -> npt.NDArray[mplAxes]:
+    ) -> fi.AxesArray:
         """
         Plot histogram, boxplot or frame series of ON or OFF periods.
 
@@ -373,7 +372,7 @@ def get_analytical_off_statistics(
 
 def plot_off_statistics(
     on_off_times: npt.ArrayLike, on_off_values: npt.ArrayLike, **kwargs: Any
-) -> npt.NDArray[mplAxes]:
+) -> fi.AxesArray:
     """
     Plot the photophysical OFF/ON of one fluorophore.
 
@@ -411,7 +410,7 @@ def plot_histogram(
     as_time: str | None = None,
     sec_per_frame: float | None = None,
     **kwargs: Any,
-) -> npt.NDArray[mplAxes]:
+) -> fi.AxesArray:
     """
     Plot histogram of ON or OFF periods.
 
@@ -480,7 +479,7 @@ def plot_boxplot(
     as_time: str | None = None,
     sec_per_frame: float | None = None,
     **kwargs: Any,
-) -> npt.NDArray[mplAxes]:
+) -> fi.AxesArray:
     """
     Plot boxplot of ON or OFF periods.
 
@@ -522,7 +521,7 @@ def plot_boxplot(
 
 def plot_frame_series(
     data: npt.ArrayLike, mode: Literal["ON", "OFF"] = "OFF", **kwargs: Any
-) -> npt.NDArray[mplAxes]:
+) -> fi.AxesArray:
     """
     Plot frame series of ON or OFF periods.
 

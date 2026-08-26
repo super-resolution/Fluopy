@@ -18,10 +18,8 @@ from . import figure as fi
 from .miscellaneous import format_electronic_state, format_transition
 
 if TYPE_CHECKING:
-    from matplotlib.axes import Axes as mplAxes
-
-    from fluopy.prediction import Prediction
-    from fluopy.simulation import Simulation
+    from .prediction import Prediction
+    from .simulation import Simulation
 
 
 __all__: list[str] = ["Analysis"]
@@ -413,7 +411,7 @@ class Analysis:
         prediction: Prediction | None = None,
         diff_dist: bool = True,
         **kwargs: Any,
-    ) -> npt.NDArray[mplAxes]:
+    ) -> fi.AxesArray:
         """
         Plot frequencies of transitions.
 
@@ -498,7 +496,7 @@ class Analysis:
 
     def plot_frequency_states(
         self, prediction: Prediction | None = None, **kwargs: Any
-    ) -> npt.NDArray[mplAxes]:
+    ) -> fi.AxesArray:
         """
         Plot frequencies of states.
 
@@ -575,7 +573,7 @@ class Analysis:
         prediction: Prediction | None = None,
         diff_dist: bool = True,
         **kwargs: Any,
-    ) -> npt.NDArray[mplAxes]:
+    ) -> fi.AxesArray:
         """
         Plot mean times until transitions occur.
 
@@ -672,7 +670,7 @@ class Analysis:
 
     def plot_mean_lifetimes(
         self, prediction: Prediction | None = None, **kwargs: Any
-    ) -> npt.NDArray[mplAxes]:
+    ) -> fi.AxesArray:
         """
         Plot mean lifetimes of states.
 
@@ -752,7 +750,7 @@ class Analysis:
 
     def plot_state_occupations(
         self, prediction: Prediction | None = None, **kwargs: Any
-    ) -> npt.NDArray[mplAxes]:
+    ) -> fi.AxesArray:
         """
         Plot state occupation times (relative total time spent in state).
 
@@ -835,7 +833,7 @@ class Analysis:
         state_identity: int,
         prediction: Prediction | None = None,
         **kwargs: Any,
-    ) -> npt.NDArray[mplAxes]:
+    ) -> fi.AxesArray:
         """
         Plot lifetime distributions of states.
 
@@ -902,7 +900,7 @@ class Analysis:
         transition_id: int,
         prediction: Prediction | None = None,
         **kwargs: Any,
-    ) -> npt.NDArray[mplAxes]:
+    ) -> fi.AxesArray:
         """
         Plot distributions of time until transition occurs.
 

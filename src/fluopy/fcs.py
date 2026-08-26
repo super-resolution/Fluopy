@@ -226,7 +226,7 @@ class FCS:
 
     def plot(
         self, normalize_to: int | None = None, unit: str = "s", **kwargs: Any
-    ) -> npt.NDArray[mplAxes]:
+    ) -> fi.AxesArray:
         """
         Plot FCS data.
 

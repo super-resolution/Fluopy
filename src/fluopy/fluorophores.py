@@ -358,7 +358,7 @@ class FluorophoreSystem:
 
         return transitions
 
-    def plot(self, quadratic: bool = True, **kwargs: Any) -> npt.NDArray[Any]:
+    def plot(self, quadratic: bool = True, **kwargs: Any) -> fi.AxesArray:
         """
         Plot the positions of fluorophores.
 
@@ -371,7 +371,7 @@ class FluorophoreSystem:
 
         Returns
         -------
-        axes : npt.NDArray[matplotlib.axes.Axes]
+        axes
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         if self.fluorophores[0].position.shape[0] != 2:

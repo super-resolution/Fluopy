@@ -43,7 +43,10 @@ def random_unit_vector(
     """
     rng = np.random.default_rng(seed)
     rotations = Rotation.random(size, random_state=rng)
-    unit_vectors = rotations.apply([1, 0, 0])
+    unit_vectors = np.asarray(
+        rotations.apply([1, 0, 0]),
+        dtype=np.float64,
+    )
 
     if size == 1:
         return unit_vectors.reshape(1, -1)
@@ -81,13 +84,16 @@ def rotational_diffusion_step(
         v = v.reshape(1, -1)
 
     n_vectors = v.shape[0]
-    angles = rng.normal(loc=0, scale=np.sqrt(dt / (3 * tau_rot)), size=n_vectors)
+    angles = np.asarray(
+        rng.normal(loc=0, scale=np.sqrt(dt / (3 * tau_rot)), size=n_vectors),
+        dtype=np.float64,
+    )
     axes = random_unit_vector(size=n_vectors, seed=rng)
     rotation_vectors = axes * angles.reshape(-1, 1)
     rotations = Rotation.from_rotvec(rotation_vectors)
-    v_rot = rotations.apply(v)
+    v_rot = np.asarray(rotations.apply(v), dtype=np.float64)
     norms = np.linalg.norm(v_rot, axis=1).reshape(-1, 1)
-    v_rot = v_rot / norms
+    v_rot = np.asarray(v_rot / norms, dtype=np.float64)
 
     return v_rot
 
@@ -130,7 +136,10 @@ def simulate_rotational_motion(
         traj1.append(v1)
         traj2.append(v2)
 
-    return np.array(traj1), np.array(traj2)
+    return (
+        np.asarray(traj1, dtype=np.float64),
+        np.asarray(traj2, dtype=np.float64),
+    )
 
 
 def kappa_squared(
@@ -153,11 +162,18 @@ def kappa_squared(
     npt.NDArray[np.float64]
         The value of κ² calculated from the input vectors.
     """
-    dot_d_r = np.sum(d * r, axis=1)
-    dot_a_r = np.sum(a * r, axis=1)
-    dot_d_a = np.sum(d * a, axis=1)
+    donor = np.asarray(d, dtype=np.float64)
+    acceptor = np.asarray(a, dtype=np.float64)
+    distance = np.asarray(r, dtype=np.float64)
 
-    k2 = (dot_d_a - 3 * dot_d_r * dot_a_r) ** 2
+    dot_d_r = np.sum(donor * distance, axis=1)
+    dot_a_r = np.sum(acceptor * distance, axis=1)
+    dot_d_a = np.sum(donor * acceptor, axis=1)
+
+    k2 = np.asarray(
+        (dot_d_a - 3 * dot_d_r * dot_a_r) ** 2,
+        dtype=np.float64,
+    )
 
     return k2
 
@@ -187,13 +203,18 @@ def integral_kappa_squared(
     float
         The time-averaged value of κ².
     """
-    if r is None:
-        r = np.array([0, 0, 1])
+    trajectory_1 = np.asarray(traj1, dtype=np.float64)
+    trajectory_2 = np.asarray(traj2, dtype=np.float64)
 
-    r_expanded = np.tile(r, (len(traj1), 1))
-    kappas = kappa_squared(d=traj1, a=traj2, r=r_expanded)
+    if r is None:
+        distance = np.array([0, 0, 1], dtype=np.float64)
+    else:
+        distance = np.asarray(r, dtype=np.float64)
+
+    r_expanded = np.tile(distance, (len(trajectory_1), 1))
+    kappas = kappa_squared(d=trajectory_1, a=trajectory_2, r=r_expanded)
     t = len(kappas) * dt
-    return np.trapezoid(kappas, dx=dt) / t
+    return float(np.trapezoid(kappas, dx=dt) / t)
 
 
 def sample_kappa_squared_distribution(
@@ -219,7 +240,8 @@ def sample_kappa_squared_distribution(
     """
     rng = np.random.default_rng(seed)
 
-    k2_values_scaled = k2_values / 4  # kappa² ranges from 0 to 4
+    k2_array = np.asarray(k2_values, dtype=np.float64)
+    k2_values_scaled = k2_array / 4  # kappa² ranges from 0 to 4
     # for logit transform, scale to (0, 1)
     k2_values_scaled_log = logit(np.clip(k2_values_scaled, a_min=1e-5, a_max=1 - 1e-5))
     # maps (0, 1) to (-inf, inf)
@@ -228,7 +250,7 @@ def sample_kappa_squared_distribution(
     samples_logit = kde_logit.resample(size, seed=rng)[0]
     samples_scaled = expit(samples_logit)
     # maps (-inf, inf) back to (0, 1)
-    samples_kappa2 = samples_scaled * 4
+    samples_kappa2 = np.asarray(samples_scaled * 4, dtype=np.float64)
     # maps (0, 1) back to (0, 4)
 
     return samples_kappa2

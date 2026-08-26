@@ -18,11 +18,13 @@ from matplotlib import rcParams, rcParamsDefault
 from .miscellaneous import format_axis_labels
 
 if TYPE_CHECKING:
-    from matplotlib.axes import Axes as mplAxes
     from scipy.stats.distributions import rv_frozen
 
 
-__all__: list[str] = ["universal_figure"]
+__all__: list[str] = ["AxesArray", "universal_figure"]
+
+
+AxesArray = npt.NDArray[Any]
 
 
 def universal_figure(
@@ -68,9 +70,9 @@ def universal_figure(
     draw_marker_param: dict[str, Any] | None = None,
     plot_distribution: rv_frozen | Sequence[rv_frozen] | None = None,
     plot_distribution_label: str | None = None,
-    axes: npt.NDArray[mplAxes] | None = None,
+    axes: AxesArray | None = None,
     **type_specific_kwargs: Any,
-) -> npt.NDArray[mplAxes]:
+) -> AxesArray:
     """
     Constructs a figure or modifies axes.
 
