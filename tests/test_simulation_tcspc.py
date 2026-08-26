@@ -627,6 +627,14 @@ def test_space_multiple_excitations(caplog):
     assert np.unique(time_series).size == time_series.size
 
 
+@pytest.mark.parametrize("dtype", [np.int8, np.int32, np.int64, np.bool_])
+def test_space_multiple_excitations_requires_float_dtype(dtype):
+    time_series = np.array([0, 0, 1], dtype=dtype)
+
+    with pytest.raises(ValueError, match="time_series must be of float type."):
+        si.space_multiple_excitations(time_series)
+
+
 def test_insert_excitations(request):
     excitation_series = np.array(
         [1, 2, 0, -1, -1, -1, 2, -1, 1, -1, -1, 2, 1, -1, -1, -1]
