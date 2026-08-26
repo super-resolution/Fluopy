@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Generator, Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -28,7 +28,7 @@ __all__: list[str] = [
 ]
 
 
-def construct_state_graphs(transition_df: pd.DataFrame) -> list[nx.MultiDiGraph]:
+def construct_state_graphs(transition_df: pd.DataFrame) -> list[nx.MultiDiGraph[Any]]:
     """
     Constructs graphs of states (nodes) and their transitions (edges). Each fluorophore
     or fluorophore combination gets a separate graph.
@@ -45,12 +45,13 @@ def construct_state_graphs(transition_df: pd.DataFrame) -> list[nx.MultiDiGraph]
     graphs : list[nx.MultiDiGraph]
         Contains objects of type nx.MultiDiGraph.
     """
-    graphs = []
+    graphs: list[nx.MultiDiGraph[Any]] = []
     grouped = transition_df.groupby(level=0)
-    for fluorophore, f_transitions in grouped:
-        G = nx.MultiDiGraph()
-        edges = []
-        for (_, _), transition in f_transitions.iterrows():
+    for fluorophore_raw, f_transitions in grouped:
+        fluorophore = cast(str, fluorophore_raw)
+        G: nx.MultiDiGraph[Any] = nx.MultiDiGraph()
+        edges: list[tuple[str, str, dict[str, str]]] = []
+        for _, transition in f_transitions.iterrows():
             abbr = transition["abbreviation"]
             if "dist" not in fluorophore:
                 source = transition["initial_state"].name
@@ -78,7 +79,7 @@ def construct_state_graphs(transition_df: pd.DataFrame) -> list[nx.MultiDiGraph]
     return graphs
 
 
-def construct_transition_graph(transition_df: pd.DataFrame) -> nx.MultiDiGraph:
+def construct_transition_graph(transition_df: pd.DataFrame) -> nx.MultiDiGraph[int]:
     """
     Constructs a graph of transitions (nodes) and their involved states (edges).
 
@@ -99,12 +100,14 @@ def construct_transition_graph(transition_df: pd.DataFrame) -> nx.MultiDiGraph:
             "construct_transition_graph only available for single "
             "fluorophore systems."
         )
-    G = nx.MultiDiGraph()
-    edges = []
-    for (_, id_source), row in transition_df.iterrows():
+    G: nx.MultiDiGraph[int] = nx.MultiDiGraph()
+    edges: list[tuple[int, int, dict[str, str]]] = []
+    for source_index, row in transition_df.iterrows():
+        id_source = cast(tuple[Any, int], source_index)[1]
         final_state = row["final_state"]
-        for (_, id_destination), row in transition_df.iterrows():
-            if row["initial_state"] == final_state:
+        for destination_index, destination_row in transition_df.iterrows():
+            id_destination = cast(tuple[Any, int], destination_index)[1]
+            if destination_row["initial_state"] == final_state:
                 source = id_source
                 destination = id_destination
                 edge = (source, destination, {"w": f"{final_state.name}"})
@@ -115,7 +118,7 @@ def construct_transition_graph(transition_df: pd.DataFrame) -> nx.MultiDiGraph:
 
 
 def check_graph_suitable(
-    G: nx.MultiDiGraph, starting_node: int
+    G: nx.MultiDiGraph[int], starting_node: int
 ) -> tuple[bool, list[Any]]:
     """
     Checks whether a Markov chain is suitable for an approximation of its development
@@ -146,8 +149,8 @@ def check_graph_suitable(
 
 
 def determine_node_order(
-    G: nx.MultiDiGraph, starting_node: int
-) -> Generator[Any, None, None]:
+    G: nx.MultiDiGraph[int], starting_node: int
+) -> Generator[int, None, None]:
     """
     Determine the order of nodes of a graph such that each node that leads to another
     node has been visited before the other node. Requires the graph to be a DAG
@@ -178,7 +181,7 @@ def determine_node_order(
 
 
 def plot_graph(
-    G: nx.MultiDiGraph,
+    G: nx.MultiDiGraph[Any],
     graph_type: str = "shell",
     colors: Sequence[str] | None = None,
     scale: float = 1,
@@ -222,8 +225,8 @@ def plot_graph(
     else:
         pos = nx.kamada_kawai_layout(G)
 
-    labels = {}
-    colormap = []
+    labels: dict[Any, Any] = {}
+    colormap: list[str] = []
 
     for _, node in enumerate(G):
         if isinstance(node, str) and "(2)" in node:
@@ -236,9 +239,9 @@ def plot_graph(
     nx.draw_networkx_labels(G=G, pos=pos, ax=ax, labels=labels)
 
     edge_weights = nx.get_edge_attributes(G, name="w")
-    straight_edges = []
-    arc_rad = 0
-    arc_rad_reversed = 0
+    straight_edges: list[Any] = []
+    arc_rad = 0.0
+    arc_rad_reversed = 0.0
     for i, new_edge in enumerate(G.edges):
         if i == 0:
             distance = nx.get_edge_attributes(G, name="dist")[new_edge]
@@ -295,10 +298,10 @@ def plot_graph(
 
 
 def draw_networkx_curved_edge_labels(
-    G: nx.Graph,
+    G: nx.Graph[Any],
     pos: dict[Any, Any],
     ax: mplAxes | None = None,
-    edge_labels: dict[Any, Any] = None,
+    edge_labels: dict[Any, Any] | None = None,
     rad: float = 0,
 ) -> mplAxes:
     """
@@ -330,7 +333,8 @@ def draw_networkx_curved_edge_labels(
     else:
         labels = edge_labels
     text_items = {}
-    for (n1, n2, _), label in labels.items():
+    for edge, label in labels.items():
+        n1, n2 = edge[:2]
         pos_1 = ax.transData.transform(np.array(pos[n1]))
         pos_2 = ax.transData.transform(np.array(pos[n2]))
         linear_mid = 0.5 * pos_1 + 0.5 * pos_2
@@ -345,13 +349,12 @@ def draw_networkx_curved_edge_labels(
         trans_angle = 0.0
         # use default box of white with white border
         bbox = dict(boxstyle="round", ec=(1.0, 1.0, 1.0), fc=(1.0, 1.0, 1.0))
-        if not isinstance(label, str):
-            label = str(label)  # this makes "1" and 1 labeled the same
+        label_text = str(label)
 
         t = ax.text(
             x,
             y,
-            label,
+            label_text,
             size=10,
             color="k",
             family="sans-serif",

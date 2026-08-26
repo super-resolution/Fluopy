@@ -8,26 +8,29 @@ import re
 import reprlib
 from collections.abc import Sequence
 from dataclasses import fields, is_dataclass
-from typing import TYPE_CHECKING, Any
+from os import PathLike
+from typing import TYPE_CHECKING, Any, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from matplotlib.figure import Figure as mplFigure
+from matplotlib.gridspec import GridSpec
+from matplotlib.transforms import Bbox
 from PIL import Image, ImageOps
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
-    from matplotlib.figure import Figure as mplFigure
 
 
 __all__: list[str] = []
 
 
 def delete_subplots(
-    axes: npt.NDArray[mplAxes],
+    axes: npt.NDArray[Any],
     keep_number: int | None = None,
-    del_positions: npt.ArrayLike = None,
+    del_positions: npt.ArrayLike | None = None,
 ) -> None:
     """
     Deletes subplots from figure object.
@@ -55,17 +58,18 @@ def delete_subplots(
         for i in range(flattened.size - keep_number):
             fig.delaxes(flattened[-1 - i])
     elif del_positions is not None:
-        for position in del_positions:
+        positions = np.asarray(del_positions, dtype=np.int64)
+        for position in positions:
             fig.delaxes(axes[position[0], position[1]])
     else:
         raise ValueError("Either keep_number or del_positions must be provided.")
 
 
 def create_row_subtitles(
-    axes: npt.NDArray[mplAxes],
+    axes: npt.NDArray[Any],
     nrows: int = 1,
     ncols: int = 1,
-    titles: Sequence[str] = None,
+    titles: Sequence[str] | None = None,
 ) -> None:
     """
     Creates subtitles of figure displayed in the middle of each row.
@@ -90,7 +94,7 @@ def create_row_subtitles(
         titles = ["default_title"]
 
     fig = get_figure(axes=axes)
-    grid = plt.GridSpec(nrows=nrows, ncols=ncols)
+    grid = GridSpec(nrows=nrows, ncols=ncols)
     for i in range(nrows):
         row = fig.add_subplot(grid[i, ::])
         row.set_title(titles[i], fontsize=22, pad=20, fontweight="bold")
@@ -141,23 +145,27 @@ def add_table(
     if axes is None:
         axes = plt.gca()
 
+    row_labels: list[str] | None
     if isinstance(data, pd.Series):
-        cells = data.values[:, np.newaxis]
-        labels = data.index
+        cells = data.to_numpy()[:, np.newaxis]
+        row_labels = [str(label) for label in data.index]
     else:
-        cells = data
+        cells = np.asarray(data)
+        row_labels = (
+            None if labels is None else [str(label) for label in np.asarray(labels)]
+        )
 
     fig = get_figure(axes=axes)
     new_ax = fig.add_subplot(grid)
     new_ax.axis("off")
-    table = new_ax.table(cellText=cells, rowLabels=labels, loc="center")
+    table = new_ax.table(cellText=cells.tolist(), rowLabels=row_labels, loc="center")
     table.scale(xscale=xscale, yscale=yscale)
     table.set_fontsize(size=fontsize)
 
     return axes
 
 
-def get_figure(axes: mplAxes | npt.NDArray[mplAxes] | None = None) -> mplFigure:
+def get_figure(axes: mplAxes | npt.NDArray[Any] | None = None) -> mplFigure:
     """
     Get the figure object based on axes, where axes is either an axes object or a
     np.ndarray.
@@ -181,8 +189,10 @@ def get_figure(axes: mplAxes | npt.NDArray[mplAxes] | None = None) -> mplFigure:
     else:
         ax = axes
     fig = ax.get_figure()
+    if fig is None:
+        raise ValueError("axes is not attached to a figure.")
 
-    return fig
+    return cast(mplFigure, fig)
 
 
 def print_class(class_instance: Any) -> None:
@@ -295,18 +305,16 @@ def format_axis_labels(label: str, offset: str) -> str:
     return label
 
 
-def compute_tight_bbox(fig, pad_inches: float = 0.0):
+def compute_tight_bbox(fig: mplFigure, pad_inches: float = 0.0) -> Bbox:
     """
     Compute tight bounding box of a figure with specified padding. The width is not
     changed.
     """
     fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
+    renderer = cast(Any, fig.canvas).get_renderer()
     tight = fig.get_tightbbox(renderer)
     not_tight = fig.bbox
     width, current_height = fig.get_size_inches()
-
-    from matplotlib.transforms import Bbox
 
     bbox = Bbox.from_bounds(
         not_tight.x0,
@@ -319,7 +327,11 @@ def compute_tight_bbox(fig, pad_inches: float = 0.0):
 
 
 def crop_to_content_with_padding(
-    in_file, out_file, dpi: int = 300, pad_inches: float = 2 / 72, threshold: int = 255
+    in_file: str | PathLike[str],
+    out_file: str | PathLike[str],
+    dpi: int = 300,
+    pad_inches: float = 2 / 72,
+    threshold: int = 255,
 ) -> None:
     """
     Crops the image to the content and adds padding, then saves the image.
@@ -343,6 +355,8 @@ def crop_to_content_with_padding(
 
     mask = gray.point(lambda p: 255 if p < threshold else 0)
     bbox = mask.getbbox()
+    if bbox is None:
+        raise ValueError("image contains no pixels below the threshold.")
 
     pad_px = round(pad_inches * dpi)
 

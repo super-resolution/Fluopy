@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -29,12 +29,12 @@ def simulate_TCSPC(
     transition_set: TransitionSet,
     emitting_transition_ids: dict[int, float],
     et_transition_ids: Sequence[int] | None = None,
-    number_pulses: int = 1e5,
+    number_pulses: int = 100_000,
     pulse_duration: float = 5e-11,
     time_between_pulses: float = 25e-9,
     excitation_rates: dict[str, float] | None = None,
     frame_time: str = "1ms",
-    size: int = 1e5,
+    size: int = 100_000,
     store_time_points: bool = False,
     seed: RandomGeneratorSeed = None,
 ) -> tuple[
@@ -125,7 +125,7 @@ def simulate_TCSPC(
         fluorophore_ids = [
             f.identity
             for f in transition_set.fluorophore_system.fluorophores
-            if f.name == fluorophore
+            if f.name == fluorophore and f.identity is not None
         ]
         excitation_rate = excitation_rates[fluorophore]
         excitation_probability = 1 - np.exp(
@@ -134,14 +134,16 @@ def simulate_TCSPC(
         excitation_probabilities[fluorophore_ids] = excitation_probability
     excitable_indices = np.where(excitation_probabilities != 0)[0]
     rng = np.random.default_rng(seed)
-    frame_time = pd.Timedelta(frame_time) / np.timedelta64(1, "s")
-    frames = number_pulses * time_between_pulses / frame_time
-    time_stamps = np.linspace(0, np.ceil(frames) * frame_time, int(np.ceil(frames)) + 1)
+    seconds_per_frame = float(pd.Timedelta(frame_time) / np.timedelta64(1, "s"))
+    frames = number_pulses * time_between_pulses / seconds_per_frame
+    time_stamps = np.linspace(
+        0, np.ceil(frames) * seconds_per_frame, int(np.ceil(frames)) + 1
+    )
     time_stamps = np.round(time_stamps, decimals=12)
     if frames < 1:
         logger.warning(
             f"Not enough laser pulses to completely simulate a single frame (requires "
-            f"at least {int(np.ceil(frame_time / time_between_pulses)):.1e} pulses).",
+            f"at least {int(np.ceil(seconds_per_frame / time_between_pulses)):.1e} pulses).",
             stacklevel=2,
         )
     logger.warning(
@@ -154,10 +156,10 @@ def simulate_TCSPC(
     current_state_index = df.loc[
         df["final_state"] == tuple(np.zeros(number_fluorophores))
     ].index[0]
-    lifetimes_D = []
-    lifetimes_DA = []
-    lifetimes_all = []
-    remember = [np.inf, np.inf]
+    lifetimes_D: list[float] = []
+    lifetimes_DA: list[float] = []
+    lifetimes_all: list[float] = []
+    remember: tuple[int, float] = (0, np.inf)
     if et_transition_ids is None:
         et_transition_ids = []
     i = 0
@@ -178,7 +180,7 @@ def simulate_TCSPC(
     random_numbers_exc = rng.uniform(low=0, high=1, size=(size, excitable_indices.size))
     random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
     if store_time_points:
-        time_points = []
+        time_points: list[float] = []
     else:
         event_time_points = None
 
@@ -268,15 +270,12 @@ def simulate_TCSPC(
                     )
                     if store_time_points:
                         event_time_points = np.array(time_points)
-                    lifetimes_DA = np.array(lifetimes_DA)
-                    lifetimes_D = np.array(lifetimes_D)
-                    lifetimes_all = np.array(lifetimes_all)
                     return (
                         event_time_series,
                         event_time_points,
-                        lifetimes_DA,
-                        lifetimes_D,
-                        lifetimes_all,
+                        np.asarray(lifetimes_DA, dtype=np.float64),
+                        np.asarray(lifetimes_D, dtype=np.float64),
+                        np.asarray(lifetimes_all, dtype=np.float64),
                     )
                 # note that not_broken will be set to False. The rembered transition will be
                 # carried out and after that, if the transition was not to an all-absorbing
@@ -303,7 +302,7 @@ def simulate_TCSPC(
                     random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
                 current_state_lambda = row_sums_non_exc[current_state_index]
                 if current_state_lambda == 0:
-                    remember = [np.inf, np.inf]
+                    remember = (0, np.inf)
                     break
                 not_broken = True
                 transition_time = (1 / current_state_lambda) * np.log(
@@ -319,7 +318,7 @@ def simulate_TCSPC(
                     current_state_index, sorted_index
                 ]
                 if time > next_pulse_time:
-                    remember = [next_transition, time]
+                    remember = (int(next_transition), float(time))
                     break
             skip = False
             current_state_index = next_transition
@@ -333,7 +332,7 @@ def simulate_TCSPC(
                     else:
                         lifetimes_D.append(time - last_pulse_time)
                     lifetimes_all.append(time - last_pulse_time)
-                    frame = int(np.ceil(time / frame_time))
+                    frame = int(np.ceil(time / seconds_per_frame))
                     try:
                         photon_collector[frame] += 1
                         if store_time_points:
@@ -344,16 +343,16 @@ def simulate_TCSPC(
     event_time_series = pd.Series(photon_collector, index=time_stamps, dtype=np.int64)
     if store_time_points:
         event_time_points = np.array(time_points)
-    lifetimes_DA = np.array(lifetimes_DA)
-    lifetimes_D = np.array(lifetimes_D)
-    lifetimes_all = np.array(lifetimes_all)
+    lifetimes_DA_array = np.asarray(lifetimes_DA, dtype=np.float64)
+    lifetimes_D_array = np.asarray(lifetimes_D, dtype=np.float64)
+    lifetimes_all_array = np.asarray(lifetimes_all, dtype=np.float64)
 
     return (
         event_time_series,
         event_time_points,
-        lifetimes_DA,
-        lifetimes_D,
-        lifetimes_all,
+        lifetimes_DA_array,
+        lifetimes_D_array,
+        lifetimes_all_array,
     )
 
 
@@ -361,12 +360,12 @@ def simulate_TCSPC_detailed(
     transition_set: TransitionSet,
     emitting_transition_ids: dict[int, float],
     et_transition_ids: Sequence[int] | None = None,
-    number_pulses: int = 1e5,
+    number_pulses: int = 100_000,
     pulse_duration: float = 5e-11,
     time_between_pulses: float = 25e-9,
     excitation_rates: dict[str, float] | None = None,
     frame_time: str = "1ms",
-    size: int = 1e5,
+    size: int = 100_000,
     store_time_points: bool = False,
     seed: RandomGeneratorSeed = None,
 ) -> tuple[
@@ -462,7 +461,7 @@ def simulate_TCSPC_detailed(
         fluorophore_ids = [
             f.identity
             for f in transition_set.fluorophore_system.fluorophores
-            if f.name == fluorophore
+            if f.name == fluorophore and f.identity is not None
         ]
         excitation_rate = excitation_rates[fluorophore]
         excitation_probability = 1 - np.exp(
@@ -471,14 +470,16 @@ def simulate_TCSPC_detailed(
         excitation_probabilities[fluorophore_ids] = excitation_probability
     excitable_indices = np.where(excitation_probabilities != 0)[0]
     rng = np.random.default_rng(seed)
-    frame_time = pd.Timedelta(frame_time) / np.timedelta64(1, "s")
-    frames = number_pulses * time_between_pulses / frame_time
-    time_stamps = np.linspace(0, np.ceil(frames) * frame_time, int(np.ceil(frames)) + 1)
+    seconds_per_frame = float(pd.Timedelta(frame_time) / np.timedelta64(1, "s"))
+    frames = number_pulses * time_between_pulses / seconds_per_frame
+    time_stamps = np.linspace(
+        0, np.ceil(frames) * seconds_per_frame, int(np.ceil(frames)) + 1
+    )
     time_stamps = np.round(time_stamps, decimals=12)
     if frames < 1:
         logger.warning(
             f"Not enough laser pulses to completely simulate a single frame (requires "
-            f"at least {int(np.ceil(frame_time / time_between_pulses)):.1e} pulses).",
+            f"at least {int(np.ceil(seconds_per_frame / time_between_pulses)):.1e} pulses).",
             stacklevel=2,
         )
     logger.warning(
@@ -491,13 +492,13 @@ def simulate_TCSPC_detailed(
     current_state_index = df.loc[
         df["final_state"] == tuple(np.zeros(number_fluorophores))
     ].index[0]
-    time_series = [0]
-    transition_series = []
-    excitation_series = []
-    lifetimes_D = []
-    lifetimes_DA = []
-    lifetimes_all = []
-    remember = [np.inf, np.inf]
+    time_series: list[float] = [0.0]
+    transition_series: list[int] = []
+    excitation_series: list[int] = []
+    lifetimes_D: list[float] = []
+    lifetimes_DA: list[float] = []
+    lifetimes_all: list[float] = []
+    remember: tuple[int, float] = (0, np.inf)
     if et_transition_ids is None:
         et_transition_ids = []
     i = 0
@@ -518,7 +519,7 @@ def simulate_TCSPC_detailed(
     random_numbers_exc = rng.uniform(low=0, high=1, size=(size, excitable_indices.size))
     random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
     if store_time_points:
-        time_points = []
+        time_points: list[float] | None = []
     else:
         time_points = None
 
@@ -546,7 +547,9 @@ def simulate_TCSPC_detailed(
                 # if excitations occur, the fluorophores are set to S1
                 if excitations.size != 0:
                     current_states[excitable_indices[S0s[excitations]]] = S1
-                    excitation_series.extend(excitable_indices[S0s[excitations]])
+                    excitation_series.extend(
+                        excitable_indices[S0s[excitations]].tolist()
+                    )
                     time_series.extend([time] * excitations.size)
                 # if no excitation happened and if a transition that is remembered could
                 # take place, the simulation continues from there
@@ -577,7 +580,7 @@ def simulate_TCSPC_detailed(
                     if potential_i * time_between_pulses < remember[1]:
                         current_states[excitable_indices[S0s[indices_minimum]]] = S1
                         excitation_series.extend(
-                            excitable_indices[S0s[indices_minimum]]
+                            excitable_indices[S0s[indices_minimum]].tolist()
                         )
                         time_series.extend(
                             [potential_i * time_between_pulses] * indices_minimum.size
@@ -651,7 +654,7 @@ def simulate_TCSPC_detailed(
                     random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
                 current_state_lambda = row_sums_non_exc[current_state_index]
                 if current_state_lambda == 0:
-                    remember = [np.inf, np.inf]
+                    remember = (0, np.inf)
                     break
                 not_broken = True
                 transition_time = (1 / current_state_lambda) * np.log(
@@ -667,11 +670,11 @@ def simulate_TCSPC_detailed(
                     current_state_index, sorted_index
                 ]
                 if time > next_pulse_time:
-                    remember = [next_transition, time]
+                    remember = (int(next_transition), float(time))
                     break
             skip = False
             current_state_index = next_transition
-            transition_series.append(next_transition)
+            transition_series.append(int(next_transition))
             excitation_series.append(-1)
             time_series.append(time)
             if next_transition in emitting_transition_ids:
@@ -684,10 +687,10 @@ def simulate_TCSPC_detailed(
                     else:
                         lifetimes_D.append(time - last_pulse_time)
                     lifetimes_all.append(time - last_pulse_time)
-                    frame = int(np.ceil(time / frame_time))
+                    frame = int(np.ceil(time / seconds_per_frame))
                     try:
                         photon_collector[frame] += 1
-                        if store_time_points:
+                        if time_points is not None:
                             time_points.append(time)
                     except IndexError:
                         pass
@@ -784,7 +787,7 @@ def insert_excitations(
     diffs = np.insert(arr=diffs, obj=0, values=indices_transitions[0] + 1)
     # if diffs is > 1, there was an excitation
     number_fluorophores = transition_set.fluorophore_system.count
-    already_processed = None
+    already_processed = np.array([], dtype=np.int64)
 
     for i in range(number_fluorophores):
         diff = i + 2
@@ -866,20 +869,25 @@ def get_state_series(
         Contains 1-D array_like for each fluorophore representing its state at index i
         corresponding to transition_series[i-1].
     """
-    start_at = tuple(np.zeros(shape=transition_set.fluorophore_system.count, dtype=int))
+    transition_indices = np.asarray(transition_series, dtype=np.uint32)
+    fluorophore_count = transition_set.fluorophore_system.count
+    start_at = tuple(np.zeros(shape=fluorophore_count, dtype=int))
     final_states = transition_set.combined_state_transitions_df["final_state"]
 
     state_series = np.empty(
-        shape=(transition_set.fluorophore_system.count, transition_series.size + 1),
+        shape=(fluorophore_count, transition_indices.size + 1),
         dtype=np.int8,
     )
     state_series[:, 0] = start_at
 
-    for i, _ in enumerate(final_states[0]):
-        final_states_fluorophore = final_states.map(lambda x, i=i: x[i]).to_numpy(
-            dtype=np.int8
+    for fluorophore_index in range(fluorophore_count):
+        final_states_fluorophore = np.array(
+            [cast(tuple[int, ...], state)[fluorophore_index] for state in final_states],
+            dtype=np.int8,
         )
-        state_series[i][1:] = final_states_fluorophore[transition_series]
+        state_series[fluorophore_index, 1:] = final_states_fluorophore[
+            transition_indices
+        ]
 
     return state_series
 
@@ -955,37 +963,39 @@ def prepare_return_values(
     simulation_object : fluopy.simulation.Simulation
         Container for simulation-associated attributes and methods.
     """
-    event_time_series = pd.Series(photon_collector, index=time_stamps, dtype=np.int64)
+    photon_counts = np.asarray(photon_collector, dtype=np.int64)
+    timestamps = np.asarray(time_stamps, dtype=np.float64)
+    event_time_series = pd.Series(photon_counts, index=timestamps, dtype=np.int64)
     if time_points is not None:
-        event_time_points = np.array(time_points)
+        event_time_points = np.asarray(time_points, dtype=np.float64)
     else:
         event_time_points = None
-    lifetimes_DA = np.array(lifetimes_DA)
-    lifetimes_D = np.array(lifetimes_D)
-    lifetimes_all = np.array(lifetimes_all)
-    time_series = np.array(time_series)
-    transition_series = np.array(transition_series, dtype=np.uint32)
-    excitation_series = np.array(excitation_series, dtype=np.int16)
-    space_multiple_excitations(time_series=time_series)
-    transition_series = insert_excitations(
-        transition_series=transition_series,
+    lifetimes_DA_array = np.asarray(lifetimes_DA, dtype=np.float64)
+    lifetimes_D_array = np.asarray(lifetimes_D, dtype=np.float64)
+    lifetimes_all_array = np.asarray(lifetimes_all, dtype=np.float64)
+    time_series_array = np.asarray(time_series, dtype=np.float64)
+    transition_series_array = np.asarray(transition_series, dtype=np.uint32)
+    excitation_series_array = np.asarray(excitation_series, dtype=np.int16)
+    space_multiple_excitations(time_series=time_series_array)
+    transition_series_array = insert_excitations(
+        transition_series=transition_series_array,
         transition_set=transition_set,
-        excitation_series=excitation_series,
+        excitation_series=excitation_series_array,
     )
     state_series = get_state_series(
-        transition_set=transition_set, transition_series=transition_series
+        transition_set=transition_set, transition_series=transition_series_array
     )
 
     simulation_object = si.Simulation(transition_set=transition_set)
-    simulation_object.time_series = time_series
-    simulation_object.transition_series = transition_series
+    simulation_object.time_series = time_series_array
+    simulation_object.transition_series = transition_series_array
     simulation_object.state_series = state_series
 
     return (
         event_time_series,
         event_time_points,
-        lifetimes_DA,
-        lifetimes_D,
-        lifetimes_all,
+        lifetimes_DA_array,
+        lifetimes_D_array,
+        lifetimes_all_array,
         simulation_object,
     )

@@ -5,7 +5,7 @@ Various routines to deal with simulation results.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -23,6 +23,11 @@ if TYPE_CHECKING:
 
 
 __all__: list[str] = []
+
+
+class EmissionsParameters(TypedDict):
+    frame_time: str
+    bandpass: tuple[float, float] | None
 
 
 def emission_post_processing(emis: Emissions, seed: RandomGeneratorSeed) -> None:
@@ -67,29 +72,33 @@ def get_bleaching_times(simulation: Simulation) -> npt.NDArray[np.float64]:
     npt.NDArray[np.float64]
         Times where photobleaching occurred of shape (n_times,).
     """
+    state_series = simulation.state_series
+    time_series = simulation.time_series
+    if state_series is None or time_series is None:
+        raise ValueError("bleaching times require a completed simulation.")
     df = simulation.transition_set.transition_df
-    bleached_states = df[df["absorbing"]]["final_state"]
-    bleached_states = [x.value for x in bleached_states]
-    if len(bleached_states) == 1:
-        bleached_state = bleached_states[0]
-    elif len(bleached_states) == 0:
-        return np.full(simulation.state_series.shape[0], fill_value=np.nan)
+    absorbing_final_states = df[df["absorbing"]]["final_state"]
+    bleached_state_values = [x.value for x in absorbing_final_states]
+    if len(bleached_state_values) == 1:
+        bleached_state = bleached_state_values[0]
+    elif len(bleached_state_values) == 0:
+        return np.full(state_series.shape[0], fill_value=np.nan)
     else:
         raise NotImplementedError(
             "Multiple bleaching states not yet implemented in " + "this function."
         )
 
-    bleaching_times = []
-    for state_series in simulation.state_series:
-        if state_series[-1] == bleached_state:
-            first_occurence = np.where(state_series == bleached_state)[0][0]
-            time = simulation.time_series[first_occurence]
+    bleaching_times: list[float] = []
+    for fluorophore_states in state_series:
+        if fluorophore_states[-1] == bleached_state:
+            first_occurence = np.where(fluorophore_states == bleached_state)[0][0]
+            time = time_series[first_occurence]
         else:
             time = np.nan
         bleaching_times.append(time)
-    bleaching_times = np.sort(np.array(bleaching_times))
+    bleaching_times_array = np.sort(np.asarray(bleaching_times, dtype=np.float64))
 
-    return bleaching_times
+    return bleaching_times_array
 
 
 def get_delta_bleaching_times(
@@ -110,10 +119,11 @@ def get_delta_bleaching_times(
         The arrival times of photons between bleaching events. The timer starts at the
         previous bleaching event.
     """
-    delta_bleaching_times_all = []
-    previous_times = np.zeros_like(bleaching_times.shape[0])
-    for fluorophore in range(bleaching_times.shape[1]):
-        bleaching_times_fluo = bleaching_times[:, fluorophore]
+    bleaching_times_array = np.asarray(bleaching_times, dtype=np.float64)
+    delta_bleaching_times_all: list[npt.NDArray[np.float64]] = []
+    previous_times = np.zeros(bleaching_times_array.shape[0], dtype=np.float64)
+    for fluorophore in range(bleaching_times_array.shape[1]):
+        bleaching_times_fluo = bleaching_times_array[:, fluorophore]
         delta_bleaching_times = bleaching_times_fluo - previous_times
         delta_bleaching_times = delta_bleaching_times[~np.isnan(delta_bleaching_times)]
         delta_bleaching_times_all.append(delta_bleaching_times)
@@ -130,7 +140,11 @@ def fingerprint_analysis(
     filename: str,
     seed: RandomGeneratorSeed,
     use_memmap: str | Path | None = None,
-) -> tuple[pd.Series, npt.NDArray[np.float64], list[npt.NDArray[np.float64]]]:
+) -> tuple[
+    pd.Series,
+    npt.NDArray[np.float64],
+    list[list[npt.NDArray[np.float64]]],
+]:
     """
     Routine to perform fingerprint analysis. Returns the fingerprint data and the times
     where photobleaching occurred. Each batch is stored as a parquet file. The bleaching
@@ -173,55 +187,64 @@ def fingerprint_analysis(
         dtype=np.int32,
     )
     output_file_bleach = Path(filepath) / f"bleaching_times_{filename}.npy"
-    bleaching_times_all_runs = []
-    delta_times_photons_between_bleaching = [
+    bleaching_times_all_runs: list[npt.NDArray[np.float64]] = []
+    delta_times_photons_between_bleaching: list[list[npt.NDArray[np.float64]]] = [
         [] for _ in range(transition_set.fluorophore_system.count)
     ]
     for i in range(batches):
         output_file_run = Path(filepath) / f"single_runs_{filename}_batch_{i}.parquet"
-        df = None
+        df: pd.DataFrame | pd.Series[Any] | None = None
         for j in range(batch_size):
             simulation = si.Simulation(transition_set=transition_set)
-            simulation.run(size=1e6, seed=rng, end_time=300, use_memmap=use_memmap)
+            simulation.run(
+                size=1_000_000, seed=rng, end_time=300, use_memmap=use_memmap
+            )
             bleaching_times = get_bleaching_times(simulation=simulation)
             bleaching_times_all_runs.append(bleaching_times)
             emis = em.Emissions(seed=rng, **PARAMS_EMIS)
             emis.extract(simulation=simulation)
+            event_time_points = emis.event_time_points
+            event_time_series = emis.event_time_series
+            if event_time_points is None or event_time_series is None:
+                raise RuntimeError("emission extraction did not produce event data.")
 
             for n in range(transition_set.fluorophore_system.count):
                 if n > 0:
                     start = bleaching_times[n - 1]
                 else:
                     start = 0
-                start_index = np.searchsorted(emis.event_time_points, start)
+                start_index = np.searchsorted(event_time_points, start)
                 if bleaching_times.size > n:
-                    end_index = np.searchsorted(
-                        emis.event_time_points, bleaching_times[n]
-                    )
+                    end_index = np.searchsorted(event_time_points, bleaching_times[n])
                     delta_times_photons_between_bleaching[n].append(
-                        emis.event_time_points[start_index:end_index] - start
+                        event_time_points[start_index:end_index] - start
                     )
                 else:
                     delta_times_photons_between_bleaching[n].append(
-                        emis.event_time_points[start_index:] - start
+                        event_time_points[start_index:] - start
                     )  # the delta, not the actual times
                     break
 
             emission_post_processing(emis=emis, seed=rng)
-            emis.event_time_series.name = i * batch_size + j
+            event_time_series = emis.event_time_series
+            if event_time_series is None:
+                raise RuntimeError("emission processing removed the event time series.")
+            event_time_series.name = i * batch_size + j
             if df is None:
-                df = emis.event_time_series
+                df = event_time_series
             else:
-                df = pd.concat([df, emis.event_time_series], axis=1, ignore_index=False)
-            fingerprint_data = fingerprint_data + emis.event_time_series
+                df = pd.concat([df, event_time_series], axis=1, ignore_index=False)
+            fingerprint_data = fingerprint_data + event_time_series
+        if df is None:
+            raise RuntimeError("batch did not produce emission data.")
         df.to_parquet(output_file_run)
-    bleaching_times_all_runs = np.array(bleaching_times_all_runs)
-    np.save(output_file_bleach, bleaching_times_all_runs)
+    bleaching_times_array = np.asarray(bleaching_times_all_runs, dtype=np.float64)
+    np.save(output_file_bleach, bleaching_times_array)
     fingerprint_data = fingerprint_data.cumsum() / fingerprint_data.sum()
 
     return (
-        fingerprint_data,
-        bleaching_times_all_runs,
+        cast(pd.Series[Any], fingerprint_data),
+        bleaching_times_array,
         delta_times_photons_between_bleaching,
     )
 
@@ -278,9 +301,9 @@ PARAMS_TROLOX = {
 }
 
 
-PARAMS_EMIS = {
+PARAMS_EMIS: EmissionsParameters = {
     "frame_time": "1ms",
-    "bandpass": [665, 731],
+    "bandpass": (665, 731),
 }
 
 

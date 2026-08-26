@@ -7,7 +7,7 @@ A universal figure is defined for plotting simulation results with matplotlib.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -18,11 +18,13 @@ from matplotlib import rcParams, rcParamsDefault
 from .miscellaneous import format_axis_labels
 
 if TYPE_CHECKING:
-    from matplotlib.axes import Axes as mplAxes
     from scipy.stats.distributions import rv_frozen
 
 
-__all__: list[str] = ["universal_figure"]
+__all__: list[str] = ["AxesArray", "universal_figure"]
+
+
+AxesArray = npt.NDArray[Any]
 
 
 def universal_figure(
@@ -35,7 +37,7 @@ def universal_figure(
     type_: str = "line",
     data: npt.ArrayLike | Sequence[Any] = (0, 0),
     label: str | Sequence[str] | None = None,
-    color: str | Sequence[str] | Callable[[int]] = "blue",
+    color: str | Sequence[str] | Callable[[int], Any] = "blue",
     title: str | None = None,
     xlabel: str = "x",
     ylabel: str = "y",
@@ -68,9 +70,9 @@ def universal_figure(
     draw_marker_param: dict[str, Any] | None = None,
     plot_distribution: rv_frozen | Sequence[rv_frozen] | None = None,
     plot_distribution_label: str | None = None,
-    axes: npt.NDArray[mplAxes] | None = None,
+    axes: AxesArray | None = None,
     **type_specific_kwargs: Any,
-) -> npt.NDArray[mplAxes]:
+) -> AxesArray:
     """
     Constructs a figure or modifies axes.
 
@@ -196,6 +198,7 @@ def universal_figure(
         axes = axes[np.newaxis]
 
     ax = axes[0]
+    data_items = cast(Sequence[Any], data)
 
     # data incorporation
     match type_:
@@ -222,8 +225,9 @@ def universal_figure(
                     s=4,
                 )
             if plot_distribution is not None:
+                distribution = cast(Any, plot_distribution)
                 try:
-                    plot_distribution.pmf(0)  # check if the distribution is discrete
+                    distribution.pmf(0)  # check if the distribution is discrete
                     if np.min(bins) < 0:
                         minimum = 0
                     else:
@@ -233,7 +237,7 @@ def universal_figure(
                     )
                     ax.plot(
                         x,
-                        plot_distribution.pmf(x),
+                        distribution.pmf(x),
                         c="k",
                         label=plot_distribution_label,
                     )
@@ -242,13 +246,15 @@ def universal_figure(
                     x = np.linspace(np.min(bins), np.max(bins), 100)
                     ax.plot(
                         x,
-                        plot_distribution.pdf(x),
+                        distribution.pdf(x),
                         c="k",
                         label=plot_distribution_label,
                     )
 
         case "multiple_hist":
-            for j, dat_ in enumerate(data):
+            distributions = cast(Sequence[Any], plot_distribution)
+            for j, values in enumerate(data_items):
+                dat_ = np.asarray(values)
                 if "weights" in type_specific_kwargs:
                     type_specific_kwargs["weights"] = np.ones_like(dat_) / dat_.size
                 if dat_.size != 0:
@@ -260,13 +266,15 @@ def universal_figure(
                         use_color = color[j]
                     if isinstance(label, str):
                         use_label = label
+                    elif label is None:
+                        use_label = None
                     else:
                         use_label = label[j]
                     _, bins, _ = ax.hist(
                         x=dat_, color=use_color, label=use_label, **type_specific_kwargs
                     )
                     if plot_distribution is not None:
-                        plot_distr = plot_distribution[j]
+                        plot_distr = distributions[j]
                         try:
                             plot_distr.pmf(0)  # check if the distribution is discrete
                             if np.min(bins) < 0:
@@ -283,67 +291,90 @@ def universal_figure(
                             x = np.linspace(np.min(bins), np.max(bins), 100)
                             ax.plot(x, plot_distr.pdf(x), c="k", label="pred")
         case "2d_hist":
-            h, xedges, yedges, _ = ax.hist2d(data[0], data[1], **type_specific_kwargs)
+            h, xedges, yedges, _ = ax.hist2d(
+                data_items[0], data_items[1], **type_specific_kwargs
+            )
         case "bar":
-            if data[1].ndim > 1:
-                for j, dat_ in enumerate(data[1]):
+            data_y = np.asarray(data_items[1])
+            if data_y.ndim > 1:
+                colors = cast(Sequence[str], color)
+                labels = cast(Sequence[str], label)
+                for j, dat_ in enumerate(data_y):
                     if "width" in type_specific_kwargs:
                         width = type_specific_kwargs["width"]
-                        dat_x = data[0] + j * width
+                        dat_x = np.asarray(data_items[0]) + j * width
                     else:
-                        dat_x = data[0]
+                        dat_x = data_items[0]
                     ax.bar(
                         x=dat_x,
                         height=dat_,
-                        color=color[j],
-                        label=label[j],
+                        color=colors[j],
+                        label=labels[j],
                         **type_specific_kwargs,
                     )
             else:
                 ax.bar(
-                    x=data[0],
-                    height=data[1],
+                    x=data_items[0],
+                    height=data_y,
                     color=color,
                     label=label,
                     **type_specific_kwargs,
                 )
         case "line":
-            ax.plot(data[0], data[1], color=color, label=label, **type_specific_kwargs)
+            ax.plot(
+                data_items[0],
+                data_items[1],
+                color=color,
+                label=label,
+                **type_specific_kwargs,
+            )
         case "step":
-            ax.step(data[0], data[1], color=color, label=label, **type_specific_kwargs)
+            ax.step(
+                data_items[0],
+                data_items[1],
+                color=color,
+                label=label,
+                **type_specific_kwargs,
+            )
         case "stair":
             ax.stairs(
-                data[1],
-                data[0],
+                data_items[1],
+                data_items[0],
                 color=color,
                 label=label,
                 **type_specific_kwargs,
             )
         case "errorbar":
             ax.errorbar(
-                data[0],
-                data[1],
-                yerr=data[2],
+                data_items[0],
+                data_items[1],
+                yerr=data_items[2],
                 color=color,
                 label=label,
                 **type_specific_kwargs,
             )
         case "multiple_line":
-            for j, dat_ in enumerate(data):
+            labels = cast(Sequence[str], label)
+            colors = cast(Sequence[str], color)
+            for j, dat_ in enumerate(data_items):
                 if callable(color):
                     use_color = color(j)
                 else:
-                    use_color = color[j]
+                    use_color = colors[j]
                 ax.plot(
                     dat_[0],
                     dat_[1],
                     color=use_color,
-                    label=label[j],
+                    label=labels[j],
                     **type_specific_kwargs,
                 )
         case "scatter":
             ax.scatter(
-                data[0], data[1], color=color, label=label, **type_specific_kwargs
+                data_items[0],
+                data_items[1],
+                color=color,
+                label=label,
+                **type_specific_kwargs,
             )
         case "boxplot":
             ax.boxplot(data, labels=label, **type_specific_kwargs)

@@ -5,11 +5,11 @@ Fluorescence correlation spectroscopy.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Literal, Self
 
 import matplotlib.pyplot as plt
-import multipletau as mp
-import numba
+import multipletau as mp  # type: ignore[import-untyped]
+import numba  # type: ignore[import-untyped]
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -50,8 +50,8 @@ class FCS:
             Container for emission-associated attributes.
         """
         self.emissions = emissions
-        self.autocorrelation = None
-        self.tau = None
+        self.autocorrelation: npt.NDArray[np.float64] | None = None
+        self.tau: npt.NDArray[np.float64] | None = None
 
     def autocorrelate_time_points(
         self,
@@ -95,7 +95,7 @@ class FCS:
                 f"point {last_time_point}. Therefore, exp_max is adjusted to {exp_max_adjusted}.",
                 stacklevel=2,
             )
-            exp_max = exp_max_adjusted
+            exp_max = int(exp_max_adjusted)
         bins = make_loglags(
             exp_min=exp_min, exp_max=exp_max, points_per_base=points_per_base, base=base
         )
@@ -136,23 +136,24 @@ class FCS:
         if self.emissions.event_time_series is None:
             raise ValueError("event_time_series is None.")
         event_time_series = self.emissions.event_time_series.astype(float)
+        event_values = event_time_series.to_numpy(dtype=np.float64)
         deltat = event_time_series.index[1]
         if normalize and log:
             autocorrelation = mp.autocorrelate(
-                a=event_time_series.values, m=m, deltat=deltat, normalize=True
+                a=event_values, m=m, deltat=deltat, normalize=True
             )
             self.tau, autocorrelation = np.transpose(autocorrelation[1:])
 
         elif log and not normalize:
             autocorrelation = mp.autocorrelate(
-                a=event_time_series.values, m=m, deltat=deltat, normalize=False
+                a=event_values, m=m, deltat=deltat, normalize=False
             )
             self.tau, autocorrelation = np.transpose(autocorrelation[1:])
 
         elif normalize and not log:
-            mean = np.mean(event_time_series.values)
+            mean = np.mean(event_values)
             deviation = (
-                event_time_series.values - mean
+                event_values - mean
             )  # delta I(t) (wiki) - fluctuation around the mean value
             autocorrelation = np.correlate(deviation, deviation, mode="full")
             autocorrelation = autocorrelation[autocorrelation.size // 2 :]
@@ -168,9 +169,7 @@ class FCS:
             self.tau = event_time_series.index.values[1:1000]
 
         else:
-            autocorrelation = np.correlate(
-                event_time_series.values, event_time_series.values, mode="full"
-            )
+            autocorrelation = np.correlate(event_values, event_values, mode="full")
             # note that this version is the autocorrelation in the sense of signal
             # processing and differs from the statistical definition of autocorrelation.
             autocorrelation = autocorrelation[autocorrelation.size // 2 :][1:1000]
@@ -183,7 +182,7 @@ class FCS:
     def plot_matplotlib(
         self,
         normalize_to: int | None = None,
-        unit: str = "s",
+        unit: Literal["s", "ms", "us"] = "s",
         ax: mplAxes | None = None,
         **kwargs: Any,
     ) -> mplAxes:
@@ -209,7 +208,11 @@ class FCS:
         if ax is None:
             ax = plt.gca()
 
-        tau_data, correl_data = np.copy(self.tau), np.copy(self.autocorrelation)
+        if self.tau is None or self.autocorrelation is None:
+            raise RuntimeError("correlation data has not been calculated.")
+
+        tau_data = self.tau.copy()
+        correl_data = self.autocorrelation.copy()
         if normalize_to is not None:
             correl_data /= correl_data[normalize_to]
 
@@ -225,8 +228,11 @@ class FCS:
         return ax
 
     def plot(
-        self, normalize_to: int | None = None, unit: str = "s", **kwargs: Any
-    ) -> npt.NDArray[mplAxes]:
+        self,
+        normalize_to: int | None = None,
+        unit: Literal["s", "ms", "us"] = "s",
+        **kwargs: Any,
+    ) -> fi.AxesArray:
         """
         Plot FCS data.
 
@@ -244,7 +250,11 @@ class FCS:
         npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
-        tau_data, correl_data = np.copy(self.tau), np.copy(self.autocorrelation)
+        if self.tau is None or self.autocorrelation is None:
+            raise RuntimeError("correlation data has not been calculated.")
+
+        tau_data = self.tau.copy()
+        correl_data = self.autocorrelation.copy()
         if normalize_to is not None:
             correl_data /= correl_data[normalize_to]
 
@@ -460,7 +470,7 @@ def make_loglags(
     return bins
 
 
-@numba.jit(nopython=True)
+@numba.jit(nopython=True)  # type: ignore[untyped-decorator]
 def pcorrelate(
     t: npt.ArrayLike, u: npt.ArrayLike, bins: npt.ArrayLike, normalize: bool = False
 ) -> npt.NDArray[np.float64]:
@@ -499,7 +509,10 @@ def pcorrelate(
         Array containing the correlation of `t` and `u`.
         The size is `len(bins) - 1`.
     """
-    nbins = len(bins) - 1
+    t_array = np.asarray(t, dtype=np.float64)
+    u_array = np.asarray(u, dtype=np.float64)
+    bins_array = np.asarray(bins, dtype=np.float64)
+    nbins = len(bins_array) - 1
 
     # Array of counts (histogram)
     counts = np.zeros(nbins, dtype=np.int64)
@@ -510,35 +523,35 @@ def pcorrelate(
     imax = np.zeros(nbins, dtype=np.int64)
 
     # For each ti, perform binning of (u - ti) and accumulate counts in Y
-    for ti in t:
-        for k, (tau_min, tau_max) in enumerate(zip(bins[:-1], bins[1:])):
+    for ti in t_array:
+        for k, (tau_min, tau_max) in enumerate(zip(bins_array[:-1], bins_array[1:])):
             if k == 0:
                 j = imin[k]
                 # We start by finding the index of the first `u` element
                 # which is >= of the first bin edge `tau_min`
-                while j < len(u):
-                    if u[j] - ti >= tau_min:
+                while j < len(u_array):
+                    if u_array[j] - ti >= tau_min:
                         break
                     j += 1
 
             imin[k] = j
             if imax[k] > j:
                 j = imax[k]
-            while j < len(u):
-                if u[j] - ti >= tau_max:
+            while j < len(u_array):
+                if u_array[j] - ti >= tau_max:
                     break
                 j += 1
             imax[k] = j
             # Now j is the index of the first `u` element >= of
             # the next bin left edge
         counts += imax - imin
-    G = counts / np.diff(bins)
+    G = counts / np.diff(bins_array)
     if normalize:
-        G = pnormalize(G, t, u, bins)
-    return G
+        G = pnormalize(G, t_array, u_array, bins_array)
+    return np.asarray(G, dtype=np.float64)
 
 
-@numba.jit(nopython=True)
+@numba.jit(nopython=True)  # type: ignore[untyped-decorator]
 def pnormalize(
     G: npt.ArrayLike, t: npt.ArrayLike, u: npt.ArrayLike, bins: npt.ArrayLike
 ) -> npt.NDArray[np.float64]:
@@ -571,13 +584,18 @@ def pnormalize(
         Array of normalized values for the cross-correlation function,
         same size as the input argument `G`.
     """
-    duration = max((t.max(), u.max())) - min((t.min(), u.min()))
-    Gn = G.copy()
-    for i, tau in enumerate(bins[1:]):
+    correlation = np.asarray(G, dtype=np.float64)
+    t_array = np.asarray(t, dtype=np.float64)
+    u_array = np.asarray(u, dtype=np.float64)
+    bins_array = np.asarray(bins, dtype=np.float64)
+    duration = max((t_array.max(), u_array.max())) - min((t_array.min(), u_array.min()))
+    Gn = correlation.copy()
+    for i, tau in enumerate(bins_array[1:]):
         Gn[i] *= (duration - tau) / (
-            float((t >= tau).sum()) * float((u <= (u.max() - tau)).sum())
+            float((t_array >= tau).sum())
+            * float((u_array <= (u_array.max() - tau)).sum())
         )
-    return Gn
+    return np.asarray(Gn, dtype=np.float64)
 
 
 def coincidence_numpy(
@@ -625,8 +643,13 @@ def coincidence_numpy(
     return hist, bins
 
 
-@numba.jit(nopython=True)
-def coincidence_numba(arr1, arr2, tau_max, bin_width):
+@numba.jit(nopython=True)  # type: ignore[untyped-decorator]
+def coincidence_numba(
+    arr1: npt.NDArray[np.float64],
+    arr2: npt.NDArray[np.float64],
+    tau_max: float,
+    bin_width: float,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
     Compute the coincidence histogram of photon arrival times using Numba. Based on
     two-pointer technique.
