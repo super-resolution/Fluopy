@@ -200,6 +200,18 @@ def test_plot_graph():
     assert isinstance(ax, matplotlib.axes.Axes)
 
 
+def test_plot_graph_without_distance():
+    G = nx.MultiDiGraph()
+    G.add_edge("S0", "S1", w="EXC")
+    _, ax = plt.subplots()
+
+    result_ax = net.plot_graph(G=G, graph_type="shell", colors=None, scale=1, ax=ax)
+
+    assert result_ax is ax
+    assert ax.get_title() == ""
+    plt.close(ax.figure)
+
+
 @pytest.mark.visual
 def test_plot_graph_visual():
     G = nx.MultiDiGraph()

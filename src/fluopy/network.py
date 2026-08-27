@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from matplotlib import rcParams, rcParamsDefault
+from matplotlib import rcParamsDefault
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -106,16 +106,19 @@ def construct_transition_graph(transition_df: pd.DataFrame) -> nx.MultiDiGraph[i
         )
     G: nx.MultiDiGraph[int] = nx.MultiDiGraph()
     edges: list[tuple[int, int, dict[str, str]]] = []
+    destinations_by_initial_state: dict[Any, list[int]] = {}
+    for destination_index, initial_state in transition_df["initial_state"].items():
+        id_destination = cast(tuple[Any, int], destination_index)[1]
+        destinations_by_initial_state.setdefault(initial_state, []).append(
+            id_destination
+        )
+
     for source_index, row in transition_df.iterrows():
         id_source = cast(tuple[Any, int], source_index)[1]
         final_state = row["final_state"]
-        for destination_index, destination_row in transition_df.iterrows():
-            id_destination = cast(tuple[Any, int], destination_index)[1]
-            if destination_row["initial_state"] == final_state:
-                source = id_source
-                destination = id_destination
-                edge = (source, destination, {"w": f"{final_state.name}"})
-                edges.append(edge)
+        for id_destination in destinations_by_initial_state.get(final_state, []):
+            edge = (id_source, id_destination, {"w": f"{final_state.name}"})
+            edges.append(edge)
     G.add_edges_from(edges)
 
     return G
@@ -219,7 +222,7 @@ def plot_graph(
 
     if colors is None:
         colors = ["#ADD8E6", "#FFF0C8"]
-    rcParams["figure.dpi"] = rcParamsDefault["figure.dpi"] * scale
+    ax.figure.set_dpi(rcParamsDefault["figure.dpi"] * scale)
     if graph_type == "circular":
         pos = nx.circular_layout(G)
     elif graph_type == "planar":
@@ -248,7 +251,7 @@ def plot_graph(
     arc_rad_reversed = 0.0
     for i, new_edge in enumerate(G.edges):
         if i == 0:
-            distance = nx.get_edge_attributes(G, name="dist")[new_edge]
+            distance = nx.get_edge_attributes(G, name="dist").get(new_edge, "")
             ax.set_title(distance)
         nothing_found = True
         for old_edge in straight_edges:
@@ -333,7 +336,13 @@ def draw_networkx_curved_edge_labels(
     if ax is None:
         ax = plt.gca()
     if edge_labels is None:
-        labels = {(u, v): d for u, v, d in G.edges(data=True)}
+        if G.is_multigraph():
+            labels = {
+                (u, v, key): data.get("w", "")
+                for u, v, key, data in G.edges(keys=True, data=True)
+            }
+        else:
+            labels = {(u, v): data.get("w", "") for u, v, data in G.edges(data=True)}
     else:
         labels = edge_labels
     text_items = {}
