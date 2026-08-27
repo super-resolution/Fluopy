@@ -166,7 +166,8 @@ class Analysis:
         -------
         frequency_transitions : npt.NDArray[np.float64]
             Relative number of simulated transition occurrences, normalized separately
-            for each fluorophore.
+            for each fluorophore. Frequencies remain 0 for a fluorophore with no
+            observed transitions.
         """
         df = self.simulation.transition_set.combined_state_transitions_df
         transition_ids = df["transition_id"].to_numpy(dtype=np.int64)
@@ -193,7 +194,9 @@ class Analysis:
                 grouper[d] = group.index.get_level_values(1).tolist()
 
         for _, indices in grouper.items():
-            frequency_transitions[indices] /= np.sum(frequency_transitions[indices])
+            total = np.sum(frequency_transitions[indices])
+            if total > 0:
+                frequency_transitions[indices] /= total
 
         return frequency_transitions
 
@@ -205,7 +208,7 @@ class Analysis:
         -------
         frequency_states : dict[str, npt.NDArray[np.float64]]
             Relative simulated number of visits to each state, normalized separately
-            for each fluorophore.
+            for each fluorophore. Frequencies remain 0 if no state visits were counted.
         """
         single_states = self.simulation.transition_set.single_states
         occurrences_states = {
@@ -230,9 +233,12 @@ class Analysis:
 
             occurrences_states[fluorophore][corresponding_indices] += state_counts
 
-        frequency_states = {
-            key: array / np.sum(array) for key, array in occurrences_states.items()
-        }
+        frequency_states = {}
+        for fluorophore, occurrences in occurrences_states.items():
+            total = np.sum(occurrences)
+            frequency_states[fluorophore] = (
+                occurrences / total if total > 0 else occurrences
+            )
 
         return frequency_states
 
@@ -337,7 +343,9 @@ class Analysis:
                 where=~np.isnan(mean_lifetimes[fluorophore]),
                 out=np.zeros(self.frequency_states[fluorophore].size),
             )
-            state_occupations[fluorophore] /= state_occupations[fluorophore].sum()
+            total_occupation = state_occupations[fluorophore].sum()
+            if total_occupation > 0:
+                state_occupations[fluorophore] /= total_occupation
 
         return mean_lifetimes, state_occupations
 

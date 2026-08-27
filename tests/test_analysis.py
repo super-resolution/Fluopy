@@ -1,4 +1,5 @@
 import logging
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -152,6 +153,16 @@ def test_analysis_1(request, caplog):
     analysis.plot_transition_time_distributions(
         fluorophore="testfluo_1", transition_id=0, prediction=pred_bl
     )
+
+
+def test_transition_frequencies_are_zero_without_observed_transitions(tr_set_1f):
+    analysis = an.Analysis.__new__(an.Analysis)
+    analysis.simulation = SimpleNamespace(transition_set=tr_set_1f)
+    analysis.transition_series = np.array([], dtype=np.int64)
+
+    frequencies = analysis.get_transition_occurrences()
+
+    np.testing.assert_array_equal(frequencies, np.zeros(7))
 
 
 # test with 2 fluorophores, with energy transfer

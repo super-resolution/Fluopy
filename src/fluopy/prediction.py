@@ -172,7 +172,8 @@ class Prediction:
         Returns
         -------
          npt.NDArray[np.float64]
-            Expected relative frequencies of each transition.
+            Expected relative frequencies of each transition. Frequencies remain 0 for
+            a fluorophore with no expected transitions.
 
         Notes
         -----
@@ -210,7 +211,9 @@ class Prediction:
                 grouper[d] = group.index.get_level_values(1).tolist()
 
         for _, indices in grouper.items():
-            frequency_transitions[indices] /= np.sum(frequency_transitions[indices])
+            total = np.sum(frequency_transitions[indices])
+            if total > 0:
+                frequency_transitions[indices] /= total
 
         return frequency_transitions
 
@@ -222,7 +225,8 @@ class Prediction:
         Returns
         -------
         npt.NDArray[np.float64]
-            Expected relative frequencies of each transition.
+            Expected relative frequencies of each transition. Frequencies remain 0 for
+            a fluorophore with no expected transitions.
         """
         transition_abs = self.transition_set.transition_df["absorbing"]
         transition_abs_df = self.transition_set.transition_df[transition_abs]
@@ -273,7 +277,9 @@ class Prediction:
                 grouper[d] = group.index.get_level_values(1).tolist()
 
         for _, indices in grouper.items():
-            frequency_transitions[indices] /= np.sum(frequency_transitions[indices])
+            total = np.sum(frequency_transitions[indices])
+            if total > 0:
+                frequency_transitions[indices] /= total
 
         return frequency_transitions
 
@@ -286,7 +292,8 @@ class Prediction:
         -------
         frequency_states : dict[str, npt.NDArray[np.float64]]
             Name of fluorophores as keys and their state's expected relative
-            frequencies (array) as values.
+            frequencies (array) as values. Frequencies remain 0 if no state visits are
+            expected.
         """
         single_states = self.transition_set.single_states
         frequency_states = {
@@ -330,7 +337,9 @@ class Prediction:
                         index
                     ] += self.frequency_transitions[identity]
         for fluorophore, state_frequencies in frequency_states.items():
-            frequency_states[fluorophore] /= state_frequencies.sum()
+            total = state_frequencies.sum()
+            if total > 0:
+                frequency_states[fluorophore] /= total
 
         return frequency_states
 
@@ -410,7 +419,9 @@ class Prediction:
                 where=mean_lifetimes[fluorophore] != np.inf,
                 out=np.zeros(self.frequency_states[fluorophore].size),
             )
-            state_occupations[fluorophore] /= state_occupations[fluorophore].sum()
+            total_occupation = state_occupations[fluorophore].sum()
+            if total_occupation > 0:
+                state_occupations[fluorophore] /= total_occupation
 
         return mean_lifetimes, state_occupations
 

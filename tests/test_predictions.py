@@ -1,4 +1,5 @@
 import logging
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -74,6 +75,24 @@ def test_prediction_accepts_integer_valued_float_matrix_power(tr_set_1f):
 def test_prediction_rejects_invalid_matrix_power(tr_set_1f, matrix_power):
     with pytest.raises(ValueError, match="matrix_power must be"):
         pr.Prediction(transition_set=tr_set_1f, matrix_power=matrix_power)
+
+
+def test_predicted_frequencies_remain_zero_without_expected_visits(tr_set_1f):
+    transition_set = SimpleNamespace(
+        transition_matrix=np.zeros_like(tr_set_1f.transition_matrix),
+        transition_df=tr_set_1f.transition_df,
+        combined_state_transitions_df=tr_set_1f.combined_state_transitions_df,
+        single_states=tr_set_1f.single_states,
+    )
+    prediction = pr.Prediction.__new__(pr.Prediction)
+    prediction.transition_set = transition_set
+
+    frequency_transitions = prediction.predict_transition_occurrences(matrix_power=1)
+    prediction.frequency_transitions = frequency_transitions
+    frequency_states = prediction.predict_state_occurrences()
+
+    np.testing.assert_array_equal(frequency_transitions, np.zeros(7))
+    np.testing.assert_array_equal(frequency_states["testfluo_1"], np.zeros(4))
 
 
 # test with 2 different fluorophores, energy transfer, bleaching
