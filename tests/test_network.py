@@ -135,6 +135,17 @@ def test_construct_state_graphs(tr_set_bl_et_3f):
         assert list(graph.edges.data()) == edges_data[i]
 
 
+def test_construct_state_graphs_rejects_malformed_paired_label(tr_set_bl_et_3f):
+    transition_df = tr_set_bl_et_3f.transition_df
+    paired_label = next(
+        label for label in transition_df.index.get_level_values(0) if "D:" in label
+    )
+    transition_df = transition_df.rename(index={paired_label: "malformed"}, level=0)
+
+    with pytest.raises(ValueError, match="Invalid paired-transition label"):
+        net.construct_state_graphs(transition_df)
+
+
 def test_construct_transition_graph(tr_set_bl_et_3f, tr_set_1f_bl):
     with pytest.raises(
         ValueError,
@@ -198,6 +209,18 @@ def test_plot_graph():
     G = nx.MultiDiGraph()
     ax = net.plot_graph(G=G, graph_type="shell", colors=None, scale=1)
     assert isinstance(ax, matplotlib.axes.Axes)
+
+
+def test_plot_graph_without_distance():
+    G = nx.MultiDiGraph()
+    G.add_edge("S0", "S1", w="EXC")
+    _, ax = plt.subplots()
+
+    result_ax = net.plot_graph(G=G, graph_type="shell", colors=None, scale=1, ax=ax)
+
+    assert result_ax is ax
+    assert ax.get_title() == ""
+    plt.close(ax.figure)
 
 
 @pytest.mark.visual

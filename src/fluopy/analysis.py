@@ -26,6 +26,10 @@ __all__: list[str] = ["Analysis"]
 
 logger = logging.getLogger(__name__)
 
+_ENERGY_TRANSFER_LABEL = re.compile(
+    r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*(\d+(?:\.\d+)?)\s*"
+)
+
 
 class Analysis:
     """
@@ -182,13 +186,8 @@ class Analysis:
             group,
         ) in self.simulation.transition_set.transition_df.groupby(level=0, sort=False):
             fluorophore_comb = cast(str, fluorophore_comb_raw)
-            if "dist" in fluorophore_comb:
-                pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
-                match = re.match(pattern=pattern, string=fluorophore_comb)
-                if match is None:
-                    raise ValueError(
-                        f"invalid energy transfer label: {fluorophore_comb}"
-                    )
+            match = _ENERGY_TRANSFER_LABEL.fullmatch(fluorophore_comb)
+            if match is not None:
                 d, _, _ = match.group(1), match.group(2), match.group(3)
             else:
                 d = fluorophore_comb
@@ -298,7 +297,7 @@ class Analysis:
                 transition_occurrences = np.isin(
                     transitions_fluorophore, indices
                 ).nonzero()[0]
-                if "dist" in h:
+                if _ENERGY_TRANSFER_LABEL.fullmatch(h) is not None:
                     source_donor = self.simulation.transition_set.transition_df.loc[
                         (h, j), "initial_state"
                     ].donor.value
@@ -498,8 +497,9 @@ class Analysis:
                 mpl.patches.Patch(
                     color=colormap(i),
                     label=(
-                        name.split("dist")[0][:-2]
-                        if "dist" in name and not diff_dist
+                        name.rsplit(", dist:", maxsplit=1)[0]
+                        if _ENERGY_TRANSFER_LABEL.fullmatch(name) is not None
+                        and not diff_dist
                         else name
                     ),
                 )
@@ -671,8 +671,9 @@ class Analysis:
                 mpl.patches.Patch(
                     color=colormap(i),
                     label=(
-                        name.split("dist")[0][:-2]
-                        if "dist" in name and not diff_dist
+                        name.rsplit(", dist:", maxsplit=1)[0]
+                        if _ENERGY_TRANSFER_LABEL.fullmatch(name) is not None
+                        and not diff_dist
                         else name
                     ),
                 )
@@ -1044,19 +1045,31 @@ def no_diff_dist(transition_df: pd.DataFrame, fluorophores: Iterable[str]) -> tu
     level_0 = df2.index.get_level_values(0)
     level_1 = df2.index.get_level_values(1)
     level_0_unique = level_0.unique()
+    fluorophore_names = set(fluorophores)
+    labels_by_pair: dict[tuple[str, str], list[str]] = {}
+    for name in level_0_unique:
+        match = _ENERGY_TRANSFER_LABEL.fullmatch(name)
+        if match is None:
+            continue
+        donor, acceptor, _ = match.groups()
+        if donor in fluorophore_names:
+            labels_by_pair.setdefault((donor, acceptor), []).append(name)
+
     dict1: dict[str, pd.Index[Any]] = {}
-    for f in fluorophores:
-        indices = np.where(level_0_unique.str.contains(f))[0]
-        different_names = level_0_unique[indices]
-        indices_2 = np.where(different_names.str.contains("dist"))[0]
-        to_discard = different_names[indices_2[1:]]
-        to_keep = different_names[indices_2[0]]
+    discard = []
+    for different_names in labels_by_pair.values():
+        to_keep = different_names[0]
+        to_discard = different_names[1:]
+        if not to_discard:
+            continue
         corresponding_level1 = level_1[level_0.isin(to_discard)]
         dict1[to_keep] = corresponding_level1
-        df2 = df2[~df2.index.get_level_values(0).isin(to_discard)]
-        df2.index = pd.MultiIndex.from_arrays(
-            [df2.index.get_level_values(0), range(len(df2))]
-        )
+        discard.extend(to_discard)
+
+    df2 = df2[~df2.index.get_level_values(0).isin(discard)]
+    df2.index = pd.MultiIndex.from_arrays(
+        [df2.index.get_level_values(0), range(len(df2))]
+    )
     dict2: dict[int, pd.Index[Any]] = {}
     for key, values in dict1.items():
         df_subset = df2.loc[key]

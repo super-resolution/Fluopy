@@ -134,8 +134,15 @@ class Simulation:
                 "fluorophores."
             )
         size = int(size)
+        if size <= 0:
+            raise ValueError("size must be positive.")
+        if end_time is not None and end_time <= 0:
+            raise ValueError("end_time must be positive.")
         df = self.transition_set.combined_state_transitions_df
-        start_index = df[df["final_state"] == start_at].index[0]
+        start_indices = df[df["final_state"] == start_at].index
+        if start_indices.empty:
+            raise ValueError(f"start_at {start_at} is not a valid combined state.")
+        start_index = start_indices[0]
         eval_floating_point_precision_error(
             transition_set=self.transition_set, largest_number=end_time
         )
@@ -211,7 +218,7 @@ class Simulation:
             _flush_memmap(self.state_series)
 
     def approximate(
-        self, prediction: Prediction, size: float, seed: RandomGeneratorSeed
+        self, prediction: Prediction, size: int, seed: RandomGeneratorSeed
     ) -> None:
         """
         Approximates stochastic data based on the limiting distribution of a Markov
@@ -782,7 +789,7 @@ def first_reaction_method(
 
 
 def approximation(
-    prediction: Prediction, size: float, seed: RandomGeneratorSeed
+    prediction: Prediction, size: int, seed: RandomGeneratorSeed
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
     """
     Approximates stochastic data based on the limiting distribution of a Markov chain.
@@ -810,8 +817,10 @@ def approximation(
         The simulated (approximated) transitions. At index i, they correspond to
         time_series[i + 1].
     """
-    transition_occurrences = prediction.frequency_transitions * int(size)
+    transition_occurrences = prediction.frequency_transitions * size
     transition_occurrences = transition_occurrences.astype(np.int64)
+    if not np.any(transition_occurrences > 0):
+        raise ValueError("size is too small to produce any transition occurrences.")
     maximum_transition_index = np.argmax(transition_occurrences)
     starting_transition = int(maximum_transition_index)
     fluorophore = prediction.transition_set.fluorophore_system.fluorophores[0].name
@@ -834,16 +843,26 @@ def approximation(
     for transition in transition_order:
         transition_indices = np.where(transition_series == transition)[0]
         occurrences = transition_indices.size
+        if occurrences == 0:
+            continue
         rng.shuffle(transition_indices)
-        follow_up_transitions = np.array(list(G.successors(transition)))
+        follow_up_transitions = np.array(list(G.successors(transition)), dtype=np.int64)
+        if follow_up_transitions.size == 0:
+            continue
+        follow_up_index = [
+            (fluorophore, int(transition)) for transition in follow_up_transitions
+        ]
         follow_up_transitions = follow_up_transitions[
-            ~prediction.transition_set.transition_df["absorbing"].loc[
-                (fluorophore, follow_up_transitions)
-            ]
+            ~prediction.transition_set.transition_df["absorbing"].loc[follow_up_index]
+        ]
+        if follow_up_transitions.size == 0:
+            continue
+        follow_up_index = [
+            (fluorophore, int(transition)) for transition in follow_up_transitions
         ]
         rates = (
             prediction.transition_set.transition_df["rate"]
-            .loc[(fluorophore, follow_up_transitions)]
+            .loc[follow_up_index]
             .to_numpy()
         )
         repeats = rates * occurrences / rates.sum()
@@ -1015,7 +1034,7 @@ def simulate_experiment(
                 ):
                     photons += 1
                     if store_time_points:
-                        time_points.append(frame * seconds_per_frame + time)
+                        time_points.append((frame - 1) * seconds_per_frame + time)
 
             current_state_index = next_transition
             i += 1

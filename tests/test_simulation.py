@@ -292,6 +292,13 @@ def test_approximation(pred_tr_set_1f):
     np.testing.assert_array_equal(transition_series, exp_transition_series)
 
 
+def test_approximation_rejects_size_without_occurrences(pred_tr_set_1f):
+    with pytest.raises(
+        ValueError, match="size is too small to produce any transition occurrences."
+    ):
+        si.approximation(prediction=pred_tr_set_1f, size=0, seed=42)
+
+
 @pytest.mark.parametrize(
     "store_time_points, emitting_transition_ids, expected",
     [[False, {1: 1}, None], [True, {1: 0.9}, ""]],
@@ -356,6 +363,14 @@ def test_simulate_experiment(
             ),
         )
         assert event_time_points.size == event_time_series.values.sum()
+        frame_indices = np.ceil(event_time_points / 1e-3).astype(int)
+        counts_from_time_points = np.bincount(
+            frame_indices, minlength=event_time_series.size
+        )
+        np.testing.assert_array_equal(
+            counts_from_time_points, event_time_series.to_numpy()
+        )
+        assert event_time_points.max() <= event_time_series.index[-1]
         pd.testing.assert_series_equal(event_time_series, exp_event_time_series)
 
 
@@ -554,6 +569,21 @@ def test_simulation_run(
         simulation.run(
             start_at=(0, 1), size=size, end_time=None, seed=rng, use_memmap=None
         )
+
+
+def test_simulation_run_rejects_invalid_boundaries(tr_set_1f):
+    simulation = si.Simulation(transition_set=tr_set_1f)
+
+    with pytest.raises(ValueError, match="size must be positive."):
+        simulation.run(start_at=(0,), size=0, seed=42)
+
+    with pytest.raises(ValueError, match="end_time must be positive."):
+        simulation.run(start_at=(0,), size=10, end_time=0, seed=42)
+
+    with pytest.raises(
+        ValueError, match=r"start_at \(99,\) is not a valid combined state."
+    ):
+        simulation.run(start_at=(99,), size=10, seed=42)
 
 
 @pytest.mark.parametrize(

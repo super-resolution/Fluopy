@@ -650,6 +650,19 @@ def test_insert_excitations(request):
     np.testing.assert_array_equal(transition_series_adj, transition_series_exp)
 
 
+def test_insert_excitations_without_non_excitation(tr_set_bl_et_2f_diff):
+    transition_series = np.array([], dtype=np.uint32)
+    excitation_series = np.array([0, 1], dtype=np.int16)
+
+    transition_series_adj = si.insert_excitations(
+        transition_series, tr_set_bl_et_2f_diff, excitation_series
+    )
+
+    state_series = si.get_state_series(tr_set_bl_et_2f_diff, transition_series_adj)
+    expected = np.array([[0, 1, 1], [0, 0, 1]], dtype=np.int8)
+    np.testing.assert_array_equal(state_series, expected)
+
+
 def test_get_state_series(request):
     transition_set = request.getfixturevalue("tr_set_bl_et_3f")
     transition_series = np.array(
