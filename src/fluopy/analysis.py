@@ -168,16 +168,13 @@ class Analysis:
             Relative number of simulated transition occurrences, normalized separately
             for each fluorophore.
         """
-        all_transition_occurrences = np.zeros(
-            shape=self.simulation.transition_set.transition_df.shape[0], dtype=np.int64
-        )
         df = self.simulation.transition_set.combined_state_transitions_df
-        for _, i in self.simulation.transition_set.transition_df.index:
-            indices = df.index[df["transition_id"] == i].tolist()
-            occurrence_indices = np.isin(self.transition_series, indices).nonzero()[0]
-            all_transition_occurrences[i] = occurrence_indices.size
-
-        frequency_transitions = all_transition_occurrences.astype(np.float64)
+        transition_ids = df["transition_id"].to_numpy(dtype=np.int64)
+        simulated_transition_ids = transition_ids[self.transition_series]
+        frequency_transitions = np.bincount(
+            simulated_transition_ids,
+            minlength=self.simulation.transition_set.transition_df.shape[0],
+        ).astype(np.float64)
 
         grouper: dict[str, list[int]] = {}
         for (
@@ -261,15 +258,13 @@ class Analysis:
         """
         single_states = self.simulation.transition_set.single_states
         df = self.simulation.transition_set.combined_state_transitions_df
-        lifetime_distributions: dict[str, list[npt.NDArray[np.float64]]] = {
-            key: [np.array([], dtype=np.float64) for _ in range(len(value))]
-            for key, value in single_states.items()
+        lifetime_parts: dict[str, list[list[npt.NDArray[np.float64]]]] = {
+            key: [[] for _ in range(len(value))] for key, value in single_states.items()
         }
-
-        transition_time_distributions: list[npt.NDArray[np.float64]] = [
-            np.array([], dtype=np.float64)
-            for _ in range(self.simulation.transition_set.transition_df.shape[0])
+        transition_time_parts: list[list[npt.NDArray[np.float64]]] = [
+            [] for _ in range(self.simulation.transition_set.transition_df.shape[0])
         ]
+        transition_ids = df["transition_id"].to_numpy(dtype=np.int64)
 
         for i, state_series_fluorophore in enumerate(self.state_series):
             fluorophore = (
@@ -286,31 +281,28 @@ class Analysis:
                 time_intervals_state = time_intervals[
                     np.where(initial_single_states == state)
                 ]
-                lifetime_distributions[fluorophore][j] = np.concatenate(
-                    [lifetime_distributions[fluorophore][j], time_intervals_state]
-                )
+                lifetime_parts[fluorophore][j].append(time_intervals_state)
 
             transitions_fluorophore = self.transition_series[changes_at]
+            transition_ids_fluorophore = transition_ids[transitions_fluorophore]
             for h, j in self.simulation.transition_set.transition_df.index:
-                indices = df.index[df["transition_id"] == j].tolist()
-                transition_occurrence_indices = np.isin(
-                    transitions_fluorophore, indices
-                ).nonzero()[0]
+                occurrence_mask = transition_ids_fluorophore == j
                 if _ENERGY_TRANSFER_LABEL.fullmatch(h) is not None:
                     source_donor = self.simulation.transition_set.transition_df.loc[
                         (h, j), "initial_state"
                     ].donor.value
-                    donor_indices = np.where(initial_single_states == source_donor)[0]
-                    transition_occurrence_indices = transition_occurrence_indices[
-                        np.isin(transition_occurrence_indices, donor_indices)
-                    ]
+                    occurrence_mask &= initial_single_states == source_donor
 
-                time_intervals_transition = time_intervals[
-                    transition_occurrence_indices
-                ]
-                transition_time_distributions[j] = np.concatenate(
-                    [transition_time_distributions[j], time_intervals_transition]
-                )
+                transition_time_parts[j].append(time_intervals[occurrence_mask])
+
+        lifetime_distributions = {
+            fluorophore: [np.concatenate(parts) for parts in state_parts]
+            for fluorophore, state_parts in lifetime_parts.items()
+        }
+        transition_time_distributions = [
+            np.concatenate(parts) if parts else np.array([], dtype=np.float64)
+            for parts in transition_time_parts
+        ]
 
         return transition_time_distributions, lifetime_distributions
 
