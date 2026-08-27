@@ -336,10 +336,12 @@ def draw_networkx_curved_edge_labels(
     if ax is None:
         ax = plt.gca()
     if edge_labels is None:
+        labels: dict[Any, Any]
         if G.is_multigraph():
+            multigraph = cast(nx.MultiGraph[Any] | nx.MultiDiGraph[Any], G)
             labels = {
                 (u, v, key): data.get("w", "")
-                for u, v, key, data in G.edges(keys=True, data=True)
+                for u, v, key, data in multigraph.edges(keys=True, data=True)
             }
         else:
             labels = {(u, v): data.get("w", "") for u, v, data in G.edges(data=True)}
