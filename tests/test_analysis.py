@@ -78,50 +78,35 @@ def test_analysis_1(request, caplog):
 
     with caplog.at_level(logging.WARNING):
         analysis.plot_frequency_transitions(prediction=pred_bl_2)
-        assert (
-            "prediction is based on different TransitionSet than simulation."
-            in caplog.text
-        )
+        assert "prediction uses a different TransitionSet object" in caplog.text
     caplog.clear()
 
     analysis.plot_frequency_transitions(prediction=pred_bl)
 
     with caplog.at_level(logging.WARNING):
         analysis.plot_frequency_states(prediction=pred_bl_2)
-        assert (
-            "prediction is based on different TransitionSet than simulation."
-            in caplog.text
-        )
+        assert "prediction uses a different TransitionSet object" in caplog.text
     caplog.clear()
 
     analysis.plot_frequency_states(prediction=pred_bl)
 
     with caplog.at_level(logging.WARNING):
         analysis.plot_mean_transition_times(prediction=pred_bl_2)
-        assert (
-            "prediction is based on different TransitionSet than simulation."
-            in caplog.text
-        )
+        assert "prediction uses a different TransitionSet object" in caplog.text
     caplog.clear()
 
     analysis.plot_mean_transition_times(prediction=pred_bl)
 
     with caplog.at_level(logging.WARNING):
         analysis.plot_mean_lifetimes(prediction=pred_bl_2)
-        assert (
-            "prediction is based on different TransitionSet than simulation."
-            in caplog.text
-        )
+        assert "prediction uses a different TransitionSet object" in caplog.text
     caplog.clear()
 
     analysis.plot_mean_lifetimes(prediction=pred_bl)
 
     with caplog.at_level(logging.WARNING):
         analysis.plot_state_occupations(prediction=pred_bl_2)
-        assert (
-            "prediction is based on different TransitionSet than simulation."
-            in caplog.text
-        )
+        assert "prediction uses a different TransitionSet object" in caplog.text
     caplog.clear()
 
     analysis.plot_state_occupations(prediction=pred_bl)
@@ -130,10 +115,7 @@ def test_analysis_1(request, caplog):
         analysis.plot_lifetime_distributions(
             fluorophore="testfluo_1", state_identity=0, prediction=pred_bl_2
         )
-        assert (
-            "prediction is based on different TransitionSet than simulation."
-            in caplog.text
-        )
+        assert "prediction uses a different TransitionSet object" in caplog.text
     caplog.clear()
 
     analysis.plot_lifetime_distributions(
@@ -144,10 +126,7 @@ def test_analysis_1(request, caplog):
         analysis.plot_transition_time_distributions(
             fluorophore="testfluo_1", transition_id=0, prediction=pred_bl_2
         )
-        assert (
-            "prediction is based on different TransitionSet than simulation."
-            in caplog.text
-        )
+        assert "prediction uses a different TransitionSet object" in caplog.text
     caplog.clear()
 
     analysis.plot_transition_time_distributions(
@@ -163,6 +142,20 @@ def test_transition_frequencies_are_zero_without_observed_transitions(tr_set_1f)
     frequencies = analysis.get_transition_occurrences()
 
     np.testing.assert_array_equal(frequencies, np.zeros(7))
+
+
+def test_plot_rejects_incompatible_transition_dimensions(sim_tr_set_1f_bl):
+    analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
+    prediction = SimpleNamespace(
+        transition_set=sim_tr_set_1f_bl.transition_set,
+        frequency_transitions=np.zeros(analysis.frequency_transitions.size - 1),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="prediction and simulation have incompatible transition dimensions",
+    ):
+        analysis.plot_frequency_transitions(prediction=prediction)
 
 
 # test with 2 fluorophores, with energy transfer
