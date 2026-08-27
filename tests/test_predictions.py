@@ -64,6 +64,18 @@ def test_prediction_1(tr_set_bl_et_3f):
         pr.Prediction(transition_set=tr_set_bl_et_3f)
 
 
+def test_prediction_accepts_integer_valued_float_matrix_power(tr_set_1f):
+    prediction = pr.Prediction(transition_set=tr_set_1f, matrix_power=1e3)
+
+    assert prediction.frequency_transitions.shape == (7,)
+
+
+@pytest.mark.parametrize("matrix_power", [0, -1, 1.5, np.inf, np.nan])
+def test_prediction_rejects_invalid_matrix_power(tr_set_1f, matrix_power):
+    with pytest.raises(ValueError, match="matrix_power must be"):
+        pr.Prediction(transition_set=tr_set_1f, matrix_power=matrix_power)
+
+
 # test with 2 different fluorophores, energy transfer, bleaching
 def test_prediction_2(tr_set_bl_et_2f_diff, caplog):
     with caplog.at_level(logging.WARNING):

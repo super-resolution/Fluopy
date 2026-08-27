@@ -67,18 +67,39 @@ class Prediction:
     state_occupations : dict[str, npt.NDArray[np.float64]] | None
         Relative time spent in each state, normalized separately for each fluorophore.
         None if energy transfer is True.
+
+    Notes
+    -----
+    Predictions are available for systems containing at most two fluorophores.
+
+    For non-absorbing systems, transition frequencies are approximated from a large
+    power of the transition matrix. This requires an irreducible, aperiodic Markov
+    chain for convergence to a unique limiting distribution.
+
+    Systems containing absorbing transitions are treated separately as absorbing
+    Markov chains. Predicted lifetimes and state occupations are not available for
+    systems containing energy transfer.
     """
 
-    def __init__(self, transition_set: TransitionSet, accuracy: float = 1e9) -> None:
+    def __init__(
+        self, transition_set: TransitionSet, matrix_power: float = 1e9
+    ) -> None:
         """
         Parameters
         ----------
         transition_set
             Collection of all relevant transitions and related attributes.
-        accuracy
-            Determines the exponent of matrix power. The higher, the more accurate up
-            to the point floating point precision impairs the result.
+        matrix_power
+            Exponent used to approximate the limiting distribution of a non-absorbing
+            transition matrix. Must be a positive integer-valued number. Larger values
+            allow more steps toward convergence but do not directly specify numerical
+            accuracy.
         """
+        if not np.isfinite(matrix_power) or matrix_power <= 0:
+            raise ValueError("matrix_power must be a positive, finite integer.")
+        if not float(matrix_power).is_integer():
+            raise ValueError("matrix_power must be an integer-valued number.")
+
         self.energy_transfer = False
         self.absorbing_chain = False
         if transition_set.fluorophore_system.count > 2:
@@ -114,7 +135,7 @@ class Prediction:
             self.frequency_transitions = self.predict_transition_occurrences_absorbing()
         else:
             self.frequency_transitions = self.predict_transition_occurrences(
-                accuracy=int(accuracy)
+                matrix_power=int(matrix_power)
             )
         self.frequency_states = self.predict_state_occurrences()
         if not self.energy_transfer:
@@ -135,26 +156,35 @@ class Prediction:
                 self.state_occupations,
             ) = (None, None, None, None, None)
 
-    def predict_transition_occurrences(self, accuracy: int) -> npt.NDArray[np.float64]:
+    def predict_transition_occurrences(
+        self, matrix_power: int
+    ) -> npt.NDArray[np.float64]:
         """
         Predict the relative frequencies of transitions. Each different type of
         fluorophore's transitions frequencies sum up to 1.
 
         Parameters
         ----------
-        accuracy
-            Determines the exponent of matrix power. The higher, the more accurate up
-            to the point floating point precision impairs the result.
+        matrix_power
+            Exponent used to approximate the limiting distribution of the transition
+            matrix.
 
         Returns
         -------
          npt.NDArray[np.float64]
             Expected relative frequencies of each transition.
+
+        Notes
+        -----
+        The transition matrix must describe an irreducible, aperiodic Markov chain for
+        its powers to converge to a unique limiting distribution.
         """
-        matrix_power = np.linalg.matrix_power(
-            self.transition_set.transition_matrix, n=accuracy
+        powered_transition_matrix = np.linalg.matrix_power(
+            self.transition_set.transition_matrix, n=matrix_power
         )
-        stationary_distribution_combined_state_transitions = matrix_power[0]
+        stationary_distribution_combined_state_transitions = powered_transition_matrix[
+            0
+        ]
         # https://brilliant.org/wiki/stationary-distributions/
         frequency_transitions = np.zeros(self.transition_set.transition_df.shape[0])
         df = self.transition_set.combined_state_transitions_df
