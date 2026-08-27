@@ -783,10 +783,26 @@ def insert_excitations(
     excitations = df[df["abbreviation"] == "EXC"]
     indices_transitions = np.where(excitation_series == -1)[0]  # gets the indices of
     # transitions that are not excitations
+    number_fluorophores = transition_set.fluorophore_system.count
+    if indices_transitions.size == 0:
+        current_state = np.zeros(number_fluorophores, dtype=int)
+        excitation_ids = np.empty(
+            excitation_series.size, dtype=transition_series_ad.dtype
+        )
+        for i, fluorophore_id in enumerate(excitation_series):
+            initial_state = tuple(current_state)
+            current_state[fluorophore_id] = 1
+            final_state = tuple(current_state)
+            matching_excitations = excitations[
+                (excitations["initial_state"] == initial_state)
+                & (excitations["final_state"] == final_state)
+            ]
+            excitation_ids[i] = matching_excitations.index[0]
+        return excitation_ids
+
     diffs = np.diff(indices_transitions)
     diffs = np.insert(arr=diffs, obj=0, values=indices_transitions[0] + 1)
     # if diffs is > 1, there was an excitation
-    number_fluorophores = transition_set.fluorophore_system.count
     already_processed = np.array([], dtype=np.int64)
 
     for i in range(number_fluorophores):
