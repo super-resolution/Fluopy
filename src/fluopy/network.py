@@ -59,6 +59,10 @@ def construct_state_graphs(transition_df: pd.DataFrame) -> list[nx.MultiDiGraph[
             abbr = transition["abbreviation"]
             match = _ENERGY_TRANSFER_LABEL.fullmatch(fluorophore)
             if match is None:
+                if isinstance(transition["initial_state"].value, tuple):
+                    raise ValueError(
+                        f"Invalid paired-transition label: {fluorophore!r}."
+                    )
                 source = transition["initial_state"].name
                 destination = transition["final_state"].name
                 edge = (

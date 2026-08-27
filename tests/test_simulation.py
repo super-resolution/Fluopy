@@ -563,6 +563,21 @@ def test_simulation_run(
         )
 
 
+def test_simulation_run_rejects_invalid_boundaries(tr_set_1f):
+    simulation = si.Simulation(transition_set=tr_set_1f)
+
+    with pytest.raises(ValueError, match="size must be positive."):
+        simulation.run(start_at=(0,), size=0, seed=42)
+
+    with pytest.raises(ValueError, match="end_time must be positive."):
+        simulation.run(start_at=(0,), size=10, end_time=0, seed=42)
+
+    with pytest.raises(
+        ValueError, match=r"start_at \(99,\) is not a valid combined state."
+    ):
+        simulation.run(start_at=(99,), size=10, seed=42)
+
+
 @pytest.mark.parametrize(
     "dirname, expected",
     [

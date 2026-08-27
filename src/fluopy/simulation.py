@@ -133,9 +133,15 @@ class Simulation:
                 "The number of starting states doesn't match the number of "
                 "fluorophores."
             )
-        size = int(size)
+        if size <= 0:
+            raise ValueError("size must be positive.")
+        if end_time is not None and end_time <= 0:
+            raise ValueError("end_time must be positive.")
         df = self.transition_set.combined_state_transitions_df
-        start_index = df[df["final_state"] == start_at].index[0]
+        start_indices = df[df["final_state"] == start_at].index
+        if start_indices.empty:
+            raise ValueError(f"start_at {start_at} is not a valid combined state.")
+        start_index = start_indices[0]
         eval_floating_point_precision_error(
             transition_set=self.transition_set, largest_number=end_time
         )
