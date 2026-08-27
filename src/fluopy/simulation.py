@@ -211,7 +211,7 @@ class Simulation:
             _flush_memmap(self.state_series)
 
     def approximate(
-        self, prediction: Prediction, size: float, seed: RandomGeneratorSeed
+        self, prediction: Prediction, size: int, seed: RandomGeneratorSeed
     ) -> None:
         """
         Approximates stochastic data based on the limiting distribution of a Markov
@@ -782,7 +782,7 @@ def first_reaction_method(
 
 
 def approximation(
-    prediction: Prediction, size: float, seed: RandomGeneratorSeed
+    prediction: Prediction, size: int, seed: RandomGeneratorSeed
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
     """
     Approximates stochastic data based on the limiting distribution of a Markov chain.
@@ -810,8 +810,10 @@ def approximation(
         The simulated (approximated) transitions. At index i, they correspond to
         time_series[i + 1].
     """
-    transition_occurrences = prediction.frequency_transitions * int(size)
+    transition_occurrences = prediction.frequency_transitions * size
     transition_occurrences = transition_occurrences.astype(np.int64)
+    if not np.any(transition_occurrences > 0):
+        raise ValueError("size is too small to produce any transition occurrences.")
     maximum_transition_index = np.argmax(transition_occurrences)
     starting_transition = int(maximum_transition_index)
     fluorophore = prediction.transition_set.fluorophore_system.fluorophores[0].name
@@ -834,13 +836,19 @@ def approximation(
     for transition in transition_order:
         transition_indices = np.where(transition_series == transition)[0]
         occurrences = transition_indices.size
+        if occurrences == 0:
+            continue
         rng.shuffle(transition_indices)
-        follow_up_transitions = np.array(list(G.successors(transition)))
+        follow_up_transitions = np.array(list(G.successors(transition)), dtype=np.int64)
+        if follow_up_transitions.size == 0:
+            continue
         follow_up_transitions = follow_up_transitions[
             ~prediction.transition_set.transition_df["absorbing"].loc[
                 (fluorophore, follow_up_transitions)
             ]
         ]
+        if follow_up_transitions.size == 0:
+            continue
         rates = (
             prediction.transition_set.transition_df["rate"]
             .loc[(fluorophore, follow_up_transitions)]

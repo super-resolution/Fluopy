@@ -292,6 +292,13 @@ def test_approximation(pred_tr_set_1f):
     np.testing.assert_array_equal(transition_series, exp_transition_series)
 
 
+def test_approximation_rejects_size_without_occurrences(pred_tr_set_1f):
+    with pytest.raises(
+        ValueError, match="size is too small to produce any transition occurrences."
+    ):
+        si.approximation(prediction=pred_tr_set_1f, size=0, seed=42)
+
+
 @pytest.mark.parametrize(
     "store_time_points, emitting_transition_ids, expected",
     [[False, {1: 1}, None], [True, {1: 0.9}, ""]],
