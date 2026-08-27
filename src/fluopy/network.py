@@ -27,6 +27,10 @@ __all__: list[str] = [
     "draw_networkx_curved_edge_labels",
 ]
 
+_ENERGY_TRANSFER_LABEL = re.compile(
+    r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*(\d+(?:\.\d+)?)\s*"
+)
+
 
 def construct_state_graphs(transition_df: pd.DataFrame) -> list[nx.MultiDiGraph[Any]]:
     """
@@ -53,7 +57,8 @@ def construct_state_graphs(transition_df: pd.DataFrame) -> list[nx.MultiDiGraph[
         edges: list[tuple[str, str, dict[str, str]]] = []
         for _, transition in f_transitions.iterrows():
             abbr = transition["abbreviation"]
-            if "dist" not in fluorophore:
+            match = _ENERGY_TRANSFER_LABEL.fullmatch(fluorophore)
+            if match is None:
                 source = transition["initial_state"].name
                 destination = transition["final_state"].name
                 edge = (
@@ -63,8 +68,7 @@ def construct_state_graphs(transition_df: pd.DataFrame) -> list[nx.MultiDiGraph[
                 )
                 edges.append(edge)
             else:
-                pattern = re.compile(r"D: (\w+), A: (\w+), dist: ([\d.]+)")
-                d, a, dist = pattern.findall(fluorophore)[0]
+                d, a, dist = match.groups()
                 source_1 = transition["initial_state"].value[0].name
                 source_2 = transition["initial_state"].value[1].name
                 edge = (

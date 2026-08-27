@@ -24,6 +24,10 @@ __all__: list[str] = ["Prediction"]
 
 logger = logging.getLogger(__name__)
 
+_ENERGY_TRANSFER_LABEL = re.compile(
+    r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*(\d+(?:\.\d+)?)\s*"
+)
+
 
 class Prediction:
     """
@@ -81,7 +85,7 @@ class Prediction:
             raise ValueError("prediction not available for more than 2 fluorophores.")
         # too large matrix in np.linalg.matrix_power
         if any(
-            "dist" in fluorophore_comb
+            _ENERGY_TRANSFER_LABEL.fullmatch(fluorophore_comb) is not None
             for fluorophore_comb in transition_set.transition_df.index.get_level_values(
                 0
             )
@@ -165,13 +169,8 @@ class Prediction:
             level=0, sort=False
         ):
             fluorophore_comb = cast(str, fluorophore_comb_raw)
-            if "dist" in fluorophore_comb:
-                pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
-                match = re.match(pattern=pattern, string=fluorophore_comb)
-                if match is None:
-                    raise ValueError(
-                        f"invalid energy transfer label: {fluorophore_comb}"
-                    )
+            match = _ENERGY_TRANSFER_LABEL.fullmatch(fluorophore_comb)
+            if match is not None:
                 d, _, _ = match.group(1), match.group(2), match.group(3)
             else:
                 d = fluorophore_comb
@@ -233,13 +232,8 @@ class Prediction:
             level=0, sort=False
         ):
             fluorophore_comb = cast(str, fluorophore_comb_raw)
-            if "dist" in fluorophore_comb:
-                pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
-                match = re.match(pattern=pattern, string=fluorophore_comb)
-                if match is None:
-                    raise ValueError(
-                        f"invalid energy transfer label: {fluorophore_comb}"
-                    )
+            match = _ENERGY_TRANSFER_LABEL.fullmatch(fluorophore_comb)
+            if match is not None:
                 d, _, _ = match.group(1), match.group(2), match.group(3)
             else:
                 d = fluorophore_comb
@@ -271,13 +265,8 @@ class Prediction:
         grouped = self.transition_set.transition_df.groupby(level=0)
         for fluorophore_comb_raw, f_transitions in grouped:
             fluorophore_comb = cast(str, fluorophore_comb_raw)
-            if "dist" in fluorophore_comb:
-                pattern = r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*([\d.]+)"
-                match = re.match(pattern=pattern, string=fluorophore_comb)
-                if match is None:
-                    raise ValueError(
-                        f"invalid energy transfer label: {fluorophore_comb}"
-                    )
+            match = _ENERGY_TRANSFER_LABEL.fullmatch(fluorophore_comb)
+            if match is not None:
                 d, a, _ = match.group(1), match.group(2), match.group(3)
                 single_states_a = single_states[a]
                 single_states_d = single_states[d]
