@@ -842,16 +842,20 @@ def approximation(
         follow_up_transitions = np.array(list(G.successors(transition)), dtype=np.int64)
         if follow_up_transitions.size == 0:
             continue
+        follow_up_index = [
+            (fluorophore, int(transition)) for transition in follow_up_transitions
+        ]
         follow_up_transitions = follow_up_transitions[
-            ~prediction.transition_set.transition_df["absorbing"].loc[
-                (fluorophore, follow_up_transitions)
-            ]
+            ~prediction.transition_set.transition_df["absorbing"].loc[follow_up_index]
         ]
         if follow_up_transitions.size == 0:
             continue
+        follow_up_index = [
+            (fluorophore, int(transition)) for transition in follow_up_transitions
+        ]
         rates = (
             prediction.transition_set.transition_df["rate"]
-            .loc[(fluorophore, follow_up_transitions)]
+            .loc[follow_up_index]
             .to_numpy()
         )
         repeats = rates * occurrences / rates.sum()
