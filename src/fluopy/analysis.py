@@ -39,11 +39,12 @@ class Analysis:
     ----------
     simulation : fluopy.simulation.Simulation
         Container for simulation-associated attributes.
-    frequency_transitions : 1-D array_like
-        Simulated relative frequencies of each transition.
-    frequency_states : dict
-        Name of fluorophores as keys and their state's simulated relative frequencies
-        (array) as values.
+    frequency_transitions : npt.NDArray[np.float64]
+        Relative number of simulated transition occurrences, normalized separately for
+        each fluorophore.
+    frequency_states : dict[str, npt.NDArray[np.float64]]
+        Relative simulated number of visits to each state, normalized separately for
+        each fluorophore.
     transition_time_distributions : Collection
         Contains 1-D array_like for each transition (time until the transition).
     lifetime_distributions : dict
@@ -54,9 +55,8 @@ class Analysis:
     mean_lifetimes : dict
         Name of fluorophores as keys and their state's simulated lifetime means (array)
         as values.
-    state_occupations : dict
-        Name of fluorophores as keys and their state's simulated probability of being
-        occupied at any given point in time (array) as values.
+    state_occupations : dict[str, npt.NDArray[np.float64]]
+        Relative time spent in each state, normalized separately for each fluorophore.
     """
 
     def __init__(self, simulation: Simulation) -> None:
@@ -160,12 +160,13 @@ class Analysis:
 
     def get_transition_occurrences(self) -> npt.NDArray[np.float64]:
         """
-        Get the relative frequencies of transitions.
+        Get the relative frequencies of simulated transition occurrences.
 
         Returns
         -------
         frequency_transitions : npt.NDArray[np.float64]
-            Simulated relative frequencies of each transition.
+            Relative number of simulated transition occurrences, normalized separately
+            for each fluorophore.
         """
         all_transition_occurrences = np.zeros(
             shape=self.simulation.transition_set.transition_df.shape[0], dtype=np.int64
@@ -173,10 +174,8 @@ class Analysis:
         df = self.simulation.transition_set.combined_state_transitions_df
         for _, i in self.simulation.transition_set.transition_df.index:
             indices = df.index[df["transition_id"] == i].tolist()
-            transition_occurrences = np.isin(self.transition_series, indices).nonzero()[
-                0
-            ]
-            all_transition_occurrences[i] = transition_occurrences.size
+            occurrence_indices = np.isin(self.transition_series, indices).nonzero()[0]
+            all_transition_occurrences[i] = occurrence_indices.size
 
         frequency_transitions = all_transition_occurrences.astype(np.float64)
 
@@ -203,13 +202,13 @@ class Analysis:
 
     def get_state_occurrences(self) -> dict[str, npt.NDArray[np.float64]]:
         """
-        Get the relative frequencies of states.
+        Get the relative frequencies of simulated state visits.
 
         Returns
         -------
         frequency_states : dict[str, npt.NDArray[np.float64]]
-            Name of fluorophores as keys and their state's simulated relative
-            frequencies (array) as values.
+            Relative simulated number of visits to each state, normalized separately
+            for each fluorophore.
         """
         single_states = self.simulation.transition_set.single_states
         occurrences_states = {
@@ -294,7 +293,7 @@ class Analysis:
             transitions_fluorophore = self.transition_series[changes_at]
             for h, j in self.simulation.transition_set.transition_df.index:
                 indices = df.index[df["transition_id"] == j].tolist()
-                transition_occurrences = np.isin(
+                transition_occurrence_indices = np.isin(
                     transitions_fluorophore, indices
                 ).nonzero()[0]
                 if _ENERGY_TRANSFER_LABEL.fullmatch(h) is not None:
@@ -302,11 +301,13 @@ class Analysis:
                         (h, j), "initial_state"
                     ].donor.value
                     donor_indices = np.where(initial_single_states == source_donor)[0]
-                    transition_occurrences = transition_occurrences[
-                        np.isin(transition_occurrences, donor_indices)
+                    transition_occurrence_indices = transition_occurrence_indices[
+                        np.isin(transition_occurrence_indices, donor_indices)
                     ]
 
-                time_intervals_transition = time_intervals[transition_occurrences]
+                time_intervals_transition = time_intervals[
+                    transition_occurrence_indices
+                ]
                 transition_time_distributions[j] = np.concatenate(
                     [transition_time_distributions[j], time_intervals_transition]
                 )
@@ -317,7 +318,8 @@ class Analysis:
         self,
     ) -> tuple[dict[str, npt.NDArray[np.float64]], dict[str, npt.NDArray[np.float64]]]:
         """
-        Infers statistics of states based on lifetime distributions and frequencies.
+        Infer mean lifetimes and relative state occupations from lifetime distributions
+        and state frequencies.
 
         Returns
         -------
@@ -325,8 +327,8 @@ class Analysis:
             Name of fluorophores as keys and their state's simulated lifetime means
             (array) as values.
         state_occupations : dict[str, npt.NDArray[np.float64]]
-            Name of fluorophores as keys and their state's simulated probability of
-            being occupied at any given point in time (array) as values.
+            Relative time spent in each state, normalized separately for each
+            fluorophore.
         """
         mean_lifetimes: dict[str, npt.NDArray[np.float64]] = {}
         state_occupations: dict[str, npt.NDArray[np.float64]] = {}
@@ -438,7 +440,7 @@ class Analysis:
         **kwargs: Any,
     ) -> fi.AxesArray:
         """
-        Plot frequencies of transitions.
+        Plot relative frequencies of simulated transition occurrences.
 
         Parameters
         ----------
@@ -524,7 +526,7 @@ class Analysis:
         self, prediction: Prediction | None = None, **kwargs: Any
     ) -> fi.AxesArray:
         """
-        Plot frequencies of states.
+        Plot relative frequencies of simulated state visits.
 
         Parameters
         ----------
@@ -790,7 +792,7 @@ class Analysis:
         self, prediction: Prediction | None = None, **kwargs: Any
     ) -> fi.AxesArray:
         """
-        Plot state occupation times (relative total time spent in state).
+        Plot the relative time spent in each state.
 
         Parameters
         ----------

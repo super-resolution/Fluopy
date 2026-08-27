@@ -44,10 +44,11 @@ class Prediction:
     transition_set : fluopy.transitions.TransitionSet
         Collection of all relevant transitions and related attributes.
     frequency_transitions : npt.NDArray[np.float64]
-        Expected relative frequencies of each transition.
-    frequency_states : dict[str, float]
-        Name of fluorophores as keys and their state's expected relative frequencies
-        (array) as values.
+        Relative number of expected transition occurrences, normalized separately for
+        each fluorophore.
+    frequency_states : dict[str, npt.NDArray[np.float64]]
+        Relative expected number of visits to each state, normalized separately for each
+        fluorophore.
     transition_time_distributions : npt.NDArray[object] | None
         Expected distributions of time until transition.
         Contains objects of type scipy.stats.*.rv_frozen for each transition.
@@ -64,8 +65,7 @@ class Prediction:
         as values.
         None if energy transfer is True.
     state_occupations : dict[str, npt.NDArray[np.float64]] | None
-        Name of fluorophores as keys and their state's expected probability of being
-        occupied at any given point in time (array) as values.
+        Relative time spent in each state, normalized separately for each fluorophore.
         None if energy transfer is True.
     """
 
@@ -111,7 +111,7 @@ class Prediction:
         self.mean_lifetimes: dict[str, npt.NDArray[np.float64]] | None
         self.state_occupations: dict[str, npt.NDArray[np.float64]] | None
         if self.absorbing_chain:
-            self.frequency_transitions = self.predict_transition_occurrences_abs()
+            self.frequency_transitions = self.predict_transition_occurrences_absorbing()
         else:
             self.frequency_transitions = self.predict_transition_occurrences(
                 accuracy=int(accuracy)
@@ -184,7 +184,7 @@ class Prediction:
 
         return frequency_transitions
 
-    def predict_transition_occurrences_abs(self) -> npt.NDArray[np.float64]:
+    def predict_transition_occurrences_absorbing(self) -> npt.NDArray[np.float64]:
         """
         Predict the relative frequencies of transitions. Absorbing transitions will
         have the value 0.
