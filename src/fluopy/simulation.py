@@ -133,6 +133,7 @@ class Simulation:
                 "The number of starting states doesn't match the number of "
                 "fluorophores."
             )
+        size = int(size)
         if size <= 0:
             raise ValueError("size must be positive.")
         if end_time is not None and end_time <= 0:
