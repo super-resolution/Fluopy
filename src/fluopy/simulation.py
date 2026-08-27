@@ -1034,7 +1034,7 @@ def simulate_experiment(
                 ):
                     photons += 1
                     if store_time_points:
-                        time_points.append(frame * seconds_per_frame + time)
+                        time_points.append((frame - 1) * seconds_per_frame + time)
 
             current_state_index = next_transition
             i += 1

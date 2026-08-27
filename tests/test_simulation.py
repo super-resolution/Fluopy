@@ -363,6 +363,14 @@ def test_simulate_experiment(
             ),
         )
         assert event_time_points.size == event_time_series.values.sum()
+        frame_indices = np.ceil(event_time_points / 1e-3).astype(int)
+        counts_from_time_points = np.bincount(
+            frame_indices, minlength=event_time_series.size
+        )
+        np.testing.assert_array_equal(
+            counts_from_time_points, event_time_series.to_numpy()
+        )
+        assert event_time_points.max() <= event_time_series.index[-1]
         pd.testing.assert_series_equal(event_time_series, exp_event_time_series)
 
 
