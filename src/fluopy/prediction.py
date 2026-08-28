@@ -50,7 +50,8 @@ class Prediction:
         the initial combined state used for the prediction.
     frequency_transitions : npt.NDArray[np.float64]
         Relative number of expected transition occurrences, normalized separately for
-        each fluorophore.
+        each fluorophore. Energy-transfer occurrences are assigned to the donor's
+        transition group.
     frequency_states : dict[str, npt.NDArray[np.float64]]
         Relative expected number of visits to each state, normalized separately for each
         fluorophore.
@@ -219,6 +220,11 @@ class Prediction:
         Predict the relative frequencies of transitions. Each different type of
         fluorophore's transitions frequencies sum up to 1.
 
+        Each energy-transfer event is counted as one transition occurrence, including
+        events that change both the donor and acceptor states. For normalization, an
+        energy-transfer occurrence is assigned only to the donor's transition group;
+        ordinary transitions are assigned to their respective fluorophore groups.
+
         Parameters
         ----------
         matrix_power
@@ -282,6 +288,11 @@ class Prediction:
         Predict the relative frequencies of transitions. Absorbing transitions will
         have the value 0. Every combination of the fluorophores' absorbing states is
         treated as an absorbing combined state.
+
+        Each energy-transfer event is counted as one transition occurrence, including
+        events that change both the donor and acceptor states. For normalization, an
+        energy-transfer occurrence is assigned only to the donor's transition group;
+        ordinary transitions are assigned to their respective fluorophore groups.
 
         Parameters
         ----------
@@ -356,6 +367,11 @@ class Prediction:
         Predict the relative frequencies of states. Each different type of fluorophore's
         states frequencies sum up to 1.
 
+        State visits are counted separately for each physical fluorophore. An
+        energy-transfer event therefore contributes a visit for both donor and
+        acceptor if both states change, while still representing one transition
+        occurrence.
+
         Returns
         -------
         frequency_states : dict[str, npt.NDArray[np.float64]]
@@ -386,10 +402,6 @@ class Prediction:
                     )
                     if acceptor_i != acceptor_f:
                         index_2 = np.where(single_states_a == acceptor_f)[0][0]
-                        if d == a:
-                            factor = 0.5
-                            # factor to adjust that this energy transfer effects two
-                            # fluorophores of the same type, not only one
                         frequency_states[a][index_2] += (
                             self.frequency_transitions[identity] * factor
                         )

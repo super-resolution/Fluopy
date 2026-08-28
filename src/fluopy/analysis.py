@@ -41,7 +41,8 @@ class Analysis:
         Container for simulation-associated attributes.
     frequency_transitions : npt.NDArray[np.float64]
         Relative number of simulated transition occurrences, normalized separately for
-        each fluorophore.
+        each fluorophore. Energy-transfer occurrences are assigned to the donor's
+        transition group.
     frequency_states : dict[str, npt.NDArray[np.float64]]
         Relative simulated number of visits to each state, normalized separately for
         each fluorophore.
@@ -158,6 +159,11 @@ class Analysis:
         """
         Get the relative frequencies of simulated transition occurrences.
 
+        Each energy-transfer event is counted as one transition occurrence, including
+        events that change both the donor and acceptor states. For normalization, an
+        energy-transfer occurrence is assigned only to the donor's transition group;
+        ordinary transitions are assigned to their respective fluorophore groups.
+
         Returns
         -------
         frequency_transitions : npt.NDArray[np.float64]
@@ -199,6 +205,11 @@ class Analysis:
     def get_state_occurrences(self) -> dict[str, npt.NDArray[np.float64]]:
         """
         Get the relative frequencies of simulated state visits.
+
+        State visits are counted separately for each physical fluorophore. An
+        energy-transfer event therefore contributes a visit for both donor and
+        acceptor if both states change, while still representing one transition
+        occurrence.
 
         Returns
         -------
@@ -251,8 +262,13 @@ class Analysis:
         """
         Get the lifetime distributions of states and the time until occurrence
         distributions of transitions.
-        Note: if transition of interest is energy transfer, the time to transition is
-        only collected from the donor's point of view.
+
+        An energy-transfer event that does not change the acceptor state does not
+        interrupt the acceptor's state lifetime. For energy-transfer transitions, time
+        to transition is collected only from the donor's point of view. State lifetime
+        distributions, including those of S1, do not distinguish intervals in which
+        energy transfer was possible from intervals in which it was not.
+
         Only completed residence intervals are included; the final right-censored
         interval is excluded. A fluorophore without state changes therefore contributes
         no lifetime samples.
@@ -266,45 +282,64 @@ class Analysis:
             lifetimes (1-D array_like) as values.
         """
         single_states = self.simulation.transition_set.single_states
-        df = self.simulation.transition_set.combined_state_transitions_df
+        combined_transition_df = (
+            self.simulation.transition_set.combined_state_transitions_df
+        )
         lifetime_parts: dict[str, list[list[npt.NDArray[np.float64]]]] = {
             key: [[] for _ in range(len(value))] for key, value in single_states.items()
         }
         transition_time_parts: list[list[npt.NDArray[np.float64]]] = [
             [] for _ in range(self.simulation.transition_set.transition_df.shape[0])
         ]
-        transition_ids = df["transition_id"].to_numpy(dtype=np.int64)
+        transition_ids = combined_transition_df["transition_id"].to_numpy(
+            dtype=np.int64
+        )
 
-        for i, state_series_fluorophore in enumerate(self.state_series):
+        for fluorophore_id, fluorophore_state_series in enumerate(self.state_series):
             fluorophore = (
-                self.simulation.transition_set.fluorophore_system.fluorophores[i].name
+                self.simulation.transition_set.fluorophore_system.fluorophores[
+                    fluorophore_id
+                ].name
             )
-            differences = np.diff(state_series_fluorophore)
-            changes_at = np.where(differences != 0)[0]
-            if changes_at.size == 0:
+            state_differences = np.diff(fluorophore_state_series)
+            change_indices = np.where(state_differences != 0)[0]
+            if change_indices.size == 0:
                 continue
-            changed = changes_at + 1
-            initial_single_states = state_series_fluorophore[changes_at]
-            total_times = self.time_series[changed]
-            time_intervals = np.diff(total_times)
-            time_intervals = np.insert(arr=time_intervals, obj=0, values=total_times[0])
-            for j, state in enumerate(single_states[fluorophore]):
-                time_intervals_state = time_intervals[
-                    np.where(initial_single_states == state)
+            changed_state_indices = change_indices + 1
+            initial_states = fluorophore_state_series[change_indices]
+            state_change_times = self.time_series[changed_state_indices]
+            residence_times = np.diff(state_change_times)
+            residence_times = np.insert(
+                arr=residence_times,
+                obj=0,
+                values=state_change_times[0],
+            )
+            for state_index, state in enumerate(single_states[fluorophore]):
+                state_residence_times = residence_times[
+                    np.where(initial_states == state)
                 ]
-                lifetime_parts[fluorophore][j].append(time_intervals_state)
+                lifetime_parts[fluorophore][state_index].append(state_residence_times)
 
-            transitions_fluorophore = self.transition_series[changes_at]
-            transition_ids_fluorophore = transition_ids[transitions_fluorophore]
-            for h, j in self.simulation.transition_set.transition_df.index:
-                occurrence_mask = transition_ids_fluorophore == j
-                if _ENERGY_TRANSFER_LABEL.fullmatch(h) is not None:
-                    source_donor = self.simulation.transition_set.transition_df.loc[
-                        (h, j), "initial_state"
-                    ].donor.value
-                    occurrence_mask &= initial_single_states == source_donor
+            combined_transition_indices = self.transition_series[change_indices]
+            transition_ids_at_changes = transition_ids[combined_transition_indices]
+            involved_fluorophore_ids = combined_transition_df[
+                "fluorophore_ids"
+            ].to_numpy(dtype=object)[combined_transition_indices]
+            initiating_fluorophore_ids = np.array(
+                [fluorophore_ids[0] for fluorophore_ids in involved_fluorophore_ids],
+                dtype=np.int64,
+            )
+            for (
+                transition_group,
+                transition_id,
+            ) in self.simulation.transition_set.transition_df.index:
+                occurrence_mask = transition_ids_at_changes == transition_id
+                if _ENERGY_TRANSFER_LABEL.fullmatch(transition_group) is not None:
+                    occurrence_mask &= initiating_fluorophore_ids == fluorophore_id
 
-                transition_time_parts[j].append(time_intervals[occurrence_mask])
+                transition_time_parts[transition_id].append(
+                    residence_times[occurrence_mask]
+                )
 
         lifetime_distributions = {
             fluorophore: [

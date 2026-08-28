@@ -336,7 +336,7 @@ def test_prediction_3(tr_set_bl_et_2f_same, caplog):
     )
     exp_freq_states = {
         "testfluo_1": np.array(
-            [6.666603e-01, 3.333395e-01, 9.031066e-09, 2.176161e-07, 0.000000e00]
+            [4.999999e-01, 4.999999e-01, 6.773337e-09, 1.632129e-07, 0.000000e00]
         )
     }
     for fluorophore, freq in prediction.frequency_states.items():

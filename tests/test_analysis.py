@@ -203,6 +203,36 @@ def test_analysis_without_state_changes(tr_set_1f):
     )
 
 
+def test_energy_transfer_time_is_recorded_only_for_donor_with_equal_source_states():
+    energy_transfer_label = "D: A, A: B, dist: 1"
+    transition_df = pd.DataFrame(
+        {"initial_state": [SimpleNamespace(donor=SimpleNamespace(value=1))]},
+        index=pd.MultiIndex.from_tuples([(energy_transfer_label, 0)]),
+    )
+    combined_transition_df = pd.DataFrame(
+        {"transition_id": [0], "fluorophore_ids": [[0, 1]]}
+    )
+    transition_set = SimpleNamespace(
+        transition_df=transition_df,
+        combined_state_transitions_df=combined_transition_df,
+        single_states={"A": np.array([0, 1]), "B": np.array([1, 2])},
+        fluorophore_system=SimpleNamespace(
+            fluorophores=[SimpleNamespace(name="A"), SimpleNamespace(name="B")]
+        ),
+    )
+    analysis = an.Analysis.__new__(an.Analysis)
+    analysis.simulation = SimpleNamespace(transition_set=transition_set)
+    analysis.transition_series = np.array([0], dtype=np.int64)
+    analysis.state_series = np.array([[1, 0], [1, 2]], dtype=np.int64)
+    analysis.time_series = np.array([0.0, 5.0])
+
+    transition_times, lifetimes = analysis.get_lifetimes()
+
+    np.testing.assert_array_equal(transition_times[0], np.array([5.0]))
+    np.testing.assert_array_equal(lifetimes["A"][1], np.array([5.0]))
+    np.testing.assert_array_equal(lifetimes["B"][0], np.array([5.0]))
+
+
 def test_transition_frequencies_are_zero_without_observed_transitions(tr_set_1f):
     analysis = an.Analysis.__new__(an.Analysis)
     analysis.simulation = SimpleNamespace(transition_set=tr_set_1f)
