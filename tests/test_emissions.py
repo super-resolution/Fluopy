@@ -166,14 +166,14 @@ def test_emissions_extract(dirname, request, frame_time, bandpass, expected, cap
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 4, 3, 5,
                     7,
                 ],
-                dtype=np.int32,
+                dtype=np.int64,
             ),
             # fmt: on
             index=np.linspace(0, 0.00045, 46),
         )
     else:
         exp_event_time_series = pd.Series(
-            np.array([0, 2], dtype=np.int32), index=[0.0, 0.005]
+            np.array([0, 2], dtype=np.int64), index=[0.0, 0.005]
         )
     pd.testing.assert_series_equal(emis.event_time_series, exp_event_time_series)
 
@@ -432,6 +432,16 @@ def test_emissions_add_transmittance(em_large, p, expected):
         pd.testing.assert_series_equal(
             em_large.event_time_series, exp_event_time_series
         )
+
+
+def test_emissions_post_processing_preserves_int64_counts():
+    emis = em.Emissions()
+    emis.event_time_series = pd.Series([0, 3_000_000_000], dtype=np.int64)
+
+    emis.add_transmittance(p=1, seed=1)
+
+    assert emis.event_time_series.iloc[1] == 3_000_000_000
+    assert emis.event_time_series.dtype == np.int64
 
 
 def test_emissions_add_emccd_gain(em_large):

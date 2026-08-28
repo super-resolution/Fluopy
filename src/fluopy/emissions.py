@@ -446,13 +446,13 @@ class Emissions:
             event_time_points = np.append(event_time_points, time_series[-1])
 
         time_deltas = pd.to_timedelta(event_time_points, unit="s")
-        events = np.ones(shape=event_time_points.shape[0])
+        events = np.ones(shape=event_time_points.shape[0], dtype=np.int64)
         events[0] = 0
 
         if added_end_time:
             events[-1] = 0
 
-        event_time_series = pd.Series(events, index=time_deltas, dtype=np.int32)
+        event_time_series = pd.Series(events, index=time_deltas)
         event_time_series_r = event_time_series.resample(
             resample, closed="right", label="right"
         ).sum()
@@ -493,11 +493,11 @@ class Emissions:
             raise ValueError("p has to be between 0 and 1.")
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
-        values = event_time_series.to_numpy(dtype=np.int32)
+        values = event_time_series.to_numpy(dtype=np.int64)
         nonzero = np.flatnonzero(values)
-        event_time_series.iloc[nonzero] = binom.rvs(
-            n=values[nonzero], p=p, random_state=rng
-        ).astype(np.int32)
+        event_time_series.iloc[nonzero] = np.asarray(
+            binom.rvs(n=values[nonzero], p=p, random_state=rng), dtype=np.int64
+        )
 
     def add_quantum_efficiency(
         self, p: float, seed: RandomGeneratorSeed = None
@@ -520,11 +520,11 @@ class Emissions:
             raise ValueError("p has to be between 0 and 1.")
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
-        values = event_time_series.to_numpy(dtype=np.int32)
+        values = event_time_series.to_numpy(dtype=np.int64)
         nonzero = np.flatnonzero(values)
-        event_time_series.iloc[nonzero] = binom.rvs(
-            n=values[nonzero], p=p, random_state=rng
-        ).astype(np.int32)
+        event_time_series.iloc[nonzero] = np.asarray(
+            binom.rvs(n=values[nonzero], p=p, random_state=rng), dtype=np.int64
+        )
 
     def add_transmittance(self, p: float, seed: RandomGeneratorSeed = None) -> None:
         """
@@ -545,11 +545,11 @@ class Emissions:
             raise ValueError("p has to be between 0 and 1.")
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
-        values = event_time_series.to_numpy(dtype=np.int32)
+        values = event_time_series.to_numpy(dtype=np.int64)
         nonzero = np.flatnonzero(values)
-        event_time_series.iloc[nonzero] = binom.rvs(
-            n=values[nonzero], p=p, random_state=rng
-        ).astype(np.int32)
+        event_time_series.iloc[nonzero] = np.asarray(
+            binom.rvs(n=values[nonzero], p=p, random_state=rng), dtype=np.int64
+        )
 
     def add_emccd_gain(
         self, emccd_gain: float, seed: RandomGeneratorSeed = None
@@ -570,11 +570,12 @@ class Emissions:
         """
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
-        values = event_time_series.to_numpy(dtype=np.int32)
+        values = event_time_series.to_numpy(dtype=np.int64)
         nonzero = np.flatnonzero(values)
-        event_time_series.iloc[nonzero] = gamma.rvs(
-            a=values[nonzero], scale=emccd_gain, random_state=rng
-        ).astype(np.int32)
+        event_time_series.iloc[nonzero] = np.asarray(
+            gamma.rvs(a=values[nonzero], scale=emccd_gain, random_state=rng),
+            dtype=np.int64,
+        )
 
     def add_gaussian_noise(
         self, mean: float, std: float, seed: RandomGeneratorSeed = None
@@ -600,9 +601,9 @@ class Emissions:
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
         frame_counts = event_time_series.iloc[1:]
-        values = frame_counts.to_numpy(dtype=np.int32)
+        values = frame_counts.to_numpy(dtype=np.int64)
         variates = norm(loc=mean, scale=std).rvs(frame_counts.size, random_state=rng)
-        variates = variates.astype(np.int32)
+        variates = variates.astype(np.int64)
         event_time_series.iloc[1:] = values + variates
         event_time_series[event_time_series < 0] = 0
 
@@ -626,9 +627,9 @@ class Emissions:
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
         frame_counts = event_time_series.iloc[1:]
-        values = frame_counts.to_numpy(dtype=np.int32)
+        values = frame_counts.to_numpy(dtype=np.int64)
         variates = poisson(rate).rvs(frame_counts.size, random_state=rng)
-        variates = variates.astype(np.int32)
+        variates = variates.astype(np.int64)
         event_time_series.iloc[1:] = values + variates
 
     def apply_threshold(self, threshold: int) -> None:
