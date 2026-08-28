@@ -42,15 +42,21 @@ class Emissions:
     parameters : dict[str, Any]
         Contains the parameters with which the instance was initialized.
     event_time_points : npt.NDArray[np.float64]
-        The time points at which emissions are happening - they may be filtered by
-        bandpass, however it is not considered whether they actually end up being
-        detected and converted to an electrical voltage. Array of shape (n_time_points,).
-        None until extract(), simulate() or tcspc() has been called.
+        The photon time points selected by the method that populated the object.
+        extract() records emitting transitions after optional bandpass filtering,
+        whereas simulate() and tcspc() record photons treated as detected after
+        bandpass acceptance. Detector and optical-path post-processing methods modify
+        only event_time_series, so the two representations no longer describe the same
+        photons after post-processing. Array of shape (n_time_points,). None until
+        extract() has been called, or until simulate() or tcspc() has been called with
+        time-point storage enabled.
     event_time_series : pd.Series
         Contains the time points (increasing by a defined time interval) as index and
-        the number of events as values. Depending on the applied functions events may
-        represent emissions effected by obstacles introduced by the optical path.
-        None until extract(), simulate() or tcspc() has been called.
+        the number of events as values. Detector and optical-path post-processing is
+        applied to this series without updating event_time_points. Internally generated
+        series start with a zero-valued boundary entry at time zero; measured frames
+        start at the second entry. None until extract(), simulate() or tcspc() has been
+        called.
     """
 
     def __init__(
@@ -399,7 +405,7 @@ class Emissions:
                     )
                     collect_emission_indices.append(filtered_emission_indices_f)
                     processed.append(fluorophore.name)
-            emission_indices = np.concatenate(collect_emission_indices)
+            emission_indices = np.sort(np.concatenate(collect_emission_indices))
         else:
             df = simulation.transition_set.combined_state_transitions_df
             emitting_transition_ids = df.loc[df["photon"]].index.to_numpy()
@@ -440,13 +446,13 @@ class Emissions:
             event_time_points = np.append(event_time_points, time_series[-1])
 
         time_deltas = pd.to_timedelta(event_time_points, unit="s")
-        events = np.ones(shape=event_time_points.shape[0])
+        events = np.ones(shape=event_time_points.shape[0], dtype=np.int64)
         events[0] = 0
 
         if added_end_time:
             events[-1] = 0
 
-        event_time_series = pd.Series(events, index=time_deltas, dtype=np.int32)
+        event_time_series = pd.Series(events, index=time_deltas)
         event_time_series_r = event_time_series.resample(
             resample, closed="right", label="right"
         ).sum()
@@ -487,11 +493,11 @@ class Emissions:
             raise ValueError("p has to be between 0 and 1.")
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
-        values = event_time_series.to_numpy(dtype=np.int32)
+        values = event_time_series.to_numpy(dtype=np.int64)
         nonzero = np.flatnonzero(values)
-        event_time_series.iloc[nonzero] = binom.rvs(
-            n=values[nonzero], p=p, random_state=rng
-        ).astype(np.int32)
+        event_time_series.iloc[nonzero] = np.asarray(
+            binom.rvs(n=values[nonzero], p=p, random_state=rng), dtype=np.int64
+        )
 
     def add_quantum_efficiency(
         self, p: float, seed: RandomGeneratorSeed = None
@@ -514,11 +520,11 @@ class Emissions:
             raise ValueError("p has to be between 0 and 1.")
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
-        values = event_time_series.to_numpy(dtype=np.int32)
+        values = event_time_series.to_numpy(dtype=np.int64)
         nonzero = np.flatnonzero(values)
-        event_time_series.iloc[nonzero] = binom.rvs(
-            n=values[nonzero], p=p, random_state=rng
-        ).astype(np.int32)
+        event_time_series.iloc[nonzero] = np.asarray(
+            binom.rvs(n=values[nonzero], p=p, random_state=rng), dtype=np.int64
+        )
 
     def add_transmittance(self, p: float, seed: RandomGeneratorSeed = None) -> None:
         """
@@ -539,11 +545,11 @@ class Emissions:
             raise ValueError("p has to be between 0 and 1.")
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
-        values = event_time_series.to_numpy(dtype=np.int32)
+        values = event_time_series.to_numpy(dtype=np.int64)
         nonzero = np.flatnonzero(values)
-        event_time_series.iloc[nonzero] = binom.rvs(
-            n=values[nonzero], p=p, random_state=rng
-        ).astype(np.int32)
+        event_time_series.iloc[nonzero] = np.asarray(
+            binom.rvs(n=values[nonzero], p=p, random_state=rng), dtype=np.int64
+        )
 
     def add_emccd_gain(
         self, emccd_gain: float, seed: RandomGeneratorSeed = None
@@ -564,18 +570,20 @@ class Emissions:
         """
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
-        values = event_time_series.to_numpy(dtype=np.int32)
+        values = event_time_series.to_numpy(dtype=np.int64)
         nonzero = np.flatnonzero(values)
-        event_time_series.iloc[nonzero] = gamma.rvs(
-            a=values[nonzero], scale=emccd_gain, random_state=rng
-        ).astype(np.int32)
+        event_time_series.iloc[nonzero] = np.asarray(
+            gamma.rvs(a=values[nonzero], scale=emccd_gain, random_state=rng),
+            dtype=np.int64,
+        )
 
     def add_gaussian_noise(
         self, mean: float, std: float, seed: RandomGeneratorSeed = None
     ) -> None:
         """
         Add artificial noise to the events. The noise is normal distributed and can
-        represent readout noise (insignificant in the case of EMCCD).
+        represent readout noise (insignificant in the case of EMCCD). The leading
+        boundary entry is not a measured frame and remains unchanged.
 
         Parameters
         ----------
@@ -592,17 +600,18 @@ class Emissions:
         """
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
-        values = event_time_series.to_numpy(dtype=np.int32)
-        size = event_time_series.size - 1
-        variates = norm(loc=mean, scale=std).rvs(size, random_state=rng)
-        variates = variates.astype(np.int32)
-        event_time_series.iloc[1:] = values[1:] + variates
+        frame_counts = event_time_series.iloc[1:]
+        values = frame_counts.to_numpy(dtype=np.int64)
+        variates = norm(loc=mean, scale=std).rvs(frame_counts.size, random_state=rng)
+        variates = variates.astype(np.int64)
+        event_time_series.iloc[1:] = values + variates
         event_time_series[event_time_series < 0] = 0
 
     def add_poisson_noise(self, rate: float, seed: RandomGeneratorSeed = None) -> None:
         """
         Add Poisson noise to the events. The noise is Poisson distributed and can
-        represent dark current noise.
+        represent dark current noise. The leading boundary entry is not a measured
+        frame and remains unchanged.
 
         Parameters
         ----------
@@ -617,11 +626,11 @@ class Emissions:
         """
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
-        values = event_time_series.to_numpy(dtype=np.int32)
-        size = event_time_series.size - 1
-        variates = poisson(rate).rvs(size, random_state=rng)
-        variates = variates.astype(np.int32)
-        event_time_series.iloc[1:] = values[1:] + variates
+        frame_counts = event_time_series.iloc[1:]
+        values = frame_counts.to_numpy(dtype=np.int64)
+        variates = poisson(rate).rvs(frame_counts.size, random_state=rng)
+        variates = variates.astype(np.int64)
+        event_time_series.iloc[1:] = values + variates
 
     def apply_threshold(self, threshold: int) -> None:
         """
@@ -654,8 +663,13 @@ class Emissions:
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         event_time_series = self._require_event_time_series()
+        if event_time_series.empty:
+            raise ValueError("cumulative events require at least one event.")
         cum_events = event_time_series.cumsum()
-        cum_events = cum_events / cum_events.max()
+        total_events = cum_events.iloc[-1]
+        if total_events <= 0:
+            raise ValueError("cumulative events require at least one event.")
+        cum_events = cum_events / total_events
         data = [event_time_series.index, cum_events.to_numpy()]
         kwargs.setdefault("type_", "line")
         kwargs.setdefault("xlabel", "Photon arrival time (s)")
@@ -697,6 +711,8 @@ class Emissions:
         data = self._require_event_time_series()
         if not include_0:
             data = data[data != 0]
+        if data.empty:
+            raise ValueError("histogram requires at least one included event count.")
 
         kwargs.setdefault("type_", "hist")
         kwargs.setdefault("xlabel", r"$\frac{photons}{frame}$")
@@ -750,7 +766,7 @@ class Emissions:
 
     def save(self, path: str | Path, name_extension: str = "") -> None:
         """
-        Saves event_time_series and event_time_points to a file.
+        Saves event_time_series and, when available, event_time_points to files.
 
         Parameters
         ----------
@@ -766,15 +782,16 @@ class Emissions:
         time_series_file = Path(path) / ("event_time_series" + name_extension + ".csv")
         time_points_file = Path(path) / ("event_time_points" + name_extension + ".npy")
         self._require_event_time_series().to_csv(time_series_file, header=False)
-        np.save(time_points_file, self._require_event_time_points())
+        if self.event_time_points is None:
+            time_points_file.unlink(missing_ok=True)
+        else:
+            np.save(time_points_file, self.event_time_points)
 
     @classmethod
     def load(cls, path: str | Path, name_extension: str = "") -> Emissions:
         """
-        Load event_time_series and event_time_points from file.
-        Adapted from an unpopular answer of
-        https://stackoverflow.com/questions/682504/what-is-a-clean-pythonic-way-to-
-        implement-multiple-constructors
+        Load event_time_series and, when available, event_time_points from files.
+        Initialization parameters are not persisted and use their constructor defaults.
 
         Parameters
         ----------
@@ -788,7 +805,7 @@ class Emissions:
         obj : fluopy.emissions.Emissions
             Instance of Emissions constructed with existing data.
         """
-        obj = cls.__new__(cls)
+        obj = cls()
         loaded_series = pd.read_csv(
             Path(path) / ("event_time_series" + name_extension + ".csv"),
             index_col=0,
@@ -798,13 +815,11 @@ class Emissions:
             loaded_series.to_numpy().flatten(), index=loaded_series.index
         )
         obj.event_time_series.index.name = None
-        obj.event_time_points = np.asarray(
-            np.load(
-                Path(path) / ("event_time_points" + name_extension + ".npy"),
-                allow_pickle=True,
-            ),
-            dtype=np.float64,
-        )
+        time_points_file = Path(path) / ("event_time_points" + name_extension + ".npy")
+        if time_points_file.is_file():
+            obj.event_time_points = np.asarray(
+                np.load(time_points_file, allow_pickle=True), dtype=np.float64
+            )
 
         return obj
 
@@ -852,7 +867,7 @@ def get_p_filter(
 
 
 def get_emitting_transition_ids(
-    bandpass: tuple[float, float], transition_set: TransitionSet
+    bandpass: tuple[float, float] | None, transition_set: TransitionSet
 ) -> dict[int, float]:
     """
     Get a dictionary with ids of emitting transitions as keys and probabilities of

@@ -166,16 +166,29 @@ def test_emissions_extract(dirname, request, frame_time, bandpass, expected, cap
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 4, 3, 5,
                     7,
                 ],
-                dtype=np.int32,
+                dtype=np.int64,
             ),
             # fmt: on
             index=np.linspace(0, 0.00045, 46),
         )
     else:
         exp_event_time_series = pd.Series(
-            np.array([0, 2], dtype=np.int32), index=[0.0, 0.005]
+            np.array([0, 2], dtype=np.int64), index=[0.0, 0.005]
         )
     pd.testing.assert_series_equal(emis.event_time_series, exp_event_time_series)
+
+
+def test_emissions_extract_orders_filtered_time_points(sim_tr_set_2f_diff):
+    emis = em.Emissions(bandpass=(650, 700), seed=1)
+
+    emis.extract(simulation=sim_tr_set_2f_diff)
+
+    assert np.all(np.diff(emis.event_time_points) >= 0)
+
+
+def test_generated_event_time_series_starts_with_boundary(em_tr_set_1f_bl):
+    assert em_tr_set_1f_bl.event_time_series.index[0] == 0
+    assert em_tr_set_1f_bl.event_time_series.iloc[0] == 0
 
 
 def test_emissions_simulate(tr_set_1f_bl):
@@ -421,6 +434,16 @@ def test_emissions_add_transmittance(em_large, p, expected):
         )
 
 
+def test_emissions_post_processing_preserves_int64_counts():
+    emis = em.Emissions()
+    emis.event_time_series = pd.Series([0, 3_000_000_000], dtype=np.int64)
+
+    emis.add_transmittance(p=1, seed=1)
+
+    assert emis.event_time_series.iloc[1] == 3_000_000_000
+    assert emis.event_time_series.dtype == np.int64
+
+
 def test_emissions_add_emccd_gain(em_large):
     rng = np.random.default_rng(1)
     # fmt: off
@@ -524,6 +547,23 @@ def test_emissions_add_poisson_noise(em_large):
     pd.testing.assert_series_equal(em_large.event_time_series, exp_event_time_series)
 
 
+@pytest.mark.parametrize("counts", [[], [0, 0]])
+def test_plot_cumulative_events_without_events(counts):
+    emis = em.Emissions()
+    emis.event_time_series = pd.Series(counts, dtype=np.int64)
+
+    with pytest.raises(ValueError, match="require at least one event"):
+        emis.plot_cumulative_events()
+
+
+def test_plot_histogram_without_included_counts():
+    emis = em.Emissions()
+    emis.event_time_series = pd.Series([0, 0], dtype=np.int64)
+
+    with pytest.raises(ValueError, match="requires at least one included event count"):
+        emis.plot_histogram(include_0=False)
+
+
 def test_save_and_load(request, tmp_path, caplog):
     with caplog.at_level(logging.WARNING):
         em_tr_set_1f_bl = request.getfixturevalue("em_tr_set_1f_bl")
@@ -536,7 +576,24 @@ def test_save_and_load(request, tmp_path, caplog):
     emis = em.Emissions.load(path=tmp_path, name_extension="_test_extension")
     assert type(emis.event_time_points) is np.ndarray
     assert type(emis.event_time_series) is pd.Series
+    assert emis.parameters == {
+        "frame_time": "5ms",
+        "seed": None,
+        "bandpass": None,
+    }
     (Path(tmp_path) / "event_time_series_test_extension.csv").unlink(missing_ok=True)
     (Path(tmp_path) / "event_time_points_test_extension.npy").unlink(missing_ok=True)
     assert not (Path(tmp_path) / "event_time_series_test_extension.csv").is_file()
     assert not (Path(tmp_path) / "event_time_points_test_extension.npy").is_file()
+
+
+def test_save_and_load_without_event_time_points(tmp_path):
+    emis = em.Emissions()
+    emis.event_time_series = pd.Series([0, 2], index=[0.0, 0.005])
+
+    emis.save(path=tmp_path)
+    loaded = em.Emissions.load(path=tmp_path)
+
+    pd.testing.assert_series_equal(loaded.event_time_series, emis.event_time_series)
+    assert loaded.event_time_points is None
+    assert not (tmp_path / "event_time_points.npy").is_file()
