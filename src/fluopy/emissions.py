@@ -53,8 +53,10 @@ class Emissions:
     event_time_series : pd.Series
         Contains the time points (increasing by a defined time interval) as index and
         the number of events as values. Detector and optical-path post-processing is
-        applied to this series without updating event_time_points. None until extract(),
-        simulate() or tcspc() has been called.
+        applied to this series without updating event_time_points. Internally generated
+        series start with a zero-valued boundary entry at time zero; measured frames
+        start at the second entry. None until extract(), simulate() or tcspc() has been
+        called.
     """
 
     def __init__(
@@ -579,7 +581,8 @@ class Emissions:
     ) -> None:
         """
         Add artificial noise to the events. The noise is normal distributed and can
-        represent readout noise (insignificant in the case of EMCCD).
+        represent readout noise (insignificant in the case of EMCCD). The leading
+        boundary entry is not a measured frame and remains unchanged.
 
         Parameters
         ----------
@@ -596,17 +599,18 @@ class Emissions:
         """
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
-        values = event_time_series.to_numpy(dtype=np.int32)
-        size = event_time_series.size - 1
-        variates = norm(loc=mean, scale=std).rvs(size, random_state=rng)
+        frame_counts = event_time_series.iloc[1:]
+        values = frame_counts.to_numpy(dtype=np.int32)
+        variates = norm(loc=mean, scale=std).rvs(frame_counts.size, random_state=rng)
         variates = variates.astype(np.int32)
-        event_time_series.iloc[1:] = values[1:] + variates
+        event_time_series.iloc[1:] = values + variates
         event_time_series[event_time_series < 0] = 0
 
     def add_poisson_noise(self, rate: float, seed: RandomGeneratorSeed = None) -> None:
         """
         Add Poisson noise to the events. The noise is Poisson distributed and can
-        represent dark current noise.
+        represent dark current noise. The leading boundary entry is not a measured
+        frame and remains unchanged.
 
         Parameters
         ----------
@@ -621,11 +625,11 @@ class Emissions:
         """
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
-        values = event_time_series.to_numpy(dtype=np.int32)
-        size = event_time_series.size - 1
-        variates = poisson(rate).rvs(size, random_state=rng)
+        frame_counts = event_time_series.iloc[1:]
+        values = frame_counts.to_numpy(dtype=np.int32)
+        variates = poisson(rate).rvs(frame_counts.size, random_state=rng)
         variates = variates.astype(np.int32)
-        event_time_series.iloc[1:] = values[1:] + variates
+        event_time_series.iloc[1:] = values + variates
 
     def apply_threshold(self, threshold: int) -> None:
         """

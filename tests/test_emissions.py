@@ -186,6 +186,11 @@ def test_emissions_extract_orders_filtered_time_points(sim_tr_set_2f_diff):
     assert np.all(np.diff(emis.event_time_points) >= 0)
 
 
+def test_generated_event_time_series_starts_with_boundary(em_tr_set_1f_bl):
+    assert em_tr_set_1f_bl.event_time_series.index[0] == 0
+    assert em_tr_set_1f_bl.event_time_series.iloc[0] == 0
+
+
 def test_emissions_simulate(tr_set_1f_bl):
     rng = np.random.default_rng(1)
     emis = em.Emissions(frame_time="100us", bandpass=(650, 700), seed=rng)
