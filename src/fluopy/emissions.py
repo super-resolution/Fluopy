@@ -42,15 +42,19 @@ class Emissions:
     parameters : dict[str, Any]
         Contains the parameters with which the instance was initialized.
     event_time_points : npt.NDArray[np.float64]
-        The time points at which emissions are happening - they may be filtered by
-        bandpass, however it is not considered whether they actually end up being
-        detected and converted to an electrical voltage. Array of shape (n_time_points,).
-        None until extract(), simulate() or tcspc() has been called.
+        The photon time points selected by the method that populated the object.
+        extract() records emitting transitions after optional bandpass filtering,
+        whereas simulate() and tcspc() record photons treated as detected after
+        bandpass acceptance. Detector and optical-path post-processing methods modify
+        only event_time_series, so the two representations no longer describe the same
+        photons after post-processing. Array of shape (n_time_points,). None until
+        extract() has been called, or until simulate() or tcspc() has been called with
+        time-point storage enabled.
     event_time_series : pd.Series
         Contains the time points (increasing by a defined time interval) as index and
-        the number of events as values. Depending on the applied functions events may
-        represent emissions effected by obstacles introduced by the optical path.
-        None until extract(), simulate() or tcspc() has been called.
+        the number of events as values. Detector and optical-path post-processing is
+        applied to this series without updating event_time_points. None until extract(),
+        simulate() or tcspc() has been called.
     """
 
     def __init__(
@@ -852,7 +856,7 @@ def get_p_filter(
 
 
 def get_emitting_transition_ids(
-    bandpass: tuple[float, float], transition_set: TransitionSet
+    bandpass: tuple[float, float] | None, transition_set: TransitionSet
 ) -> dict[int, float]:
     """
     Get a dictionary with ids of emitting transitions as keys and probabilities of
