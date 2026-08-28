@@ -663,8 +663,13 @@ class Emissions:
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
         event_time_series = self._require_event_time_series()
+        if event_time_series.empty:
+            raise ValueError("cumulative events require at least one event.")
         cum_events = event_time_series.cumsum()
-        cum_events = cum_events / cum_events.max()
+        total_events = cum_events.iloc[-1]
+        if total_events <= 0:
+            raise ValueError("cumulative events require at least one event.")
+        cum_events = cum_events / total_events
         data = [event_time_series.index, cum_events.to_numpy()]
         kwargs.setdefault("type_", "line")
         kwargs.setdefault("xlabel", "Photon arrival time (s)")
@@ -706,6 +711,8 @@ class Emissions:
         data = self._require_event_time_series()
         if not include_0:
             data = data[data != 0]
+        if data.empty:
+            raise ValueError("histogram requires at least one included event count.")
 
         kwargs.setdefault("type_", "hist")
         kwargs.setdefault("xlabel", r"$\frac{photons}{frame}$")
