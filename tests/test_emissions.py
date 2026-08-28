@@ -576,7 +576,24 @@ def test_save_and_load(request, tmp_path, caplog):
     emis = em.Emissions.load(path=tmp_path, name_extension="_test_extension")
     assert type(emis.event_time_points) is np.ndarray
     assert type(emis.event_time_series) is pd.Series
+    assert emis.parameters == {
+        "frame_time": "5ms",
+        "seed": None,
+        "bandpass": None,
+    }
     (Path(tmp_path) / "event_time_series_test_extension.csv").unlink(missing_ok=True)
     (Path(tmp_path) / "event_time_points_test_extension.npy").unlink(missing_ok=True)
     assert not (Path(tmp_path) / "event_time_series_test_extension.csv").is_file()
     assert not (Path(tmp_path) / "event_time_points_test_extension.npy").is_file()
+
+
+def test_save_and_load_without_event_time_points(tmp_path):
+    emis = em.Emissions()
+    emis.event_time_series = pd.Series([0, 2], index=[0.0, 0.005])
+
+    emis.save(path=tmp_path)
+    loaded = em.Emissions.load(path=tmp_path)
+
+    pd.testing.assert_series_equal(loaded.event_time_series, emis.event_time_series)
+    assert loaded.event_time_points is None
+    assert not (tmp_path / "event_time_points.npy").is_file()

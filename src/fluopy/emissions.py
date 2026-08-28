@@ -766,7 +766,7 @@ class Emissions:
 
     def save(self, path: str | Path, name_extension: str = "") -> None:
         """
-        Saves event_time_series and event_time_points to a file.
+        Saves event_time_series and, when available, event_time_points to files.
 
         Parameters
         ----------
@@ -782,15 +782,16 @@ class Emissions:
         time_series_file = Path(path) / ("event_time_series" + name_extension + ".csv")
         time_points_file = Path(path) / ("event_time_points" + name_extension + ".npy")
         self._require_event_time_series().to_csv(time_series_file, header=False)
-        np.save(time_points_file, self._require_event_time_points())
+        if self.event_time_points is None:
+            time_points_file.unlink(missing_ok=True)
+        else:
+            np.save(time_points_file, self.event_time_points)
 
     @classmethod
     def load(cls, path: str | Path, name_extension: str = "") -> Emissions:
         """
-        Load event_time_series and event_time_points from file.
-        Adapted from an unpopular answer of
-        https://stackoverflow.com/questions/682504/what-is-a-clean-pythonic-way-to-
-        implement-multiple-constructors
+        Load event_time_series and, when available, event_time_points from files.
+        Initialization parameters are not persisted and use their constructor defaults.
 
         Parameters
         ----------
@@ -804,7 +805,7 @@ class Emissions:
         obj : fluopy.emissions.Emissions
             Instance of Emissions constructed with existing data.
         """
-        obj = cls.__new__(cls)
+        obj = cls()
         loaded_series = pd.read_csv(
             Path(path) / ("event_time_series" + name_extension + ".csv"),
             index_col=0,
@@ -814,13 +815,11 @@ class Emissions:
             loaded_series.to_numpy().flatten(), index=loaded_series.index
         )
         obj.event_time_series.index.name = None
-        obj.event_time_points = np.asarray(
-            np.load(
-                Path(path) / ("event_time_points" + name_extension + ".npy"),
-                allow_pickle=True,
-            ),
-            dtype=np.float64,
-        )
+        time_points_file = Path(path) / ("event_time_points" + name_extension + ".npy")
+        if time_points_file.is_file():
+            obj.event_time_points = np.asarray(
+                np.load(time_points_file, allow_pickle=False), dtype=np.float64
+            )
 
         return obj
 
