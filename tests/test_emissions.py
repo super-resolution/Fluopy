@@ -178,6 +178,14 @@ def test_emissions_extract(dirname, request, frame_time, bandpass, expected, cap
     pd.testing.assert_series_equal(emis.event_time_series, exp_event_time_series)
 
 
+def test_emissions_extract_orders_filtered_time_points(sim_tr_set_2f_diff):
+    emis = em.Emissions(bandpass=(650, 700), seed=1)
+
+    emis.extract(simulation=sim_tr_set_2f_diff)
+
+    assert np.all(np.diff(emis.event_time_points) >= 0)
+
+
 def test_emissions_simulate(tr_set_1f_bl):
     rng = np.random.default_rng(1)
     emis = em.Emissions(frame_time="100us", bandpass=(650, 700), seed=rng)

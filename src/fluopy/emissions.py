@@ -403,7 +403,7 @@ class Emissions:
                     )
                     collect_emission_indices.append(filtered_emission_indices_f)
                     processed.append(fluorophore.name)
-            emission_indices = np.concatenate(collect_emission_indices)
+            emission_indices = np.sort(np.concatenate(collect_emission_indices))
         else:
             df = simulation.transition_set.combined_state_transitions_df
             emitting_transition_ids = df.loc[df["photon"]].index.to_numpy()
