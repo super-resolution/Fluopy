@@ -2,6 +2,7 @@ import logging
 from types import SimpleNamespace
 
 import numpy as np
+import pandas as pd
 import pytest
 import scipy.stats as stats
 
@@ -93,6 +94,61 @@ def test_predicted_frequencies_remain_zero_without_expected_visits(tr_set_1f):
 
     np.testing.assert_array_equal(frequency_transitions, np.zeros(7))
     np.testing.assert_array_equal(frequency_states["testfluo_1"], np.zeros(4))
+
+
+@pytest.mark.parametrize(
+    "absorbing, expected_combinations",
+    [
+        ([True, True, True, True], [(4, 6), (4, 7), (5, 6), (5, 7)]),
+        ([True, True, False, False], []),
+    ],
+)
+def test_get_absorbing_state_combinations(absorbing, expected_combinations):
+    transition_df = pd.DataFrame(
+        {
+            "absorbing": absorbing,
+            "final_state": [
+                SimpleNamespace(value=4),
+                SimpleNamespace(value=5),
+                SimpleNamespace(value=6),
+                SimpleNamespace(value=7),
+            ],
+        },
+        index=pd.MultiIndex.from_tuples([("A", 0), ("A", 1), ("B", 2), ("B", 3)]),
+    )
+    prediction = pr.Prediction.__new__(pr.Prediction)
+    prediction.transition_set = SimpleNamespace(
+        transition_df=transition_df,
+        fluorophore_system=SimpleNamespace(
+            fluorophores=[SimpleNamespace(name="A"), SimpleNamespace(name="B")]
+        ),
+    )
+
+    combinations = prediction._get_absorbing_state_combinations()
+
+    assert combinations == expected_combinations
+
+
+def test_get_multiple_absorbing_states_for_one_fluorophore():
+    transition_df = pd.DataFrame(
+        {
+            "absorbing": [True, True],
+            "final_state": [
+                SimpleNamespace(value=4),
+                SimpleNamespace(value=5),
+            ],
+        },
+        index=pd.MultiIndex.from_tuples([("A", 0), ("A", 1)]),
+    )
+    prediction = pr.Prediction.__new__(pr.Prediction)
+    prediction.transition_set = SimpleNamespace(
+        transition_df=transition_df,
+        fluorophore_system=SimpleNamespace(fluorophores=[SimpleNamespace(name="A")]),
+    )
+
+    combinations = prediction._get_absorbing_state_combinations()
+
+    assert combinations == [(4,), (5,)]
 
 
 # test with 2 different fluorophores, energy transfer, bleaching

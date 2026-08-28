@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import re
+from itertools import product
 from typing import TYPE_CHECKING, Any, cast
 
 import matplotlib as mpl
@@ -38,7 +39,8 @@ class Prediction:
     energy_transfer : bool
         Whether the prediction was carried out on energy transfer systems.
     absorbing_chain : bool
-        Whether the prediction was carried out on an absorbing Markov chain.
+        Whether every fluorophore has at least one absorbing state and the prediction
+        was carried out on an absorbing Markov chain.
         Absorbing states have a lifetime of inf and a frequency / occupation of 0.
         Absorbing transitions have a frequency of 0.
     transition_set : fluopy.transitions.TransitionSet
@@ -104,6 +106,8 @@ class Prediction:
         self.absorbing_chain = False
         if transition_set.fluorophore_system.count > 2:
             raise ValueError("prediction not available for more than 2 fluorophores.")
+        self.transition_set = transition_set
+        self._absorbing_state_combinations = self._get_absorbing_state_combinations()
         # too large matrix in np.linalg.matrix_power
         if any(
             _ENERGY_TRANSFER_LABEL.fullmatch(fluorophore_comb) is not None
@@ -123,9 +127,9 @@ class Prediction:
                 "of 0. Absorbing transitions have a frequency of 0.",
                 stacklevel=2,
             )
+        if self._absorbing_state_combinations:
             self.absorbing_chain = True
 
-        self.transition_set = transition_set
         self.transition_time_distributions: npt.NDArray[Any] | None
         self.lifetime_distributions: dict[str, npt.NDArray[Any]] | None
         self.mean_transition_times: npt.NDArray[np.float64] | None
@@ -155,6 +159,28 @@ class Prediction:
                 self.mean_lifetimes,
                 self.state_occupations,
             ) = (None, None, None, None, None)
+
+    def _get_absorbing_state_combinations(self) -> list[tuple[int, ...]]:
+        absorbing = self.transition_set.transition_df["absorbing"]
+        absorbing_transition_df = self.transition_set.transition_df[absorbing]
+        absorbing_states_by_fluorophore: list[npt.NDArray[np.int64]] = []
+        for fluorophore in self.transition_set.fluorophore_system.fluorophores:
+            if fluorophore.name not in absorbing_transition_df.index.get_level_values(
+                0
+            ):
+                return []
+            final_states = absorbing_transition_df["final_state"].xs(
+                fluorophore.name, level=0
+            )
+            absorbing_state_values = final_states.map(
+                lambda state: state.value
+            ).to_numpy(dtype=np.int64)
+            absorbing_states_by_fluorophore.append(np.unique(absorbing_state_values))
+
+        return [
+            tuple(int(state) for state in state_combination)
+            for state_combination in product(*absorbing_states_by_fluorophore)
+        ]
 
     def predict_transition_occurrences(
         self, matrix_power: int
@@ -220,7 +246,8 @@ class Prediction:
     def predict_transition_occurrences_absorbing(self) -> npt.NDArray[np.float64]:
         """
         Predict the relative frequencies of transitions. Absorbing transitions will
-        have the value 0.
+        have the value 0. Every combination of the fluorophores' absorbing states is
+        treated as an absorbing combined state.
 
         Returns
         -------
@@ -229,16 +256,13 @@ class Prediction:
             a fluorophore with no expected transitions.
         """
         transition_abs = self.transition_set.transition_df["absorbing"]
-        transition_abs_df = self.transition_set.transition_df[transition_abs]
-        abs_final_state_values: list[Any] = []
-        for fluorophore in self.transition_set.fluorophore_system.fluorophores:
-            states = transition_abs_df["final_state"].xs(fluorophore.name, level=0)
-            abs_final_state_values.append(states.iloc[0].value)
-        abs_final_state = tuple(abs_final_state_values)
         abs_indices = transition_abs[transition_abs].index.get_level_values(1)
         df = self.transition_set.combined_state_transitions_df
         abs_indices_combined = df[df["transition_id"].isin(abs_indices)].index
-        drop_transitions = df[df["final_state"] == abs_final_state].index
+        absorbing_state_combinations = set(self._absorbing_state_combinations)
+        drop_transitions = df.index[
+            df["final_state"].map(lambda state: state in absorbing_state_combinations)
+        ]
         drop_diff = abs_indices_combined[
             ~np.isin(abs_indices_combined, drop_transitions)
         ]
