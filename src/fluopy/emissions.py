@@ -818,7 +818,7 @@ class Emissions:
         time_points_file = Path(path) / ("event_time_points" + name_extension + ".npy")
         if time_points_file.is_file():
             obj.event_time_points = np.asarray(
-                np.load(time_points_file, allow_pickle=False), dtype=np.float64
+                np.load(time_points_file, allow_pickle=True), dtype=np.float64
             )
 
         return obj
