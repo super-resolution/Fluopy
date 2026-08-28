@@ -205,6 +205,7 @@ class Analysis:
         frequency_states : dict[str, npt.NDArray[np.float64]]
             Relative simulated number of visits to each state, normalized separately
             for each fluorophore. Frequencies remain 0 if no state visits were counted.
+            A trajectory without state changes counts as one visit to its initial state.
         """
         single_states = self.simulation.transition_set.single_states
         occurrences_states = {
@@ -216,9 +217,12 @@ class Analysis:
             )
             differences = np.diff(state_series_fluorophore)
             changes_at = np.where(differences != 0)[0]
-            last_state = changes_at[-1] + 1
-            changes_at_and_last = np.append(changes_at, last_state)
-            states = state_series_fluorophore[changes_at_and_last]
+            if changes_at.size == 0:
+                states = state_series_fluorophore[:1]
+            else:
+                last_state = changes_at[-1] + 1
+                changes_at_and_last = np.append(changes_at, last_state)
+                states = state_series_fluorophore[changes_at_and_last]
             state_ids, state_counts = np.unique(states, return_counts=True)
             _, corresponding_indices, _ = np.intersect1d(
                 ar1=single_states[fluorophore],
@@ -249,6 +253,9 @@ class Analysis:
         distributions of transitions.
         Note: if transition of interest is energy transfer, the time to transition is
         only collected from the donor's point of view.
+        Only completed residence intervals are included; the final right-censored
+        interval is excluded. A fluorophore without state changes therefore contributes
+        no lifetime samples.
 
         Returns
         -------
@@ -274,6 +281,8 @@ class Analysis:
             )
             differences = np.diff(state_series_fluorophore)
             changes_at = np.where(differences != 0)[0]
+            if changes_at.size == 0:
+                continue
             changed = changes_at + 1
             initial_single_states = state_series_fluorophore[changes_at]
             total_times = self.time_series[changed]
@@ -298,7 +307,10 @@ class Analysis:
                 transition_time_parts[j].append(time_intervals[occurrence_mask])
 
         lifetime_distributions = {
-            fluorophore: [np.concatenate(parts) for parts in state_parts]
+            fluorophore: [
+                np.concatenate(parts) if parts else np.array([], dtype=np.float64)
+                for parts in state_parts
+            ]
             for fluorophore, state_parts in lifetime_parts.items()
         }
         transition_time_distributions = [

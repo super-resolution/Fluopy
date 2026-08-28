@@ -171,6 +171,38 @@ def test_is_absorbing_is_determined_per_fluorophore(caplog, capsys):
     assert capsys.readouterr().out == ""
 
 
+def test_analysis_without_state_changes(tr_set_1f):
+    simulation = SimpleNamespace(
+        transition_set=tr_set_1f,
+        transition_series=np.array([], dtype=np.int64),
+        state_series=np.array([[0]], dtype=np.int64),
+        time_series=np.array([0.0]),
+    )
+
+    analysis = an.Analysis(simulation=simulation)
+
+    initial_state_index = np.where(tr_set_1f.single_states["testfluo_1"] == 0)[0][0]
+    expected_state_frequencies = np.zeros(tr_set_1f.single_states["testfluo_1"].size)
+    expected_state_frequencies[initial_state_index] = 1
+    np.testing.assert_array_equal(
+        analysis.frequency_states["testfluo_1"], expected_state_frequencies
+    )
+    assert all(
+        distribution.size == 0
+        for distribution in analysis.transition_time_distributions
+    )
+    assert all(
+        distribution.size == 0
+        for distribution in analysis.lifetime_distributions["testfluo_1"]
+    )
+    assert np.isnan(analysis.mean_transition_times).all()
+    assert np.isnan(analysis.mean_lifetimes["testfluo_1"]).all()
+    np.testing.assert_array_equal(
+        analysis.state_occupations["testfluo_1"],
+        np.zeros(expected_state_frequencies.size),
+    )
+
+
 def test_transition_frequencies_are_zero_without_observed_transitions(tr_set_1f):
     analysis = an.Analysis.__new__(an.Analysis)
     analysis.simulation = SimpleNamespace(transition_set=tr_set_1f)
