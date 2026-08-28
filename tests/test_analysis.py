@@ -1,4 +1,5 @@
 import logging
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -77,50 +78,35 @@ def test_analysis_1(request, caplog):
 
     with caplog.at_level(logging.WARNING):
         analysis.plot_frequency_transitions(prediction=pred_bl_2)
-        assert (
-            "prediction is based on different TransitionSet than simulation."
-            in caplog.text
-        )
+        assert "prediction uses a different TransitionSet object" in caplog.text
     caplog.clear()
 
     analysis.plot_frequency_transitions(prediction=pred_bl)
 
     with caplog.at_level(logging.WARNING):
         analysis.plot_frequency_states(prediction=pred_bl_2)
-        assert (
-            "prediction is based on different TransitionSet than simulation."
-            in caplog.text
-        )
+        assert "prediction uses a different TransitionSet object" in caplog.text
     caplog.clear()
 
     analysis.plot_frequency_states(prediction=pred_bl)
 
     with caplog.at_level(logging.WARNING):
         analysis.plot_mean_transition_times(prediction=pred_bl_2)
-        assert (
-            "prediction is based on different TransitionSet than simulation."
-            in caplog.text
-        )
+        assert "prediction uses a different TransitionSet object" in caplog.text
     caplog.clear()
 
     analysis.plot_mean_transition_times(prediction=pred_bl)
 
     with caplog.at_level(logging.WARNING):
         analysis.plot_mean_lifetimes(prediction=pred_bl_2)
-        assert (
-            "prediction is based on different TransitionSet than simulation."
-            in caplog.text
-        )
+        assert "prediction uses a different TransitionSet object" in caplog.text
     caplog.clear()
 
     analysis.plot_mean_lifetimes(prediction=pred_bl)
 
     with caplog.at_level(logging.WARNING):
         analysis.plot_state_occupations(prediction=pred_bl_2)
-        assert (
-            "prediction is based on different TransitionSet than simulation."
-            in caplog.text
-        )
+        assert "prediction uses a different TransitionSet object" in caplog.text
     caplog.clear()
 
     analysis.plot_state_occupations(prediction=pred_bl)
@@ -129,10 +115,7 @@ def test_analysis_1(request, caplog):
         analysis.plot_lifetime_distributions(
             fluorophore="testfluo_1", state_identity=0, prediction=pred_bl_2
         )
-        assert (
-            "prediction is based on different TransitionSet than simulation."
-            in caplog.text
-        )
+        assert "prediction uses a different TransitionSet object" in caplog.text
     caplog.clear()
 
     analysis.plot_lifetime_distributions(
@@ -143,15 +126,135 @@ def test_analysis_1(request, caplog):
         analysis.plot_transition_time_distributions(
             fluorophore="testfluo_1", transition_id=0, prediction=pred_bl_2
         )
-        assert (
-            "prediction is based on different TransitionSet than simulation."
-            in caplog.text
-        )
+        assert "prediction uses a different TransitionSet object" in caplog.text
     caplog.clear()
 
     analysis.plot_transition_time_distributions(
         fluorophore="testfluo_1", transition_id=0, prediction=pred_bl
     )
+
+
+def test_is_absorbing_is_determined_per_fluorophore(caplog, capsys):
+    transition_df = pd.DataFrame(
+        {
+            "absorbing": [True, False],
+            "final_state": [
+                SimpleNamespace(value=2),
+                SimpleNamespace(value=0),
+            ],
+        },
+        index=pd.MultiIndex.from_tuples([("A", 0), ("B", 1)]),
+    )
+    analysis = an.Analysis.__new__(an.Analysis)
+    analysis.simulation = SimpleNamespace(
+        transition_set=SimpleNamespace(
+            transition_df=transition_df,
+            fluorophore_system=SimpleNamespace(
+                fluorophores=[
+                    SimpleNamespace(name="A"),
+                    SimpleNamespace(name="B"),
+                ]
+            ),
+            states_by_value={2: SimpleNamespace(name="terminal")},
+        )
+    )
+    analysis.state_series = np.array([[0, 2], [2, 1]], dtype=np.int64)
+
+    with caplog.at_level(logging.INFO):
+        reached_absorbing_state = analysis.is_absorbing()
+
+    assert reached_absorbing_state
+    assert (
+        "fluorophore 0 has reached the Markovian absorbing state terminal"
+        in caplog.text
+    )
+    assert capsys.readouterr().out == ""
+
+
+def test_analysis_without_state_changes(tr_set_1f):
+    simulation = SimpleNamespace(
+        transition_set=tr_set_1f,
+        transition_series=np.array([], dtype=np.int64),
+        state_series=np.array([[0]], dtype=np.int64),
+        time_series=np.array([0.0]),
+    )
+
+    analysis = an.Analysis(simulation=simulation)
+
+    initial_state_index = np.where(tr_set_1f.single_states["testfluo_1"] == 0)[0][0]
+    expected_state_frequencies = np.zeros(tr_set_1f.single_states["testfluo_1"].size)
+    expected_state_frequencies[initial_state_index] = 1
+    np.testing.assert_array_equal(
+        analysis.frequency_states["testfluo_1"], expected_state_frequencies
+    )
+    assert all(
+        distribution.size == 0
+        for distribution in analysis.transition_time_distributions
+    )
+    assert all(
+        distribution.size == 0
+        for distribution in analysis.lifetime_distributions["testfluo_1"]
+    )
+    assert np.isnan(analysis.mean_transition_times).all()
+    assert np.isnan(analysis.mean_lifetimes["testfluo_1"]).all()
+    np.testing.assert_array_equal(
+        analysis.state_occupations["testfluo_1"],
+        np.zeros(expected_state_frequencies.size),
+    )
+
+
+def test_energy_transfer_time_is_recorded_only_for_donor_with_equal_source_states():
+    energy_transfer_label = "D: A, A: B, dist: 1"
+    transition_df = pd.DataFrame(
+        {"initial_state": [SimpleNamespace(donor=SimpleNamespace(value=1))]},
+        index=pd.MultiIndex.from_tuples([(energy_transfer_label, 0)]),
+    )
+    combined_transition_df = pd.DataFrame(
+        {"transition_id": [0], "fluorophore_ids": [[0, 1]]}
+    )
+    transition_set = SimpleNamespace(
+        transition_df=transition_df,
+        combined_state_transitions_df=combined_transition_df,
+        single_states={"A": np.array([0, 1]), "B": np.array([1, 2])},
+        fluorophore_system=SimpleNamespace(
+            fluorophores=[SimpleNamespace(name="A"), SimpleNamespace(name="B")]
+        ),
+    )
+    analysis = an.Analysis.__new__(an.Analysis)
+    analysis.simulation = SimpleNamespace(transition_set=transition_set)
+    analysis.transition_series = np.array([0], dtype=np.int64)
+    analysis.state_series = np.array([[1, 0], [1, 2]], dtype=np.int64)
+    analysis.time_series = np.array([0.0, 5.0])
+
+    transition_times, lifetimes = analysis.get_lifetimes()
+
+    np.testing.assert_array_equal(transition_times[0], np.array([5.0]))
+    np.testing.assert_array_equal(lifetimes["A"][1], np.array([5.0]))
+    np.testing.assert_array_equal(lifetimes["B"][0], np.array([5.0]))
+
+
+def test_transition_frequencies_are_zero_without_observed_transitions(tr_set_1f):
+    analysis = an.Analysis.__new__(an.Analysis)
+    analysis.simulation = SimpleNamespace(transition_set=tr_set_1f)
+    analysis.transition_series = np.array([], dtype=np.int64)
+
+    frequencies = analysis.get_transition_occurrences()
+
+    np.testing.assert_array_equal(frequencies, np.zeros(7))
+
+
+def test_plot_rejects_incompatible_transition_dimensions(sim_tr_set_1f_bl):
+    analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
+    prediction = SimpleNamespace(
+        transition_set=sim_tr_set_1f_bl.transition_set,
+        frequency_transitions=np.zeros(analysis.frequency_transitions.size - 1),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="prediction and simulation have incompatible transition dimensions",
+    ):
+        analysis.plot_frequency_transitions(prediction=prediction)
 
 
 # test with 2 fluorophores, with energy transfer

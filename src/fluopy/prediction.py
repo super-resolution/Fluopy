@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import re
+from itertools import product
 from typing import TYPE_CHECKING, Any, cast
 
 import matplotlib as mpl
@@ -38,16 +39,22 @@ class Prediction:
     energy_transfer : bool
         Whether the prediction was carried out on energy transfer systems.
     absorbing_chain : bool
-        Whether the prediction was carried out on an absorbing Markov chain.
+        Whether every fluorophore has at least one absorbing state and the prediction
+        was carried out on an absorbing Markov chain.
         Absorbing states have a lifetime of inf and a frequency / occupation of 0.
         Absorbing transitions have a frequency of 0.
     transition_set : fluopy.transitions.TransitionSet
         Collection of all relevant transitions and related attributes.
+    initial_state_index : int
+        Row of transition_set.combined_state_transitions_df whose final state defines
+        the initial combined state used for the prediction.
     frequency_transitions : npt.NDArray[np.float64]
-        Expected relative frequencies of each transition.
-    frequency_states : dict[str, float]
-        Name of fluorophores as keys and their state's expected relative frequencies
-        (array) as values.
+        Relative number of expected transition occurrences, normalized separately for
+        each fluorophore. Energy-transfer occurrences are assigned to the donor's
+        transition group.
+    frequency_states : dict[str, npt.NDArray[np.float64]]
+        Relative expected number of visits to each state, normalized separately for each
+        fluorophore.
     transition_time_distributions : npt.NDArray[object] | None
         Expected distributions of time until transition.
         Contains objects of type scipy.stats.*.rv_frozen for each transition.
@@ -64,25 +71,61 @@ class Prediction:
         as values.
         None if energy transfer is True.
     state_occupations : dict[str, npt.NDArray[np.float64]] | None
-        Name of fluorophores as keys and their state's expected probability of being
-        occupied at any given point in time (array) as values.
+        Relative time spent in each state, normalized separately for each fluorophore.
         None if energy transfer is True.
+
+    Notes
+    -----
+    Predictions are available for systems containing at most two fluorophores.
+
+    For non-absorbing systems, transition frequencies are approximated from a large
+    power of the transition matrix. This requires an irreducible, aperiodic Markov
+    chain for convergence to a unique limiting distribution.
+
+    Systems containing absorbing transitions are treated separately as absorbing
+    Markov chains. Predicted lifetimes and state occupations are not available for
+    systems containing energy transfer.
     """
 
-    def __init__(self, transition_set: TransitionSet, accuracy: float = 1e9) -> None:
+    def __init__(
+        self,
+        transition_set: TransitionSet,
+        matrix_power: float = 1e9,
+        initial_state_index: int = 0,
+    ) -> None:
         """
         Parameters
         ----------
         transition_set
             Collection of all relevant transitions and related attributes.
-        accuracy
-            Determines the exponent of matrix power. The higher, the more accurate up
-            to the point floating point precision impairs the result.
+        matrix_power
+            Exponent used to approximate the limiting distribution of a non-absorbing
+            transition matrix. Must be a positive integer-valued number. Larger values
+            allow more steps toward convergence but do not directly specify numerical
+            accuracy.
+        initial_state_index
+            Row of transition_set.combined_state_transitions_df whose final state
+            defines the initial combined state. This row is used in both absorbing and
+            non-absorbing predictions.
         """
+        if not np.isfinite(matrix_power) or matrix_power <= 0:
+            raise ValueError("matrix_power must be a positive, finite integer.")
+        if not float(matrix_power).is_integer():
+            raise ValueError("matrix_power must be an integer-valued number.")
+
         self.energy_transfer = False
         self.absorbing_chain = False
         if transition_set.fluorophore_system.count > 2:
             raise ValueError("prediction not available for more than 2 fluorophores.")
+        self.transition_set = transition_set
+        if not isinstance(initial_state_index, (int, np.integer)):
+            raise ValueError("initial_state_index must be an integer.")
+        if not 0 <= initial_state_index < transition_set.transition_matrix.shape[0]:
+            raise ValueError(
+                "initial_state_index must identify a row of the transition matrix."
+            )
+        self.initial_state_index = int(initial_state_index)
+        self._absorbing_state_combinations = self._get_absorbing_state_combinations()
         # too large matrix in np.linalg.matrix_power
         if any(
             _ENERGY_TRANSFER_LABEL.fullmatch(fluorophore_comb) is not None
@@ -96,25 +139,38 @@ class Prediction:
                 stacklevel=2,
             )
             self.energy_transfer = True
-        if transition_set.transition_df["absorbing"].any():
+        has_absorbing_states = bool(transition_set.transition_df["absorbing"].any())
+        if has_absorbing_states and not self._absorbing_state_combinations:
+            raise ValueError(
+                "absorbing states must be defined for every fluorophore or for none."
+            )
+        if self._absorbing_state_combinations:
             logger.warning(
                 "absorbing states have a lifetime of inf and a frequency / occupation "
                 "of 0. Absorbing transitions have a frequency of 0.",
                 stacklevel=2,
             )
             self.absorbing_chain = True
+            if len(self._absorbing_state_combinations) > 1:
+                logger.warning(
+                    "multiple absorbing combined states are available; predicted "
+                    "transition frequencies depend on initial_state_index.",
+                    stacklevel=2,
+                )
 
-        self.transition_set = transition_set
         self.transition_time_distributions: npt.NDArray[Any] | None
         self.lifetime_distributions: dict[str, npt.NDArray[Any]] | None
         self.mean_transition_times: npt.NDArray[np.float64] | None
         self.mean_lifetimes: dict[str, npt.NDArray[np.float64]] | None
         self.state_occupations: dict[str, npt.NDArray[np.float64]] | None
         if self.absorbing_chain:
-            self.frequency_transitions = self.predict_transition_occurrences_abs()
+            self.frequency_transitions = self.predict_transition_occurrences_absorbing(
+                initial_state_index=self.initial_state_index
+            )
         else:
             self.frequency_transitions = self.predict_transition_occurrences(
-                accuracy=int(accuracy)
+                matrix_power=int(matrix_power),
+                initial_state_index=self.initial_state_index,
             )
         self.frequency_states = self.predict_state_occurrences()
         if not self.energy_transfer:
@@ -135,26 +191,65 @@ class Prediction:
                 self.state_occupations,
             ) = (None, None, None, None, None)
 
-    def predict_transition_occurrences(self, accuracy: int) -> npt.NDArray[np.float64]:
+    def _get_absorbing_state_combinations(self) -> list[tuple[int, ...]]:
+        absorbing = self.transition_set.transition_df["absorbing"]
+        absorbing_transition_df = self.transition_set.transition_df[absorbing]
+        absorbing_states_by_fluorophore: list[npt.NDArray[np.int64]] = []
+        for fluorophore in self.transition_set.fluorophore_system.fluorophores:
+            if fluorophore.name not in absorbing_transition_df.index.get_level_values(
+                0
+            ):
+                return []
+            final_states = absorbing_transition_df["final_state"].xs(
+                fluorophore.name, level=0
+            )
+            absorbing_state_values = final_states.map(
+                lambda state: state.value
+            ).to_numpy(dtype=np.int64)
+            absorbing_states_by_fluorophore.append(np.unique(absorbing_state_values))
+
+        return [
+            tuple(int(state) for state in state_combination)
+            for state_combination in product(*absorbing_states_by_fluorophore)
+        ]
+
+    def predict_transition_occurrences(
+        self, matrix_power: int, initial_state_index: int = 0
+    ) -> npt.NDArray[np.float64]:
         """
         Predict the relative frequencies of transitions. Each different type of
         fluorophore's transitions frequencies sum up to 1.
 
+        Each energy-transfer event is counted as one transition occurrence, including
+        events that change both the donor and acceptor states. For normalization, an
+        energy-transfer occurrence is assigned only to the donor's transition group;
+        ordinary transitions are assigned to their respective fluorophore groups.
+
         Parameters
         ----------
-        accuracy
-            Determines the exponent of matrix power. The higher, the more accurate up
-            to the point floating point precision impairs the result.
+        matrix_power
+            Exponent used to approximate the limiting distribution of the transition
+            matrix.
+        initial_state_index
+            Row of the transition matrix used as the initial combined state.
 
         Returns
         -------
          npt.NDArray[np.float64]
-            Expected relative frequencies of each transition.
+            Expected relative frequencies of each transition. Frequencies remain 0 for
+            a fluorophore with no expected transitions.
+
+        Notes
+        -----
+        The transition matrix must describe an irreducible, aperiodic Markov chain for
+        its powers to converge to a unique limiting distribution.
         """
-        matrix_power = np.linalg.matrix_power(
-            self.transition_set.transition_matrix, n=accuracy
+        powered_transition_matrix = np.linalg.matrix_power(
+            self.transition_set.transition_matrix, n=matrix_power
         )
-        stationary_distribution_combined_state_transitions = matrix_power[0]
+        stationary_distribution_combined_state_transitions = powered_transition_matrix[
+            initial_state_index
+        ]
         # https://brilliant.org/wiki/stationary-distributions/
         frequency_transitions = np.zeros(self.transition_set.transition_df.shape[0])
         df = self.transition_set.combined_state_transitions_df
@@ -180,31 +275,47 @@ class Prediction:
                 grouper[d] = group.index.get_level_values(1).tolist()
 
         for _, indices in grouper.items():
-            frequency_transitions[indices] /= np.sum(frequency_transitions[indices])
+            total = np.sum(frequency_transitions[indices])
+            if total > 0:
+                frequency_transitions[indices] /= total
 
         return frequency_transitions
 
-    def predict_transition_occurrences_abs(self) -> npt.NDArray[np.float64]:
+    def predict_transition_occurrences_absorbing(
+        self, initial_state_index: int = 0
+    ) -> npt.NDArray[np.float64]:
         """
         Predict the relative frequencies of transitions. Absorbing transitions will
-        have the value 0.
+        have the value 0. Every combination of the fluorophores' absorbing states is
+        treated as an absorbing combined state.
+
+        Each energy-transfer event is counted as one transition occurrence, including
+        events that change both the donor and acceptor states. For normalization, an
+        energy-transfer occurrence is assigned only to the donor's transition group;
+        ordinary transitions are assigned to their respective fluorophore groups.
+
+        Parameters
+        ----------
+        initial_state_index
+            Row of the transition matrix used as the initial combined state.
 
         Returns
         -------
         npt.NDArray[np.float64]
-            Expected relative frequencies of each transition.
+            Expected relative frequencies of each transition. Frequencies remain 0 for
+            a fluorophore with no expected transitions.
         """
         transition_abs = self.transition_set.transition_df["absorbing"]
-        transition_abs_df = self.transition_set.transition_df[transition_abs]
-        abs_final_state_values: list[Any] = []
-        for fluorophore in self.transition_set.fluorophore_system.fluorophores:
-            states = transition_abs_df["final_state"].xs(fluorophore.name, level=0)
-            abs_final_state_values.append(states.iloc[0].value)
-        abs_final_state = tuple(abs_final_state_values)
         abs_indices = transition_abs[transition_abs].index.get_level_values(1)
         df = self.transition_set.combined_state_transitions_df
         abs_indices_combined = df[df["transition_id"].isin(abs_indices)].index
-        drop_transitions = df[df["final_state"] == abs_final_state].index
+        absorbing_state_combinations = set(self._absorbing_state_combinations)
+        drop_transitions = df.index[
+            df["final_state"].map(lambda state: state in absorbing_state_combinations)
+        ]
+        frequency_transitions = np.zeros(transition_abs.size)
+        if initial_state_index in drop_transitions:
+            return frequency_transitions
         drop_diff = abs_indices_combined[
             ~np.isin(abs_indices_combined, drop_transitions)
         ]
@@ -213,7 +324,10 @@ class Prediction:
         )
         I_t = get_I_t(Q=Q)
         N = get_N(I_t=I_t, Q=Q)
-        expected_transient_visits = N[0]
+        initial_transient_index = initial_state_index - np.count_nonzero(
+            drop_transitions < initial_state_index
+        )
+        expected_transient_visits = N[initial_transient_index]
         expected_visits = np.zeros(
             expected_transient_visits.size + drop_transitions.size,
             dtype=expected_transient_visits.dtype,
@@ -222,7 +336,6 @@ class Prediction:
         mask[drop_transitions] = False
         expected_visits[mask] = expected_transient_visits
         expected_visits[drop_diff] = 0
-        frequency_transitions = np.zeros(transition_abs.size)
         for _, i in self.transition_set.transition_df.index:
             indices = df.index[df["transition_id"] == i].tolist()
             frequency_transitions[i] = expected_visits[indices].sum()
@@ -243,7 +356,9 @@ class Prediction:
                 grouper[d] = group.index.get_level_values(1).tolist()
 
         for _, indices in grouper.items():
-            frequency_transitions[indices] /= np.sum(frequency_transitions[indices])
+            total = np.sum(frequency_transitions[indices])
+            if total > 0:
+                frequency_transitions[indices] /= total
 
         return frequency_transitions
 
@@ -252,11 +367,17 @@ class Prediction:
         Predict the relative frequencies of states. Each different type of fluorophore's
         states frequencies sum up to 1.
 
+        State visits are counted separately for each physical fluorophore. An
+        energy-transfer event therefore contributes a visit for both donor and
+        acceptor if both states change, while still representing one transition
+        occurrence.
+
         Returns
         -------
         frequency_states : dict[str, npt.NDArray[np.float64]]
             Name of fluorophores as keys and their state's expected relative
-            frequencies (array) as values.
+            frequencies (array) as values. Frequencies remain 0 if no state visits are
+            expected.
         """
         single_states = self.transition_set.single_states
         frequency_states = {
@@ -281,10 +402,6 @@ class Prediction:
                     )
                     if acceptor_i != acceptor_f:
                         index_2 = np.where(single_states_a == acceptor_f)[0][0]
-                        if d == a:
-                            factor = 0.5
-                            # factor to adjust that this energy transfer effects two
-                            # fluorophores of the same type, not only one
                         frequency_states[a][index_2] += (
                             self.frequency_transitions[identity] * factor
                         )
@@ -300,7 +417,9 @@ class Prediction:
                         index
                     ] += self.frequency_transitions[identity]
         for fluorophore, state_frequencies in frequency_states.items():
-            frequency_states[fluorophore] /= state_frequencies.sum()
+            total = state_frequencies.sum()
+            if total > 0:
+                frequency_states[fluorophore] /= total
 
         return frequency_states
 
@@ -380,7 +499,9 @@ class Prediction:
                 where=mean_lifetimes[fluorophore] != np.inf,
                 out=np.zeros(self.frequency_states[fluorophore].size),
             )
-            state_occupations[fluorophore] /= state_occupations[fluorophore].sum()
+            total_occupation = state_occupations[fluorophore].sum()
+            if total_occupation > 0:
+                state_occupations[fluorophore] /= total_occupation
 
         return mean_lifetimes, state_occupations
 

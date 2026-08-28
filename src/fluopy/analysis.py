@@ -39,11 +39,13 @@ class Analysis:
     ----------
     simulation : fluopy.simulation.Simulation
         Container for simulation-associated attributes.
-    frequency_transitions : 1-D array_like
-        Simulated relative frequencies of each transition.
-    frequency_states : dict
-        Name of fluorophores as keys and their state's simulated relative frequencies
-        (array) as values.
+    frequency_transitions : npt.NDArray[np.float64]
+        Relative number of simulated transition occurrences, normalized separately for
+        each fluorophore. Energy-transfer occurrences are assigned to the donor's
+        transition group.
+    frequency_states : dict[str, npt.NDArray[np.float64]]
+        Relative simulated number of visits to each state, normalized separately for
+        each fluorophore.
     transition_time_distributions : Collection
         Contains 1-D array_like for each transition (time until the transition).
     lifetime_distributions : dict
@@ -54,9 +56,8 @@ class Analysis:
     mean_lifetimes : dict
         Name of fluorophores as keys and their state's simulated lifetime means (array)
         as values.
-    state_occupations : dict
-        Name of fluorophores as keys and their state's simulated probability of being
-        occupied at any given point in time (array) as values.
+    state_occupations : dict[str, npt.NDArray[np.float64]]
+        Relative time spent in each state, normalized separately for each fluorophore.
     """
 
     def __init__(self, simulation: Simulation) -> None:
@@ -117,68 +118,66 @@ class Analysis:
 
     def is_absorbing(self) -> bool:
         """
-        Check whether fluorophores reached Markovian absorbing states.
+        Check whether any fluorophore reached one of its individual absorbing states.
 
         Returns
         -------
-        is_abs : bool
-            Whether at least one of the fluorophores has reached a Markovian absorbing
-            state.
+        bool
+            Whether at least one fluorophore reached one of its individual absorbing
+            states.
         """
-        from .transitions import SingleState
+        transition_df = self.simulation.transition_set.transition_df
+        absorbing_transition_df = transition_df[transition_df["absorbing"]]
+        absorbing_states: dict[str, npt.NDArray[np.int64]] = {}
+        for fluorophore_raw, transitions in absorbing_transition_df.groupby(level=0):
+            fluorophore = cast(str, fluorophore_raw)
+            absorbing_states[fluorophore] = np.unique(
+                transitions["final_state"]
+                .map(lambda state: state.value)
+                .to_numpy(dtype=np.int64)
+            )
 
-        initial_states = self.simulation.transition_set.transition_df[
-            "initial_state"
-        ].apply(lambda state: (state.value if isinstance(state, SingleState) else None))
-        initial_state_values = initial_states.dropna().astype(int).to_numpy()
-        absorbing_states: dict[str, list[int]] = {}
-        is_abs = False
-        for (
-            fluorophore,
-            single_states,
-        ) in self.simulation.transition_set.single_states.items():
-            for single_state in single_states:
-                if single_state not in initial_state_values:
-                    if fluorophore in absorbing_states:
-                        absorbing_states[fluorophore] += [single_state]
-                    else:
-                        absorbing_states[fluorophore] = [single_state]
+        reached_absorbing_state = False
         for i, state_series in enumerate(self.state_series):
             fluorophore_obj = (
                 self.simulation.transition_set.fluorophore_system.fluorophores[i]
             )
             last_state = state_series[-1]
-            if fluorophore_obj.name in absorbing_states:
-                if last_state in absorbing_states[fluorophore_obj.name]:
-                    is_abs = True
-                    print(
-                        f"fluorophore {i} has reached the Markovian absorbing state "
-                        f"{self.simulation.transition_set.states_by_value[last_state].name}"
-                    )
+            if last_state in absorbing_states.get(
+                fluorophore_obj.name, np.array([], dtype=np.int64)
+            ):
+                reached_absorbing_state = True
+                logger.info(
+                    "fluorophore %d has reached the Markovian absorbing state %s",
+                    i,
+                    self.simulation.transition_set.states_by_value[last_state].name,
+                )
 
-        return is_abs
+        return reached_absorbing_state
 
     def get_transition_occurrences(self) -> npt.NDArray[np.float64]:
         """
-        Get the relative frequencies of transitions.
+        Get the relative frequencies of simulated transition occurrences.
+
+        Each energy-transfer event is counted as one transition occurrence, including
+        events that change both the donor and acceptor states. For normalization, an
+        energy-transfer occurrence is assigned only to the donor's transition group;
+        ordinary transitions are assigned to their respective fluorophore groups.
 
         Returns
         -------
         frequency_transitions : npt.NDArray[np.float64]
-            Simulated relative frequencies of each transition.
+            Relative number of simulated transition occurrences, normalized separately
+            for each fluorophore. Frequencies remain 0 for a fluorophore with no
+            observed transitions.
         """
-        all_transition_occurrences = np.zeros(
-            shape=self.simulation.transition_set.transition_df.shape[0], dtype=np.int64
-        )
         df = self.simulation.transition_set.combined_state_transitions_df
-        for _, i in self.simulation.transition_set.transition_df.index:
-            indices = df.index[df["transition_id"] == i].tolist()
-            transition_occurrences = np.isin(self.transition_series, indices).nonzero()[
-                0
-            ]
-            all_transition_occurrences[i] = transition_occurrences.size
-
-        frequency_transitions = all_transition_occurrences.astype(np.float64)
+        transition_ids = df["transition_id"].to_numpy(dtype=np.int64)
+        simulated_transition_ids = transition_ids[self.transition_series]
+        frequency_transitions = np.bincount(
+            simulated_transition_ids,
+            minlength=self.simulation.transition_set.transition_df.shape[0],
+        ).astype(np.float64)
 
         grouper: dict[str, list[int]] = {}
         for (
@@ -197,19 +196,27 @@ class Analysis:
                 grouper[d] = group.index.get_level_values(1).tolist()
 
         for _, indices in grouper.items():
-            frequency_transitions[indices] /= np.sum(frequency_transitions[indices])
+            total = np.sum(frequency_transitions[indices])
+            if total > 0:
+                frequency_transitions[indices] /= total
 
         return frequency_transitions
 
     def get_state_occurrences(self) -> dict[str, npt.NDArray[np.float64]]:
         """
-        Get the relative frequencies of states.
+        Get the relative frequencies of simulated state visits.
+
+        State visits are counted separately for each physical fluorophore. An
+        energy-transfer event therefore contributes a visit for both donor and
+        acceptor if both states change, while still representing one transition
+        occurrence.
 
         Returns
         -------
         frequency_states : dict[str, npt.NDArray[np.float64]]
-            Name of fluorophores as keys and their state's simulated relative
-            frequencies (array) as values.
+            Relative simulated number of visits to each state, normalized separately
+            for each fluorophore. Frequencies remain 0 if no state visits were counted.
+            A trajectory without state changes counts as one visit to its initial state.
         """
         single_states = self.simulation.transition_set.single_states
         occurrences_states = {
@@ -221,9 +228,12 @@ class Analysis:
             )
             differences = np.diff(state_series_fluorophore)
             changes_at = np.where(differences != 0)[0]
-            last_state = changes_at[-1] + 1
-            changes_at_and_last = np.append(changes_at, last_state)
-            states = state_series_fluorophore[changes_at_and_last]
+            if changes_at.size == 0:
+                states = state_series_fluorophore[:1]
+            else:
+                last_state = changes_at[-1] + 1
+                changes_at_and_last = np.append(changes_at, last_state)
+                states = state_series_fluorophore[changes_at_and_last]
             state_ids, state_counts = np.unique(states, return_counts=True)
             _, corresponding_indices, _ = np.intersect1d(
                 ar1=single_states[fluorophore],
@@ -234,9 +244,12 @@ class Analysis:
 
             occurrences_states[fluorophore][corresponding_indices] += state_counts
 
-        frequency_states = {
-            key: array / np.sum(array) for key, array in occurrences_states.items()
-        }
+        frequency_states = {}
+        for fluorophore, occurrences in occurrences_states.items():
+            total = np.sum(occurrences)
+            frequency_states[fluorophore] = (
+                occurrences / total if total > 0 else occurrences
+            )
 
         return frequency_states
 
@@ -249,8 +262,16 @@ class Analysis:
         """
         Get the lifetime distributions of states and the time until occurrence
         distributions of transitions.
-        Note: if transition of interest is energy transfer, the time to transition is
-        only collected from the donor's point of view.
+
+        An energy-transfer event that does not change the acceptor state does not
+        interrupt the acceptor's state lifetime. For energy-transfer transitions, time
+        to transition is collected only from the donor's point of view. State lifetime
+        distributions, including those of S1, do not distinguish intervals in which
+        energy transfer was possible from intervals in which it was not.
+
+        Only completed residence intervals are included; the final right-censored
+        interval is excluded. A fluorophore without state changes therefore contributes
+        no lifetime samples.
 
         Returns
         -------
@@ -261,55 +282,76 @@ class Analysis:
             lifetimes (1-D array_like) as values.
         """
         single_states = self.simulation.transition_set.single_states
-        df = self.simulation.transition_set.combined_state_transitions_df
-        lifetime_distributions: dict[str, list[npt.NDArray[np.float64]]] = {
-            key: [np.array([], dtype=np.float64) for _ in range(len(value))]
-            for key, value in single_states.items()
+        combined_transition_df = (
+            self.simulation.transition_set.combined_state_transitions_df
+        )
+        lifetime_parts: dict[str, list[list[npt.NDArray[np.float64]]]] = {
+            key: [[] for _ in range(len(value))] for key, value in single_states.items()
         }
-
-        transition_time_distributions: list[npt.NDArray[np.float64]] = [
-            np.array([], dtype=np.float64)
-            for _ in range(self.simulation.transition_set.transition_df.shape[0])
+        transition_time_parts: list[list[npt.NDArray[np.float64]]] = [
+            [] for _ in range(self.simulation.transition_set.transition_df.shape[0])
         ]
+        transition_ids = combined_transition_df["transition_id"].to_numpy(
+            dtype=np.int64
+        )
 
-        for i, state_series_fluorophore in enumerate(self.state_series):
+        for fluorophore_id, fluorophore_state_series in enumerate(self.state_series):
             fluorophore = (
-                self.simulation.transition_set.fluorophore_system.fluorophores[i].name
+                self.simulation.transition_set.fluorophore_system.fluorophores[
+                    fluorophore_id
+                ].name
             )
-            differences = np.diff(state_series_fluorophore)
-            changes_at = np.where(differences != 0)[0]
-            changed = changes_at + 1
-            initial_single_states = state_series_fluorophore[changes_at]
-            total_times = self.time_series[changed]
-            time_intervals = np.diff(total_times)
-            time_intervals = np.insert(arr=time_intervals, obj=0, values=total_times[0])
-            for j, state in enumerate(single_states[fluorophore]):
-                time_intervals_state = time_intervals[
-                    np.where(initial_single_states == state)
+            state_differences = np.diff(fluorophore_state_series)
+            change_indices = np.where(state_differences != 0)[0]
+            if change_indices.size == 0:
+                continue
+            changed_state_indices = change_indices + 1
+            initial_states = fluorophore_state_series[change_indices]
+            state_change_times = self.time_series[changed_state_indices]
+            residence_times = np.diff(state_change_times)
+            residence_times = np.insert(
+                arr=residence_times,
+                obj=0,
+                values=state_change_times[0],
+            )
+            for state_index, state in enumerate(single_states[fluorophore]):
+                state_residence_times = residence_times[
+                    np.where(initial_states == state)
                 ]
-                lifetime_distributions[fluorophore][j] = np.concatenate(
-                    [lifetime_distributions[fluorophore][j], time_intervals_state]
+                lifetime_parts[fluorophore][state_index].append(state_residence_times)
+
+            combined_transition_indices = self.transition_series[change_indices]
+            transition_ids_at_changes = transition_ids[combined_transition_indices]
+            involved_fluorophore_ids = combined_transition_df[
+                "fluorophore_ids"
+            ].to_numpy(dtype=object)[combined_transition_indices]
+            initiating_fluorophore_ids = np.array(
+                [fluorophore_ids[0] for fluorophore_ids in involved_fluorophore_ids],
+                dtype=np.int64,
+            )
+            for (
+                transition_group,
+                transition_id,
+            ) in self.simulation.transition_set.transition_df.index:
+                occurrence_mask = transition_ids_at_changes == transition_id
+                if _ENERGY_TRANSFER_LABEL.fullmatch(transition_group) is not None:
+                    occurrence_mask &= initiating_fluorophore_ids == fluorophore_id
+
+                transition_time_parts[transition_id].append(
+                    residence_times[occurrence_mask]
                 )
 
-            transitions_fluorophore = self.transition_series[changes_at]
-            for h, j in self.simulation.transition_set.transition_df.index:
-                indices = df.index[df["transition_id"] == j].tolist()
-                transition_occurrences = np.isin(
-                    transitions_fluorophore, indices
-                ).nonzero()[0]
-                if _ENERGY_TRANSFER_LABEL.fullmatch(h) is not None:
-                    source_donor = self.simulation.transition_set.transition_df.loc[
-                        (h, j), "initial_state"
-                    ].donor.value
-                    donor_indices = np.where(initial_single_states == source_donor)[0]
-                    transition_occurrences = transition_occurrences[
-                        np.isin(transition_occurrences, donor_indices)
-                    ]
-
-                time_intervals_transition = time_intervals[transition_occurrences]
-                transition_time_distributions[j] = np.concatenate(
-                    [transition_time_distributions[j], time_intervals_transition]
-                )
+        lifetime_distributions = {
+            fluorophore: [
+                np.concatenate(parts) if parts else np.array([], dtype=np.float64)
+                for parts in state_parts
+            ]
+            for fluorophore, state_parts in lifetime_parts.items()
+        }
+        transition_time_distributions = [
+            np.concatenate(parts) if parts else np.array([], dtype=np.float64)
+            for parts in transition_time_parts
+        ]
 
         return transition_time_distributions, lifetime_distributions
 
@@ -317,7 +359,8 @@ class Analysis:
         self,
     ) -> tuple[dict[str, npt.NDArray[np.float64]], dict[str, npt.NDArray[np.float64]]]:
         """
-        Infers statistics of states based on lifetime distributions and frequencies.
+        Infer mean lifetimes and relative state occupations from lifetime distributions
+        and state frequencies.
 
         Returns
         -------
@@ -325,8 +368,8 @@ class Analysis:
             Name of fluorophores as keys and their state's simulated lifetime means
             (array) as values.
         state_occupations : dict[str, npt.NDArray[np.float64]]
-            Name of fluorophores as keys and their state's simulated probability of
-            being occupied at any given point in time (array) as values.
+            Relative time spent in each state, normalized separately for each
+            fluorophore.
         """
         mean_lifetimes: dict[str, npt.NDArray[np.float64]] = {}
         state_occupations: dict[str, npt.NDArray[np.float64]] = {}
@@ -343,7 +386,9 @@ class Analysis:
                 where=~np.isnan(mean_lifetimes[fluorophore]),
                 out=np.zeros(self.frequency_states[fluorophore].size),
             )
-            state_occupations[fluorophore] /= state_occupations[fluorophore].sum()
+            total_occupation = state_occupations[fluorophore].sum()
+            if total_occupation > 0:
+                state_occupations[fluorophore] /= total_occupation
 
         return mean_lifetimes, state_occupations
 
@@ -438,7 +483,7 @@ class Analysis:
         **kwargs: Any,
     ) -> fi.AxesArray:
         """
-        Plot frequencies of transitions.
+        Plot relative frequencies of simulated transition occurrences.
 
         Parameters
         ----------
@@ -454,38 +499,52 @@ class Analysis:
         npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
-        df = self.simulation.transition_set.transition_df
-        dat = self.frequency_transitions
+        transition_df = self.simulation.transition_set.transition_df
+        frequencies = self.frequency_transitions
         if not diff_dist:
-            df, dict2, dict_values = no_diff_dist(
-                transition_df=df,
-                fluorophores=self.simulation.transition_set.single_states.keys(),
+            transition_df, discarded_ids_by_retained_position, discarded_ids = (
+                no_diff_dist(
+                    transition_df=transition_df,
+                    fluorophores=self.simulation.transition_set.single_states.keys(),
+                )
             )
-            data2 = np.delete(dat, dict_values)
-            for key, values in dict2.items():
-                data2[key] += np.sum(dat[values])
-            dat = data2
-        data = [np.arange(df.shape[0]), dat]
+            collapsed_frequencies = np.delete(frequencies, discarded_ids)
+            for (
+                retained_position,
+                discarded_transition_ids,
+            ) in discarded_ids_by_retained_position.items():
+                collapsed_frequencies[retained_position] += np.sum(
+                    frequencies[discarded_transition_ids]
+                )
+            frequencies = collapsed_frequencies
+        data = [np.arange(transition_df.shape[0]), frequencies]
         kwargs.setdefault("type_", "bar")
         kwargs.setdefault("xlabel", None)
         kwargs.setdefault("yscale", "log")
         kwargs.setdefault("edgecolor", "black")
-        kwargs.setdefault("xticks", range(df.shape[0]))
+        kwargs.setdefault("xticks", range(transition_df.shape[0]))
         kwargs.setdefault(
             "xticklabels",
-            dict(labels=df["abbreviation"].apply(format_transition), rotation=70),
+            dict(
+                labels=transition_df["abbreviation"].apply(format_transition),
+                rotation=70,
+            ),
         )
         colormap = mpl.colors.ListedColormap(
             [
                 mpl.colormaps["Spectral"](value)
-                for value in np.linspace(0, 1, df.index.get_level_values(0).nunique())
+                for value in np.linspace(
+                    0, 1, transition_df.index.get_level_values(0).nunique()
+                )
             ]
         )
         kwargs.setdefault(
             "color",
             [
                 colormap(i)
-                for i, size in enumerate(df.groupby(level=0, sort=False).size())
+                for i, size in enumerate(
+                    transition_df.groupby(level=0, sort=False).size()
+                )
                 for _ in range(size)
             ],
         )
@@ -503,7 +562,9 @@ class Analysis:
                         else name
                     ),
                 )
-                for i, name in enumerate(df.index.get_level_values(0).unique())
+                for i, name in enumerate(
+                    transition_df.index.get_level_values(0).unique()
+                )
             ],
         )
 
@@ -511,10 +572,22 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 logger.warning(
-                    "prediction is based on different TransitionSet than simulation.",
+                    "prediction uses a different TransitionSet object; verify that "
+                    "states and transition ordering are compatible.",
                     stacklevel=2,
                 )
-            draw_marker = [np.arange(df.shape[0]), prediction.frequency_transitions]
+            predicted_frequencies = prediction.frequency_transitions
+            # Prediction supports at most one distance for each fluorophore pair, so
+            # distance-specific collapsing is only required for the simulation.
+            if predicted_frequencies.shape != frequencies.shape:
+                raise ValueError(
+                    "prediction and simulation have incompatible transition "
+                    "dimensions."
+                )
+            draw_marker = [
+                np.arange(transition_df.shape[0]),
+                predicted_frequencies,
+            ]
 
         axes = fi.universal_figure(data=data, draw_marker=draw_marker, **kwargs)
 
@@ -524,7 +597,7 @@ class Analysis:
         self, prediction: Prediction | None = None, **kwargs: Any
     ) -> fi.AxesArray:
         """
-        Plot frequencies of states.
+        Plot relative frequencies of simulated state visits.
 
         Parameters
         ----------
@@ -581,17 +654,23 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 logger.warning(
-                    "prediction is based on different TransitionSet than simulation.",
+                    "prediction uses a different TransitionSet object; verify that "
+                    "states and transition ordering are compatible.",
                     stacklevel=2,
+                )
+            predicted_frequencies = np.concatenate(
+                [
+                    prediction.frequency_states[fluorophore]
+                    for fluorophore in single_states
+                ]
+            )
+            if predicted_frequencies.shape != data_merged.shape:
+                raise ValueError(
+                    "prediction and simulation have incompatible state dimensions."
                 )
             draw_marker = [
                 np.arange(xticks),
-                np.concatenate(
-                    [
-                        prediction.frequency_states[fluorophore]
-                        for fluorophore in single_states
-                    ]
-                ),
+                predicted_frequencies,
             ]
 
         axes = fi.universal_figure(data=data, draw_marker=draw_marker, **kwargs)
@@ -621,45 +700,65 @@ class Analysis:
         npt.NDArray[mplAxes]
             Contains matplotlib.axes._subplots.AxesSubplots.
         """
-        df = self.simulation.transition_set.transition_df
-        dat = self.mean_transition_times
+        transition_df = self.simulation.transition_set.transition_df
+        mean_transition_times = self.mean_transition_times
         if not diff_dist:
-            df, dict2, dict_values = no_diff_dist(
-                transition_df=df,
-                fluorophores=self.simulation.transition_set.single_states.keys(),
+            transition_df, discarded_ids_by_retained_position, discarded_ids = (
+                no_diff_dist(
+                    transition_df=transition_df,
+                    fluorophores=self.simulation.transition_set.single_states.keys(),
+                )
             )
-            data2 = [
-                val
-                for i, val in enumerate(self.transition_time_distributions)
-                if i not in dict_values
+            collapsed_distributions = [
+                distribution
+                for i, distribution in enumerate(self.transition_time_distributions)
+                if i not in discarded_ids
             ]
-            for key, values in dict2.items():
-                for value in values:
-                    data2[key] = np.concatenate(
-                        (data2[key], self.transition_time_distributions[value])
+            for (
+                retained_position,
+                discarded_transition_ids,
+            ) in discarded_ids_by_retained_position.items():
+                for transition_id in discarded_transition_ids:
+                    collapsed_distributions[retained_position] = np.concatenate(
+                        (
+                            collapsed_distributions[retained_position],
+                            self.transition_time_distributions[transition_id],
+                        )
                     )
-            dat = np.array([(np.mean(d) if d.size > 0 else np.nan) for d in data2])
-        data = [np.arange(df.shape[0]), dat]
+            mean_transition_times = np.array(
+                [
+                    np.mean(distribution) if distribution.size > 0 else np.nan
+                    for distribution in collapsed_distributions
+                ]
+            )
+        data = [np.arange(transition_df.shape[0]), mean_transition_times]
         kwargs.setdefault("type_", "bar")
         kwargs.setdefault("xlabel", None)
         kwargs.setdefault("yscale", "log")
         kwargs.setdefault("edgecolor", "black")
-        kwargs.setdefault("xticks", range(df.shape[0]))
+        kwargs.setdefault("xticks", range(transition_df.shape[0]))
         kwargs.setdefault(
             "xticklabels",
-            dict(labels=df["abbreviation"].apply(format_transition), rotation=70),
+            dict(
+                labels=transition_df["abbreviation"].apply(format_transition),
+                rotation=70,
+            ),
         )
         colormap = mpl.colors.ListedColormap(
             [
                 mpl.colormaps["Spectral"](value)
-                for value in np.linspace(0, 1, df.index.get_level_values(0).nunique())
+                for value in np.linspace(
+                    0, 1, transition_df.index.get_level_values(0).nunique()
+                )
             ]
         )
         kwargs.setdefault(
             "color",
             [
                 colormap(i)
-                for i, size in enumerate(df.groupby(level=0, sort=False).size())
+                for i, size in enumerate(
+                    transition_df.groupby(level=0, sort=False).size()
+                )
                 for _ in range(size)
             ],
         )
@@ -677,7 +776,9 @@ class Analysis:
                         else name
                     ),
                 )
-                for i, name in enumerate(df.index.get_level_values(0).unique())
+                for i, name in enumerate(
+                    transition_df.index.get_level_values(0).unique()
+                )
             ],
         )
 
@@ -685,7 +786,8 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 logger.warning(
-                    "prediction is based on different TransitionSet than simulation.",
+                    "prediction uses a different TransitionSet object; verify that "
+                    "states and transition ordering are compatible.",
                     stacklevel=2,
                 )
             if prediction.energy_transfer:
@@ -696,7 +798,14 @@ class Analysis:
             predicted_means = prediction.mean_transition_times
             if predicted_means is None:
                 raise ValueError("predicted mean transition times are unavailable.")
-            draw_marker = [np.arange(df.shape[0]), predicted_means]
+            # Prediction supports at most one distance for each fluorophore pair, so
+            # distance-specific collapsing is only required for the simulation.
+            if predicted_means.shape != mean_transition_times.shape:
+                raise ValueError(
+                    "prediction and simulation have incompatible transition "
+                    "dimensions."
+                )
+            draw_marker = [np.arange(transition_df.shape[0]), predicted_means]
 
         axes = fi.universal_figure(data=data, draw_marker=draw_marker, **kwargs)
 
@@ -764,7 +873,8 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 logger.warning(
-                    "prediction is based on different TransitionSet than simulation.",
+                    "prediction uses a different TransitionSet object; verify that "
+                    "states and transition ordering are compatible.",
                     stacklevel=2,
                 )
             if prediction.energy_transfer:
@@ -775,11 +885,16 @@ class Analysis:
             predicted_lifetimes = prediction.mean_lifetimes
             if predicted_lifetimes is None:
                 raise ValueError("predicted mean lifetimes are unavailable.")
+            predicted_lifetimes_merged = np.concatenate(
+                [predicted_lifetimes[fluorophore] for fluorophore in single_states]
+            )
+            if predicted_lifetimes_merged.shape != data_merged.shape:
+                raise ValueError(
+                    "prediction and simulation have incompatible state dimensions."
+                )
             draw_marker = [
                 np.arange(xticks),
-                np.concatenate(
-                    [predicted_lifetimes[fluorophore] for fluorophore in single_states]
-                ),
+                predicted_lifetimes_merged,
             ]
 
         axes = fi.universal_figure(data=data, draw_marker=draw_marker, **kwargs)
@@ -790,7 +905,7 @@ class Analysis:
         self, prediction: Prediction | None = None, **kwargs: Any
     ) -> fi.AxesArray:
         """
-        Plot state occupation times (relative total time spent in state).
+        Plot the relative time spent in each state.
 
         Parameters
         ----------
@@ -847,7 +962,8 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 logger.warning(
-                    "prediction is based on different TransitionSet than simulation.",
+                    "prediction uses a different TransitionSet object; verify that "
+                    "states and transition ordering are compatible.",
                     stacklevel=2,
                 )
             if prediction.energy_transfer:
@@ -858,14 +974,16 @@ class Analysis:
             predicted_occupations = prediction.state_occupations
             if predicted_occupations is None:
                 raise ValueError("predicted state occupations are unavailable.")
+            predicted_occupations_merged = np.concatenate(
+                [predicted_occupations[fluorophore] for fluorophore in single_states]
+            )
+            if predicted_occupations_merged.shape != data_merged.shape:
+                raise ValueError(
+                    "prediction and simulation have incompatible state dimensions."
+                )
             draw_marker = [
                 np.arange(xticks),
-                np.concatenate(
-                    [
-                        predicted_occupations[fluorophore]
-                        for fluorophore in single_states
-                    ]
-                ),
+                predicted_occupations_merged,
             ]
 
         axes = fi.universal_figure(data=data, draw_marker=draw_marker, **kwargs)
@@ -918,7 +1036,8 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 logger.warning(
-                    "prediction is based on different TransitionSet than simulation.",
+                    "prediction uses a different TransitionSet object; verify that "
+                    "states and transition ordering are compatible.",
                     stacklevel=2,
                 )
             if prediction.energy_transfer:
@@ -986,7 +1105,8 @@ class Analysis:
         if prediction is not None:
             if prediction.transition_set is not self.simulation.transition_set:
                 logger.warning(
-                    "prediction is based on different TransitionSet than simulation.",
+                    "prediction uses a different TransitionSet object; verify that "
+                    "states and transition ordering are compatible.",
                     stacklevel=2,
                 )
             if prediction.energy_transfer:
@@ -1033,52 +1153,71 @@ def no_diff_dist(transition_df: pd.DataFrame, fluorophores: Iterable[str]) -> tu
 
     Returns
     -------
-    df2 : pd.DataFrame
-        Altered transition_df.
-    dict2 : dict[str, Any]
-        New indices of type of energy transfer as keys and the old indices of distance-
-        dependent duplices as values.
-    dict2_vals : npt.NDArray[np.float64]
-        Flattened array of the values of dict2.
+    collapsed_transition_df : pd.DataFrame
+        Transition dataframe containing one distance for each energy-transfer pair.
+    discarded_ids_by_retained_position : dict[int, pd.Index[Any]]
+        Positions of retained transitions as keys and the corresponding discarded
+        distance-specific transition IDs as values.
+    discarded_ids : npt.NDArray[np.int64]
+        Flattened array of discarded distance-specific transition IDs.
     """
-    df2 = transition_df.copy()
-    level_0 = df2.index.get_level_values(0)
-    level_1 = df2.index.get_level_values(1)
-    level_0_unique = level_0.unique()
+    collapsed_transition_df = transition_df.copy()
+    group_labels = collapsed_transition_df.index.get_level_values(0)
+    transition_ids = collapsed_transition_df.index.get_level_values(1)
+    unique_group_labels = group_labels.unique()
     fluorophore_names = set(fluorophores)
     labels_by_pair: dict[tuple[str, str], list[str]] = {}
-    for name in level_0_unique:
-        match = _ENERGY_TRANSFER_LABEL.fullmatch(name)
+    for group_label in unique_group_labels:
+        match = _ENERGY_TRANSFER_LABEL.fullmatch(group_label)
         if match is None:
             continue
         donor, acceptor, _ = match.groups()
         if donor in fluorophore_names:
-            labels_by_pair.setdefault((donor, acceptor), []).append(name)
+            labels_by_pair.setdefault((donor, acceptor), []).append(group_label)
 
-    dict1: dict[str, pd.Index[Any]] = {}
-    discard = []
-    for different_names in labels_by_pair.values():
-        to_keep = different_names[0]
-        to_discard = different_names[1:]
-        if not to_discard:
+    discarded_ids_by_retained_label: dict[str, pd.Index[Any]] = {}
+    discarded_group_labels: list[str] = []
+    for distance_labels in labels_by_pair.values():
+        retained_label = distance_labels[0]
+        discarded_labels = distance_labels[1:]
+        if not discarded_labels:
             continue
-        corresponding_level1 = level_1[level_0.isin(to_discard)]
-        dict1[to_keep] = corresponding_level1
-        discard.extend(to_discard)
+        corresponding_transition_ids = transition_ids[
+            group_labels.isin(discarded_labels)
+        ]
+        discarded_ids_by_retained_label[retained_label] = corresponding_transition_ids
+        discarded_group_labels.extend(discarded_labels)
 
-    df2 = df2[~df2.index.get_level_values(0).isin(discard)]
-    df2.index = pd.MultiIndex.from_arrays(
-        [df2.index.get_level_values(0), range(len(df2))]
+    collapsed_transition_df = collapsed_transition_df[
+        ~collapsed_transition_df.index.get_level_values(0).isin(discarded_group_labels)
+    ]
+    collapsed_transition_df.index = pd.MultiIndex.from_arrays(
+        [
+            collapsed_transition_df.index.get_level_values(0),
+            range(len(collapsed_transition_df)),
+        ]
     )
-    dict2: dict[int, pd.Index[Any]] = {}
-    for key, values in dict1.items():
-        df_subset = df2.loc[key]
-        size = df_subset.shape[0]
-        for i in range(size):
-            new_index = cast(int, df_subset.index[i])
-            dict2[new_index] = values[i::size]
-    dict2_vals = np.concatenate(
-        [values.to_numpy(dtype=np.int64) for values in dict2.values()]
+    discarded_ids_by_retained_position: dict[int, pd.Index[Any]] = {}
+    for (
+        retained_label,
+        discarded_transition_ids,
+    ) in discarded_ids_by_retained_label.items():
+        retained_group = collapsed_transition_df.loc[retained_label]
+        transitions_per_distance = retained_group.shape[0]
+        for i in range(transitions_per_distance):
+            retained_position = cast(int, retained_group.index[i])
+            discarded_ids_by_retained_position[retained_position] = (
+                discarded_transition_ids[i::transitions_per_distance]
+            )
+    discarded_ids = np.concatenate(
+        [
+            values.to_numpy(dtype=np.int64)
+            for values in discarded_ids_by_retained_position.values()
+        ]
     )
 
-    return df2, dict2, dict2_vals
+    return (
+        collapsed_transition_df,
+        discarded_ids_by_retained_position,
+        discarded_ids,
+    )
