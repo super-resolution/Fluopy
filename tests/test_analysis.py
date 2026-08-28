@@ -134,6 +134,43 @@ def test_analysis_1(request, caplog):
     )
 
 
+def test_is_absorbing_is_determined_per_fluorophore(caplog, capsys):
+    transition_df = pd.DataFrame(
+        {
+            "absorbing": [True, False],
+            "final_state": [
+                SimpleNamespace(value=2),
+                SimpleNamespace(value=0),
+            ],
+        },
+        index=pd.MultiIndex.from_tuples([("A", 0), ("B", 1)]),
+    )
+    analysis = an.Analysis.__new__(an.Analysis)
+    analysis.simulation = SimpleNamespace(
+        transition_set=SimpleNamespace(
+            transition_df=transition_df,
+            fluorophore_system=SimpleNamespace(
+                fluorophores=[
+                    SimpleNamespace(name="A"),
+                    SimpleNamespace(name="B"),
+                ]
+            ),
+            states_by_value={2: SimpleNamespace(name="terminal")},
+        )
+    )
+    analysis.state_series = np.array([[0, 2], [2, 1]], dtype=np.int64)
+
+    with caplog.at_level(logging.INFO):
+        reached_absorbing_state = analysis.is_absorbing()
+
+    assert reached_absorbing_state
+    assert (
+        "fluorophore 0 has reached the Markovian absorbing state terminal"
+        in caplog.text
+    )
+    assert capsys.readouterr().out == ""
+
+
 def test_transition_frequencies_are_zero_without_observed_transitions(tr_set_1f):
     analysis = an.Analysis.__new__(an.Analysis)
     analysis.simulation = SimpleNamespace(transition_set=tr_set_1f)

@@ -117,46 +117,42 @@ class Analysis:
 
     def is_absorbing(self) -> bool:
         """
-        Check whether fluorophores reached Markovian absorbing states.
+        Check whether any fluorophore reached one of its individual absorbing states.
 
         Returns
         -------
-        is_abs : bool
-            Whether at least one of the fluorophores has reached a Markovian absorbing
-            state.
+        bool
+            Whether at least one fluorophore reached one of its individual absorbing
+            states.
         """
-        from .transitions import SingleState
+        transition_df = self.simulation.transition_set.transition_df
+        absorbing_transition_df = transition_df[transition_df["absorbing"]]
+        absorbing_states: dict[str, npt.NDArray[np.int64]] = {}
+        for fluorophore_raw, transitions in absorbing_transition_df.groupby(level=0):
+            fluorophore = cast(str, fluorophore_raw)
+            absorbing_states[fluorophore] = np.unique(
+                transitions["final_state"]
+                .map(lambda state: state.value)
+                .to_numpy(dtype=np.int64)
+            )
 
-        initial_states = self.simulation.transition_set.transition_df[
-            "initial_state"
-        ].apply(lambda state: (state.value if isinstance(state, SingleState) else None))
-        initial_state_values = initial_states.dropna().astype(int).to_numpy()
-        absorbing_states: dict[str, list[int]] = {}
-        is_abs = False
-        for (
-            fluorophore,
-            single_states,
-        ) in self.simulation.transition_set.single_states.items():
-            for single_state in single_states:
-                if single_state not in initial_state_values:
-                    if fluorophore in absorbing_states:
-                        absorbing_states[fluorophore] += [single_state]
-                    else:
-                        absorbing_states[fluorophore] = [single_state]
+        reached_absorbing_state = False
         for i, state_series in enumerate(self.state_series):
             fluorophore_obj = (
                 self.simulation.transition_set.fluorophore_system.fluorophores[i]
             )
             last_state = state_series[-1]
-            if fluorophore_obj.name in absorbing_states:
-                if last_state in absorbing_states[fluorophore_obj.name]:
-                    is_abs = True
-                    print(
-                        f"fluorophore {i} has reached the Markovian absorbing state "
-                        f"{self.simulation.transition_set.states_by_value[last_state].name}"
-                    )
+            if last_state in absorbing_states.get(
+                fluorophore_obj.name, np.array([], dtype=np.int64)
+            ):
+                reached_absorbing_state = True
+                logger.info(
+                    "fluorophore %d has reached the Markovian absorbing state %s",
+                    i,
+                    self.simulation.transition_set.states_by_value[last_state].name,
+                )
 
-        return is_abs
+        return reached_absorbing_state
 
     def get_transition_occurrences(self) -> npt.NDArray[np.float64]:
         """
