@@ -78,7 +78,7 @@ def get_bleaching_times(simulation: Simulation) -> npt.NDArray[np.float64]:
         raise ValueError("bleaching times require a completed simulation.")
     df = simulation.transition_set.transition_df
     absorbing_final_states = df[df["absorbing"]]["final_state"]
-    bleached_state_values = [x.value for x in absorbing_final_states]
+    bleached_state_values = np.unique([x.value for x in absorbing_final_states])
     if len(bleached_state_values) == 1:
         bleached_state = bleached_state_values[0]
     elif len(bleached_state_values) == 0:
