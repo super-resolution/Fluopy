@@ -564,6 +564,19 @@ def test_plot_histogram_without_included_counts():
         emis.plot_histogram(include_0=False)
 
 
+@pytest.mark.parametrize(
+    "plot_method",
+    ["plot_cumulative_events", "plot_histogram", "plot_time_series"],
+)
+def test_emissions_plot_methods(plot_method):
+    emis = em.Emissions()
+    emis.event_time_series = pd.Series([0, 1, 2], index=[0.0, 0.005, 0.01])
+
+    ax = getattr(emis, plot_method)()
+
+    assert ax.has_data()
+
+
 def test_save_and_load(request, tmp_path, caplog):
     with caplog.at_level(logging.WARNING):
         em_tr_set_1f_bl = request.getfixturevalue("em_tr_set_1f_bl")
