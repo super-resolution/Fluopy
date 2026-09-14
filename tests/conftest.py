@@ -4,6 +4,7 @@ os.environ.setdefault("MPLBACKEND", "Agg")
 
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
@@ -12,6 +13,12 @@ from fluopy import fluorophores as fl
 from fluopy import prediction as pr
 from fluopy import simulation as si
 from fluopy import transitions as tr
+
+
+@pytest.fixture(autouse=True)
+def close_matplotlib_figures():
+    yield
+    plt.close("all")
 
 
 @pytest.fixture()
