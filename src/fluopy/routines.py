@@ -193,7 +193,7 @@ def fingerprint_analysis(
     ]
     for i in range(batches):
         output_file_run = Path(filepath) / f"single_runs_{filename}_batch_{i}.parquet"
-        df: pd.DataFrame | pd.Series[Any] | None = None
+        batch_data: list[pd.Series[Any]] = []
         for j in range(batch_size):
             simulation = si.Simulation(transition_set=transition_set)
             simulation.run(
@@ -230,20 +230,18 @@ def fingerprint_analysis(
             if event_time_series is None:
                 raise RuntimeError("emission processing removed the event time series.")
             event_time_series.name = i * batch_size + j
-            if df is None:
-                df = event_time_series
-            else:
-                df = pd.concat([df, event_time_series], axis=1, ignore_index=False)
+            batch_data.append(event_time_series)
             fingerprint_data = fingerprint_data + event_time_series
-        if df is None:
+        if not batch_data:
             raise RuntimeError("batch did not produce emission data.")
+        df = pd.concat(batch_data, axis=1, ignore_index=False)
         df.to_parquet(output_file_run)
     bleaching_times_array = np.asarray(bleaching_times_all_runs, dtype=np.float64)
     np.save(output_file_bleach, bleaching_times_array)
     fingerprint_data = fingerprint_data.cumsum() / fingerprint_data.sum()
 
     return (
-        cast(pd.Series[Any], fingerprint_data),
+        cast("pd.Series[Any]", fingerprint_data),
         bleaching_times_array,
         delta_times_photons_between_bleaching,
     )
