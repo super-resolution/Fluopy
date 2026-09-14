@@ -354,18 +354,24 @@ def universal_figure(
                 **type_specific_kwargs,
             )
         case "multiple_line":
-            labels = cast(Sequence[str], label)
-            colors = cast(Sequence[str], color)
             for j, dat_ in enumerate(data_items):
                 if callable(color):
                     use_color = color(j)
+                elif isinstance(color, str):
+                    use_color = color
                 else:
-                    use_color = colors[j]
+                    use_color = color[j]
+                if isinstance(label, str):
+                    use_label = label
+                elif label is None:
+                    use_label = None
+                else:
+                    use_label = label[j]
                 ax.plot(
                     dat_[0],
                     dat_[1],
                     color=use_color,
-                    label=labels[j],
+                    label=use_label,
                     **type_specific_kwargs,
                 )
         case "scatter":
