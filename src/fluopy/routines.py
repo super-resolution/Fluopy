@@ -266,18 +266,20 @@ def truncate_fingerprints(
 
     Returns
     -------
-    pd.Series
+    trunacted : pd.Series
         Truncated fingerprint data - normalized (to [0, 1]) cumulative emissions.
     """
-    if low is None:
-        low = 0
-    if high is None:
-        high = -1
-    fingerprint = fingerprint.iloc[low:high]
-    fingerprint = fingerprint - fingerprint.iloc[0]
-    fingerprint = fingerprint / fingerprint.iloc[-1]
+    truncated = fingerprint.iloc[low:high]
+    if truncated.empty:
+        raise ValueError("truncation produced an empty fingerprint.")
+    initial_value = float(truncated.iloc[0])
+    truncated = truncated - initial_value
+    normalization = float(truncated.iloc[-1])
+    if normalization == 0:
+        raise ValueError("truncated fingerprint has no cumulative increase.")
+    truncated = truncated / normalization
 
-    return fingerprint
+    return truncated
 
 
 PARAMS_DSTORM = {
