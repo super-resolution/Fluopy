@@ -18,6 +18,8 @@ from . import figure as fi
 from .miscellaneous import format_electronic_state, format_transition
 
 if TYPE_CHECKING:
+    from matplotlib.axes import Axes as mplAxes
+
     from .prediction import Prediction
     from .simulation import Simulation
 
@@ -481,7 +483,7 @@ class Analysis:
         prediction: Prediction | None = None,
         diff_dist: bool = True,
         **kwargs: Any,
-    ) -> fi.Axes:
+    ) -> mplAxes:
         """
         Plot relative frequencies of simulated transition occurrences.
 
@@ -595,7 +597,7 @@ class Analysis:
 
     def plot_frequency_states(
         self, prediction: Prediction | None = None, **kwargs: Any
-    ) -> fi.Axes:
+    ) -> mplAxes:
         """
         Plot relative frequencies of simulated state visits.
 
@@ -682,7 +684,7 @@ class Analysis:
         prediction: Prediction | None = None,
         diff_dist: bool = True,
         **kwargs: Any,
-    ) -> fi.Axes:
+    ) -> mplAxes:
         """
         Plot mean times until transitions occur.
 
@@ -813,7 +815,7 @@ class Analysis:
 
     def plot_mean_lifetimes(
         self, prediction: Prediction | None = None, **kwargs: Any
-    ) -> fi.Axes:
+    ) -> mplAxes:
         """
         Plot mean lifetimes of states.
 
@@ -903,7 +905,7 @@ class Analysis:
 
     def plot_state_occupations(
         self, prediction: Prediction | None = None, **kwargs: Any
-    ) -> fi.Axes:
+    ) -> mplAxes:
         """
         Plot the relative time spent in each state.
 
@@ -996,7 +998,7 @@ class Analysis:
         state_identity: int,
         prediction: Prediction | None = None,
         **kwargs: Any,
-    ) -> fi.Axes:
+    ) -> mplAxes:
         """
         Plot lifetime distributions of states.
 
@@ -1067,7 +1069,7 @@ class Analysis:
         transition_id: int,
         prediction: Prediction | None = None,
         **kwargs: Any,
-    ) -> fi.Axes:
+    ) -> mplAxes:
         """
         Plot distributions of time until transition occurs.
 

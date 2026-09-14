@@ -18,6 +18,7 @@ from . import figure as fi
 from .miscellaneous import format_electronic_state, format_transition
 
 if TYPE_CHECKING:
+    from matplotlib.axes import Axes as mplAxes
 
     from .transitions import TransitionSet
 
@@ -505,7 +506,7 @@ class Prediction:
 
         return mean_lifetimes, state_occupations
 
-    def plot_frequency_transitions(self, **kwargs: Any) -> fi.Axes:
+    def plot_frequency_transitions(self, **kwargs: Any) -> mplAxes:
         """
         Plot frequencies of transitions.
 
@@ -557,7 +558,7 @@ class Prediction:
 
         return ax
 
-    def plot_frequency_states(self, **kwargs: Any) -> fi.Axes:
+    def plot_frequency_states(self, **kwargs: Any) -> mplAxes:
         """
         Plot frequencies of states.
 
@@ -613,7 +614,7 @@ class Prediction:
 
         return ax
 
-    def plot_mean_transition_times(self, **kwargs: Any) -> fi.Axes:
+    def plot_mean_transition_times(self, **kwargs: Any) -> mplAxes:
         """
         Plot mean times until transitions occur.
 
@@ -672,7 +673,7 @@ class Prediction:
 
         return ax
 
-    def plot_mean_lifetimes(self, **kwargs: Any) -> fi.Axes:
+    def plot_mean_lifetimes(self, **kwargs: Any) -> mplAxes:
         """
         Plot mean lifetimes of states.
 
@@ -736,7 +737,7 @@ class Prediction:
 
         return ax
 
-    def plot_state_occupations(self, **kwargs: Any) -> fi.Axes:
+    def plot_state_occupations(self, **kwargs: Any) -> mplAxes:
         """
         Plot state occupation times (relative total time spent in state).
 
@@ -805,7 +806,7 @@ class Prediction:
         state_identity: int,
         x: npt.ArrayLike | None = None,
         **kwargs: Any,
-    ) -> fi.Axes:
+    ) -> mplAxes:
         """
         Plot lifetime distributions of states.
 
@@ -862,7 +863,7 @@ class Prediction:
         transition_id: int,
         x: npt.ArrayLike | None = None,
         **kwargs: Any,
-    ) -> fi.Axes:
+    ) -> mplAxes:
         """
         Plot distributions of time until transition occurs.
 

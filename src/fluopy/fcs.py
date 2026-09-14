@@ -232,7 +232,7 @@ class FCS:
         normalize_to: int | None = None,
         unit: Literal["s", "ms", "us"] = "s",
         **kwargs: Any,
-    ) -> fi.Axes:
+    ) -> mplAxes:
         """
         Plot FCS data.
 

@@ -24,6 +24,7 @@ from .simulation_tcspc import simulate_TCSPC, simulate_TCSPC_detailed
 from .transitions import TransitionSet
 
 if TYPE_CHECKING:
+    from matplotlib.axes import Axes as mplAxes
 
     from fluopy.fluopy_types import RandomGeneratorSeed
 
@@ -648,7 +649,7 @@ class Emissions:
         event_time_series = self._require_event_time_series()
         event_time_series[event_time_series < threshold] = 0
 
-    def plot_cumulative_events(self, **kwargs: Any) -> fi.Axes:
+    def plot_cumulative_events(self, **kwargs: Any) -> mplAxes:
         """
         Plot cumulative events versus time.
 
@@ -686,7 +687,7 @@ class Emissions:
         display_mean: bool = False,
         include_0: bool = False,
         **kwargs: Any,
-    ) -> fi.Axes:
+    ) -> mplAxes:
         """
         Plot histogram of events.
 
@@ -740,7 +741,7 @@ class Emissions:
 
         return ax
 
-    def plot_time_series(self, **kwargs: Any) -> fi.Axes:
+    def plot_time_series(self, **kwargs: Any) -> mplAxes:
         """
         Plot time series of events.
 

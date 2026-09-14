@@ -7,7 +7,7 @@ A universal figure is defined for plotting simulation results with matplotlib.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -53,8 +53,8 @@ def universal_figure(
     tick_params: dict[str, Any] | None = None,
     tick_spacing_x: float | None = None,
     tick_spacing_y: float | None = None,
-    tick_style_x: str | None = None,
-    tick_style_y: str | None = None,
+    tick_style_x: Literal["", "sci", "scientific", "plain"] | None = None,
+    tick_style_y: Literal["", "sci", "scientific", "plain"] | None = None,
     second_axis_x: bool = False,
     second_axis_y: bool = False,
     fontsize: float = 21,
@@ -192,11 +192,14 @@ def universal_figure(
                 type_specific_kwargs.pop("histtype", None)
                 dot = True
             n, bins, patches = ax.hist(
-                x=data, color=color, label=label, **type_specific_kwargs
+                x=data,
+                color=cast(Any, color),
+                label=label,
+                **type_specific_kwargs,
             )
 
             if dot:
-                patches.remove()
+                cast(Any, patches).remove()
                 ax.scatter(
                     bins[:-1] + 0.5 * (bins[1:] - bins[:-1]),
                     n,
@@ -364,7 +367,8 @@ def universal_figure(
                 **type_specific_kwargs,
             )
         case "boxplot":
-            ax.boxplot(data, labels=label, **type_specific_kwargs)
+            tick_labels = [label] if isinstance(label, str) else label
+            ax.boxplot(data, tick_labels=tick_labels, **type_specific_kwargs)
         case _:
             raise ValueError("Invalid type_ argument.")
 
@@ -447,7 +451,7 @@ def universal_figure(
     if second_axis_x:
         ticks = ax.get_xticks()
         sec_ax = ax.secondary_xaxis("top")
-        sec_ax.xaxis.set_major_locator(ticker.FixedLocator(ticks))
+        sec_ax.xaxis.set_major_locator(ticker.FixedLocator(ticks.tolist()))
         sec_ax.tick_params(axis="x", width=2, direction="in", labeltop=False, length=6)
         sec_ax.tick_params(
             which="minor", axis="x", direction="in", width=2, length=4, labeltop=False
@@ -457,7 +461,7 @@ def universal_figure(
     if second_axis_y:
         ticks = ax.get_yticks()
         sec_ax = ax.secondary_yaxis("right")
-        sec_ax.yaxis.set_major_locator(ticker.FixedLocator(ticks))
+        sec_ax.yaxis.set_major_locator(ticker.FixedLocator(ticks.tolist()))
         sec_ax.tick_params(
             axis="y", width=2, direction="in", labelright=False, length=6
         )

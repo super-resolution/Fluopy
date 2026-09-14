@@ -20,6 +20,8 @@ from .transitions import (
 )
 
 if TYPE_CHECKING:
+    from matplotlib.axes import Axes as mplAxes
+
     from fluopy.transitions import Transition
 
 __all__: list[str] = ["Fluorophore", "FluorophoreSystem"]
@@ -358,7 +360,7 @@ class FluorophoreSystem:
 
         return transitions
 
-    def plot(self, quadratic: bool = True, **kwargs: Any) -> fi.Axes:
+    def plot(self, quadratic: bool = True, **kwargs: Any) -> mplAxes:
         """
         Plot the positions of fluorophores.
 
