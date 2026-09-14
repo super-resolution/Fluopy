@@ -104,6 +104,7 @@ dev = [
     {include-group = "test"},
     {include-group = "lint"},
     {include-group = "typing"},
+    {include-group = "jupyter"},
 ]
 docs = [
     "furo",
