@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 import numpy.typing as npt
-from matplotlib import rcParams, rcParamsDefault
+from matplotlib import rcParamsDefault
 
 from .miscellaneous import format_axis_labels
 
@@ -87,7 +87,7 @@ def universal_figure(
     fig_height
         Height of the figure.
     scale
-        Factor to scale the figure.
+        Factor applied to Matplotlib's default figure DPI.
     rc_linewidth
         Linewidth of the axes.
     type_
@@ -179,17 +179,17 @@ def universal_figure(
     npt.NDArray[matplotlib.axes.Axes]
         Contains matplotlib.axes.Axes. Shape is (nrows, ncols).
     """
-    # initialize figure
-    rcParams["axes.linewidth"] = rc_linewidth
-    rcParams["figure.dpi"] = rcParamsDefault["figure.dpi"] * scale
-    rcParams["figure.facecolor"] = "white"
-
     if axes is None:
         _, axes = plt.subplots(
-            nrows=nrows, ncols=ncols, figsize=(fig_width, fig_height)
+            nrows=nrows,
+            ncols=ncols,
+            figsize=(fig_width, fig_height),
+            dpi=rcParamsDefault["figure.dpi"] * scale,
+            facecolor="white",
         )
-    else:
-        axes = axes
+        for subplot in np.asarray(axes).reshape(-1):
+            for spine in subplot.spines.values():
+                spine.set_linewidth(rc_linewidth)
 
     axes = np.asarray(axes)
     if axes.ndim > 1:
