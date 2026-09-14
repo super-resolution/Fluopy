@@ -481,7 +481,7 @@ class Analysis:
         prediction: Prediction | None = None,
         diff_dist: bool = True,
         **kwargs: Any,
-    ) -> fi.AxesArray:
+    ) -> fi.Axes:
         """
         Plot relative frequencies of simulated transition occurrences.
 
@@ -496,8 +496,8 @@ class Analysis:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
         transition_df = self.simulation.transition_set.transition_df
         frequencies = self.frequency_transitions
@@ -589,13 +589,13 @@ class Analysis:
                 predicted_frequencies,
             ]
 
-        axes = fi.universal_figure(data=data, draw_marker=draw_marker, **kwargs)
+        ax = fi.universal_figure(data=data, draw_marker=draw_marker, **kwargs)
 
-        return axes
+        return ax
 
     def plot_frequency_states(
         self, prediction: Prediction | None = None, **kwargs: Any
-    ) -> fi.AxesArray:
+    ) -> fi.Axes:
         """
         Plot relative frequencies of simulated state visits.
 
@@ -608,8 +608,8 @@ class Analysis:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
 
         single_states = self.simulation.transition_set.single_states
@@ -673,16 +673,16 @@ class Analysis:
                 predicted_frequencies,
             ]
 
-        axes = fi.universal_figure(data=data, draw_marker=draw_marker, **kwargs)
+        ax = fi.universal_figure(data=data, draw_marker=draw_marker, **kwargs)
 
-        return axes
+        return ax
 
     def plot_mean_transition_times(
         self,
         prediction: Prediction | None = None,
         diff_dist: bool = True,
         **kwargs: Any,
-    ) -> fi.AxesArray:
+    ) -> fi.Axes:
         """
         Plot mean times until transitions occur.
 
@@ -697,8 +697,8 @@ class Analysis:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
         transition_df = self.simulation.transition_set.transition_df
         mean_transition_times = self.mean_transition_times
@@ -807,13 +807,13 @@ class Analysis:
                 )
             draw_marker = [np.arange(transition_df.shape[0]), predicted_means]
 
-        axes = fi.universal_figure(data=data, draw_marker=draw_marker, **kwargs)
+        ax = fi.universal_figure(data=data, draw_marker=draw_marker, **kwargs)
 
-        return axes
+        return ax
 
     def plot_mean_lifetimes(
         self, prediction: Prediction | None = None, **kwargs: Any
-    ) -> fi.AxesArray:
+    ) -> fi.Axes:
         """
         Plot mean lifetimes of states.
 
@@ -826,8 +826,8 @@ class Analysis:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
 
         single_states = self.simulation.transition_set.single_states
@@ -897,13 +897,13 @@ class Analysis:
                 predicted_lifetimes_merged,
             ]
 
-        axes = fi.universal_figure(data=data, draw_marker=draw_marker, **kwargs)
+        ax = fi.universal_figure(data=data, draw_marker=draw_marker, **kwargs)
 
-        return axes
+        return ax
 
     def plot_state_occupations(
         self, prediction: Prediction | None = None, **kwargs: Any
-    ) -> fi.AxesArray:
+    ) -> fi.Axes:
         """
         Plot the relative time spent in each state.
 
@@ -916,8 +916,8 @@ class Analysis:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
 
         single_states = self.simulation.transition_set.single_states
@@ -986,9 +986,9 @@ class Analysis:
                 predicted_occupations_merged,
             ]
 
-        axes = fi.universal_figure(data=data, draw_marker=draw_marker, **kwargs)
+        ax = fi.universal_figure(data=data, draw_marker=draw_marker, **kwargs)
 
-        return axes
+        return ax
 
     def plot_lifetime_distributions(
         self,
@@ -996,7 +996,7 @@ class Analysis:
         state_identity: int,
         prediction: Prediction | None = None,
         **kwargs: Any,
-    ) -> fi.AxesArray:
+    ) -> fi.Axes:
         """
         Plot lifetime distributions of states.
 
@@ -1013,8 +1013,8 @@ class Analysis:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
 
         kwargs.setdefault("type_", "hist")
@@ -1052,14 +1052,14 @@ class Analysis:
             plot_distribution_label = "Prediction"
             kwargs.setdefault("legend", True)
 
-        axes = fi.universal_figure(
+        ax = fi.universal_figure(
             data=data,
             plot_distribution=plot_distribution,
             plot_distribution_label=plot_distribution_label,
             **kwargs,
         )
 
-        return axes
+        return ax
 
     def plot_transition_time_distributions(
         self,
@@ -1067,7 +1067,7 @@ class Analysis:
         transition_id: int,
         prediction: Prediction | None = None,
         **kwargs: Any,
-    ) -> fi.AxesArray:
+    ) -> fi.Axes:
         """
         Plot distributions of time until transition occurs.
 
@@ -1084,8 +1084,8 @@ class Analysis:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
         kwargs.setdefault("type_", "hist")
         kwargs.setdefault("ylabel", "PD")
@@ -1123,14 +1123,14 @@ class Analysis:
             plot_distribution_label = "pred"
             kwargs.setdefault("label", "sim")
             kwargs.setdefault("legend", True)
-        axes = fi.universal_figure(
+        ax = fi.universal_figure(
             data=data,
             plot_distribution=plot_distribution,
             plot_distribution_label=plot_distribution_label,
             **kwargs,
         )
 
-        return axes
+        return ax
 
 
 def no_diff_dist(transition_df: pd.DataFrame, fluorophores: Iterable[str]) -> tuple[

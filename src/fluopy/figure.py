@@ -14,6 +14,7 @@ import matplotlib.ticker as ticker
 import numpy as np
 import numpy.typing as npt
 from matplotlib import rcParamsDefault
+from matplotlib.axes import Axes
 
 from .miscellaneous import format_axis_labels
 
@@ -21,15 +22,10 @@ if TYPE_CHECKING:
     from scipy.stats.distributions import rv_frozen
 
 
-__all__: list[str] = ["AxesArray", "universal_figure"]
-
-
-AxesArray = npt.NDArray[Any]
+__all__: list[str] = ["universal_figure"]
 
 
 def universal_figure(
-    nrows: int = 1,
-    ncols: int = 1,
     fig_width: float = 6,
     fig_height: float = 3,
     scale: float = 1,
@@ -70,18 +66,14 @@ def universal_figure(
     draw_marker_param: dict[str, Any] | None = None,
     plot_distribution: rv_frozen | Sequence[rv_frozen] | None = None,
     plot_distribution_label: str | None = None,
-    axes: AxesArray | None = None,
+    ax: Axes | None = None,
     **type_specific_kwargs: Any,
-) -> AxesArray:
+) -> Axes:
     """
-    Constructs a figure or modifies axes.
+    Constructs a figure or modifies an axis.
 
     Parameters
     ----------
-    nrows
-        Number of rows of plt.subplots.
-    ncols
-        Number of columns of plt.subplots.
     fig_width
         Width of the figure.
     fig_height
@@ -169,35 +161,24 @@ def universal_figure(
         distributions.
     plot_distribution_label
         Label of plot_distribution. For multiple_hist, label is 'pred'.
-    axes
-        Contains matplotlib.axes.Axes objects. If None, a new figure is created.
+    ax
+        matplotlib.axes.Axes to modify. If None, a new figure and axis are created.
     type_specific_kwargs
         type_ properties
 
     Returns
     -------
-    npt.NDArray[matplotlib.axes.Axes]
-        Contains matplotlib.axes.Axes. Shape is (nrows, ncols).
+    matplotlib.axes.Axes
+        The modified axis.
     """
-    if axes is None:
-        _, axes = plt.subplots(
-            nrows=nrows,
-            ncols=ncols,
+    if ax is None:
+        _, ax = plt.subplots(
             figsize=(fig_width, fig_height),
             dpi=rcParamsDefault["figure.dpi"] * scale,
             facecolor="white",
         )
-        for subplot in np.asarray(axes).reshape(-1):
-            for spine in subplot.spines.values():
-                spine.set_linewidth(rc_linewidth)
-
-    axes = np.asarray(axes)
-    if axes.ndim > 1:
-        axes = axes.ravel()
-    elif axes.ndim == 0:
-        axes = axes[np.newaxis]
-
-    ax = axes[0]
+        for spine in ax.spines.values():
+            spine.set_linewidth(rc_linewidth)
     data_items = cast(Sequence[Any], data)
 
     # data incorporation
@@ -502,6 +483,4 @@ def universal_figure(
         else:
             ax.legend(labelcolor=legendcolor, **legendargs)
 
-    axes = axes.reshape(nrows, ncols)
-
-    return axes
+    return ax

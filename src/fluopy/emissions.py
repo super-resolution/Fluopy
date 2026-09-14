@@ -648,7 +648,7 @@ class Emissions:
         event_time_series = self._require_event_time_series()
         event_time_series[event_time_series < threshold] = 0
 
-    def plot_cumulative_events(self, **kwargs: Any) -> fi.AxesArray:
+    def plot_cumulative_events(self, **kwargs: Any) -> fi.Axes:
         """
         Plot cumulative events versus time.
 
@@ -659,8 +659,8 @@ class Emissions:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
         event_time_series = self._require_event_time_series()
         if event_time_series.empty:
@@ -676,9 +676,9 @@ class Emissions:
         kwargs.setdefault("ylabel", "Cumulative prob.")
         kwargs.setdefault("ylim", [0, 1])
 
-        axes = fi.universal_figure(data=data, **kwargs)
+        ax = fi.universal_figure(data=data, **kwargs)
 
-        return axes
+        return ax
 
     def plot_histogram(
         self,
@@ -686,7 +686,7 @@ class Emissions:
         display_mean: bool = False,
         include_0: bool = False,
         **kwargs: Any,
-    ) -> fi.AxesArray:
+    ) -> fi.Axes:
         """
         Plot histogram of events.
 
@@ -705,8 +705,8 @@ class Emissions:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
         data = self._require_event_time_series()
         if not include_0:
@@ -723,24 +723,24 @@ class Emissions:
             kwargs.setdefault("ylabel", "Probability")
             kwargs.setdefault("weights", np.ones_like(data) / data.size)
 
-        axes = fi.universal_figure(data=data, **kwargs)
+        ax = fi.universal_figure(data=data, **kwargs)
 
         mean_color = kwargs.get("ylabelcolor", "black")
         fontsize = kwargs.get("fontsize", 16)
         if display_mean:
             mean = np.mean(data)
-            axes[0][0].text(
+            ax.text(
                 x=0.3,
                 y=0.85,
                 s=rf"$\mu = {mean:.2f}$",
-                transform=axes[0][0].transAxes,
+                transform=ax.transAxes,
                 fontsize=fontsize,
                 color=mean_color,
             )
 
-        return axes
+        return ax
 
-    def plot_time_series(self, **kwargs: Any) -> fi.AxesArray:
+    def plot_time_series(self, **kwargs: Any) -> fi.Axes:
         """
         Plot time series of events.
 
@@ -751,8 +751,8 @@ class Emissions:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
         event_time_series = self._require_event_time_series()
         data = [event_time_series.index, event_time_series.to_numpy()]
@@ -760,9 +760,9 @@ class Emissions:
         kwargs.setdefault("xlabel", "Time (s)")
         kwargs.setdefault("ylabel", r"$\frac{photons}{frame}$")
 
-        axes = fi.universal_figure(data=data, **kwargs)
+        ax = fi.universal_figure(data=data, **kwargs)
 
-        return axes
+        return ax
 
     def save(self, path: str | Path, name_extension: str = "") -> None:
         """

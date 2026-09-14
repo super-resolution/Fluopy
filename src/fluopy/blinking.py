@@ -79,7 +79,7 @@ class Blinking:
             "off_boxplot",
         ] = "off_histogram",
         **kwargs: Any,
-    ) -> fi.AxesArray:
+    ) -> fi.Axes:
         """
         Plot histogram, boxplot or frame series of ON or OFF periods.
 
@@ -93,8 +93,8 @@ class Blinking:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
         event_time_series = self.emissions.event_time_series
         if event_time_series is None:
@@ -102,34 +102,34 @@ class Blinking:
         sec_per_frame = float(event_time_series.index[1] - event_time_series.index[0])
         if mode == "on_histogram":
             data = self.on_periods
-            axes = plot_histogram(
+            ax = plot_histogram(
                 data=data, mode="ON", sec_per_frame=sec_per_frame, **kwargs
             )
         elif mode == "on_boxplot":
             data = self.on_periods
-            axes = plot_boxplot(
+            ax = plot_boxplot(
                 data=data, mode="ON", sec_per_frame=sec_per_frame, **kwargs
             )
         elif mode == "off_histogram":
             data = self.off_periods
-            axes = plot_histogram(
+            ax = plot_histogram(
                 data=data, mode="OFF", sec_per_frame=sec_per_frame, **kwargs
             )
         elif mode == "off_boxplot":
             data = self.off_periods
-            axes = plot_boxplot(
+            ax = plot_boxplot(
                 data=data, mode="OFF", sec_per_frame=sec_per_frame, **kwargs
             )
         elif mode == "on_frame_series":
             data = np.array([np.arange(0, self.on_periods.size), self.on_periods])
-            axes = plot_frame_series(data=data, mode="ON", **kwargs)
+            ax = plot_frame_series(data=data, mode="ON", **kwargs)
         elif mode == "off_frame_series":
             data = np.array([np.arange(0, self.off_periods.size), self.off_periods])
-            axes = plot_frame_series(data=data, mode="OFF", **kwargs)
+            ax = plot_frame_series(data=data, mode="OFF", **kwargs)
         else:
             raise ValueError(f"mode {mode} unknown.")
 
-        return axes
+        return ax
 
 
 def get_blinking_statistics(
@@ -370,7 +370,7 @@ def get_analytical_off_statistics(
 
 def plot_off_statistics(
     on_off_times: npt.ArrayLike, on_off_values: npt.ArrayLike, **kwargs: Any
-) -> fi.AxesArray:
+) -> fi.Axes:
     """
     Plot the photophysical OFF/ON of one fluorophore.
 
@@ -386,8 +386,8 @@ def plot_off_statistics(
 
     Returns
     -------
-    npt.NDArray[mplAxes]
-        Contains matplotlib.axes._subplots.AxesSubplots.
+    matplotlib.axes.Axes
+        The modified axis.
     """
     kwargs.setdefault("type_", "line")
     kwargs.setdefault("fontsize", 16)
@@ -395,9 +395,9 @@ def plot_off_statistics(
     kwargs.setdefault("yticklabels", {"labels": ["OFF", "ON"]})
     kwargs.setdefault("yticks", [0, 1])
     kwargs.setdefault("ylabel", "")
-    axes = fi.universal_figure(data=[on_off_times, on_off_values], **kwargs)
+    ax = fi.universal_figure(data=[on_off_times, on_off_values], **kwargs)
 
-    return axes
+    return ax
 
 
 def plot_histogram(
@@ -408,7 +408,7 @@ def plot_histogram(
     as_time: str | None = None,
     sec_per_frame: float | None = None,
     **kwargs: Any,
-) -> fi.AxesArray:
+) -> fi.Axes:
     """
     Plot histogram of ON or OFF periods.
 
@@ -432,8 +432,8 @@ def plot_histogram(
 
     Returns
     -------
-    npt.NDArray[mplAxes]
-        Contains matplotlib.axes._subplots.AxesSubplots.
+    matplotlib.axes.Axes
+        The modified axis.
     """
     data_array = np.asarray(data, dtype=np.float64)
     kwargs.setdefault("type_", "hist")
@@ -456,22 +456,22 @@ def plot_histogram(
     else:
         kwargs.setdefault("xlabel", "Consecutive frames")
 
-    axes = fi.universal_figure(data=data_array, **kwargs)
+    ax = fi.universal_figure(data=data_array, **kwargs)
 
     mean_color = kwargs.get("ylabelcolor", "black")
     fontsize = kwargs.get("fontsize", 16)
     if display_mean:
         mean = np.mean(data_array)
-        axes[0][0].text(
+        ax.text(
             x=0.3,
             y=0.85,
             s=rf"$\mu = {mean:.2f}$",
-            transform=axes[0][0].transAxes,
+            transform=ax.transAxes,
             fontsize=fontsize,
             color=mean_color,
         )
 
-    return axes
+    return ax
 
 
 def plot_boxplot(
@@ -480,7 +480,7 @@ def plot_boxplot(
     as_time: str | None = None,
     sec_per_frame: float | None = None,
     **kwargs: Any,
-) -> fi.AxesArray:
+) -> fi.Axes:
     """
     Plot boxplot of ON or OFF periods.
 
@@ -499,8 +499,8 @@ def plot_boxplot(
 
     Returns
     -------
-    npt.NDArray[mplAxes]
-        Contains matplotlib.axes._subplots.AxesSubplots.
+    matplotlib.axes.Axes
+        The modified axis.
     """
     data_array = np.asarray(data, dtype=np.float64)
     kwargs.setdefault("type_", "boxplot")
@@ -518,14 +518,14 @@ def plot_boxplot(
     else:
         kwargs.setdefault("ylabel", "consecutive frames")
 
-    axes = fi.universal_figure(data=data_array, **kwargs)
+    ax = fi.universal_figure(data=data_array, **kwargs)
 
-    return axes
+    return ax
 
 
 def plot_frame_series(
     data: npt.ArrayLike, mode: Literal["ON", "OFF"] = "OFF", **kwargs: Any
-) -> fi.AxesArray:
+) -> fi.Axes:
     """
     Plot frame series of ON or OFF periods.
 
@@ -540,13 +540,13 @@ def plot_frame_series(
 
     Returns
     -------
-    npt.NDArray[mplAxes]
-        Contains matplotlib.axes._subplots.AxesSubplots.
+    matplotlib.axes.Axes
+        The modified axis.
     """
     kwargs.setdefault("type_", "line")
     kwargs.setdefault("xlabel", "identity")
     kwargs.setdefault("ylabel", f"consecutive {mode} frames")
 
-    axes = fi.universal_figure(data=data, **kwargs)
+    ax = fi.universal_figure(data=data, **kwargs)
 
-    return axes
+    return ax

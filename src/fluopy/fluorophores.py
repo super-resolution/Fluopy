@@ -358,7 +358,7 @@ class FluorophoreSystem:
 
         return transitions
 
-    def plot(self, quadratic: bool = True, **kwargs: Any) -> fi.AxesArray:
+    def plot(self, quadratic: bool = True, **kwargs: Any) -> fi.Axes:
         """
         Plot the positions of fluorophores.
 
@@ -371,8 +371,8 @@ class FluorophoreSystem:
 
         Returns
         -------
-        axes
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
         if self.fluorophores[0].position.shape[0] != 2:
             raise ValueError("Only 2D positions can be plotted.")
@@ -384,14 +384,14 @@ class FluorophoreSystem:
         kwargs.setdefault("type_", "scatter")
         kwargs.setdefault("xlabel", "x [nm]")
         kwargs.setdefault("ylabel", "y [nm]")
-        axes = fi.universal_figure(data=positions, **kwargs)
+        ax = fi.universal_figure(data=positions, **kwargs)
         for i, label in enumerate(labels):
-            axes[0, 0].annotate(label, (positions[0, i], positions[1, i]))
-        axes[0, 0].margins(0.2, 0.2)
+            ax.annotate(label, (positions[0, i], positions[1, i]))
+        ax.margins(0.2, 0.2)
         if quadratic:
-            axes[0, 0].set_aspect("equal", adjustable="box")
+            ax.set_aspect("equal", adjustable="box")
 
-        return axes
+        return ax
 
 
 def get_distances(
