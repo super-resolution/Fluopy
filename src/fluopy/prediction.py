@@ -18,6 +18,7 @@ from . import figure as fi
 from .miscellaneous import format_electronic_state, format_transition
 
 if TYPE_CHECKING:
+    from matplotlib.axes import Axes as mplAxes
 
     from .transitions import TransitionSet
 
@@ -505,7 +506,7 @@ class Prediction:
 
         return mean_lifetimes, state_occupations
 
-    def plot_frequency_transitions(self, **kwargs: Any) -> fi.AxesArray:
+    def plot_frequency_transitions(self, **kwargs: Any) -> mplAxes:
         """
         Plot frequencies of transitions.
 
@@ -516,8 +517,8 @@ class Prediction:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
         df = self.transition_set.transition_df
         data = [np.arange(df.shape[0]), self.frequency_transitions]
@@ -553,11 +554,11 @@ class Prediction:
                 for i, name in enumerate(df.index.get_level_values(0).unique())
             ],
         )
-        axes = fi.universal_figure(data=data, **kwargs)
+        ax = fi.universal_figure(data=data, **kwargs)
 
-        return axes
+        return ax
 
-    def plot_frequency_states(self, **kwargs: Any) -> fi.AxesArray:
+    def plot_frequency_states(self, **kwargs: Any) -> mplAxes:
         """
         Plot frequencies of states.
 
@@ -568,8 +569,8 @@ class Prediction:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
 
         single_states = self.transition_set.single_states
@@ -609,11 +610,11 @@ class Prediction:
         kwargs.setdefault("color", colors)
         kwargs.setdefault("legend", True)
         kwargs.setdefault("legendhandles", patches)
-        axes = fi.universal_figure(data=data, **kwargs)
+        ax = fi.universal_figure(data=data, **kwargs)
 
-        return axes
+        return ax
 
-    def plot_mean_transition_times(self, **kwargs: Any) -> fi.AxesArray:
+    def plot_mean_transition_times(self, **kwargs: Any) -> mplAxes:
         """
         Plot mean times until transitions occur.
 
@@ -624,8 +625,8 @@ class Prediction:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
         if self.energy_transfer:
             raise ValueError(
@@ -668,11 +669,11 @@ class Prediction:
                 for i, name in enumerate(df.index.get_level_values(0).unique())
             ],
         )
-        axes = fi.universal_figure(data=data, **kwargs)
+        ax = fi.universal_figure(data=data, **kwargs)
 
-        return axes
+        return ax
 
-    def plot_mean_lifetimes(self, **kwargs: Any) -> fi.AxesArray:
+    def plot_mean_lifetimes(self, **kwargs: Any) -> mplAxes:
         """
         Plot mean lifetimes of states.
 
@@ -683,8 +684,8 @@ class Prediction:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
         if self.energy_transfer:
             raise ValueError(
@@ -732,11 +733,11 @@ class Prediction:
         kwargs.setdefault("legend", True)
         kwargs.setdefault("legendhandles", patches)
         kwargs.setdefault("ylabel", r"$\tau$ (s)")
-        axes = fi.universal_figure(data=data, **kwargs)
+        ax = fi.universal_figure(data=data, **kwargs)
 
-        return axes
+        return ax
 
-    def plot_state_occupations(self, **kwargs: Any) -> fi.AxesArray:
+    def plot_state_occupations(self, **kwargs: Any) -> mplAxes:
         """
         Plot state occupation times (relative total time spent in state).
 
@@ -747,8 +748,8 @@ class Prediction:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
         if self.energy_transfer:
             raise ValueError(
@@ -795,9 +796,9 @@ class Prediction:
         kwargs.setdefault("color", colors)
         kwargs.setdefault("legend", True)
         kwargs.setdefault("legendhandles", patches)
-        axes = fi.universal_figure(data=data, **kwargs)
+        ax = fi.universal_figure(data=data, **kwargs)
 
-        return axes
+        return ax
 
     def plot_lifetime_distributions(
         self,
@@ -805,7 +806,7 @@ class Prediction:
         state_identity: int,
         x: npt.ArrayLike | None = None,
         **kwargs: Any,
-    ) -> fi.AxesArray:
+    ) -> mplAxes:
         """
         Plot lifetime distributions of states.
 
@@ -822,8 +823,8 @@ class Prediction:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
         if self.energy_transfer:
             raise ValueError(
@@ -852,9 +853,9 @@ class Prediction:
         if x is None:
             x = np.linspace(0, mean_lifetimes[fluorophore][index] * 10, 1000)
         data = [x, distribution.pdf(x)]
-        axes = fi.universal_figure(data=data, **kwargs)
+        ax = fi.universal_figure(data=data, **kwargs)
 
-        return axes
+        return ax
 
     def plot_transition_time_distributions(
         self,
@@ -862,7 +863,7 @@ class Prediction:
         transition_id: int,
         x: npt.ArrayLike | None = None,
         **kwargs: Any,
-    ) -> fi.AxesArray:
+    ) -> mplAxes:
         """
         Plot distributions of time until transition occurs.
 
@@ -879,8 +880,8 @@ class Prediction:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
         if self.energy_transfer:
             raise ValueError(
@@ -905,9 +906,9 @@ class Prediction:
             x = np.linspace(0, mean_transition_times[transition_id] * 10, 1000)
         data = [x, transition_distributions[transition_id].pdf(x)]
 
-        axes = fi.universal_figure(data=data, **kwargs)
+        ax = fi.universal_figure(data=data, **kwargs)
 
-        return axes
+        return ax
 
 
 def get_Q(

@@ -232,7 +232,7 @@ class FCS:
         normalize_to: int | None = None,
         unit: Literal["s", "ms", "us"] = "s",
         **kwargs: Any,
-    ) -> fi.AxesArray:
+    ) -> mplAxes:
         """
         Plot FCS data.
 
@@ -247,8 +247,8 @@ class FCS:
 
         Returns
         -------
-        npt.NDArray[mplAxes]
-            Contains matplotlib.axes._subplots.AxesSubplots.
+        matplotlib.axes.Axes
+            The modified axis.
         """
         if self.tau is None or self.autocorrelation is None:
             raise RuntimeError("correlation data has not been calculated.")
@@ -266,9 +266,9 @@ class FCS:
         kwargs.setdefault("xlabel", rf"$\tau \ ({unit})$")
         kwargs.setdefault("ylabel", r"$G(\tau)$")
 
-        axes = fi.universal_figure(data=[tau_data, correl_data], **kwargs)
+        ax = fi.universal_figure(data=[tau_data, correl_data], **kwargs)
 
-        return axes
+        return ax
 
 
 def fit_dark(

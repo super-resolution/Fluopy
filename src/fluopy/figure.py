@@ -7,13 +7,14 @@ A universal figure is defined for plotting simulation results with matplotlib.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 import numpy.typing as npt
-from matplotlib import rcParams, rcParamsDefault
+from matplotlib import rcParamsDefault
+from matplotlib.axes import Axes
 
 from .miscellaneous import format_axis_labels
 
@@ -21,15 +22,10 @@ if TYPE_CHECKING:
     from scipy.stats.distributions import rv_frozen
 
 
-__all__: list[str] = ["AxesArray", "universal_figure"]
-
-
-AxesArray = npt.NDArray[Any]
+__all__: list[str] = ["universal_figure"]
 
 
 def universal_figure(
-    nrows: int = 1,
-    ncols: int = 1,
     fig_width: float = 6,
     fig_height: float = 3,
     scale: float = 1,
@@ -57,8 +53,8 @@ def universal_figure(
     tick_params: dict[str, Any] | None = None,
     tick_spacing_x: float | None = None,
     tick_spacing_y: float | None = None,
-    tick_style_x: str | None = None,
-    tick_style_y: str | None = None,
+    tick_style_x: Literal["", "sci", "scientific", "plain"] | None = None,
+    tick_style_y: Literal["", "sci", "scientific", "plain"] | None = None,
     second_axis_x: bool = False,
     second_axis_y: bool = False,
     fontsize: float = 21,
@@ -70,24 +66,20 @@ def universal_figure(
     draw_marker_param: dict[str, Any] | None = None,
     plot_distribution: rv_frozen | Sequence[rv_frozen] | None = None,
     plot_distribution_label: str | None = None,
-    axes: AxesArray | None = None,
+    ax: Axes | None = None,
     **type_specific_kwargs: Any,
-) -> AxesArray:
+) -> Axes:
     """
-    Constructs a figure or modifies axes.
+    Constructs a figure or modifies an axis.
 
     Parameters
     ----------
-    nrows
-        Number of rows of plt.subplots.
-    ncols
-        Number of columns of plt.subplots.
     fig_width
         Width of the figure.
     fig_height
         Height of the figure.
     scale
-        Factor to scale the figure.
+        Factor applied to Matplotlib's default figure DPI.
     rc_linewidth
         Linewidth of the axes.
     type_
@@ -169,35 +161,24 @@ def universal_figure(
         distributions.
     plot_distribution_label
         Label of plot_distribution. For multiple_hist, label is 'pred'.
-    axes
-        Contains matplotlib.axes.Axes objects. If None, a new figure is created.
+    ax
+        matplotlib.axes.Axes to modify. If None, a new figure and axis are created.
     type_specific_kwargs
         type_ properties
 
     Returns
     -------
-    npt.NDArray[matplotlib.axes.Axes]
-        Contains matplotlib.axes.Axes. Shape is (nrows, ncols).
+    matplotlib.axes.Axes
+        The modified axis.
     """
-    # initialize figure
-    rcParams["axes.linewidth"] = rc_linewidth
-    rcParams["figure.dpi"] = rcParamsDefault["figure.dpi"] * scale
-    rcParams["figure.facecolor"] = "white"
-
-    if axes is None:
-        _, axes = plt.subplots(
-            nrows=nrows, ncols=ncols, figsize=(fig_width, fig_height)
+    if ax is None:
+        _, ax = plt.subplots(
+            figsize=(fig_width, fig_height),
+            dpi=rcParamsDefault["figure.dpi"] * scale,
+            facecolor="white",
         )
-    else:
-        axes = axes
-
-    axes = np.asarray(axes)
-    if axes.ndim > 1:
-        axes = axes.ravel()
-    elif axes.ndim == 0:
-        axes = axes[np.newaxis]
-
-    ax = axes[0]
+        for spine in ax.spines.values():
+            spine.set_linewidth(rc_linewidth)
     data_items = cast(Sequence[Any], data)
 
     # data incorporation
@@ -211,11 +192,14 @@ def universal_figure(
                 type_specific_kwargs.pop("histtype", None)
                 dot = True
             n, bins, patches = ax.hist(
-                x=data, color=color, label=label, **type_specific_kwargs
+                x=data,
+                color=cast(Any, color),
+                label=label,
+                **type_specific_kwargs,
             )
 
             if dot:
-                patches.remove()
+                cast(Any, patches).remove()
                 ax.scatter(
                     bins[:-1] + 0.5 * (bins[1:] - bins[:-1]),
                     n,
@@ -354,18 +338,24 @@ def universal_figure(
                 **type_specific_kwargs,
             )
         case "multiple_line":
-            labels = cast(Sequence[str], label)
-            colors = cast(Sequence[str], color)
             for j, dat_ in enumerate(data_items):
                 if callable(color):
                     use_color = color(j)
+                elif isinstance(color, str):
+                    use_color = color
                 else:
-                    use_color = colors[j]
+                    use_color = color[j]
+                if isinstance(label, str):
+                    use_label = label
+                elif label is None:
+                    use_label = None
+                else:
+                    use_label = label[j]
                 ax.plot(
                     dat_[0],
                     dat_[1],
                     color=use_color,
-                    label=labels[j],
+                    label=use_label,
                     **type_specific_kwargs,
                 )
         case "scatter":
@@ -377,7 +367,8 @@ def universal_figure(
                 **type_specific_kwargs,
             )
         case "boxplot":
-            ax.boxplot(data, labels=label, **type_specific_kwargs)
+            tick_labels = [label] if isinstance(label, str) else label
+            ax.boxplot(data, tick_labels=tick_labels, **type_specific_kwargs)
         case _:
             raise ValueError("Invalid type_ argument.")
 
@@ -460,7 +451,7 @@ def universal_figure(
     if second_axis_x:
         ticks = ax.get_xticks()
         sec_ax = ax.secondary_xaxis("top")
-        sec_ax.xaxis.set_major_locator(ticker.FixedLocator(ticks))
+        sec_ax.xaxis.set_major_locator(ticker.FixedLocator(ticks.tolist()))
         sec_ax.tick_params(axis="x", width=2, direction="in", labeltop=False, length=6)
         sec_ax.tick_params(
             which="minor", axis="x", direction="in", width=2, length=4, labeltop=False
@@ -470,7 +461,7 @@ def universal_figure(
     if second_axis_y:
         ticks = ax.get_yticks()
         sec_ax = ax.secondary_yaxis("right")
-        sec_ax.yaxis.set_major_locator(ticker.FixedLocator(ticks))
+        sec_ax.yaxis.set_major_locator(ticker.FixedLocator(ticks.tolist()))
         sec_ax.tick_params(
             axis="y", width=2, direction="in", labelright=False, length=6
         )
@@ -496,6 +487,4 @@ def universal_figure(
         else:
             ax.legend(labelcolor=legendcolor, **legendargs)
 
-    axes = axes.reshape(nrows, ncols)
-
-    return axes
+    return ax

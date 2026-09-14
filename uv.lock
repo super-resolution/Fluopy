@@ -827,6 +827,7 @@ gpu = [
 dev = [
     { name = "black", extra = ["jupyter"] },
     { name = "coverage" },
+    { name = "jupyterlab" },
     { name = "mypy" },
     { name = "pandas-stubs" },
     { name = "pre-commit" },
@@ -889,6 +890,7 @@ dev = [
     { name = "black", specifier = "~=26.0" },
     { name = "black", extras = ["jupyter"] },
     { name = "coverage" },
+    { name = "jupyterlab" },
     { name = "mypy" },
     { name = "pandas-stubs" },
     { name = "pre-commit" },
