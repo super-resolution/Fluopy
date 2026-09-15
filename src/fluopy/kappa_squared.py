@@ -69,7 +69,7 @@ def rotational_diffusion_step(
     dt
         The time step for the simulation in s.
     tau_rot
-        The rotational diffusion time constant in s.
+        The second-rank rotational correlation time in s.
     seed
         Seed.
 
@@ -84,12 +84,11 @@ def rotational_diffusion_step(
         v = v.reshape(1, -1)
 
     n_vectors = v.shape[0]
-    angles = np.asarray(
-        rng.normal(loc=0, scale=np.sqrt(dt / (3 * tau_rot)), size=n_vectors),
-        dtype=np.float64,
+
+    rotation_vectors = np.asarray(
+        rng.normal(loc=0, scale=np.sqrt(dt / (3 * tau_rot)), size=(n_vectors, 3)),
     )
-    axes = random_unit_vector(size=n_vectors, seed=rng)
-    rotation_vectors = axes * angles.reshape(-1, 1)
+
     rotations = Rotation.from_rotvec(rotation_vectors)
     v_rot = np.asarray(rotations.apply(v), dtype=np.float64)
     norms = np.linalg.norm(v_rot, axis=1).reshape(-1, 1)
@@ -110,7 +109,7 @@ def simulate_rotational_motion(
     Parameters
     ----------
     tau_rot
-        The rotational diffusion time constant in s.
+        The second-rank rotational correlation time in s.
     tau_life
         The lifetime of the dipole in s.
     dt
