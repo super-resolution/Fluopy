@@ -60,6 +60,8 @@ class FCS:
         points_per_base: int = 4,
         base: int = 10,
         normalize: bool = True,
+        start_time: float = 0.0,
+        end_time: float | None = None,
     ) -> Self:
         """
         Autocorrelation of emissions.event_time_points. Generally much faster than
@@ -78,6 +80,12 @@ class FCS:
             The base of the exponentiation.
         normalize
             Whether to normalize the autocorrelation.
+        start_time
+            The time the measurement started. This is used to normalize to the correct
+            measurement duration.
+        end_time
+            The time the measurement ended. This is used to normalize to the correct
+            measurement duration.
 
         Returns
         -------
@@ -85,14 +93,17 @@ class FCS:
         """
         if self.emissions.event_time_points is None:
             raise ValueError("event_time_points is None.")
-        if base**exp_max > self.emissions.event_time_points[-1]:
-            last_time_point = self.emissions.event_time_points[-1]
-            exp_max_adjusted = np.int64(
-                np.floor(np.log(last_time_point) / np.log(base))
-            )
+
+        event_time_points = self.emissions.event_time_points
+        if end_time is None:
+            end_time = float(event_time_points[-1])
+        duration = end_time - start_time
+
+        if base**exp_max > duration:
+            exp_max_adjusted = np.int64(np.floor(np.log(duration) / np.log(base)))
             logger.warning(
-                f"The exp_max {exp_max} yields a base to the power of exp_max {base**exp_max} that is larger than the last time "
-                f"point {last_time_point}. Therefore, exp_max is adjusted to {exp_max_adjusted}.",
+                f"The exp_max {exp_max} yields a base to the power of exp_max {base**exp_max} that is larger than the duration of the measurement: "
+                f"{duration}. Therefore, exp_max is adjusted to {exp_max_adjusted}.",
                 stacklevel=2,
             )
             exp_max = int(exp_max_adjusted)
@@ -100,10 +111,12 @@ class FCS:
             exp_min=exp_min, exp_max=exp_max, points_per_base=points_per_base, base=base
         )
         self.autocorrelation = pcorrelate(
-            t=self.emissions.event_time_points,
-            u=self.emissions.event_time_points,
+            t=event_time_points,
+            u=event_time_points,
             bins=bins,
             normalize=normalize,
+            start_time=start_time,
+            end_time=end_time,
         )
         self.tau = np.mean([bins[1:], bins[:-1]], axis=0)
 
@@ -475,7 +488,12 @@ def make_loglags(
 
 @numba.jit(nopython=True)  # type: ignore[untyped-decorator]
 def pcorrelate(
-    t: npt.ArrayLike, u: npt.ArrayLike, bins: npt.ArrayLike, normalize: bool = False
+    t: npt.ArrayLike,
+    u: npt.ArrayLike,
+    bins: npt.ArrayLike,
+    normalize: bool = False,
+    start_time: float = 0.0,
+    end_time: float | None = None,
 ) -> npt.NDArray[np.float64]:
     """Compute correlation of two arrays of discrete events (Point-process).
 
@@ -505,6 +523,13 @@ def pcorrelate(
         if True, normalize the correlation function
         as typically done in FCS using :func:`pnormalize`. If False,
         return the unnormalized correlation function.
+    start_time
+        The time the measurement started. This is used to normalize to the correct
+        measurement duration. Default is 0.0.
+    end_time
+        The time the measurement ended. This is used to normalize to the correct
+        measurement duration. Default is None, which means the end time is the last
+        element in the 't' or 'u' array.
 
     Returns
     --------
@@ -550,13 +575,25 @@ def pcorrelate(
         counts += imax - imin
     G = counts / np.diff(bins_array)
     if normalize:
-        G = pnormalize(G, t_array, u_array, bins_array)
+        G = pnormalize(
+            G=G,
+            t=t_array,
+            u=u_array,
+            bins=bins_array,
+            start_time=start_time,
+            end_time=end_time,
+        )
     return np.asarray(G, dtype=np.float64)
 
 
 @numba.jit(nopython=True)  # type: ignore[untyped-decorator]
 def pnormalize(
-    G: npt.ArrayLike, t: npt.ArrayLike, u: npt.ArrayLike, bins: npt.ArrayLike
+    G: npt.ArrayLike,
+    t: npt.ArrayLike,
+    u: npt.ArrayLike,
+    bins: npt.ArrayLike,
+    start_time: float = 0.0,
+    end_time: float | None = None,
 ) -> npt.NDArray[np.float64]:
     r"""Normalize point-process cross-correlation function.
 
@@ -580,6 +617,9 @@ def pnormalize(
         u (array): second input array of "points" used to compute `G`.
         bins (array): array of bins used to compute `G`. Needs to have the
             same units as input arguments `t` and `u`.
+        start_time (float): The time the measurement started.
+        end_time (float | None): The time the measurement ended. Default is None, which
+            means the end time is the last element in the 't' or 'u' array.
 
     Returns
     --------
@@ -591,12 +631,14 @@ def pnormalize(
     t_array = np.asarray(t, dtype=np.float64)
     u_array = np.asarray(u, dtype=np.float64)
     bins_array = np.asarray(bins, dtype=np.float64)
-    duration = max((t_array.max(), u_array.max())) - min((t_array.min(), u_array.min()))
+    if end_time is None:
+        end_time = float(max(t_array.max(), u_array.max()))
+    duration = end_time - start_time
     Gn = correlation.copy()
     for i, tau in enumerate(bins_array[1:]):
         Gn[i] *= (duration - tau) / (
-            float((t_array >= tau).sum())
-            * float((u_array <= (u_array.max() - tau)).sum())
+            float((u_array >= start_time + tau).sum())
+            * float((t_array <= end_time - tau).sum())
         )
     return np.asarray(Gn, dtype=np.float64)
 
@@ -720,6 +762,8 @@ def coincidence(
     bin_width: float,
     seed: RandomGeneratorSeed = None,
     method: str = "numba",
+    start_time: float = 0.0,
+    end_time: float | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
     Compute the coincidence histogram of photon arrival times. Here, the Hanbury Brown
@@ -739,6 +783,13 @@ def coincidence(
         A seed to initialize the BitGenerator.
     method
         Method to use: "numpy" or "numba".
+    start_time
+        The time the measurement started. This is used to normalize to the correct
+        measurement duration. Default is 0.0.
+    end_time
+        The time the measurement ended. This is used to normalize to the correct
+        measurement duration. Default is None, which means the end time is the last
+        element in the 'photon_arrival_times' array.
 
     Returns
     -------
@@ -751,7 +802,8 @@ def coincidence(
     mask = rng.random(photon_arrival_times.size) < 0.5
     arr1 = np.sort(photon_arrival_times[mask])
     arr2 = np.sort(photon_arrival_times[~mask])
-
+    end_time = end_time if end_time is not None else photon_arrival_times.max()
+    duration = end_time - start_time
     if method == "numpy":
         hist, bins = coincidence_numpy(
             arr1=arr1, arr2=arr2, tau_max=tau_max, bin_width=bin_width
@@ -766,11 +818,11 @@ def coincidence(
     bin_centers = (bins[:-1] + bins[1:]) / 2
 
     # normalization to avoid finite window effects
-    hist = hist / (np.max(photon_arrival_times) - np.abs(bin_centers))
+    hist = hist / (duration - np.abs(bin_centers))
     # standard normalization
     # get the number of photons per time as if coming from a Poisson process
-    average_signal_1 = arr1.size / np.max(arr1) if arr1.size > 0 else 0
-    average_signal_2 = arr2.size / np.max(arr2) if arr2.size > 0 else 0
+    average_signal_1 = arr1.size / duration if arr1.size > 0 else 0
+    average_signal_2 = arr2.size / duration if arr2.size > 0 else 0
     if average_signal_1 > 0 and average_signal_2 > 0:
         hist = hist / (average_signal_1 * average_signal_2 * bin_width)
 
