@@ -160,6 +160,22 @@ def test_generate_combinations():
     )
 
 
+def test_generate_combinations_with_middle_three_component():
+    valid_combinations = generate_combinations(n=3, z=1)
+
+    np.testing.assert_array_equal(
+        valid_combinations,
+        [
+            [0, 0, 0],
+            [0, 0, 1],
+            [0, 2, 1],
+            [0, 3, 1],
+            [1, 2, 1],
+            [1, 3, 1],
+        ],
+    )
+
+
 def test_map_to_lambdas():
     valid_combinations = generate_combinations(n=3, z=-1)
     params = {0: [1, 0, 1, 0.7], 1: [0.7, 0.3, 0.7, 0.5], 2: [0.5, 0.5, 0.5, 0.3]}

@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable, Mapping, Sequence
-from itertools import product
 from typing import Protocol, cast
 
 import numpy as np
@@ -516,22 +515,23 @@ def generate_combinations(n: int, z: int) -> npt.NDArray[np.int64]:
         distribution of three-component mixture), or 3 (second non-biased exponential
         distribution of three-component mixture).
     """
-    arrays = []
-    for i in range(n):
-        if i == z:
-            arrays.append([0, 2, 3])  # b, nb_1 and nb_2
-        else:
-            arrays.append([0, 1])  # b and nb_0
-    combos = np.array(list(product(*arrays)), dtype=int)
-    if combos.shape[1] == 1:
-        valid_combos = combos
-    zeros = combos == 0
-    curr_zeros = zeros[:, 1:]
-    prev_zeros = zeros[:, :-1]
-    mask = np.all((~curr_zeros) | prev_zeros, axis=1)
-    valid_combos = combos[mask]
+    combinations = []
+    has_three_component = 0 <= z < n
 
-    return valid_combos
+    for first_nonbiased in range(n, -1, -1):
+        combination = np.zeros(n, dtype=np.int64)
+        combination[first_nonbiased:] = 1
+
+        if has_three_component and first_nonbiased <= z:
+            for component in (2, 3):
+                current = combination.copy()
+                current[z] = component
+                combinations.append(current)
+        else:
+            combinations.append(combination)
+
+    valid_combinations = np.array(combinations, dtype=np.int64)
+    return valid_combinations
 
 
 def map_to_lambdas(
