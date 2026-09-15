@@ -78,7 +78,7 @@ def get_bleaching_times(simulation: Simulation) -> npt.NDArray[np.float64]:
         raise ValueError("bleaching times require a completed simulation.")
     df = simulation.transition_set.transition_df
     absorbing_final_states = df[df["absorbing"]]["final_state"]
-    bleached_state_values = [x.value for x in absorbing_final_states]
+    bleached_state_values = np.unique([x.value for x in absorbing_final_states])
     if len(bleached_state_values) == 1:
         bleached_state = bleached_state_values[0]
     elif len(bleached_state_values) == 0:
@@ -193,7 +193,7 @@ def fingerprint_analysis(
     ]
     for i in range(batches):
         output_file_run = Path(filepath) / f"single_runs_{filename}_batch_{i}.parquet"
-        df: pd.DataFrame | pd.Series[Any] | None = None
+        batch_data: list[pd.Series[Any]] = []
         for j in range(batch_size):
             simulation = si.Simulation(transition_set=transition_set)
             simulation.run(
@@ -230,20 +230,18 @@ def fingerprint_analysis(
             if event_time_series is None:
                 raise RuntimeError("emission processing removed the event time series.")
             event_time_series.name = i * batch_size + j
-            if df is None:
-                df = event_time_series
-            else:
-                df = pd.concat([df, event_time_series], axis=1, ignore_index=False)
+            batch_data.append(event_time_series)
             fingerprint_data = fingerprint_data + event_time_series
-        if df is None:
+        if not batch_data:
             raise RuntimeError("batch did not produce emission data.")
+        df = pd.concat(batch_data, axis=1, ignore_index=False)
         df.to_parquet(output_file_run)
     bleaching_times_array = np.asarray(bleaching_times_all_runs, dtype=np.float64)
     np.save(output_file_bleach, bleaching_times_array)
     fingerprint_data = fingerprint_data.cumsum() / fingerprint_data.sum()
 
     return (
-        cast(pd.Series[Any], fingerprint_data),
+        cast("pd.Series[Any]", fingerprint_data),
         bleaching_times_array,
         delta_times_photons_between_bleaching,
     )
@@ -266,18 +264,20 @@ def truncate_fingerprints(
 
     Returns
     -------
-    pd.Series
+    trunacted : pd.Series
         Truncated fingerprint data - normalized (to [0, 1]) cumulative emissions.
     """
-    if low is None:
-        low = 0
-    if high is None:
-        high = -1
-    fingerprint = fingerprint.iloc[low:high]
-    fingerprint = fingerprint - fingerprint.iloc[0]
-    fingerprint = fingerprint / fingerprint.iloc[-1]
+    truncated = fingerprint.iloc[low:high]
+    if truncated.empty:
+        raise ValueError("truncation produced an empty fingerprint.")
+    initial_value = float(truncated.iloc[0])
+    truncated = truncated - initial_value
+    normalization = float(truncated.iloc[-1])
+    if normalization == 0:
+        raise ValueError("truncated fingerprint has no cumulative increase.")
+    truncated = truncated / normalization
 
-    return fingerprint
+    return truncated
 
 
 PARAMS_DSTORM = {

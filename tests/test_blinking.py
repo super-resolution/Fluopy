@@ -1,10 +1,12 @@
 import logging
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from fluopy import blinking as bl
+from fluopy.transitions import SingleState
 
 
 @pytest.mark.parametrize(
@@ -124,7 +126,7 @@ def test_get_off_statistics(request, caplog):
     caplog.clear()
 
     on_off_times, on_off_values = bl.get_off_statistics(simulation=sim_dstorm, index=0)
-    exp_on_off_values = np.array([1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0])
+    exp_on_off_values = np.array([1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0])
     exp_on_off_times = np.array(
         [
             0.00000000e00,
@@ -134,10 +136,72 @@ def test_get_off_statistics(request, caplog):
             5.57004121e01,
             5.58517447e01,
             5.58517447e01,
+            1.04721968654e02,
+            1.04721968654e02,
+            1.04741215253e02,
         ]
     )
     np.testing.assert_array_almost_equal(on_off_times, exp_on_off_times)
     np.testing.assert_array_equal(on_off_values, exp_on_off_values)
+
+
+@pytest.mark.parametrize(
+    "states, times, expected_times, expected_values",
+    [
+        pytest.param(
+            [
+                SingleState.S0,
+                SingleState.OFF,
+                SingleState.OFF,
+                SingleState.S0,
+                SingleState.S0,
+            ],
+            [0, 1, 2, 3, 4],
+            [0, 1, 1, 3, 3, 4],
+            [1, 1, 0, 0, 1, 1],
+            id="completed-final-off",
+        ),
+        pytest.param(
+            [SingleState.S0, SingleState.OFF, SingleState.OFF],
+            [0, 1, 2, 4],
+            [0, 1, 1, 4],
+            [1, 1, 0, 0],
+            id="unfinished-off-with-end-time",
+        ),
+        pytest.param(
+            [SingleState.OFF, SingleState.OFF, SingleState.S0],
+            [0, 1, 2, 4],
+            [0, 2, 2, 4],
+            [0, 0, 1, 1],
+            id="starts-off",
+        ),
+        pytest.param(
+            [SingleState.S0, SingleState.OFF, SingleState.OFF2, SingleState.S0],
+            [0, 1, 2, 3, 4],
+            [0, 1, 1, 3, 3, 4],
+            [1, 1, 0, 0, 1, 1],
+            id="off-subtype-change",
+        ),
+        pytest.param(
+            [SingleState.OFF, SingleState.OFF2, SingleState.OFF],
+            [0, 1, 2, 4],
+            [0, 4],
+            [0, 0],
+            id="entirely-off",
+        ),
+    ],
+)
+def test_get_off_statistics_controlled(states, times, expected_times, expected_values):
+    simulation = SimpleNamespace(
+        state_series=np.array([[state.value for state in states]], dtype=np.int8),
+        time_series=np.array(times, dtype=np.float64),
+    )
+
+    on_off_times, on_off_values = bl.get_off_statistics(simulation=simulation, index=0)
+
+    np.testing.assert_array_equal(on_off_times, expected_times)
+    np.testing.assert_array_equal(on_off_values, expected_values)
+    assert on_off_values.dtype == np.int8
 
 
 def test_get_analytical_off_statistics():

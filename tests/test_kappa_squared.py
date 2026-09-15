@@ -81,6 +81,9 @@ def test_kappa_squared():
 
 def test_integral_kappa_squared():
     rng = np.random.default_rng(42)
+    constant_traj = np.array([[0, 0, 1], [0, 0, 1]])
+    assert integral_kappa_squared(constant_traj, constant_traj, dt=0.001) == 4
+
     traj1 = np.array([[1, 0, 0], [0, 1, 0], [1, 0, 0]])
     traj2 = np.array([[0, 1, 0], [1, 0, 0], [0, 1, 0]])
     dt = 0.001

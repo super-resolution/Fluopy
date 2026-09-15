@@ -91,7 +91,7 @@ def create_row_subtitles(
     None
     """
     if titles is None:
-        titles = ["default_title"]
+        titles = ["default_title"] * nrows
 
     fig = get_figure(axes=axes)
     grid = GridSpec(nrows=nrows, ncols=ncols)

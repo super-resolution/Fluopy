@@ -170,91 +170,21 @@ def get_blinking_statistics(
     """
     intensities = event_time_series.to_numpy(dtype=np.int64)
     frames = np.flatnonzero(intensities > threshold).astype(np.int64)
-    remove_last_on_period = False
-    if frames.size != 0:
-        if frames[-1] + 1 == event_time_series.size:
-            remove_last_on_period = True
-        differences = np.diff(frames)
-        off_periods_indices = np.where(differences > 1 + memory)[0]
+    if frames.size == 0:
+        return frames.copy(), frames.copy(), frames.copy(), frames.copy()
 
-        off_periods_frames = frames[off_periods_indices] + 1
+    splits = np.flatnonzero(np.diff(frames) > memory + 1)
 
-        if off_periods_indices.size == 0:
-            off_periods = np.array([], dtype=int)
-            if not remove_last_on_period:
-                on_periods = np.array([frames[-1] - frames[0] + 1])
-                on_periods_frames = np.array([frames[0]])
-            else:
-                on_periods = np.array([], dtype=int)
-                on_periods_frames = np.array([], dtype=int)
-        else:
-            off_periods_zero = np.where(differences > 1 + memory, 0, differences)
-            # if off period, convert to 0
-            interrupt_by_one_frame = (
-                np.where(off_periods_indices[1:] - off_periods_indices[:-1] == 1)[0] + 1
-            )
-            # store indices where off periods are interrupted by only 1 on frame
-            on_mask_init = np.ones(off_periods_indices.shape, bool)
-            # initialize a boolean mask
-            on_mask_init[interrupt_by_one_frame] = False
-            # the mask is False where only 1 frame is on
-            if off_periods_zero[0] == 0:
-                on_mask_init[0] = False
-            # interrupt_by_one_frame cannot store the information if the first frame is
-            # on and followed by off frames
+    on_periods_frames = frames[np.r_[0, splits + 1]]
+    on_last_frames = frames[np.r_[splits, frames.size - 1]]
+    on_periods = on_last_frames - on_periods_frames + 1
 
-            cumsum = np.cumsum(off_periods_zero)
-            # cumulative sum of off_periods_zero; if 0 (off period) the value stays the
-            # same
-            uniques, counts = np.unique(cumsum, return_counts=True)
-            duplices = uniques[np.where(counts > 1)]
-            duplices[1:] -= duplices[:-1]
-            # get the values of cumsum which appear several times indicating an off
-            # period the last step is to back calculate the cumulative sum
+    off_periods_frames = on_last_frames[:-1] + 1
+    off_periods = on_periods_frames[1:] - off_periods_frames
 
-            on_periods = np.ones(off_periods_indices.shape, dtype=int)
-            # initialize array of on_periods (ones for every entry)
-            if duplices.size != 0:
-                if duplices[0] == 0:
-                    duplices = duplices[1:]
-            # if, in the beginning, more than one off period are consecutively
-            # interrupted by only one frame, the cumsum will give several 0 (meaning
-            # that 0 will be one of duplices) even though these on periods should stay 1
-            on_periods[on_mask_init] = duplices + 1
-            # change the values which are not 1 to their true values
-
-            max_index_off = np.max(off_periods_indices)
-            # the index of the last off period
-            if not remove_last_on_period:
-                last_on_period = np.sum(off_periods_zero[max_index_off + 1 :]) + 1
-                # the last on period is the sum of differences starting after the last
-                # off period
-                on_periods = np.append(on_periods, last_on_period)
-                # add the last on period
-            off_periods = differences[off_periods_indices] - 1
-            # the off periods
-            if frames[0] > memory:
-                off_periods = np.insert(arr=off_periods, obj=0, values=frames[0])
-                # add an initial off period if the series doesn't start with on period
-                off_periods_frames = np.insert(arr=off_periods_frames, obj=0, values=0)
-                on_periods_frames = off_periods_frames + off_periods
-                off_periods = np.delete(off_periods, 0)
-                off_periods_frames = np.delete(off_periods_frames, 0)
-            elif frames[0] != 0:
-                on_periods_frames = off_periods_frames + off_periods
-                on_periods_frames = np.insert(
-                    arr=on_periods_frames, obj=0, values=frames[0]
-                )
-            else:
-                on_periods_frames = off_periods_frames + off_periods
-                on_periods_frames = np.insert(arr=on_periods_frames, obj=0, values=0)
-            on_periods_frames = on_periods_frames[: on_periods.size]
-
-    else:
-        on_periods = np.array([], dtype=int)
-        off_periods = np.array([], dtype=int)
-        on_periods_frames = np.array([], dtype=int)
-        off_periods_frames = np.array([], dtype=int)
+    if frames[-1] == event_time_series.size - 1:
+        on_periods = on_periods[:-1]
+        on_periods_frames = on_periods_frames[:-1]
 
     return on_periods, off_periods, on_periods_frames, off_periods_frames
 
@@ -293,27 +223,19 @@ def get_off_statistics(
             f"index assumes {index + 1} fluorophores but "
             f"{state_series.shape[0]} are present."
         )
-    off_index = np.where(state_series[index] == tr.SingleState.OFF.value)[0]
-    off2_index = np.where(state_series[index] == tr.SingleState.OFF2.value)[0]
-    off_indices = np.sort(np.concatenate([off_index, off2_index]))
-    if off_indices.size == 0:
+    states = state_series[index]
+    is_off = (states == tr.SingleState.OFF.value) | (
+        states == tr.SingleState.OFF2.value
+    )
+    if not np.any(is_off):
         raise ValueError("no photophysical OFF states found.")
-    high_diffs = np.where(np.diff(off_indices) > 1)[0]
-    starting_indices = off_indices[high_diffs + 1]
-    starting_indices = np.insert(arr=starting_indices, obj=0, values=off_indices[0])
-    ending_indices = off_indices[high_diffs] + 1  # ends when new state (s0) is reached
-    off_start = time_series[starting_indices]
-    off_end = time_series[ending_indices]
-    on_start = np.copy(off_end)
-    on_start = np.insert(arr=on_start, obj=0, values=0)
-    on_end = np.copy(off_start)
-    merged = np.concatenate((off_start, off_end, on_start, on_end))
-    on_off_times = np.sort(merged)
-    on_off_values = np.ones(int(on_off_times.size / 2), dtype=np.int8)
-    on_off_values[1::2] = 0
-    on_off_values = np.vstack((on_off_values, on_off_values)).ravel("F")
-    if on_off_values.size != on_off_times.size:
-        on_off_values = np.append(on_off_values, np.array([0], dtype=np.int8))
+
+    changes = np.flatnonzero(is_off[1:] != is_off[:-1]) + 1
+    starts = np.r_[0, changes]
+    edges = np.r_[time_series[starts], time_series[-1]]
+
+    on_off_times = np.repeat(edges, 2)[1:-1]
+    on_off_values = np.repeat((~is_off[starts]).astype(np.int8), 2)
 
     return on_off_times, on_off_values
 
