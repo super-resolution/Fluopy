@@ -4,7 +4,6 @@ Random variable distributions.
 
 from __future__ import annotations
 
-import inspect
 from collections.abc import Callable, Mapping, Sequence
 from typing import Protocol, cast
 
@@ -298,39 +297,26 @@ class Photoswitching_fingerprint_model:
 
         return pdf_part
 
-    def pdf(
-        self, x: float | npt.ArrayLike, order: int = 0
+    def _evaluate_pdf(
+        self,
+        x: float | npt.ArrayLike,
+        call: HypoexponentialCall,
     ) -> float | npt.NDArray[np.float64]:
         """
-        PDF
+        Evaluate the PDF (or its derivative) of the photoswitching fingerprint model.
 
         Parameters
         ----------
         x
             Sample.
-        order : int
-            Order of the derivative of the PDF to be calculated.
+        call
+            Function to calculate the PDF (or its derivative) of the hypoexponential
+            distribution.
 
         Returns
         -------
-        float | npt.NDArray[np.float64]
-            PDF
+        pdf
         """
-        if order == 0:
-            call = hypoexponential_distribution_pdf
-        elif order == 1:
-            caller = inspect.stack()[1].function
-            if caller != "dpdf":
-                raise ValueError("Call dpdf instead of pdf with setting order=1.")
-            call = hypoexponential_distribution_pdf_1st_order_derivative
-        elif order == 2:
-            caller = inspect.stack()[1].function
-            if caller != "ddpdf":
-                raise ValueError("Call ddpdf instead of pdf with setting order=2.")
-            call = hypoexponential_distribution_pdf_2nd_order_derivative
-        else:
-            raise ValueError("Order has to be 0, 1, or 2.")
-
         n = len(self.params)
         pdf: DistributionValue = 0.0
         for i in range(n):
@@ -344,9 +330,25 @@ class Photoswitching_fingerprint_model:
             else:
                 F_1 = self.cdf(x=self.domain[-1], extra=True)
             F_0 = self.cdf(x=self.domain[0], extra=True)
-            pdf = pdf / (F_1 - F_0)  # true for pdf, dpdf, ddpdf
+            pdf = pdf / (F_1 - F_0)
 
         return pdf
+
+    def pdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
+        """
+        PDF
+
+        Parameters
+        ----------
+        x
+            Sample.
+
+        Returns
+        -------
+        float | npt.NDArray[np.float64]
+            PDF
+        """
+        return self._evaluate_pdf(x=x, call=hypoexponential_distribution_pdf)
 
     def cdf_part(
         self,
@@ -458,9 +460,10 @@ class Photoswitching_fingerprint_model:
         float | npt.NDArray[np.float64]
             First derivative of PDF
         """
-        dpdf = self.pdf(x, order=1)
-
-        return dpdf
+        return self._evaluate_pdf(
+            x=x,
+            call=hypoexponential_distribution_pdf_1st_order_derivative,
+        )
 
     def ddpdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """
@@ -476,9 +479,10 @@ class Photoswitching_fingerprint_model:
         float | npt.NDArray[np.float64]
             Second derivative of PDF
         """
-        ddpdf = self.pdf(x, order=2)
-
-        return ddpdf
+        return self._evaluate_pdf(
+            x=x,
+            call=hypoexponential_distribution_pdf_2nd_order_derivative,
+        )
 
     def logp(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """

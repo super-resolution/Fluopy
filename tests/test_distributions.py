@@ -158,6 +158,23 @@ class TestPhotoswitchingFingerprintModel:
         expected = 0.174595
         np.testing.assert_allclose(pdf, expected, rtol=1e-4)
 
+    def test_PFM_pdf_derivatives(self):
+        x = np.array([0.5, 1, 2])
+
+        dpdf = self.pfm.dpdf(x)
+        ddpdf = self.pfm.ddpdf(x)
+
+        np.testing.assert_allclose(
+            dpdf,
+            [-0.09251863, -0.07558411, -0.05525348],
+            rtol=1e-6,
+        )
+        np.testing.assert_allclose(
+            ddpdf,
+            [0.04209551, 0.02729518, 0.01577208],
+            rtol=1e-6,
+        )
+
 
 class TestExponentialMixtureModel:
     model = ExponentialMixtureModel(
