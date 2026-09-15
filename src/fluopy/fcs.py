@@ -175,7 +175,10 @@ class FCS:
             autocorrelation = autocorrelation[autocorrelation.size // 2 :][1:1000]
             self.tau = event_time_series.index.values[1:1000]
 
-        self.autocorrelation = autocorrelation + 1
+        if normalize:
+            autocorrelation = autocorrelation + 1
+
+        self.autocorrelation = autocorrelation
 
         return self
 
