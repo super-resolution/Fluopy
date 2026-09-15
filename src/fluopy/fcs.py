@@ -137,7 +137,7 @@ class FCS:
             raise ValueError("event_time_series is None.")
         event_time_series = self.emissions.event_time_series.astype(float)
         event_values = event_time_series.to_numpy(dtype=np.float64)
-        deltat = event_time_series.index[1]
+        deltat = float(event_time_series.index[1] - event_time_series.index[0])
         if normalize and log:
             autocorrelation = mp.autocorrelate(
                 a=event_values, m=m, deltat=deltat, normalize=True
@@ -165,15 +165,15 @@ class FCS:
             autocorrelation = (
                 autocorrelation / mean**2
             )  # normalization with mean squared
-            autocorrelation = autocorrelation[1:1000]
-            self.tau = event_time_series.index.values[1:1000]
+            autocorrelation = autocorrelation[1:]
+            self.tau = np.arange(1, autocorrelation.size + 1, dtype=np.float64) * deltat
 
         else:
             autocorrelation = np.correlate(event_values, event_values, mode="full")
             # note that this version is the autocorrelation in the sense of signal
             # processing and differs from the statistical definition of autocorrelation.
-            autocorrelation = autocorrelation[autocorrelation.size // 2 :][1:1000]
-            self.tau = event_time_series.index.values[1:1000]
+            autocorrelation = autocorrelation[autocorrelation.size // 2 :][1:]
+            self.tau = np.arange(1, autocorrelation.size + 1, dtype=np.float64) * deltat
 
         if normalize:
             autocorrelation = autocorrelation + 1
