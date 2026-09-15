@@ -4,8 +4,9 @@ Unit tests for fitting.py
 
 import numpy as np
 import pytest
-from scipy.optimize import Bounds, LinearConstraint
+from scipy.optimize import Bounds, LinearConstraint, OptimizeResult
 
+import fluopy.fitting as fitting
 from fluopy.distributions import ExponentialMixtureModel
 from fluopy.fitting import (
     convert_dicts,
@@ -159,6 +160,58 @@ class TestLogLikelihoodHistV2:
             counts_not_observed=100,
         )
         assert ll0 < ll100
+
+
+@pytest.mark.parametrize(
+    "fitter",
+    [fitting.fit_multiple_mixture_v1, fitting.fit_multiple_mixture_v2],
+)
+def test_fitter_penalizes_ill_conditioned_hypoexponential_rates(monkeypatch, fitter):
+    candidate = np.array(
+        [
+            0.8,
+            0.95165,
+            0.5,
+            0.7,
+            0.95055,
+            0.4,
+            0.6,
+            0.94945,
+            0.3,
+            0.5,
+            0.94835,
+            0.2,
+        ]
+    )
+
+    def differential_evolution(objective, **kwargs):
+        assert objective(candidate) == np.inf
+        return OptimizeResult(x=candidate, fun=0.0, success=True)
+
+    monkeypatch.setattr(fitting, "differential_evolution", differential_evolution)
+    datasets = [np.array([1]) for _ in range(4)]
+
+    result = fitter(
+        datasets=datasets,
+        bin_edges=[0, 1],
+        pfa_bin_edges=[0, 1],
+        pfa_counts=[1],
+    )
+
+    assert result.fun == 0.0
+
+
+def test_fitter_rejects_nonfinite_best_objective(monkeypatch):
+    def differential_evolution(objective, **kwargs):
+        return OptimizeResult(fun=np.inf, success=False)
+
+    monkeypatch.setattr(fitting, "differential_evolution", differential_evolution)
+
+    with pytest.raises(RuntimeError, match="did not find parameters"):
+        fitting.fit_multiple_mixture_v1(
+            datasets=[np.array([1])],
+            bin_edges=[0, 1],
+        )
 
 
 class TestPrepareConstraints:

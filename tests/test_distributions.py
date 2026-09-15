@@ -6,6 +6,7 @@ import pytest
 from fluopy import (
     ExponentialMixtureMarginalModel,
     ExponentialMixtureModel,
+    IllConditionedHypoexponentialError,
     Photoswitching_fingerprint_model,
     hypoexponential_distribution_cdf,
     hypoexponential_distribution_pdf,
@@ -74,6 +75,64 @@ def test_hypoexponential_distribution_pdf_1st_order_derivative(x, args, expected
 def test_hypoexponential_distribution_pdf_2nd_order_derivative(x, args, expected):
     pdf = hypoexponential_distribution_pdf_2nd_order_derivative(x, *args)
     np.testing.assert_allclose(pdf, expected, rtol=1e-4)
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        hypoexponential_distribution_cdf,
+        hypoexponential_distribution_pdf,
+        hypoexponential_distribution_pdf_1st_order_derivative,
+        hypoexponential_distribution_pdf_2nd_order_derivative,
+    ],
+)
+def test_hypoexponential_distribution_rejects_ill_conditioned_rates(call):
+    rates = np.array([0.9497, 0.9499, 0.9501, 0.9503])
+    np.testing.assert_array_equal(np.round(rates, decimals=2), [0.95] * 4)
+
+    with pytest.raises(IllConditionedHypoexponentialError, match="Rates are too close"):
+        call(1, *rates)
+
+
+@pytest.mark.parametrize(
+    "call, expected",
+    [
+        (hypoexponential_distribution_cdf, 0.01607397677271227),
+        (hypoexponential_distribution_pdf, 0.05249902090014569),
+        (
+            hypoexponential_distribution_pdf_1st_order_derivative,
+            0.1076231323351729,
+        ),
+        (
+            hypoexponential_distribution_pdf_2nd_order_derivative,
+            0.06313078403110652,
+        ),
+    ],
+)
+def test_hypoexponential_distribution_accepts_close_stable_rates(call, expected):
+    rates = np.array([0.9451, 0.9484, 0.9516, 0.9549])
+    np.testing.assert_array_equal(np.round(rates, decimals=2), [0.95] * 4)
+
+    result = call(1, *rates)
+
+    assert result == pytest.approx(expected, rel=1e-7)
+
+
+def test_fingerprint_skips_zero_weight_ill_conditioned_combinations():
+    model = Photoswitching_fingerprint_model(
+        params={
+            0: [1, 0, 3, 0.9497],
+            1: [1, 0, 2.5, 0.9499],
+            2: [1, 0, 2, 0.9501],
+            3: [0.5, 0.5, 1.5, 0.9503],
+        }
+    )
+    expected = 0.5 * hypoexponential_distribution_pdf(1, 3, 2.5, 2, 1.5)
+    expected += 0.5 * hypoexponential_distribution_pdf(1, 3, 2.5, 2, 0.9503)
+
+    result = model.pdf_part(call=None, x=1, i=3)
+
+    assert result == pytest.approx(expected)
 
 
 class TestPhotoswitchingFingerprintModel:

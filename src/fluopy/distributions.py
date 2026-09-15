@@ -14,6 +14,7 @@ from scipy.integrate import cumulative_trapezoid
 from scipy.stats import expon
 
 __all__: list[str] = [
+    "IllConditionedHypoexponentialError",
     "hypoexponential_distribution_cdf",
     "hypoexponential_distribution_pdf",
     "hypoexponential_distribution_pdf_1st_order_derivative",
@@ -27,8 +28,57 @@ __all__: list[str] = [
 DistributionValue = float | npt.NDArray[np.float64]
 
 
+class IllConditionedHypoexponentialError(ValueError):
+    """Raised when hypoexponential partial fractions cannot be evaluated reliably."""
+
+
 class HypoexponentialCall(Protocol):
     def __call__(self, x: npt.ArrayLike, *args: int | float) -> DistributionValue: ...
+
+
+def _partial_fraction_is_ill_conditioned(
+    coefficients: npt.NDArray[np.float64], scale: float
+) -> bool:
+    eps = np.finfo(np.float64).eps
+    estimated_roundoff = eps * np.sum(np.abs(coefficients))
+
+    return bool(
+        not np.isfinite(estimated_roundoff) or estimated_roundoff > np.sqrt(eps) * scale
+    )
+
+
+def _prepare_hypoexponential_rates(
+    args: Sequence[int | float], order: int | None
+) -> npt.NDArray[np.float64]:
+    rates = np.asarray(args, dtype=np.float64)
+    if rates.size == 0:
+        raise ValueError("At least one rate is required.")
+    if not np.all(np.isfinite(rates)):
+        raise ValueError("Rates must be finite.")
+    if np.any(rates <= 0):
+        raise ValueError("Rates must be positive.")
+    if np.unique(rates).size != rates.size:
+        raise IllConditionedHypoexponentialError("Rates must be distinct.")
+
+    differences = rates[None, :] - rates[:, None]
+    np.fill_diagonal(differences, 1.0)
+    with np.errstate(over="ignore", under="ignore", divide="ignore", invalid="ignore"):
+        pdf_coefficients = np.prod(rates) / np.prod(differences, axis=1)
+
+    if order is None:
+        coefficients = pdf_coefficients / rates
+        scale = 1.0
+    else:
+        coefficients = pdf_coefficients * (-rates) ** order
+        scale = float(np.max(rates) ** (order + 1))
+
+    if _partial_fraction_is_ill_conditioned(coefficients, scale):
+        raise IllConditionedHypoexponentialError(
+            "Rates are too close for stable evaluation of the hypoexponential "
+            "distribution."
+        )
+
+    return rates
 
 
 def hypoexponential_distribution_cdf(
@@ -50,10 +100,11 @@ def hypoexponential_distribution_cdf(
     float | npt.NDArray[np.float64]
         CDF of the hypoexponential distribution.
     """
+    rates = _prepare_hypoexponential_rates(args, order=None)
     x = np.asarray(x)
     cdf = 1
-    for arg in args:
-        other_args = np.array([other for other in args if other != arg])
+    for arg in rates:
+        other_args = rates[rates != arg]
         cdf -= np.exp(-arg * x) * np.prod(other_args) / np.prod(-arg + other_args)
 
     return cdf
@@ -78,12 +129,12 @@ def hypoexponential_distribution_pdf(
     float | npt.NDArray[np.float64]
         PDF of the hypoexponential distribution.
     """
+    rates = _prepare_hypoexponential_rates(args, order=0)
     x = np.asarray(x)
-    all_args = np.asarray(args)
     pdf = 0
-    for arg in args:
-        other_args = np.array([other for other in args if other != arg])
-        pdf += np.exp(-arg * x) * np.prod(all_args) / np.prod(-arg + other_args)
+    for arg in rates:
+        other_args = rates[rates != arg]
+        pdf += np.exp(-arg * x) * np.prod(rates) / np.prod(-arg + other_args)
 
     return pdf
 
@@ -107,13 +158,13 @@ def hypoexponential_distribution_pdf_1st_order_derivative(
     float | npt.NDArray[np.float64]
         First order derivative of the PDF of the hypoexponential distribution.
     """
+    rates = _prepare_hypoexponential_rates(args, order=1)
     x = np.asarray(x)
-    all_args = np.array(args)
     pdf_1st_order_derivative = 0
-    for arg in args:
-        other_args = np.array([other for other in args if other != arg])
+    for arg in rates:
+        other_args = rates[rates != arg]
         pdf_1st_order_derivative += (
-            -arg * np.exp(-arg * x) * np.prod(all_args) / np.prod(-arg + other_args)
+            -arg * np.exp(-arg * x) * np.prod(rates) / np.prod(-arg + other_args)
         )
 
     return pdf_1st_order_derivative
@@ -138,13 +189,13 @@ def hypoexponential_distribution_pdf_2nd_order_derivative(
     float | npt.NDArray[np.float64]
         Second order derivative of the PDF of the hypoexponential distribution.
     """
+    rates = _prepare_hypoexponential_rates(args, order=2)
     x = np.asarray(x)
-    all_args = np.array(args)
     pdf_2nd_order_derivative = 0
-    for arg in args:
-        other_args = np.array([other for other in args if other != arg])
+    for arg in rates:
+        other_args = rates[rates != arg]
         pdf_2nd_order_derivative += (
-            arg**2 * np.exp(-arg * x) * np.prod(all_args) / np.prod(-arg + other_args)
+            arg**2 * np.exp(-arg * x) * np.prod(rates) / np.prod(-arg + other_args)
         )
 
     return pdf_2nd_order_derivative
@@ -226,6 +277,8 @@ class Photoswitching_fingerprint_model:
         pdf_part: DistributionValue = 0.0
         for lambda_combo, pi_combo in zip(lambdas, pis):
             pi_set = np.prod(pi_combo)
+            if pi_set == 0:
+                continue
             pdf_part += pi_set * call(
                 x,
                 *lambda_combo,
@@ -331,6 +384,8 @@ class Photoswitching_fingerprint_model:
         cdf_part: DistributionValue = 0.0
         for lambda_combo, pi_combo in zip(lambdas, pis):
             pi_set = np.prod(pi_combo)
+            if pi_set == 0:
+                continue
             cdf_part += pi_set * hypoexponential_distribution_cdf(
                 x,
                 *lambda_combo,

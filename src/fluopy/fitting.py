@@ -454,13 +454,27 @@ def fit_multiple_mixture_v1(
             total_negative_log_likelihood += negative_log_likelihood
         return total_negative_log_likelihood
 
+    def objective_for_optimizer(params: npt.NDArray[np.float64]) -> float:
+        try:
+            return global_objective(params)
+        except dist.IllConditionedHypoexponentialError:
+            return np.inf
+
     linear_constraint, bounds = prepare_constraints(len(datasets), z)
 
     if not constr:
         linear_constraint = ()
     result = differential_evolution(
-        global_objective, bounds=bounds, constraints=linear_constraint, **diff_ev
+        objective_for_optimizer,
+        bounds=bounds,
+        constraints=linear_constraint,
+        **diff_ev,
     )
+    if not np.isfinite(result.fun):
+        raise RuntimeError(
+            "Optimization did not find parameters for which the hypoexponential "
+            "distribution can be evaluated reliably."
+        )
     return result
 
 
@@ -609,13 +623,27 @@ def fit_multiple_mixture_v2(
             total_negative_log_likelihood += negative_log_likelihood
         return total_negative_log_likelihood
 
+    def objective_for_optimizer(params: npt.NDArray[np.float64]) -> float:
+        try:
+            return global_objective(params)
+        except dist.IllConditionedHypoexponentialError:
+            return np.inf
+
     linear_constraint, bounds = prepare_constraints(len(datasets), z)
 
     if not constr:
         linear_constraint = ()
     result = differential_evolution(
-        global_objective, bounds=bounds, constraints=linear_constraint, **diff_ev
+        objective_for_optimizer,
+        bounds=bounds,
+        constraints=linear_constraint,
+        **diff_ev,
     )
+    if not np.isfinite(result.fun):
+        raise RuntimeError(
+            "Optimization did not find parameters for which the hypoexponential "
+            "distribution can be evaluated reliably."
+        )
     return result
 
 
