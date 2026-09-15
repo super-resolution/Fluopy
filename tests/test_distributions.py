@@ -258,6 +258,30 @@ class TestExponentialMixtureMarginalModel:
         expected = [3.128881, 0]
         np.testing.assert_allclose(pdf, expected, rtol=1e-4)
 
+    def test_grid_scales_with_small_truncation(self):
+        model = ExponentialMixtureMarginalModel(
+            params={"lambdas": [1], "pis": []},
+            pfa_cdf_part=lambda x, i, normalize: 0.5,
+            cdf_part_index=0,
+            truncation_up=0.001,
+        )
+
+        assert model.x_grid[0] == 0
+        assert model.x_grid[-1] == 0.001
+        assert np.all(np.diff(model.x_grid) > 0)
+
+    def test_sharp_density_observation_probability(self):
+        model = ExponentialMixtureMarginalModel(
+            params={"lambdas": [10000], "pis": []},
+            pfa_cdf_part=lambda x, i, normalize: 1.0,
+            cdf_part_index=0,
+            truncation_up=1,
+        )
+
+        assert model.P_obs == pytest.approx(1, rel=2e-3)
+        assert np.all(np.diff(model.cdf_grid) >= 0)
+        assert model.cdf_grid[-1] == 1
+
 
 def test_generate_combinations():
     valid_combinations = generate_combinations(n=1, z=-1)

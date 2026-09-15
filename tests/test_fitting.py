@@ -11,6 +11,7 @@ from fluopy.distributions import ExponentialMixtureModel
 from fluopy.fitting import (
     convert_dicts,
     load_from_array,
+    log_likelihood_hist_marginal_v2,
     log_likelihood_hist_v1,
     log_likelihood_hist_v2,
     prepare_constraints,
@@ -160,6 +161,27 @@ class TestLogLikelihoodHistV2:
             counts_not_observed=100,
         )
         assert ll0 < ll100
+
+
+def test_log_likelihood_hist_marginal_v2_with_small_truncation():
+    truncation_up = 0.001
+
+    def uniform_pdf_part(*, call, x, i, normalize):
+        return np.full_like(x, 1 / truncation_up, dtype=np.float64)
+
+    result = log_likelihood_hist_marginal_v2(
+        model=ExponentialMixtureModel,
+        params={"pis": [], "lambdas": [1000]},
+        counts=[1],
+        bin_edges=[0, truncation_up],
+        counts_not_observed=0,
+        truncation_low=0,
+        truncation_up=truncation_up,
+        pfa_pdf_part=uniform_pdf_part,
+        pdf_part_index=0,
+    )
+
+    assert result == pytest.approx(1, rel=1e-4)
 
 
 @pytest.mark.parametrize(

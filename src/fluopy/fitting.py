@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from scipy.integrate import simpson
 from scipy.optimize import (
     Bounds,
     LinearConstraint,
@@ -270,8 +271,7 @@ def log_likelihood_hist_marginal_v2(
     counts_array = np.asarray(counts, dtype=np.float64)
     bin_edges_array = np.asarray(bin_edges, dtype=np.float64)
 
-    x_grid = np.logspace(np.log10(0.01), np.log10(truncation_up), 200)
-    x_grid = np.insert(arr=x_grid, obj=0, values=0)
+    x_grid = dist._marginal_integration_grid(truncation_up)
     weights = np.asarray(
         pfa_pdf_part(
             call=None,
@@ -290,7 +290,7 @@ def log_likelihood_hist_marginal_v2(
         params, domain=(0, np.inf)
     ).cdf(a)
     qk *= valid
-    probs = np.trapezoid(qk * weights[None, :], x=x_grid, axis=1)
+    probs = simpson(qk * weights[None, :], x=x_grid, axis=1)
     probs = np.clip(probs, a_min=1e-14, a_max=None)  # avoid log(0)
     log_likelihood_bin = np.sum(counts_array * np.log(probs))
 

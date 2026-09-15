@@ -9,7 +9,7 @@ from typing import Protocol, cast
 
 import numpy as np
 import numpy.typing as npt
-from scipy.integrate import cumulative_trapezoid
+from scipy.integrate import cumulative_simpson, simpson
 from scipy.stats import expon
 
 __all__: list[str] = [
@@ -49,6 +49,41 @@ def _restrict_cdf_to_domain(
     result = np.where(values >= domain[1], 1.0, result)
 
     return float(result) if result.ndim == 0 else result
+
+
+def _marginal_integration_grid(
+    truncation_up: float,
+    points_per_side: int = 100,
+) -> npt.NDArray[np.float64]:
+    if not np.isfinite(truncation_up) or truncation_up <= 0:
+        raise ValueError("truncation_up must be finite and greater than zero.")
+
+    smallest_fraction = np.sqrt(np.finfo(np.float64).eps)
+    linear_fraction_start = 1 / points_per_side
+    geometric_point_count = points_per_side // 2
+    geometric_fractions = np.geomspace(
+        smallest_fraction,
+        linear_fraction_start,
+        geometric_point_count,
+        endpoint=False,
+    )
+    linear_fractions = np.linspace(
+        linear_fraction_start,
+        0.5,
+        points_per_side - geometric_point_count,
+    )
+    edge_fractions = np.concatenate((geometric_fractions, linear_fractions))
+
+    return np.unique(
+        np.concatenate(
+            (
+                [0.0],
+                truncation_up * edge_fractions,
+                truncation_up * (1 - edge_fractions),
+                [truncation_up],
+            )
+        )
+    )
 
 
 class IllConditionedHypoexponentialError(ValueError):
@@ -870,8 +905,7 @@ class ExponentialMixtureMarginalModel:
         self.cdf_part_index = cdf_part_index
         self.truncation_up = truncation_up
 
-        x_grid = np.logspace(np.log10(0.01), np.log10(truncation_up), 200)
-        x_grid = np.insert(arr=x_grid, obj=0, values=0.0)
+        x_grid = _marginal_integration_grid(truncation_up)
         pdf_grid = ExponentialMixtureModel(params=params, domain=(0, np.inf)).pdf(
             x_grid
         ) * pfa_cdf_part(truncation_up - x_grid, cdf_part_index, True)
@@ -880,11 +914,15 @@ class ExponentialMixtureMarginalModel:
         # CDF(truncation_up - x) because Pr(actual_truncation >= x) = Pr(truncation_up - T >= x) = Pr(T <= truncation_up - x) = CDF(truncation_up - x)
         # i.e., pfa_cdf_part does not describe the actual truncation of the two_expon_mixture, but truncation_up - T does.
         # if it described the actual truncation, we would multiply with (1 - CDF(x)) (Survival function)
-        P_obs = np.trapezoid(y=pdf_grid, x=x_grid)
+        P_obs = simpson(y=pdf_grid, x=x_grid)
+        if not np.isfinite(P_obs) or P_obs <= 0 or P_obs > 1 + 1e-6:
+            raise ValueError("The calculated observation probability is invalid.")
         pdf_grid /= P_obs
         # normalization such that integral over domain is 1, i.e., pdf_grid describes the distribution
         # given that an event is observed
-        cdf_grid = cumulative_trapezoid(pdf_grid, x=x_grid, initial=0)
+        cdf_grid = cumulative_simpson(pdf_grid, x=x_grid, initial=0)
+        cdf_grid = np.maximum.accumulate(cdf_grid)
+        cdf_grid /= cdf_grid[-1]
 
         self.pdf_grid = pdf_grid
         self.cdf_grid = cdf_grid
@@ -908,7 +946,7 @@ class ExponentialMixtureMarginalModel:
         values = np.asarray(x, dtype=np.float64)
         pdf = np.interp(values, xp=self.x_grid, fp=self.pdf_grid, left=0.0, right=0.0)
 
-        return pdf
+        return cast(DistributionValue, pdf)
 
     def cdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """
