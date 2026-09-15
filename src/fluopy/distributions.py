@@ -27,6 +27,30 @@ __all__: list[str] = [
 DistributionValue = float | npt.NDArray[np.float64]
 
 
+def _restrict_pdf_to_domain(
+    x: npt.ArrayLike,
+    pdf: DistributionValue,
+    domain: tuple[float, float],
+) -> DistributionValue:
+    values = np.asarray(x)
+    inside = (values >= domain[0]) & (values <= domain[1])
+    result = np.where(inside, pdf, 0.0)
+
+    return float(result) if result.ndim == 0 else result
+
+
+def _restrict_cdf_to_domain(
+    x: npt.ArrayLike,
+    cdf: DistributionValue,
+    domain: tuple[float, float],
+) -> DistributionValue:
+    values = np.asarray(x)
+    result = np.where(values <= domain[0], 0.0, cdf)
+    result = np.where(values >= domain[1], 1.0, result)
+
+    return float(result) if result.ndim == 0 else result
+
+
 class IllConditionedHypoexponentialError(ValueError):
     """Raised when hypoexponential partial fractions cannot be evaluated reliably."""
 
@@ -100,13 +124,18 @@ def hypoexponential_distribution_cdf(
         CDF of the hypoexponential distribution.
     """
     rates = _prepare_hypoexponential_rates(args, order=None)
-    x = np.asarray(x)
+    values = np.asarray(x)
+    evaluation_values = np.maximum(values, 0.0)
     cdf = 1
     for arg in rates:
         other_args = rates[rates != arg]
-        cdf -= np.exp(-arg * x) * np.prod(other_args) / np.prod(-arg + other_args)
+        cdf -= (
+            np.exp(-arg * evaluation_values)
+            * np.prod(other_args)
+            / np.prod(-arg + other_args)
+        )
 
-    return cdf
+    return _restrict_cdf_to_domain(values, cdf, (0, np.inf))
 
 
 def hypoexponential_distribution_pdf(
@@ -129,13 +158,18 @@ def hypoexponential_distribution_pdf(
         PDF of the hypoexponential distribution.
     """
     rates = _prepare_hypoexponential_rates(args, order=0)
-    x = np.asarray(x)
+    values = np.asarray(x)
+    evaluation_values = np.maximum(values, 0.0)
     pdf = 0
     for arg in rates:
         other_args = rates[rates != arg]
-        pdf += np.exp(-arg * x) * np.prod(rates) / np.prod(-arg + other_args)
+        pdf += (
+            np.exp(-arg * evaluation_values)
+            * np.prod(rates)
+            / np.prod(-arg + other_args)
+        )
 
-    return pdf
+    return _restrict_pdf_to_domain(values, pdf, (0, np.inf))
 
 
 def hypoexponential_distribution_pdf_1st_order_derivative(
@@ -158,15 +192,19 @@ def hypoexponential_distribution_pdf_1st_order_derivative(
         First order derivative of the PDF of the hypoexponential distribution.
     """
     rates = _prepare_hypoexponential_rates(args, order=1)
-    x = np.asarray(x)
+    values = np.asarray(x)
+    evaluation_values = np.maximum(values, 0.0)
     pdf_1st_order_derivative = 0
     for arg in rates:
         other_args = rates[rates != arg]
         pdf_1st_order_derivative += (
-            -arg * np.exp(-arg * x) * np.prod(rates) / np.prod(-arg + other_args)
+            -arg
+            * np.exp(-arg * evaluation_values)
+            * np.prod(rates)
+            / np.prod(-arg + other_args)
         )
 
-    return pdf_1st_order_derivative
+    return _restrict_pdf_to_domain(values, pdf_1st_order_derivative, (0, np.inf))
 
 
 def hypoexponential_distribution_pdf_2nd_order_derivative(
@@ -189,15 +227,19 @@ def hypoexponential_distribution_pdf_2nd_order_derivative(
         Second order derivative of the PDF of the hypoexponential distribution.
     """
     rates = _prepare_hypoexponential_rates(args, order=2)
-    x = np.asarray(x)
+    values = np.asarray(x)
+    evaluation_values = np.maximum(values, 0.0)
     pdf_2nd_order_derivative = 0
     for arg in rates:
         other_args = rates[rates != arg]
         pdf_2nd_order_derivative += (
-            arg**2 * np.exp(-arg * x) * np.prod(rates) / np.prod(-arg + other_args)
+            arg**2
+            * np.exp(-arg * evaluation_values)
+            * np.prod(rates)
+            / np.prod(-arg + other_args)
         )
 
-    return pdf_2nd_order_derivative
+    return _restrict_pdf_to_domain(values, pdf_2nd_order_derivative, (0, np.inf))
 
 
 class Photoswitching_fingerprint_model:
@@ -295,7 +337,7 @@ class Photoswitching_fingerprint_model:
             F_0 = self.cdf_part(x=self.domain[0], i=i, normalize=False)
             pdf_part = pdf_part / (F_1 - F_0)
 
-        return pdf_part
+        return _restrict_pdf_to_domain(x, pdf_part, self.domain)
 
     def _evaluate_pdf(
         self,
@@ -332,7 +374,7 @@ class Photoswitching_fingerprint_model:
             F_0 = self.cdf(x=self.domain[0], extra=True)
             pdf = pdf / (F_1 - F_0)
 
-        return pdf
+        return _restrict_pdf_to_domain(x, pdf, self.domain)
 
     def pdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """
@@ -404,7 +446,7 @@ class Photoswitching_fingerprint_model:
             F_0 = self.cdf_part(x=self.domain[0], i=i, normalize=False)
             cdf_part = (cdf_part - F_0) / (F_1 - F_0)
 
-        return cdf_part
+        return _restrict_cdf_to_domain(x, cdf_part, self.domain)
 
     def cdf(
         self,
@@ -444,7 +486,7 @@ class Photoswitching_fingerprint_model:
             F_0 = self.cdf(x=self.domain[0], extra=True)
             cdf = (cdf - F_0) / (F_1 - F_0)
 
-        return cdf
+        return _restrict_cdf_to_domain(x, cdf, self.domain)
 
     def dpdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """
@@ -748,7 +790,7 @@ class ExponentialMixtureModel:
             F_0 = self.cdf(x=self.domain[0], extra=True)
             pdf = pdf / (F_1 - F_0)
 
-        return pdf
+        return _restrict_pdf_to_domain(x, pdf, self.domain)
 
     def cdf(
         self,
@@ -791,7 +833,7 @@ class ExponentialMixtureModel:
             F_0 = self.cdf(x=self.domain[0], extra=True)
             cdf = (cdf - F_0) / (F_1 - F_0)
 
-        return cdf
+        return _restrict_cdf_to_domain(x, cdf, self.domain)
 
 
 class ExponentialMixtureMarginalModel:

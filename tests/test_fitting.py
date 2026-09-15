@@ -28,7 +28,7 @@ class TestLogLikelihoodHistV1:
             "pis": [0.2],
             "lambdas": [0.1, 1],
         }
-        bin_edges = np.array([0.0, 10.0, 50.0, 100.0])
+        bin_edges = np.array([10.0, 20.0, 50.0, 90.0])
         counts = np.array([5.0, 10.0, 3.0])
         results = log_likelihood_hist_v1(
             model=model,
@@ -39,9 +39,9 @@ class TestLogLikelihoodHistV1:
             truncation_up=90,
             counts_not_observed=0,
         )
-        assert results == pytest.approx(46.5051141015797)
+        assert results == pytest.approx(71.82550273177682)
 
-        bin_edges = (0.0, 10.0, 50.0, 100.0)
+        bin_edges = (10.0, 20.0, 50.0, 90.0)
         counts = (5.0, 10.0, 3.0)
         results = log_likelihood_hist_v1(
             model=model,
@@ -52,9 +52,9 @@ class TestLogLikelihoodHistV1:
             truncation_up=90,
             counts_not_observed=0,
         )
-        assert results == pytest.approx(46.5051141015797)
+        assert results == pytest.approx(71.82550273177682)
 
-        bin_edges = np.array([0.0, 10.0, 50.0, 100.0])
+        bin_edges = np.array([0.0, 10.0, 50.0, 90.0])
         counts = np.array([5.0, 10.0, 3.0])
         results = log_likelihood_hist_v1(
             model=model,
@@ -65,7 +65,7 @@ class TestLogLikelihoodHistV1:
             truncation_up=90,
             counts_not_observed=0,
         )
-        assert results == pytest.approx(46.50511410157997)
+        assert results == pytest.approx(46.54028819370892)
 
     def test_large_counts_not_observed_increases_nll(self):
         model = ExponentialMixtureModel

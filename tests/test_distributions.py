@@ -86,6 +86,19 @@ def test_hypoexponential_distribution_pdf_2nd_order_derivative(x, args, expected
         hypoexponential_distribution_pdf_2nd_order_derivative,
     ],
 )
+def test_hypoexponential_distribution_is_zero_below_support(call):
+    assert call(-1, 1) == 0
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        hypoexponential_distribution_cdf,
+        hypoexponential_distribution_pdf,
+        hypoexponential_distribution_pdf_1st_order_derivative,
+        hypoexponential_distribution_pdf_2nd_order_derivative,
+    ],
+)
 def test_hypoexponential_distribution_rejects_ill_conditioned_rates(call):
     rates = np.array([0.9497, 0.9499, 0.9501, 0.9503])
     np.testing.assert_array_equal(np.round(rates, decimals=2), [0.95] * 4)
@@ -175,6 +188,20 @@ class TestPhotoswitchingFingerprintModel:
             rtol=1e-6,
         )
 
+    def test_PFM_respects_domain_and_preserves_underlying_parts(self):
+        model = Photoswitching_fingerprint_model(
+            params={0: [1, 0, 1, 0.7]},
+            domain=(1, 2),
+        )
+        x = np.array([0, 1, 1.5, 2, 3])
+
+        np.testing.assert_array_equal(model.pdf(x)[[0, 4]], [0, 0])
+        np.testing.assert_array_equal(model.cdf(x)[[0, 1, 3, 4]], [0, 0, 1, 1])
+        assert model.pdf_part(None, x=3, i=0, normalize=False) > 0
+        assert model.pdf_part(None, x=3, i=0, normalize=True) == 0
+        assert model.cdf_part(x=3, i=0, normalize=False) < 1
+        assert model.cdf_part(x=3, i=0, normalize=True) == 1
+
 
 class TestExponentialMixtureModel:
     model = ExponentialMixtureModel(
@@ -194,6 +221,17 @@ class TestExponentialMixtureModel:
         pdf = self.model.pdf(x=2)
         expected = 0.027067
         np.testing.assert_allclose(pdf, expected, rtol=1e-4)
+
+    def test_domain_and_underlying_cdf(self):
+        model = ExponentialMixtureModel(
+            params={"lambdas": [1, 2], "pis": [0.5]},
+            domain=(1, 2),
+        )
+        x = np.array([0, 1, 1.5, 2, 3])
+
+        np.testing.assert_array_equal(model.pdf(x)[[0, 4]], [0, 0])
+        np.testing.assert_array_equal(model.cdf(x)[[0, 1, 3, 4]], [0, 0, 1, 1])
+        assert 0 < model.cdf(3, extra=True) < 1
 
 
 class TestExponentialMixtureMarginalModel:
