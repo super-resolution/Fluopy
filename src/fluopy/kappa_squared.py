@@ -213,7 +213,7 @@ def integral_kappa_squared(
 
     r_expanded = np.tile(distance, (len(trajectory_1), 1))
     kappas = kappa_squared(d=trajectory_1, a=trajectory_2, r=r_expanded)
-    t = len(kappas) * dt
+    t = (len(kappas) - 1) * dt
     return float(np.trapezoid(kappas, dx=dt) / t)
 
 
