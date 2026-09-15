@@ -178,6 +178,21 @@ def test_get_pis():
     )
 
 
+def test_get_pis_three_component_stage_fully_biased():
+    params = {
+        0: [1, 0, 3, 1.5],
+        1: [1, 0, 0, 2, 1, 0.5],
+        2: [0.5, 0.5, 0.4, 0.2],
+    }
+    combos = generate_combinations(n=3, z=1)
+
+    with np.errstate(divide="raise", invalid="raise"):
+        pis = get_pis(combos=combos, params=params, z=1)
+
+    weights = np.prod(pis, axis=1)
+    np.testing.assert_array_equal(weights, [0.5, 0.5, 0, 0, 0, 0])
+
+
 def test_photoswitching_fingerprint_prepare():
     lambdas, pis = photoswitching_fingerprint_prepare(
         params={0: [1, 0, 1, 0.7], 1: [0.7, 0.3, 0.7, 0.5], 2: [0.5, 0.5, 0.5, 0.3]},

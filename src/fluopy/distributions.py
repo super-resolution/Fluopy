@@ -623,9 +623,12 @@ def get_pis(
             else:
                 mask = combos[1:, :][twos_threes, idx - 1] == 0
                 pis[1:, :][twos_threes[mask], idx] = mapper(col_filt[twos_threes[mask]])
-                pis[1:, :][twos_threes[~mask], idx] = (
-                    mapper(col_filt[twos_threes[~mask]]) / normalize
-                )
+                if normalize == 0:
+                    pis[1:, :][twos_threes[~mask], idx] = 0.0
+                else:
+                    pis[1:, :][twos_threes[~mask], idx] = (
+                        mapper(col_filt[twos_threes[~mask]]) / normalize
+                    )
     return pis
 
 
