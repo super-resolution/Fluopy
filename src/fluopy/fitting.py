@@ -314,6 +314,7 @@ def fit_multiple_mixture_v1(
     pfa_bin_edges: npt.ArrayLike | None = None,
     pfa_counts: npt.ArrayLike | None = None,
     pfa_counts_not_observed: int | None = None,
+    truncation_up: float = 300,
     **diff_ev: Any,
 ) -> OptimizeResult:
     """
@@ -394,7 +395,7 @@ def fit_multiple_mixture_v1(
             if i != 0:
                 pfa_cdf_part = dist.Photoswitching_fingerprint_model(
                     params=pfa_params,
-                    domain=(0, 300),
+                    domain=(0, truncation_up),
                 ).cdf_part
                 cdf_part_index = i - 1
                 use_model = dist.ExponentialMixtureMarginalModel
@@ -428,7 +429,7 @@ def fit_multiple_mixture_v1(
                 counts=data,
                 bin_edges=bin_edges_array,
                 truncation_low=0,
-                truncation_up=300,
+                truncation_up=truncation_up,
                 counts_not_observed=counts_not_observed[i],
                 **use_parameters,
             )
@@ -444,7 +445,7 @@ def fit_multiple_mixture_v1(
                 counts=pfa_counts_array,
                 bin_edges=pfa_bin_edges_array,
                 truncation_low=0,
-                truncation_up=300,
+                truncation_up=truncation_up,
                 counts_not_observed=pfa_counts_not_observed,
             )
             if norm:
@@ -488,6 +489,7 @@ def fit_multiple_mixture_v2(
     pfa_bin_edges: npt.ArrayLike | None = None,
     pfa_counts: npt.ArrayLike | None = None,
     pfa_counts_not_observed: int | None = None,
+    truncation_up: float = 300,
     **diff_ev: Any,
 ) -> OptimizeResult:
     """
@@ -567,13 +569,13 @@ def fit_multiple_mixture_v2(
             if i != 0:
                 pfa_pdf_part = dist.Photoswitching_fingerprint_model(
                     params=pfa_params,
-                    domain=(0, 300),
+                    domain=(0, truncation_up),
                 ).pdf_part
                 pdf_part_index = i - 1
                 use = log_likelihood_hist_marginal_v2
                 use_parameters = {
                     "truncation_low": 0,
-                    "truncation_up": 300,
+                    "truncation_up": truncation_up,
                     "pfa_pdf_part": pfa_pdf_part,
                     "pdf_part_index": pdf_part_index,
                 }

@@ -223,6 +223,58 @@ def test_fitter_penalizes_ill_conditioned_hypoexponential_rates(monkeypatch, fit
     assert result.fun == 0.0
 
 
+@pytest.mark.parametrize(
+    "fitter, marginal_likelihood_name",
+    [
+        (
+            fitting.fit_multiple_mixture_v1,
+            "log_likelihood_hist_marginal_v1",
+        ),
+        (
+            fitting.fit_multiple_mixture_v2,
+            "log_likelihood_hist_marginal_v2",
+        ),
+    ],
+)
+def test_fitter_uses_custom_truncation_up(
+    monkeypatch,
+    fitter,
+    marginal_likelihood_name,
+):
+    domains = []
+    marginal_truncation_limits = []
+    original_pfa_model = fitting.dist.Photoswitching_fingerprint_model
+    original_marginal_likelihood = getattr(fitting, marginal_likelihood_name)
+
+    def pfa_model(*, params, domain):
+        domains.append(domain)
+        return original_pfa_model(params=params, domain=domain)
+
+    def marginal_likelihood(**kwargs):
+        marginal_truncation_limits.append(kwargs["truncation_up"])
+        return original_marginal_likelihood(**kwargs)
+
+    candidate = np.array([0.8, 1.2, 0.4, 0.7, 0.8, 0.2])
+
+    def differential_evolution(objective, **kwargs):
+        objective_value = objective(candidate)
+        assert np.isfinite(objective_value)
+        return OptimizeResult(x=candidate, fun=objective_value, success=True)
+
+    monkeypatch.setattr(fitting.dist, "Photoswitching_fingerprint_model", pfa_model)
+    monkeypatch.setattr(fitting, marginal_likelihood_name, marginal_likelihood)
+    monkeypatch.setattr(fitting, "differential_evolution", differential_evolution)
+
+    fitter(
+        datasets=[np.array([1]), np.array([1])],
+        bin_edges=[0, 1],
+        truncation_up=17,
+    )
+
+    assert domains == [(0, 17)]
+    assert marginal_truncation_limits == [17]
+
+
 def test_fitter_rejects_nonfinite_best_objective(monkeypatch):
     def differential_evolution(objective, **kwargs):
         return OptimizeResult(fun=np.inf, success=False)
