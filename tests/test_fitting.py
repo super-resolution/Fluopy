@@ -185,6 +185,49 @@ def test_log_likelihood_hist_marginal_v2_with_small_truncation():
 
 
 @pytest.mark.parametrize(
+    "likelihood, extra_arguments",
+    [
+        (
+            fitting.log_likelihood_hist_v1,
+            {"truncation_low": 0, "truncation_up": 1},
+        ),
+        (
+            fitting.log_likelihood_hist_marginal_v1,
+            {
+                "truncation_low": 0,
+                "truncation_up": 1,
+                "pfa_cdf_part": lambda x, i, normalize: 1.0,
+                "cdf_part_index": 0,
+            },
+        ),
+        (fitting.log_likelihood_hist_v2, {}),
+        (
+            fitting.log_likelihood_hist_marginal_v2,
+            {
+                "truncation_low": 0,
+                "truncation_up": 1,
+                "pfa_pdf_part": lambda call, x, i, normalize: 1.0,
+                "pdf_part_index": 0,
+            },
+        ),
+    ],
+)
+def test_public_likelihood_rejects_mismatched_histogram(
+    likelihood,
+    extra_arguments,
+):
+    with pytest.raises(ValueError, match="exactly one more value"):
+        likelihood(
+            model=ExponentialMixtureModel,
+            params={"pis": [], "lambdas": [1]},
+            counts=[1],
+            bin_edges=[0, 1, 2],
+            counts_not_observed=0,
+            **extra_arguments,
+        )
+
+
+@pytest.mark.parametrize(
     "fitter",
     [fitting.fit_multiple_mixture_v1, fitting.fit_multiple_mixture_v2],
 )
@@ -286,6 +329,61 @@ def test_fitter_rejects_nonfinite_best_objective(monkeypatch):
             datasets=[np.array([1])],
             bin_edges=[0, 1],
         )
+
+
+@pytest.mark.parametrize(
+    "fitter",
+    [fitting.fit_multiple_mixture_v1, fitting.fit_multiple_mixture_v2],
+)
+def test_fitter_rejects_z_below_minus_one(fitter):
+    with pytest.raises(ValueError, match="z must be -1 or between 0"):
+        fitter(
+            datasets=[np.array([1]), np.array([1])],
+            bin_edges=[0, 1],
+            z=-2,
+        )
+
+
+@pytest.mark.parametrize(
+    "arguments, error",
+    [
+        (
+            {"datasets": [np.array([1])], "bin_edges": [0, 1, 2]},
+            "exactly one more value",
+        ),
+        (
+            {"datasets": [np.array([-1])], "bin_edges": [0, 1]},
+            "counts must be finite and nonnegative",
+        ),
+        (
+            {"datasets": [np.array([0])], "bin_edges": [0, 1], "norm": True},
+            "Cannot normalize an empty histogram",
+        ),
+        (
+            {
+                "datasets": [np.array([1])],
+                "bin_edges": [0, 1],
+                "pfa_counts": [1],
+            },
+            "pfa_bin_edges and pfa_counts must be provided together",
+        ),
+        (
+            {
+                "datasets": [np.array([1])],
+                "bin_edges": [0, 1],
+                "counts_not_observed": [],
+            },
+            "counts_not_observed must have one value per dataset",
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "fitter",
+    [fitting.fit_multiple_mixture_v1, fitting.fit_multiple_mixture_v2],
+)
+def test_fitter_validates_histogram_inputs(fitter, arguments, error):
+    with pytest.raises(ValueError, match=error):
+        fitter(**arguments)
 
 
 class TestPrepareConstraints:

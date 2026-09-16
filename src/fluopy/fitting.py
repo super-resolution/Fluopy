@@ -24,6 +24,67 @@ from . import distributions as dist
 __all__: list[str] = []
 
 
+def _prepare_histogram_inputs(
+    counts: npt.ArrayLike,
+    bin_edges: npt.ArrayLike,
+    counts_not_observed: int,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    counts_array = np.asarray(counts, dtype=np.float64)
+    bin_edges_array = np.asarray(bin_edges, dtype=np.float64)
+
+    if counts_array.ndim != 1 or bin_edges_array.ndim != 1:
+        raise ValueError("counts and bin_edges must be one-dimensional.")
+    if bin_edges_array.size != counts_array.size + 1:
+        raise ValueError("bin_edges must contain exactly one more value than counts.")
+    if not np.all(np.isfinite(counts_array)) or np.any(counts_array < 0):
+        raise ValueError("counts must be finite and nonnegative.")
+    if np.any(np.isnan(bin_edges_array)) or np.any(np.diff(bin_edges_array) <= 0):
+        raise ValueError(
+            "bin_edges must be strictly increasing and cannot contain NaN."
+        )
+    if not np.isfinite(counts_not_observed) or counts_not_observed < 0:
+        raise ValueError("counts_not_observed must be finite and nonnegative.")
+
+    return counts_array, bin_edges_array
+
+
+def _validate_fitter_histogram_inputs(
+    datasets: Sequence[npt.ArrayLike],
+    bin_edges: npt.ArrayLike,
+    counts_not_observed: Sequence[int],
+    pfa_bin_edges: npt.ArrayLike | None,
+    pfa_counts: npt.ArrayLike | None,
+    pfa_counts_not_observed: int,
+    norm: bool,
+) -> None:
+    if not datasets:
+        raise ValueError("datasets must contain at least one histogram.")
+    if len(counts_not_observed) != len(datasets):
+        raise ValueError("counts_not_observed must have one value per dataset.")
+
+    for data, count_not_observed in zip(datasets, counts_not_observed):
+        data_array, _ = _prepare_histogram_inputs(
+            data,
+            bin_edges,
+            count_not_observed,
+        )
+        if norm and data_array.sum() == 0:
+            raise ValueError("Cannot normalize an empty histogram.")
+
+    if (pfa_bin_edges is None) != (pfa_counts is None):
+        raise ValueError("pfa_bin_edges and pfa_counts must be provided together.")
+    if not np.isfinite(pfa_counts_not_observed) or pfa_counts_not_observed < 0:
+        raise ValueError("pfa_counts_not_observed must be finite and nonnegative.")
+    if pfa_counts is not None and pfa_bin_edges is not None:
+        pfa_counts_array, _ = _prepare_histogram_inputs(
+            pfa_counts,
+            pfa_bin_edges,
+            pfa_counts_not_observed,
+        )
+        if norm and pfa_counts_array.sum() == 0:
+            raise ValueError("Cannot normalize an empty PFA histogram.")
+
+
 def log_likelihood_hist_v1(
     model: Callable[..., Any],
     params: Iterable[Any],
@@ -62,8 +123,11 @@ def log_likelihood_hist_v1(
     float
         Negative log-likelihood.
     """
-    counts_array = np.asarray(counts, dtype=np.float64)
-    bin_edges_array = np.asarray(bin_edges, dtype=np.float64)
+    counts_array, bin_edges_array = _prepare_histogram_inputs(
+        counts,
+        bin_edges,
+        counts_not_observed,
+    )
 
     a = bin_edges_array[:-1]
     b = bin_edges_array[1:]
@@ -138,8 +202,11 @@ def log_likelihood_hist_marginal_v1(
     """
     if truncation_low != 0:
         raise ValueError("Marginal distribution only defined for truncation_low = 0.")
-    counts_array = np.asarray(counts, dtype=np.float64)
-    bin_edges_array = np.asarray(bin_edges, dtype=np.float64)
+    counts_array, bin_edges_array = _prepare_histogram_inputs(
+        counts,
+        bin_edges,
+        counts_not_observed,
+    )
 
     a = bin_edges_array[:-1]
     b = bin_edges_array[1:]
@@ -200,8 +267,11 @@ def log_likelihood_hist_v2(
     float
         Negative log-likelihood.
     """
-    counts_array = np.asarray(counts, dtype=np.float64)
-    bin_edges_array = np.asarray(bin_edges, dtype=np.float64)
+    counts_array, bin_edges_array = _prepare_histogram_inputs(
+        counts,
+        bin_edges,
+        counts_not_observed,
+    )
 
     a = bin_edges_array[:-1]
     b = bin_edges_array[1:]
@@ -268,8 +338,11 @@ def log_likelihood_hist_marginal_v2(
     """
     if truncation_low != 0:
         raise ValueError("Marginal distribution only defined for truncation_low = 0.")
-    counts_array = np.asarray(counts, dtype=np.float64)
-    bin_edges_array = np.asarray(bin_edges, dtype=np.float64)
+    counts_array, bin_edges_array = _prepare_histogram_inputs(
+        counts,
+        bin_edges,
+        counts_not_observed,
+    )
 
     x_grid = dist._marginal_integration_grid(truncation_up)
     weights = np.asarray(
@@ -365,24 +438,32 @@ def fit_multiple_mixture_v1(
 
     if counts_not_observed is None:
         counts_not_observed = [0 for _ in datasets]
-    else:
-        if norm:
-            raise ValueError(
-                "Normalization to num observed events not possible if general "
-                "log-likelihood of observation/no observation terms are included."
-            )
+    elif norm:
+        raise ValueError(
+            "Normalization to num observed events not possible if general "
+            "log-likelihood of observation/no observation terms are included."
+        )
     if pfa_counts_not_observed is None:
         pfa_counts_not_observed = 0
+    _validate_fitter_histogram_inputs(
+        datasets,
+        bin_edges_array,
+        counts_not_observed,
+        pfa_bin_edges,
+        pfa_counts,
+        pfa_counts_not_observed,
+        norm,
+    )
 
-    if z != -1 and z < len(datasets) - 1:
+    if z == -1:
+        add = 0
+    elif 0 <= z < len(datasets) - 1:
         add = 5
-    elif z != -1 and z >= len(datasets) - 1:
+    else:
         raise ValueError(
             "z must be -1 or between 0 and number of datasets - 1."
             " The last dataset is assumed to always be a mixture of two exponentials."
         )
-    else:
-        add = 0
 
     def global_objective(params: npt.NDArray[np.float64]) -> float:
         total_negative_log_likelihood = 0.0
@@ -540,24 +621,32 @@ def fit_multiple_mixture_v2(
 
     if counts_not_observed is None:
         counts_not_observed = [0 for _ in datasets]
-    else:
-        if norm:
-            raise ValueError(
-                "Normalization to num observed events not possible if general "
-                "log-likelihood of observation/no observation terms are included."
-            )
+    elif norm:
+        raise ValueError(
+            "Normalization to num observed events not possible if general "
+            "log-likelihood of observation/no observation terms are included."
+        )
     if pfa_counts_not_observed is None:
         pfa_counts_not_observed = 0
+    _validate_fitter_histogram_inputs(
+        datasets,
+        bin_edges_array,
+        counts_not_observed,
+        pfa_bin_edges,
+        pfa_counts,
+        pfa_counts_not_observed,
+        norm,
+    )
 
-    if z != -1 and z < len(datasets) - 1:
+    if z == -1:
+        add = 0
+    elif 0 <= z < len(datasets) - 1:
         add = 5
-    elif z != -1 and z >= len(datasets) - 1:
+    else:
         raise ValueError(
             "z must be -1 or between 0 and number of datasets - 1."
             " The last dataset is assumed to always be a mixture of two exponentials."
         )
-    else:
-        add = 0
 
     def global_objective(params: npt.NDArray[np.float64]) -> float:
         total_negative_log_likelihood = 0.0
