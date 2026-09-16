@@ -7,7 +7,10 @@ import pytest
 from scipy.optimize import Bounds, LinearConstraint, OptimizeResult
 
 import fluopy.fitting as fitting
-from fluopy.distributions import ExponentialMixtureModel
+from fluopy.distributions import (
+    ExponentialMixtureMarginalModel,
+    ExponentialMixtureModel,
+)
 from fluopy.fitting import (
     convert_dicts,
     load_from_array,
@@ -177,19 +180,19 @@ class TestNegativeLogLikelihoodHistBinComplement:
 def test_negative_log_likelihood_hist_marginal_bin_complement_with_small_truncation():
     truncation_up = 0.001
 
-    def uniform_pdf_part(*, call, x, i, normalize):
-        return np.full_like(x, 1 / truncation_up, dtype=np.float64)
+    def uniform_cdf_part(x, i, normalize):
+        return np.clip(np.asarray(x) / truncation_up, 0, 1)
 
     result = negative_log_likelihood_hist_marginal_bin_complement(
-        model=ExponentialMixtureModel,
+        model=ExponentialMixtureMarginalModel,
         params={"pis": [], "lambdas": [1000]},
         counts=[1],
         bin_edges=[0, truncation_up],
         counts_not_observed=0,
         truncation_low=0,
         truncation_up=truncation_up,
-        pfa_pdf_part=uniform_pdf_part,
-        pdf_part_index=0,
+        pfa_cdf_part=uniform_cdf_part,
+        cdf_part_index=0,
     )
 
     assert result == pytest.approx(1, rel=1e-4)
@@ -217,8 +220,8 @@ def test_negative_log_likelihood_hist_marginal_bin_complement_with_small_truncat
             {
                 "truncation_low": 0,
                 "truncation_up": 1,
-                "pfa_pdf_part": lambda call, x, i, normalize: 1.0,
-                "pdf_part_index": 0,
+                "pfa_cdf_part": lambda x, i, normalize: 1.0,
+                "cdf_part_index": 0,
             },
         ),
     ],

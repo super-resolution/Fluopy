@@ -994,3 +994,23 @@ class ExponentialMixtureMarginalModel:
         cdf = np.interp(values, xp=self.x_grid, fp=self.cdf_grid, left=0.0, right=1.0)
 
         return cast(DistributionValue, cdf)
+
+    def observation_cdf(
+        self, x: float | npt.ArrayLike
+    ) -> float | npt.NDArray[np.float64]:
+        """
+        Cumulative probability that the sample is at most x and is observed.
+
+        Parameters
+        ----------
+        x
+            Sample.
+
+        Returns
+        -------
+        float | npt.NDArray[np.float64]
+            Cumulative joint probability of the sample and its observation.
+        """
+        cdf = self.observation_probability * np.asarray(self.cdf(x))
+
+        return float(cdf) if cdf.ndim == 0 else cdf

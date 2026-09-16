@@ -254,6 +254,17 @@ class TestExponentialMixtureMarginalModel:
         expected = [0.427669, 1]
         np.testing.assert_allclose(cdf, expected, rtol=1e-4)
 
+    def test_observation_cdf(self):
+        x = np.array([0, 0.1, self.model.truncation_up])
+
+        np.testing.assert_allclose(
+            self.model.observation_cdf(x),
+            self.model.observation_probability * self.model.cdf(x),
+        )
+        assert self.model.observation_cdf(self.model.truncation_up) == pytest.approx(
+            self.model.observation_probability
+        )
+
     def test_PFM_pdf(self):
         pdf = self.model.pdf(x=(0.1, 2))
         expected = [3.128881, 0]

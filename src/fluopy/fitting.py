@@ -11,7 +11,6 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-from scipy.integrate import simpson
 from scipy.optimize import (
     Bounds,
     LinearConstraint,
@@ -303,8 +302,8 @@ def negative_log_likelihood_hist_marginal_bin_complement(
     counts_not_observed: int,
     truncation_low: float,
     truncation_up: float,
-    pfa_pdf_part: Callable[..., Any],
-    pdf_part_index: int,
+    pfa_cdf_part: Callable[..., Any],
+    cdf_part_index: int,
 ) -> float:
     """
     Negative log-likelihood of a marginal distribution of a sample X from model, where
@@ -330,10 +329,10 @@ def negative_log_likelihood_hist_marginal_bin_complement(
         Fixed lower truncation.
     truncation_up
         Fixed upper truncation.
-    pfa_pdf_part
-        PDF part of the PFA distribution to be used in the marginal distribution.
-    pdf_part_index
-        Index of the PDF part of the PFA distribution to be used in the marginal
+    pfa_cdf_part
+        CDF part of the PFA distribution to be used in the marginal distribution.
+    cdf_part_index
+        Index of the CDF part of the PFA distribution to be used in the marginal
         distribution.
 
     Returns
@@ -349,26 +348,15 @@ def negative_log_likelihood_hist_marginal_bin_complement(
         counts_not_observed,
     )
 
-    x_grid = dist._marginal_integration_grid(truncation_up)
-    weights = np.asarray(
-        pfa_pdf_part(
-            call=None,
-            x=x_grid,
-            i=pdf_part_index,
-            normalize=True,
-        ),
-        dtype=np.float64,
+    current_model = model(
+        params=params,
+        pfa_cdf_part=pfa_cdf_part,
+        cdf_part_index=cdf_part_index,
+        truncation_up=truncation_up,
     )
-    a = bin_edges_array[:-1, None]
-    b = bin_edges_array[1:, None]
-    true_limits = (truncation_up - x_grid)[None, :]
-    eff_limit = np.minimum(b, true_limits)
-    valid = (a < true_limits).astype(float)
-    qk = model(params, domain=(0, np.inf)).cdf(eff_limit) - model(
-        params, domain=(0, np.inf)
-    ).cdf(a)
-    qk *= valid
-    probs = simpson(qk * weights[None, :], x=x_grid, axis=1)
+    a = bin_edges_array[:-1]
+    b = bin_edges_array[1:]
+    probs = current_model.observation_cdf(b) - current_model.observation_cdf(a)
 
     p_no_event = np.clip(1 - np.sum(probs), a_min=1e-14, a_max=1)
     probs = np.clip(probs, a_min=1e-14, a_max=1)
@@ -634,26 +622,29 @@ def fit_multiple_mixture_v2(
         exp_mixture_params = convert_dicts(pfa_params)
         for i, data in enumerate(datasets):
             use: Callable[..., float]
+            use_model: Callable[..., Any]
             use_parameters: dict[str, Any]
             if i != 0:
-                pfa_pdf_part = dist.Photoswitching_fingerprint_model(
+                pfa_cdf_part = dist.Photoswitching_fingerprint_model(
                     params=pfa_params,
                     domain=(0, truncation_up),
-                ).pdf_part
-                pdf_part_index = i - 1
+                ).cdf_part
+                cdf_part_index = i - 1
+                use_model = dist.ExponentialMixtureMarginalModel
                 use = negative_log_likelihood_hist_marginal_bin_complement
                 use_parameters = {
                     "truncation_low": 0,
                     "truncation_up": truncation_up,
-                    "pfa_pdf_part": pfa_pdf_part,
-                    "pdf_part_index": pdf_part_index,
+                    "pfa_cdf_part": pfa_cdf_part,
+                    "cdf_part_index": cdf_part_index,
                 }
             else:
+                use_model = dist.ExponentialMixtureModel
                 use = negative_log_likelihood_hist_bin_complement
                 use_parameters = {}
 
             negative_log_likelihood = use(
-                model=dist.ExponentialMixtureModel,
+                model=use_model,
                 params=exp_mixture_params[i],
                 counts=data,
                 bin_edges=bin_edges_array,
