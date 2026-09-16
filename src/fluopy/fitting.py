@@ -455,11 +455,7 @@ def fit_multiple_mixture_v1(
         norm,
     )
 
-    if z == -1:
-        add = 0
-    elif 0 <= z < len(datasets) - 1:
-        add = 5
-    else:
+    if z != -1 and not 0 <= z < len(datasets) - 1:
         raise ValueError(
             "z must be -1 or between 0 and number of datasets - 1."
             " The last dataset is assumed to always be a mixture of two exponentials."
@@ -467,8 +463,8 @@ def fit_multiple_mixture_v1(
 
     def global_objective(params: npt.NDArray[np.float64]) -> float:
         total_negative_log_likelihood = 0.0
-        counter = 0
         pfa_params = prepare_pfa_parameters(z=z, n=len(datasets), params=params)
+        exp_mixture_params = convert_dicts(pfa_params)
         for i, data in enumerate(datasets):
             use: Callable[..., float]
             use_model: Callable[..., Any]
@@ -489,24 +485,10 @@ def fit_multiple_mixture_v1(
                 use_model = dist.ExponentialMixtureModel
                 use = log_likelihood_hist_v1
                 use_parameters = {}
-            if i == z:
-                parameters = {
-                    "pis": [params[0], (1 - params[0]) * params[1]],
-                    "lambdas": [params[2], params[3], params[4]],
-                }
-            else:
-                parameters = {
-                    "pis": [params[add + counter * 3]],
-                    "lambdas": [
-                        params[add + counter * 3 + 1],
-                        params[add + counter * 3 + 2],
-                    ],
-                }
-                counter += 1
 
             negative_log_likelihood = use(
                 model=use_model,
-                params=parameters,
+                params=exp_mixture_params[i],
                 counts=data,
                 bin_edges=bin_edges_array,
                 truncation_low=0,
@@ -638,11 +620,7 @@ def fit_multiple_mixture_v2(
         norm,
     )
 
-    if z == -1:
-        add = 0
-    elif 0 <= z < len(datasets) - 1:
-        add = 5
-    else:
+    if z != -1 and not 0 <= z < len(datasets) - 1:
         raise ValueError(
             "z must be -1 or between 0 and number of datasets - 1."
             " The last dataset is assumed to always be a mixture of two exponentials."
@@ -650,8 +628,8 @@ def fit_multiple_mixture_v2(
 
     def global_objective(params: npt.NDArray[np.float64]) -> float:
         total_negative_log_likelihood = 0.0
-        counter = 0
         pfa_params = prepare_pfa_parameters(z=z, n=len(datasets), params=params)
+        exp_mixture_params = convert_dicts(pfa_params)
         for i, data in enumerate(datasets):
             use: Callable[..., float]
             use_parameters: dict[str, Any]
@@ -671,24 +649,10 @@ def fit_multiple_mixture_v2(
             else:
                 use = log_likelihood_hist_v2
                 use_parameters = {}
-            if i == z:
-                parameters = {
-                    "pis": [params[0], (1 - params[0]) * params[1]],
-                    "lambdas": [params[2], params[3], params[4]],
-                }
-            else:
-                parameters = {
-                    "pis": [params[add + counter * 3]],
-                    "lambdas": [
-                        params[add + counter * 3 + 1],
-                        params[add + counter * 3 + 2],
-                    ],
-                }
-                counter += 1
 
             negative_log_likelihood = use(
                 model=dist.ExponentialMixtureModel,
-                params=parameters,
+                params=exp_mixture_params[i],
                 counts=data,
                 bin_edges=bin_edges_array,
                 counts_not_observed=counts_not_observed[i],
@@ -964,33 +928,13 @@ def prepare_exp_mixture_parameters(
     parameters : dict
         Dictionary of parameters for the exponential mixture model.
     """
-    parameters: dict[int, dict[str, list[float]]] = {}
-    if z != -1:
-        uz = params[0]
-        vz = params[1]
-        pz1 = uz
-        pz2 = (1 - uz) * vz
-        for i in range(n):
-            if i == z:
-                parameters[i] = {
-                    "pis": [pz1, pz2],
-                    "lambdas": [params[2], params[3], params[4]],
-                }
-            else:
-                parameters[i] = {
-                    "pis": [params[(i - (i > z)) * 3 + 5]],
-                    "lambdas": [
-                        params[(i - (i > z)) * 3 + 1 + 5],
-                        params[(i - (i > z)) * 3 + 2 + 5],
-                    ],
-                }
-    else:
-        for i in range(n):
-            parameters[i] = {
-                "pis": [params[i * 3]],
-                "lambdas": [params[i * 3 + 1], params[i * 3 + 2]],
-            }
-    return parameters
+    return convert_dicts(
+        prepare_pfa_parameters(
+            z=z,
+            n=n,
+            params=params,
+        )
+    )
 
 
 def save_as_array(
