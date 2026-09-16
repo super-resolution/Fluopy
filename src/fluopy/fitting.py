@@ -136,7 +136,7 @@ def log_likelihood_hist_v1(
     probs = model(params, domain=(truncation_low, truncation_up)).cdf(b) - model(
         params, domain=(truncation_low, truncation_up)
     ).cdf(a)
-    probs = np.clip(probs, a_min=1e-14, a_max=None)  # avoid log(0)
+    probs = np.clip(probs, a_min=1e-14, a_max=1)
     log_likelihood_bin = np.sum(counts_array * np.log(probs))
 
     prob_event = model(params, domain=(0, np.inf)).cdf(truncation_up) - model(
@@ -144,7 +144,7 @@ def log_likelihood_hist_v1(
     ).cdf(truncation_low)
     # probability of observing an event
     # within the truncation range (given the distribution is non-truncated)
-    prob_event = np.minimum(prob_event, 1 - 1e-14)  # avoid log(0)
+    prob_event = np.clip(prob_event, a_min=1e-14, a_max=1 - 1e-14)
     log_likelihood_no_observation = np.log1p(-prob_event) * counts_not_observed
     log_likelihood_observation = np.sum(counts_array) * np.log(prob_event)
     log_likelihood = (
@@ -219,13 +219,13 @@ def log_likelihood_hist_marginal_v1(
         truncation_up=truncation_up,
     )
     probs = current_model.cdf(b) - current_model.cdf(a)
-    probs = np.clip(probs, a_min=1e-14, a_max=None)  # avoid log(0)
+    probs = np.clip(probs, a_min=1e-14, a_max=1)
     log_likelihood_bin = np.sum(counts_array * np.log(probs))
 
     prob_event = current_model.P_obs
     # probability of observing an event
     # within the truncation range (given the distribution is non-truncated)
-    prob_event = np.minimum(prob_event, 1 - 1e-14)  # avoid log(0)
+    prob_event = np.clip(prob_event, a_min=1e-14, a_max=1 - 1e-14)
     log_likelihood_no_observation = np.log1p(-prob_event) * counts_not_observed
     log_likelihood_observation = np.sum(counts_array) * np.log(prob_event)
     log_likelihood = (
@@ -280,10 +280,13 @@ def log_likelihood_hist_v2(
     probs = model(params, domain=(0, np.inf)).cdf(b) - model(
         params, domain=(0, np.inf)
     ).cdf(a)
-    probs = np.clip(probs, a_min=1e-14, a_max=None)  # avoid log(0)
+
+    p_no_event = np.clip(1 - np.sum(probs), a_min=1e-14, a_max=1)
+    probs = np.clip(probs, a_min=1e-14, a_max=1)
+
     log_likelihood_bin = np.sum(counts_array * np.log(probs))
 
-    log_likelihood_no_observation = np.log1p(-np.sum(probs)) * counts_not_observed
+    log_likelihood_no_observation = np.log(p_no_event) * counts_not_observed
     log_likelihood = log_likelihood_bin + log_likelihood_no_observation
     negative_log_likelihood = -log_likelihood
 
@@ -364,12 +367,11 @@ def log_likelihood_hist_marginal_v2(
     ).cdf(a)
     qk *= valid
     probs = simpson(qk * weights[None, :], x=x_grid, axis=1)
-    probs = np.clip(probs, a_min=1e-14, a_max=None)  # avoid log(0)
+
+    p_no_event = np.clip(1 - np.sum(probs), a_min=1e-14, a_max=1)
+    probs = np.clip(probs, a_min=1e-14, a_max=1)
+
     log_likelihood_bin = np.sum(counts_array * np.log(probs))
-
-    p_no_event = 1 - np.sum(probs)
-    p_no_event = np.clip(p_no_event, a_min=1e-14, a_max=None)  # avoid log(0)
-
     log_likelihood_no_observation = np.log(p_no_event) * counts_not_observed
     log_likelihood = log_likelihood_bin + log_likelihood_no_observation
     negative_log_likelihood = -log_likelihood

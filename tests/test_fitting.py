@@ -162,6 +162,17 @@ class TestLogLikelihoodHistV2:
         )
         assert ll0 < ll100
 
+    def test_full_support_with_no_unobserved_counts(self):
+        result = log_likelihood_hist_v2(
+            model=ExponentialMixtureModel,
+            params={"pis": [], "lambdas": [1]},
+            counts=[1],
+            bin_edges=[0, np.inf],
+            counts_not_observed=0,
+        )
+
+        assert result == pytest.approx(0)
+
 
 def test_log_likelihood_hist_marginal_v2_with_small_truncation():
     truncation_up = 0.001
