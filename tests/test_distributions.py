@@ -197,6 +197,7 @@ class TestPhotoswitchingFingerprintModel:
 
         np.testing.assert_array_equal(model.pdf(x)[[0, 4]], [0, 0])
         np.testing.assert_array_equal(model.cdf(x)[[0, 1, 3, 4]], [0, 0, 1, 1])
+        assert 0 < model.untruncated_cdf(3) < 1
         assert model.pdf_part(None, x=3, i=0, normalize=False) > 0
         assert model.pdf_part(None, x=3, i=0, normalize=True) == 0
         assert model.cdf_part(x=3, i=0, normalize=False) < 1
@@ -231,7 +232,7 @@ class TestExponentialMixtureModel:
 
         np.testing.assert_array_equal(model.pdf(x)[[0, 4]], [0, 0])
         np.testing.assert_array_equal(model.cdf(x)[[0, 1, 3, 4]], [0, 0, 1, 1])
-        assert 0 < model.cdf(3, extra=True) < 1
+        assert 0 < model.untruncated_cdf(3) < 1
 
 
 class TestExponentialMixtureMarginalModel:
@@ -278,7 +279,7 @@ class TestExponentialMixtureMarginalModel:
             truncation_up=1,
         )
 
-        assert model.P_obs == pytest.approx(1, rel=2e-3)
+        assert model.observation_probability == pytest.approx(1, rel=2e-3)
         assert np.all(np.diff(model.cdf_grid) >= 0)
         assert model.cdf_grid[-1] == 1
 

@@ -85,7 +85,7 @@ def _validate_fitter_histogram_inputs(
             raise ValueError("Cannot normalize an empty PFA histogram.")
 
 
-def log_likelihood_hist_v1(
+def negative_log_likelihood_hist_observation_window(
     model: Callable[..., Any],
     params: Iterable[Any],
     counts: npt.ArrayLike,
@@ -95,11 +95,11 @@ def log_likelihood_hist_v1(
     counts_not_observed: int,
 ) -> float:
     """
-    Negative log-likelihood of a distribution specified by its CDF and parameters. The
-    distribution is truncated between truncation_low and truncation_up, meaning the
-    probability of observing an event outside this range is 0. This is why here, to
-    include the log-likelihood term of not observing an event due to truncation, we also
-    add a term for the probability of observing an event within the truncation range.
+    Negative log-likelihood of a distribution specified by its CDF and parameters.
+    The observation window is defined explicitly by truncation_low and truncation_up.
+    Bin probabilities are conditional on an event falling within this window, while
+    separate likelihood terms account for observing or not observing an event. In the
+    bin-complement formulation, the histogram bins instead define the observable range.
 
     Parameters
     ----------
@@ -155,7 +155,7 @@ def log_likelihood_hist_v1(
     return float(negative_log_likelihood)
 
 
-def log_likelihood_hist_marginal_v1(
+def negative_log_likelihood_hist_marginal_observation_window(
     model: Callable[..., Any],
     params: Iterable[Any],
     pfa_cdf_part: Callable[..., Any],
@@ -167,11 +167,12 @@ def log_likelihood_hist_marginal_v1(
     counts_not_observed: int,
 ) -> float:
     """
-    Negative log-likelihood of a marginal distribution specified by its CDF and parameters.
-    The marginal distribution support is (0, truncation_up) and has no option to be
-    defined on (0, inf), however the marginal distribution has an attribute returning
-    the probability of observing an event within (0, truncation_up) assuming the support
-    was (0, inf).
+    Negative log-likelihood of a marginal distribution specified by its CDF and
+    parameters. The random observation window is bounded above by truncation_up. Bin
+    probabilities are conditional on observing an event, while separate likelihood
+    terms use the model's observation probability. In the marginal bin-complement
+    formulation, the probability of no event is instead the complement of the
+    probabilities covered by the histogram bins.
 
     Parameters
     ----------
@@ -222,7 +223,7 @@ def log_likelihood_hist_marginal_v1(
     probs = np.clip(probs, a_min=1e-14, a_max=1)
     log_likelihood_bin = np.sum(counts_array * np.log(probs))
 
-    prob_event = current_model.P_obs
+    prob_event = current_model.observation_probability
     # probability of observing an event
     # within the truncation range (given the distribution is non-truncated)
     prob_event = np.clip(prob_event, a_min=1e-14, a_max=1 - 1e-14)
@@ -236,7 +237,7 @@ def log_likelihood_hist_marginal_v1(
     return float(negative_log_likelihood)
 
 
-def log_likelihood_hist_v2(
+def negative_log_likelihood_hist_bin_complement(
     model: Callable[..., Any],
     params: Iterable[Any],
     counts: npt.ArrayLike,
@@ -244,10 +245,11 @@ def log_likelihood_hist_v2(
     counts_not_observed: int,
 ) -> float:
     """
-    Negative log-likelihood of a distribution specified by its CDF and parameters. The
-    distribution support is (0, inf), meaning the sum of probabilities of the given bins
-    may not be 1. This is why here, to include the log-likelihood term of not observing
-    an event due to truncation, we can do 1 - sum(probabilities_bins).
+    Negative log-likelihood of a distribution specified by its CDF and parameters.
+    The histogram bins define the observable range, and the probability of not
+    observing an event is one minus the sum of their probabilities. In the
+    observation-window formulation, this probability is instead calculated from
+    explicit lower and upper observation limits.
 
     Parameters
     ----------
@@ -293,7 +295,7 @@ def log_likelihood_hist_v2(
     return float(negative_log_likelihood)
 
 
-def log_likelihood_hist_marginal_v2(
+def negative_log_likelihood_hist_marginal_bin_complement(
     model: Callable[..., Any],
     params: Iterable[Any],
     counts: npt.ArrayLike,
@@ -307,10 +309,10 @@ def log_likelihood_hist_marginal_v2(
     """
     Negative log-likelihood of a marginal distribution of a sample X from model, where
     the upper truncation is a random variable Y ~ fixed truncation - T, and T is a
-    random variable following a part of PFA distribution.
-    The distribution support is (0, inf), meaning the sum of probabilities of the given
-    bins may not be 1. This is why here, to include the log-likelihood term of not
-    observing an event due to truncation, we can do 1 - sum(probabilities_bins).
+    random variable following a part of PFA distribution. The histogram bins define
+    the observable range, and the probability of not observing an event is one minus
+    the sum of their marginal probabilities. In the marginal observation-window
+    formulation, this probability is instead supplied by the marginal model.
 
     Parameters
     ----------
@@ -399,9 +401,8 @@ def fit_multiple_mixture_v1(
     If pfa_bin_edges and pfa_counts are provided, the PFA distribution is also fitted,
     sharing parameters with the mixture models.
 
-    v1 because it uses the v1 version of the log-likelihood functions, which include
-    the log likelihood term of not observing an event due to truncation in a different
-    way to the v2 version.
+    Uses observation-window negative log-likelihoods. The observation limits determine
+    the probability of observing an event independently of the histogram bin coverage.
 
     Parameters
     ----------
@@ -478,14 +479,14 @@ def fit_multiple_mixture_v1(
                 ).cdf_part
                 cdf_part_index = i - 1
                 use_model = dist.ExponentialMixtureMarginalModel
-                use = log_likelihood_hist_marginal_v1
+                use = negative_log_likelihood_hist_marginal_observation_window
                 use_parameters = {
                     "pfa_cdf_part": pfa_cdf_part,
                     "cdf_part_index": cdf_part_index,
                 }
             else:
                 use_model = dist.ExponentialMixtureModel
-                use = log_likelihood_hist_v1
+                use = negative_log_likelihood_hist_observation_window
                 use_parameters = {}
 
             negative_log_likelihood = use(
@@ -504,7 +505,7 @@ def fit_multiple_mixture_v1(
         if pfa_bin_edges is not None and pfa_counts is not None:
             pfa_bin_edges_array = np.asarray(pfa_bin_edges, dtype=np.float64)
             pfa_counts_array = np.asarray(pfa_counts, dtype=np.float64)
-            negative_log_likelihood = log_likelihood_hist_v1(
+            negative_log_likelihood = negative_log_likelihood_hist_observation_window(
                 model=dist.Photoswitching_fingerprint_model,
                 params=pfa_params,
                 counts=pfa_counts_array,
@@ -564,9 +565,8 @@ def fit_multiple_mixture_v2(
     If pfa_bin_edges and pfa_counts are provided, the PFA distribution is also fitted,
     sharing parameters with the mixture models.
 
-    v2 because it uses the v2 version of the log-likelihood functions, which include
-    the log likelihood term of not observing an event due to truncation in a different
-    way to the v1 version.
+    Uses bin-complement negative log-likelihoods. The histogram bins define the
+    observable range, and their probability complement represents unobserved events.
 
     Parameters
     ----------
@@ -641,7 +641,7 @@ def fit_multiple_mixture_v2(
                     domain=(0, truncation_up),
                 ).pdf_part
                 pdf_part_index = i - 1
-                use = log_likelihood_hist_marginal_v2
+                use = negative_log_likelihood_hist_marginal_bin_complement
                 use_parameters = {
                     "truncation_low": 0,
                     "truncation_up": truncation_up,
@@ -649,7 +649,7 @@ def fit_multiple_mixture_v2(
                     "pdf_part_index": pdf_part_index,
                 }
             else:
-                use = log_likelihood_hist_v2
+                use = negative_log_likelihood_hist_bin_complement
                 use_parameters = {}
 
             negative_log_likelihood = use(
@@ -666,7 +666,7 @@ def fit_multiple_mixture_v2(
         if pfa_bin_edges is not None and pfa_counts is not None:
             pfa_bin_edges_array = np.asarray(pfa_bin_edges, dtype=np.float64)
             pfa_counts_array = np.asarray(pfa_counts, dtype=np.float64)
-            negative_log_likelihood = log_likelihood_hist_v2(
+            negative_log_likelihood = negative_log_likelihood_hist_bin_complement(
                 model=dist.Photoswitching_fingerprint_model,
                 params=pfa_params,
                 counts=pfa_counts_array,

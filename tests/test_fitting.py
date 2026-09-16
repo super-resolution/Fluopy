@@ -11,9 +11,9 @@ from fluopy.distributions import ExponentialMixtureModel
 from fluopy.fitting import (
     convert_dicts,
     load_from_array,
-    log_likelihood_hist_marginal_v2,
-    log_likelihood_hist_v1,
-    log_likelihood_hist_v2,
+    negative_log_likelihood_hist_bin_complement,
+    negative_log_likelihood_hist_marginal_bin_complement,
+    negative_log_likelihood_hist_observation_window,
     prepare_constraints,
     prepare_exp_mixture_parameters,
     prepare_pfa_parameters,
@@ -21,7 +21,7 @@ from fluopy.fitting import (
 )
 
 
-class TestLogLikelihoodHistV1:
+class TestNegativeLogLikelihoodHistObservationWindow:
 
     def test_init(self):
         model = ExponentialMixtureModel
@@ -31,7 +31,7 @@ class TestLogLikelihoodHistV1:
         }
         bin_edges = np.array([10.0, 20.0, 50.0, 90.0])
         counts = np.array([5.0, 10.0, 3.0])
-        results = log_likelihood_hist_v1(
+        results = negative_log_likelihood_hist_observation_window(
             model=model,
             params=params,
             counts=counts,
@@ -44,7 +44,7 @@ class TestLogLikelihoodHistV1:
 
         bin_edges = (10.0, 20.0, 50.0, 90.0)
         counts = (5.0, 10.0, 3.0)
-        results = log_likelihood_hist_v1(
+        results = negative_log_likelihood_hist_observation_window(
             model=model,
             params=params,
             counts=counts,
@@ -57,7 +57,7 @@ class TestLogLikelihoodHistV1:
 
         bin_edges = np.array([0.0, 10.0, 50.0, 90.0])
         counts = np.array([5.0, 10.0, 3.0])
-        results = log_likelihood_hist_v1(
+        results = negative_log_likelihood_hist_observation_window(
             model=model,
             params=params,
             counts=counts,
@@ -76,7 +76,7 @@ class TestLogLikelihoodHistV1:
         }
         bin_edges = np.array([0.0, 10.0, 50.0, 100.0])
         counts = np.array([5.0, 10.0, 3.0])
-        ll0 = log_likelihood_hist_v1(
+        ll0 = negative_log_likelihood_hist_observation_window(
             model=model,
             params=params,
             counts=counts,
@@ -85,7 +85,7 @@ class TestLogLikelihoodHistV1:
             truncation_up=90,
             counts_not_observed=0,
         )
-        ll100 = log_likelihood_hist_v1(
+        ll100 = negative_log_likelihood_hist_observation_window(
             model=model,
             params=params,
             counts=counts,
@@ -97,7 +97,7 @@ class TestLogLikelihoodHistV1:
         assert ll0 < ll100
 
 
-class TestLogLikelihoodHistV2:
+class TestNegativeLogLikelihoodHistBinComplement:
 
     def test_init(self):
         model = ExponentialMixtureModel
@@ -107,7 +107,7 @@ class TestLogLikelihoodHistV2:
         }
         bin_edges = np.array([0.0, 10.0, 50.0, 100.0])
         counts = np.array([5.0, 10.0, 3.0])
-        results = log_likelihood_hist_v2(
+        results = negative_log_likelihood_hist_bin_complement(
             model=model,
             params=params,
             counts=counts,
@@ -118,7 +118,7 @@ class TestLogLikelihoodHistV2:
 
         bin_edges = (0.0, 10.0, 50.0, 100.0)
         counts = (5.0, 10.0, 3.0)
-        results = log_likelihood_hist_v2(
+        results = negative_log_likelihood_hist_bin_complement(
             model=model,
             params=params,
             counts=counts,
@@ -129,7 +129,7 @@ class TestLogLikelihoodHistV2:
 
         bin_edges = np.array([0.0, 10.0, 50.0, 100.0])
         counts = np.array([5.0, 10.0, 3.0])
-        results = log_likelihood_hist_v2(
+        results = negative_log_likelihood_hist_bin_complement(
             model=model,
             params=params,
             counts=counts,
@@ -146,14 +146,14 @@ class TestLogLikelihoodHistV2:
         }
         bin_edges = np.array([0.0, 10.0, 50.0, 100.0])
         counts = np.array([5.0, 10.0, 3.0])
-        ll0 = log_likelihood_hist_v2(
+        ll0 = negative_log_likelihood_hist_bin_complement(
             model=model,
             params=params,
             counts=counts,
             bin_edges=bin_edges,
             counts_not_observed=0,
         )
-        ll100 = log_likelihood_hist_v2(
+        ll100 = negative_log_likelihood_hist_bin_complement(
             model=model,
             params=params,
             counts=counts,
@@ -163,7 +163,7 @@ class TestLogLikelihoodHistV2:
         assert ll0 < ll100
 
     def test_full_support_with_no_unobserved_counts(self):
-        result = log_likelihood_hist_v2(
+        result = negative_log_likelihood_hist_bin_complement(
             model=ExponentialMixtureModel,
             params={"pis": [], "lambdas": [1]},
             counts=[1],
@@ -174,13 +174,13 @@ class TestLogLikelihoodHistV2:
         assert result == pytest.approx(0)
 
 
-def test_log_likelihood_hist_marginal_v2_with_small_truncation():
+def test_negative_log_likelihood_hist_marginal_bin_complement_with_small_truncation():
     truncation_up = 0.001
 
     def uniform_pdf_part(*, call, x, i, normalize):
         return np.full_like(x, 1 / truncation_up, dtype=np.float64)
 
-    result = log_likelihood_hist_marginal_v2(
+    result = negative_log_likelihood_hist_marginal_bin_complement(
         model=ExponentialMixtureModel,
         params={"pis": [], "lambdas": [1000]},
         counts=[1],
@@ -199,11 +199,11 @@ def test_log_likelihood_hist_marginal_v2_with_small_truncation():
     "likelihood, extra_arguments",
     [
         (
-            fitting.log_likelihood_hist_v1,
+            fitting.negative_log_likelihood_hist_observation_window,
             {"truncation_low": 0, "truncation_up": 1},
         ),
         (
-            fitting.log_likelihood_hist_marginal_v1,
+            fitting.negative_log_likelihood_hist_marginal_observation_window,
             {
                 "truncation_low": 0,
                 "truncation_up": 1,
@@ -211,9 +211,9 @@ def test_log_likelihood_hist_marginal_v2_with_small_truncation():
                 "cdf_part_index": 0,
             },
         ),
-        (fitting.log_likelihood_hist_v2, {}),
+        (fitting.negative_log_likelihood_hist_bin_complement, {}),
         (
-            fitting.log_likelihood_hist_marginal_v2,
+            fitting.negative_log_likelihood_hist_marginal_bin_complement,
             {
                 "truncation_low": 0,
                 "truncation_up": 1,
@@ -282,11 +282,11 @@ def test_fitter_penalizes_ill_conditioned_hypoexponential_rates(monkeypatch, fit
     [
         (
             fitting.fit_multiple_mixture_v1,
-            "log_likelihood_hist_marginal_v1",
+            "negative_log_likelihood_hist_marginal_observation_window",
         ),
         (
             fitting.fit_multiple_mixture_v2,
-            "log_likelihood_hist_marginal_v2",
+            "negative_log_likelihood_hist_marginal_bin_complement",
         ),
     ],
 )

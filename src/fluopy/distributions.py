@@ -405,8 +405,8 @@ class Photoswitching_fingerprint_model:
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
-                F_1 = self.cdf(x=self.domain[-1], extra=True)
-            F_0 = self.cdf(x=self.domain[0], extra=True)
+                F_1 = self.untruncated_cdf(x=self.domain[-1])
+            F_0 = self.untruncated_cdf(x=self.domain[0])
             pdf = pdf / (F_1 - F_0)
 
         return _restrict_pdf_to_domain(x, pdf, self.domain)
@@ -483,42 +483,54 @@ class Photoswitching_fingerprint_model:
 
         return _restrict_cdf_to_domain(x, cdf_part, self.domain)
 
-    def cdf(
+    def untruncated_cdf(
         self,
         x: float | npt.ArrayLike,
-        extra: bool = False,
     ) -> float | npt.NDArray[np.float64]:
         """
-        CDF
+        CDF without conditioning to the model domain.
 
         Parameters
         ----------
         x
             Sample.
-        extra
-            If True, the CDF is not normalized to the domain. Needed for normalization
-            of PDF and CDF.
 
         Returns
         -------
         float | npt.NDArray[np.float64]
-            CDF
+            CDF without conditioning to the model domain.
         """
         n = len(self.params)
         cdf: DistributionValue = 0.0
         for i in range(n):
             cdf_part = self.cdf_part(x=x, i=i, normalize=False)
             cdf += self.weights[i] * cdf_part
-        if extra:
-            return cdf
+
+        return cdf
+
+    def cdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
+        """
+        CDF conditioned to the model domain.
+
+        Parameters
+        ----------
+        x
+            Sample.
+
+        Returns
+        -------
+        float | npt.NDArray[np.float64]
+            CDF conditioned to the model domain.
+        """
+        cdf = self.untruncated_cdf(x)
 
         if self.domain != (0, np.inf):
             F_1: DistributionValue
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
-                F_1 = self.cdf(x=self.domain[-1], extra=True)
-            F_0 = self.cdf(x=self.domain[0], extra=True)
+                F_1 = self.untruncated_cdf(x=self.domain[-1])
+            F_0 = self.untruncated_cdf(x=self.domain[0])
             cdf = (cdf - F_0) / (F_1 - F_0)
 
         return _restrict_cdf_to_domain(x, cdf, self.domain)
@@ -821,31 +833,28 @@ class ExponentialMixtureModel:
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
-                F_1 = self.cdf(x=self.domain[-1], extra=True)
-            F_0 = self.cdf(x=self.domain[0], extra=True)
+                F_1 = self.untruncated_cdf(x=self.domain[-1])
+            F_0 = self.untruncated_cdf(x=self.domain[0])
             pdf = pdf / (F_1 - F_0)
 
         return _restrict_pdf_to_domain(x, pdf, self.domain)
 
-    def cdf(
+    def untruncated_cdf(
         self,
         x: float | npt.ArrayLike,
-        extra: bool = False,
     ) -> float | npt.NDArray[np.float64]:
         """
-        Cumulative distribution function of a mixture of exponential distributions.
+        Cumulative distribution function without conditioning to the model domain.
 
         Parameters
         ----------
         x
             Sample.
-        extra
-            ...
 
         Returns
         -------
         float | npt.NDArray[np.float64]
-            CDF of the mixture of exponential distributions.
+            CDF without conditioning to the model domain.
         """
         cdf: DistributionValue = 0.0
         for i, lam in enumerate(self.params["lambdas"]):
@@ -856,16 +865,31 @@ class ExponentialMixtureModel:
 
             cdf += p * expon.cdf(x, scale=1 / lam)
 
-        if extra:
-            return cdf
+        return cdf
+
+    def cdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
+        """
+        Cumulative distribution function conditioned to the model domain.
+
+        Parameters
+        ----------
+        x
+            Sample.
+
+        Returns
+        -------
+        float | npt.NDArray[np.float64]
+            CDF conditioned to the model domain.
+        """
+        cdf = self.untruncated_cdf(x)
 
         if self.domain != (0, np.inf):
             F_1: DistributionValue
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
-                F_1 = self.cdf(x=self.domain[-1], extra=True)
-            F_0 = self.cdf(x=self.domain[0], extra=True)
+                F_1 = self.untruncated_cdf(x=self.domain[-1])
+            F_0 = self.untruncated_cdf(x=self.domain[0])
             cdf = (cdf - F_0) / (F_1 - F_0)
 
         return _restrict_cdf_to_domain(x, cdf, self.domain)
@@ -914,10 +938,14 @@ class ExponentialMixtureMarginalModel:
         # CDF(truncation_up - x) because Pr(actual_truncation >= x) = Pr(truncation_up - T >= x) = Pr(T <= truncation_up - x) = CDF(truncation_up - x)
         # i.e., pfa_cdf_part does not describe the actual truncation of the two_expon_mixture, but truncation_up - T does.
         # if it described the actual truncation, we would multiply with (1 - CDF(x)) (Survival function)
-        P_obs = simpson(y=pdf_grid, x=x_grid)
-        if not np.isfinite(P_obs) or P_obs <= 0 or P_obs > 1 + 1e-6:
+        observation_probability = simpson(y=pdf_grid, x=x_grid)
+        if (
+            not np.isfinite(observation_probability)
+            or observation_probability <= 0
+            or observation_probability > 1 + 1e-6
+        ):
             raise ValueError("The calculated observation probability is invalid.")
-        pdf_grid /= P_obs
+        pdf_grid /= observation_probability
         # normalization such that integral over domain is 1, i.e., pdf_grid describes the distribution
         # given that an event is observed
         cdf_grid = cumulative_simpson(pdf_grid, x=x_grid, initial=0)
@@ -927,7 +955,7 @@ class ExponentialMixtureMarginalModel:
         self.pdf_grid = pdf_grid
         self.cdf_grid = cdf_grid
         self.x_grid = x_grid
-        self.P_obs = P_obs
+        self.observation_probability = observation_probability
 
     def pdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """
