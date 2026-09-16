@@ -4,17 +4,16 @@ Random variable distributions.
 
 from __future__ import annotations
 
-import inspect
 from collections.abc import Callable, Mapping, Sequence
-from itertools import product
 from typing import Protocol, cast
 
 import numpy as np
 import numpy.typing as npt
-from scipy.integrate import cumulative_trapezoid
+from scipy.integrate import cumulative_simpson, simpson
 from scipy.stats import expon
 
 __all__: list[str] = [
+    "IllConditionedHypoexponentialError",
     "hypoexponential_distribution_cdf",
     "hypoexponential_distribution_pdf",
     "hypoexponential_distribution_pdf_1st_order_derivative",
@@ -28,8 +27,116 @@ __all__: list[str] = [
 DistributionValue = float | npt.NDArray[np.float64]
 
 
+def _restrict_pdf_to_domain(
+    x: npt.ArrayLike,
+    pdf: DistributionValue,
+    domain: tuple[float, float],
+) -> DistributionValue:
+    values = np.asarray(x)
+    inside = (values >= domain[0]) & (values <= domain[1])
+    result = np.where(inside, pdf, 0.0)
+
+    return float(result) if result.ndim == 0 else result
+
+
+def _restrict_cdf_to_domain(
+    x: npt.ArrayLike,
+    cdf: DistributionValue,
+    domain: tuple[float, float],
+) -> DistributionValue:
+    values = np.asarray(x)
+    result = np.where(values <= domain[0], 0.0, cdf)
+    result = np.where(values >= domain[1], 1.0, result)
+
+    return float(result) if result.ndim == 0 else result
+
+
+def _marginal_integration_grid(
+    truncation_up: float,
+    points_per_side: int = 100,
+) -> npt.NDArray[np.float64]:
+    if not np.isfinite(truncation_up) or truncation_up <= 0:
+        raise ValueError("truncation_up must be finite and greater than zero.")
+
+    smallest_fraction = np.sqrt(np.finfo(np.float64).eps)
+    linear_fraction_start = 1 / points_per_side
+    geometric_point_count = points_per_side // 2
+    geometric_fractions = np.geomspace(
+        smallest_fraction,
+        linear_fraction_start,
+        geometric_point_count,
+        endpoint=False,
+    )
+    linear_fractions = np.linspace(
+        linear_fraction_start,
+        0.5,
+        points_per_side - geometric_point_count,
+    )
+    edge_fractions = np.concatenate((geometric_fractions, linear_fractions))
+
+    return np.unique(
+        np.concatenate(
+            (
+                [0.0],
+                truncation_up * edge_fractions,
+                truncation_up * (1 - edge_fractions),
+                [truncation_up],
+            )
+        )
+    )
+
+
+class IllConditionedHypoexponentialError(ValueError):
+    """Raised when hypoexponential partial fractions cannot be evaluated reliably."""
+
+
 class HypoexponentialCall(Protocol):
     def __call__(self, x: npt.ArrayLike, *args: int | float) -> DistributionValue: ...
+
+
+def _partial_fraction_is_ill_conditioned(
+    coefficients: npt.NDArray[np.float64], scale: float
+) -> bool:
+    eps = np.finfo(np.float64).eps
+    estimated_roundoff = eps * np.sum(np.abs(coefficients))
+
+    return bool(
+        not np.isfinite(estimated_roundoff) or estimated_roundoff > np.sqrt(eps) * scale
+    )
+
+
+def _prepare_hypoexponential_rates(
+    args: Sequence[int | float], order: int | None
+) -> npt.NDArray[np.float64]:
+    rates = np.asarray(args, dtype=np.float64)
+    if rates.size == 0:
+        raise ValueError("At least one rate is required.")
+    if not np.all(np.isfinite(rates)):
+        raise ValueError("Rates must be finite.")
+    if np.any(rates <= 0):
+        raise ValueError("Rates must be positive.")
+    if np.unique(rates).size != rates.size:
+        raise IllConditionedHypoexponentialError("Rates must be distinct.")
+
+    differences = rates[None, :] - rates[:, None]
+    np.fill_diagonal(differences, 1.0)
+    with np.errstate(over="ignore", under="ignore", divide="ignore", invalid="ignore"):
+        pdf_coefficients = np.prod(rates) / np.prod(differences, axis=1)
+
+    if order is None:
+        coefficients = pdf_coefficients / rates
+        scale = 1.0
+    else:
+        coefficients = pdf_coefficients * (-rates) ** order
+        scale = float(np.max(rates) ** (order + 1))
+
+    if _partial_fraction_is_ill_conditioned(coefficients, scale):
+        raise IllConditionedHypoexponentialError(
+            "Rates are too close for stable evaluation of the hypoexponential "
+            "distribution."
+        )
+
+    return rates
 
 
 def hypoexponential_distribution_cdf(
@@ -51,13 +158,19 @@ def hypoexponential_distribution_cdf(
     float | npt.NDArray[np.float64]
         CDF of the hypoexponential distribution.
     """
-    x = np.asarray(x)
+    rates = _prepare_hypoexponential_rates(args, order=None)
+    values = np.asarray(x)
+    evaluation_values = np.maximum(values, 0.0)
     cdf = 1
-    for arg in args:
-        other_args = np.array([other for other in args if other != arg])
-        cdf -= np.exp(-arg * x) * np.prod(other_args) / np.prod(-arg + other_args)
+    for arg in rates:
+        other_args = rates[rates != arg]
+        cdf -= (
+            np.exp(-arg * evaluation_values)
+            * np.prod(other_args)
+            / np.prod(-arg + other_args)
+        )
 
-    return cdf
+    return _restrict_cdf_to_domain(values, cdf, (0, np.inf))
 
 
 def hypoexponential_distribution_pdf(
@@ -79,14 +192,19 @@ def hypoexponential_distribution_pdf(
     float | npt.NDArray[np.float64]
         PDF of the hypoexponential distribution.
     """
-    x = np.asarray(x)
-    all_args = np.asarray(args)
+    rates = _prepare_hypoexponential_rates(args, order=0)
+    values = np.asarray(x)
+    evaluation_values = np.maximum(values, 0.0)
     pdf = 0
-    for arg in args:
-        other_args = np.array([other for other in args if other != arg])
-        pdf += np.exp(-arg * x) * np.prod(all_args) / np.prod(-arg + other_args)
+    for arg in rates:
+        other_args = rates[rates != arg]
+        pdf += (
+            np.exp(-arg * evaluation_values)
+            * np.prod(rates)
+            / np.prod(-arg + other_args)
+        )
 
-    return pdf
+    return _restrict_pdf_to_domain(values, pdf, (0, np.inf))
 
 
 def hypoexponential_distribution_pdf_1st_order_derivative(
@@ -108,16 +226,20 @@ def hypoexponential_distribution_pdf_1st_order_derivative(
     float | npt.NDArray[np.float64]
         First order derivative of the PDF of the hypoexponential distribution.
     """
-    x = np.asarray(x)
-    all_args = np.array(args)
+    rates = _prepare_hypoexponential_rates(args, order=1)
+    values = np.asarray(x)
+    evaluation_values = np.maximum(values, 0.0)
     pdf_1st_order_derivative = 0
-    for arg in args:
-        other_args = np.array([other for other in args if other != arg])
+    for arg in rates:
+        other_args = rates[rates != arg]
         pdf_1st_order_derivative += (
-            -arg * np.exp(-arg * x) * np.prod(all_args) / np.prod(-arg + other_args)
+            -arg
+            * np.exp(-arg * evaluation_values)
+            * np.prod(rates)
+            / np.prod(-arg + other_args)
         )
 
-    return pdf_1st_order_derivative
+    return _restrict_pdf_to_domain(values, pdf_1st_order_derivative, (0, np.inf))
 
 
 def hypoexponential_distribution_pdf_2nd_order_derivative(
@@ -139,16 +261,20 @@ def hypoexponential_distribution_pdf_2nd_order_derivative(
     float | npt.NDArray[np.float64]
         Second order derivative of the PDF of the hypoexponential distribution.
     """
-    x = np.asarray(x)
-    all_args = np.array(args)
+    rates = _prepare_hypoexponential_rates(args, order=2)
+    values = np.asarray(x)
+    evaluation_values = np.maximum(values, 0.0)
     pdf_2nd_order_derivative = 0
-    for arg in args:
-        other_args = np.array([other for other in args if other != arg])
+    for arg in rates:
+        other_args = rates[rates != arg]
         pdf_2nd_order_derivative += (
-            arg**2 * np.exp(-arg * x) * np.prod(all_args) / np.prod(-arg + other_args)
+            arg**2
+            * np.exp(-arg * evaluation_values)
+            * np.prod(rates)
+            / np.prod(-arg + other_args)
         )
 
-    return pdf_2nd_order_derivative
+    return _restrict_pdf_to_domain(values, pdf_2nd_order_derivative, (0, np.inf))
 
 
 class Photoswitching_fingerprint_model:
@@ -227,6 +353,8 @@ class Photoswitching_fingerprint_model:
         pdf_part: DistributionValue = 0.0
         for lambda_combo, pi_combo in zip(lambdas, pis):
             pi_set = np.prod(pi_combo)
+            if pi_set == 0:
+                continue
             pdf_part += pi_set * call(
                 x,
                 *lambda_combo,
@@ -244,41 +372,28 @@ class Photoswitching_fingerprint_model:
             F_0 = self.cdf_part(x=self.domain[0], i=i, normalize=False)
             pdf_part = pdf_part / (F_1 - F_0)
 
-        return pdf_part
+        return _restrict_pdf_to_domain(x, pdf_part, self.domain)
 
-    def pdf(
-        self, x: float | npt.ArrayLike, order: int = 0
+    def _evaluate_pdf(
+        self,
+        x: float | npt.ArrayLike,
+        call: HypoexponentialCall,
     ) -> float | npt.NDArray[np.float64]:
         """
-        PDF
+        Evaluate the PDF (or its derivative) of the photoswitching fingerprint model.
 
         Parameters
         ----------
         x
             Sample.
-        order : int
-            Order of the derivative of the PDF to be calculated.
+        call
+            Function to calculate the PDF (or its derivative) of the hypoexponential
+            distribution.
 
         Returns
         -------
-        float | npt.NDArray[np.float64]
-            PDF
+        pdf
         """
-        if order == 0:
-            call = hypoexponential_distribution_pdf
-        elif order == 1:
-            caller = inspect.stack()[1].function
-            if caller != "dpdf":
-                raise ValueError("Call dpdf instead of pdf with setting order=1.")
-            call = hypoexponential_distribution_pdf_1st_order_derivative
-        elif order == 2:
-            caller = inspect.stack()[1].function
-            if caller != "ddpdf":
-                raise ValueError("Call ddpdf instead of pdf with setting order=2.")
-            call = hypoexponential_distribution_pdf_2nd_order_derivative
-        else:
-            raise ValueError("Order has to be 0, 1, or 2.")
-
         n = len(self.params)
         pdf: DistributionValue = 0.0
         for i in range(n):
@@ -290,11 +405,27 @@ class Photoswitching_fingerprint_model:
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
-                F_1 = self.cdf(x=self.domain[-1], extra=True)
-            F_0 = self.cdf(x=self.domain[0], extra=True)
-            pdf = pdf / (F_1 - F_0)  # true for pdf, dpdf, ddpdf
+                F_1 = self.untruncated_cdf(x=self.domain[-1])
+            F_0 = self.untruncated_cdf(x=self.domain[0])
+            pdf = pdf / (F_1 - F_0)
 
-        return pdf
+        return _restrict_pdf_to_domain(x, pdf, self.domain)
+
+    def pdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
+        """
+        PDF
+
+        Parameters
+        ----------
+        x
+            Sample.
+
+        Returns
+        -------
+        float | npt.NDArray[np.float64]
+            PDF
+        """
+        return self._evaluate_pdf(x=x, call=hypoexponential_distribution_pdf)
 
     def cdf_part(
         self,
@@ -332,6 +463,8 @@ class Photoswitching_fingerprint_model:
         cdf_part: DistributionValue = 0.0
         for lambda_combo, pi_combo in zip(lambdas, pis):
             pi_set = np.prod(pi_combo)
+            if pi_set == 0:
+                continue
             cdf_part += pi_set * hypoexponential_distribution_cdf(
                 x,
                 *lambda_combo,
@@ -348,47 +481,59 @@ class Photoswitching_fingerprint_model:
             F_0 = self.cdf_part(x=self.domain[0], i=i, normalize=False)
             cdf_part = (cdf_part - F_0) / (F_1 - F_0)
 
-        return cdf_part
+        return _restrict_cdf_to_domain(x, cdf_part, self.domain)
 
-    def cdf(
+    def untruncated_cdf(
         self,
         x: float | npt.ArrayLike,
-        extra: bool = False,
     ) -> float | npt.NDArray[np.float64]:
         """
-        CDF
+        CDF without conditioning to the model domain.
 
         Parameters
         ----------
         x
             Sample.
-        extra
-            If True, the CDF is not normalized to the domain. Needed for normalization
-            of PDF and CDF.
 
         Returns
         -------
         float | npt.NDArray[np.float64]
-            CDF
+            CDF without conditioning to the model domain.
         """
         n = len(self.params)
         cdf: DistributionValue = 0.0
         for i in range(n):
             cdf_part = self.cdf_part(x=x, i=i, normalize=False)
             cdf += self.weights[i] * cdf_part
-        if extra:
-            return cdf
+
+        return cdf
+
+    def cdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
+        """
+        CDF conditioned to the model domain.
+
+        Parameters
+        ----------
+        x
+            Sample.
+
+        Returns
+        -------
+        float | npt.NDArray[np.float64]
+            CDF conditioned to the model domain.
+        """
+        cdf = self.untruncated_cdf(x)
 
         if self.domain != (0, np.inf):
             F_1: DistributionValue
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
-                F_1 = self.cdf(x=self.domain[-1], extra=True)
-            F_0 = self.cdf(x=self.domain[0], extra=True)
+                F_1 = self.untruncated_cdf(x=self.domain[-1])
+            F_0 = self.untruncated_cdf(x=self.domain[0])
             cdf = (cdf - F_0) / (F_1 - F_0)
 
-        return cdf
+        return _restrict_cdf_to_domain(x, cdf, self.domain)
 
     def dpdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """
@@ -404,9 +549,10 @@ class Photoswitching_fingerprint_model:
         float | npt.NDArray[np.float64]
             First derivative of PDF
         """
-        dpdf = self.pdf(x, order=1)
-
-        return dpdf
+        return self._evaluate_pdf(
+            x=x,
+            call=hypoexponential_distribution_pdf_1st_order_derivative,
+        )
 
     def ddpdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """
@@ -422,9 +568,10 @@ class Photoswitching_fingerprint_model:
         float | npt.NDArray[np.float64]
             Second derivative of PDF
         """
-        ddpdf = self.pdf(x, order=2)
-
-        return ddpdf
+        return self._evaluate_pdf(
+            x=x,
+            call=hypoexponential_distribution_pdf_2nd_order_derivative,
+        )
 
     def logp(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """
@@ -516,22 +663,23 @@ def generate_combinations(n: int, z: int) -> npt.NDArray[np.int64]:
         distribution of three-component mixture), or 3 (second non-biased exponential
         distribution of three-component mixture).
     """
-    arrays = []
-    for i in range(n):
-        if i == z:
-            arrays.append([0, 2, 3])  # b, nb_1 and nb_2
-        else:
-            arrays.append([0, 1])  # b and nb_0
-    combos = np.array(list(product(*arrays)), dtype=int)
-    if combos.shape[1] == 1:
-        valid_combos = combos
-    zeros = combos == 0
-    curr_zeros = zeros[:, 1:]
-    prev_zeros = zeros[:, :-1]
-    mask = np.all((~curr_zeros) | prev_zeros, axis=1)
-    valid_combos = combos[mask]
+    combinations = []
+    has_three_component = 0 <= z < n
 
-    return valid_combos
+    for first_nonbiased in range(n, -1, -1):
+        combination = np.zeros(n, dtype=np.int64)
+        combination[first_nonbiased:] = 1
+
+        if has_three_component and first_nonbiased <= z:
+            for component in (2, 3):
+                current = combination.copy()
+                current[z] = component
+                combinations.append(current)
+        else:
+            combinations.append(combination)
+
+    valid_combinations = np.array(combinations, dtype=np.int64)
+    return valid_combinations
 
 
 def map_to_lambdas(
@@ -623,9 +771,12 @@ def get_pis(
             else:
                 mask = combos[1:, :][twos_threes, idx - 1] == 0
                 pis[1:, :][twos_threes[mask], idx] = mapper(col_filt[twos_threes[mask]])
-                pis[1:, :][twos_threes[~mask], idx] = (
-                    mapper(col_filt[twos_threes[~mask]]) / normalize
-                )
+                if normalize == 0:
+                    pis[1:, :][twos_threes[~mask], idx] = 0.0
+                else:
+                    pis[1:, :][twos_threes[~mask], idx] = (
+                        mapper(col_filt[twos_threes[~mask]]) / normalize
+                    )
     return pis
 
 
@@ -682,31 +833,28 @@ class ExponentialMixtureModel:
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
-                F_1 = self.cdf(x=self.domain[-1], extra=True)
-            F_0 = self.cdf(x=self.domain[0], extra=True)
+                F_1 = self.untruncated_cdf(x=self.domain[-1])
+            F_0 = self.untruncated_cdf(x=self.domain[0])
             pdf = pdf / (F_1 - F_0)
 
-        return pdf
+        return _restrict_pdf_to_domain(x, pdf, self.domain)
 
-    def cdf(
+    def untruncated_cdf(
         self,
         x: float | npt.ArrayLike,
-        extra: bool = False,
     ) -> float | npt.NDArray[np.float64]:
         """
-        Cumulative distribution function of a mixture of exponential distributions.
+        Cumulative distribution function without conditioning to the model domain.
 
         Parameters
         ----------
         x
             Sample.
-        extra
-            ...
 
         Returns
         -------
         float | npt.NDArray[np.float64]
-            CDF of the mixture of exponential distributions.
+            CDF without conditioning to the model domain.
         """
         cdf: DistributionValue = 0.0
         for i, lam in enumerate(self.params["lambdas"]):
@@ -717,19 +865,34 @@ class ExponentialMixtureModel:
 
             cdf += p * expon.cdf(x, scale=1 / lam)
 
-        if extra:
-            return cdf
+        return cdf
+
+    def cdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
+        """
+        Cumulative distribution function conditioned to the model domain.
+
+        Parameters
+        ----------
+        x
+            Sample.
+
+        Returns
+        -------
+        float | npt.NDArray[np.float64]
+            CDF conditioned to the model domain.
+        """
+        cdf = self.untruncated_cdf(x)
 
         if self.domain != (0, np.inf):
             F_1: DistributionValue
             if self.domain[-1] == np.inf:
                 F_1 = 1
             else:
-                F_1 = self.cdf(x=self.domain[-1], extra=True)
-            F_0 = self.cdf(x=self.domain[0], extra=True)
+                F_1 = self.untruncated_cdf(x=self.domain[-1])
+            F_0 = self.untruncated_cdf(x=self.domain[0])
             cdf = (cdf - F_0) / (F_1 - F_0)
 
-        return cdf
+        return _restrict_cdf_to_domain(x, cdf, self.domain)
 
 
 class ExponentialMixtureMarginalModel:
@@ -766,8 +929,7 @@ class ExponentialMixtureMarginalModel:
         self.cdf_part_index = cdf_part_index
         self.truncation_up = truncation_up
 
-        x_grid = np.logspace(np.log10(0.01), np.log10(truncation_up), 200)
-        x_grid = np.insert(arr=x_grid, obj=0, values=0.0)
+        x_grid = _marginal_integration_grid(truncation_up)
         pdf_grid = ExponentialMixtureModel(params=params, domain=(0, np.inf)).pdf(
             x_grid
         ) * pfa_cdf_part(truncation_up - x_grid, cdf_part_index, True)
@@ -776,16 +938,24 @@ class ExponentialMixtureMarginalModel:
         # CDF(truncation_up - x) because Pr(actual_truncation >= x) = Pr(truncation_up - T >= x) = Pr(T <= truncation_up - x) = CDF(truncation_up - x)
         # i.e., pfa_cdf_part does not describe the actual truncation of the two_expon_mixture, but truncation_up - T does.
         # if it described the actual truncation, we would multiply with (1 - CDF(x)) (Survival function)
-        P_obs = np.trapezoid(y=pdf_grid, x=x_grid)
-        pdf_grid /= P_obs
+        observation_probability = simpson(y=pdf_grid, x=x_grid)
+        if (
+            not np.isfinite(observation_probability)
+            or observation_probability <= 0
+            or observation_probability > 1 + 1e-6
+        ):
+            raise ValueError("The calculated observation probability is invalid.")
+        pdf_grid /= observation_probability
         # normalization such that integral over domain is 1, i.e., pdf_grid describes the distribution
         # given that an event is observed
-        cdf_grid = cumulative_trapezoid(pdf_grid, x=x_grid, initial=0)
+        cdf_grid = cumulative_simpson(pdf_grid, x=x_grid, initial=0)
+        cdf_grid = np.maximum.accumulate(cdf_grid)
+        cdf_grid /= cdf_grid[-1]
 
         self.pdf_grid = pdf_grid
         self.cdf_grid = cdf_grid
         self.x_grid = x_grid
-        self.P_obs = P_obs
+        self.observation_probability = observation_probability
 
     def pdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """
@@ -804,7 +974,7 @@ class ExponentialMixtureMarginalModel:
         values = np.asarray(x, dtype=np.float64)
         pdf = np.interp(values, xp=self.x_grid, fp=self.pdf_grid, left=0.0, right=0.0)
 
-        return pdf
+        return cast(DistributionValue, pdf)
 
     def cdf(self, x: float | npt.ArrayLike) -> float | npt.NDArray[np.float64]:
         """
@@ -824,3 +994,23 @@ class ExponentialMixtureMarginalModel:
         cdf = np.interp(values, xp=self.x_grid, fp=self.cdf_grid, left=0.0, right=1.0)
 
         return cast(DistributionValue, cdf)
+
+    def observation_cdf(
+        self, x: float | npt.ArrayLike
+    ) -> float | npt.NDArray[np.float64]:
+        """
+        Cumulative probability that the sample is at most x and is observed.
+
+        Parameters
+        ----------
+        x
+            Sample.
+
+        Returns
+        -------
+        float | npt.NDArray[np.float64]
+            Cumulative joint probability of the sample and its observation.
+        """
+        cdf = self.observation_probability * np.asarray(self.cdf(x))
+
+        return float(cdf) if cdf.ndim == 0 else cdf

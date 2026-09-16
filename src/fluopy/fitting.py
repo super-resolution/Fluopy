@@ -23,7 +23,68 @@ from . import distributions as dist
 __all__: list[str] = []
 
 
-def log_likelihood_hist_v1(
+def _prepare_histogram_inputs(
+    counts: npt.ArrayLike,
+    bin_edges: npt.ArrayLike,
+    counts_not_observed: int,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    counts_array = np.asarray(counts, dtype=np.float64)
+    bin_edges_array = np.asarray(bin_edges, dtype=np.float64)
+
+    if counts_array.ndim != 1 or bin_edges_array.ndim != 1:
+        raise ValueError("counts and bin_edges must be one-dimensional.")
+    if bin_edges_array.size != counts_array.size + 1:
+        raise ValueError("bin_edges must contain exactly one more value than counts.")
+    if not np.all(np.isfinite(counts_array)) or np.any(counts_array < 0):
+        raise ValueError("counts must be finite and nonnegative.")
+    if np.any(np.isnan(bin_edges_array)) or np.any(np.diff(bin_edges_array) <= 0):
+        raise ValueError(
+            "bin_edges must be strictly increasing and cannot contain NaN."
+        )
+    if not np.isfinite(counts_not_observed) or counts_not_observed < 0:
+        raise ValueError("counts_not_observed must be finite and nonnegative.")
+
+    return counts_array, bin_edges_array
+
+
+def _validate_fitter_histogram_inputs(
+    datasets: Sequence[npt.ArrayLike],
+    bin_edges: npt.ArrayLike,
+    counts_not_observed: Sequence[int],
+    pfa_bin_edges: npt.ArrayLike | None,
+    pfa_counts: npt.ArrayLike | None,
+    pfa_counts_not_observed: int,
+    norm: bool,
+) -> None:
+    if not datasets:
+        raise ValueError("datasets must contain at least one histogram.")
+    if len(counts_not_observed) != len(datasets):
+        raise ValueError("counts_not_observed must have one value per dataset.")
+
+    for data, count_not_observed in zip(datasets, counts_not_observed):
+        data_array, _ = _prepare_histogram_inputs(
+            data,
+            bin_edges,
+            count_not_observed,
+        )
+        if norm and data_array.sum() == 0:
+            raise ValueError("Cannot normalize an empty histogram.")
+
+    if (pfa_bin_edges is None) != (pfa_counts is None):
+        raise ValueError("pfa_bin_edges and pfa_counts must be provided together.")
+    if not np.isfinite(pfa_counts_not_observed) or pfa_counts_not_observed < 0:
+        raise ValueError("pfa_counts_not_observed must be finite and nonnegative.")
+    if pfa_counts is not None and pfa_bin_edges is not None:
+        pfa_counts_array, _ = _prepare_histogram_inputs(
+            pfa_counts,
+            pfa_bin_edges,
+            pfa_counts_not_observed,
+        )
+        if norm and pfa_counts_array.sum() == 0:
+            raise ValueError("Cannot normalize an empty PFA histogram.")
+
+
+def negative_log_likelihood_hist_observation_window(
     model: Callable[..., Any],
     params: Iterable[Any],
     counts: npt.ArrayLike,
@@ -33,11 +94,11 @@ def log_likelihood_hist_v1(
     counts_not_observed: int,
 ) -> float:
     """
-    Negative log-likelihood of a distribution specified by its CDF and parameters. The
-    distribution is truncated between truncation_low and truncation_up, meaning the
-    probability of observing an event outside this range is 0. This is why here, to
-    include the log-likelihood term of not observing an event due to truncation, we also
-    add a term for the probability of observing an event within the truncation range.
+    Negative log-likelihood of a distribution specified by its CDF and parameters.
+    The observation window is defined explicitly by truncation_low and truncation_up.
+    Bin probabilities are conditional on an event falling within this window, while
+    separate likelihood terms account for observing or not observing an event. In the
+    bin-complement formulation, the histogram bins instead define the observable range.
 
     Parameters
     ----------
@@ -61,8 +122,11 @@ def log_likelihood_hist_v1(
     float
         Negative log-likelihood.
     """
-    counts_array = np.asarray(counts, dtype=np.float64)
-    bin_edges_array = np.asarray(bin_edges, dtype=np.float64)
+    counts_array, bin_edges_array = _prepare_histogram_inputs(
+        counts,
+        bin_edges,
+        counts_not_observed,
+    )
 
     a = bin_edges_array[:-1]
     b = bin_edges_array[1:]
@@ -71,7 +135,7 @@ def log_likelihood_hist_v1(
     probs = model(params, domain=(truncation_low, truncation_up)).cdf(b) - model(
         params, domain=(truncation_low, truncation_up)
     ).cdf(a)
-    probs = np.clip(probs, a_min=1e-14, a_max=None)  # avoid log(0)
+    probs = np.clip(probs, a_min=1e-14, a_max=1)
     log_likelihood_bin = np.sum(counts_array * np.log(probs))
 
     prob_event = model(params, domain=(0, np.inf)).cdf(truncation_up) - model(
@@ -79,7 +143,7 @@ def log_likelihood_hist_v1(
     ).cdf(truncation_low)
     # probability of observing an event
     # within the truncation range (given the distribution is non-truncated)
-    prob_event = np.minimum(prob_event, 1 - 1e-14)  # avoid log(0)
+    prob_event = np.clip(prob_event, a_min=1e-14, a_max=1 - 1e-14)
     log_likelihood_no_observation = np.log1p(-prob_event) * counts_not_observed
     log_likelihood_observation = np.sum(counts_array) * np.log(prob_event)
     log_likelihood = (
@@ -90,7 +154,7 @@ def log_likelihood_hist_v1(
     return float(negative_log_likelihood)
 
 
-def log_likelihood_hist_marginal_v1(
+def negative_log_likelihood_hist_marginal_observation_window(
     model: Callable[..., Any],
     params: Iterable[Any],
     pfa_cdf_part: Callable[..., Any],
@@ -102,11 +166,12 @@ def log_likelihood_hist_marginal_v1(
     counts_not_observed: int,
 ) -> float:
     """
-    Negative log-likelihood of a marginal distribution specified by its CDF and parameters.
-    The marginal distribution support is (0, truncation_up) and has no option to be
-    defined on (0, inf), however the marginal distribution has an attribute returning
-    the probability of observing an event within (0, truncation_up) assuming the support
-    was (0, inf).
+    Negative log-likelihood of a marginal distribution specified by its CDF and
+    parameters. The random observation window is bounded above by truncation_up. Bin
+    probabilities are conditional on observing an event, while separate likelihood
+    terms use the model's observation probability. In the marginal bin-complement
+    formulation, the probability of no event is instead the complement of the
+    probabilities covered by the histogram bins.
 
     Parameters
     ----------
@@ -137,8 +202,11 @@ def log_likelihood_hist_marginal_v1(
     """
     if truncation_low != 0:
         raise ValueError("Marginal distribution only defined for truncation_low = 0.")
-    counts_array = np.asarray(counts, dtype=np.float64)
-    bin_edges_array = np.asarray(bin_edges, dtype=np.float64)
+    counts_array, bin_edges_array = _prepare_histogram_inputs(
+        counts,
+        bin_edges,
+        counts_not_observed,
+    )
 
     a = bin_edges_array[:-1]
     b = bin_edges_array[1:]
@@ -151,13 +219,13 @@ def log_likelihood_hist_marginal_v1(
         truncation_up=truncation_up,
     )
     probs = current_model.cdf(b) - current_model.cdf(a)
-    probs = np.clip(probs, a_min=1e-14, a_max=None)  # avoid log(0)
+    probs = np.clip(probs, a_min=1e-14, a_max=1)
     log_likelihood_bin = np.sum(counts_array * np.log(probs))
 
-    prob_event = current_model.P_obs
+    prob_event = current_model.observation_probability
     # probability of observing an event
     # within the truncation range (given the distribution is non-truncated)
-    prob_event = np.minimum(prob_event, 1 - 1e-14)  # avoid log(0)
+    prob_event = np.clip(prob_event, a_min=1e-14, a_max=1 - 1e-14)
     log_likelihood_no_observation = np.log1p(-prob_event) * counts_not_observed
     log_likelihood_observation = np.sum(counts_array) * np.log(prob_event)
     log_likelihood = (
@@ -168,7 +236,7 @@ def log_likelihood_hist_marginal_v1(
     return float(negative_log_likelihood)
 
 
-def log_likelihood_hist_v2(
+def negative_log_likelihood_hist_bin_complement(
     model: Callable[..., Any],
     params: Iterable[Any],
     counts: npt.ArrayLike,
@@ -176,10 +244,11 @@ def log_likelihood_hist_v2(
     counts_not_observed: int,
 ) -> float:
     """
-    Negative log-likelihood of a distribution specified by its CDF and parameters. The
-    distribution support is (0, inf), meaning the sum of probabilities of the given bins
-    may not be 1. This is why here, to include the log-likelihood term of not observing
-    an event due to truncation, we can do 1 - sum(probabilities_bins).
+    Negative log-likelihood of a distribution specified by its CDF and parameters.
+    The histogram bins define the observable range, and the probability of not
+    observing an event is one minus the sum of their probabilities. In the
+    observation-window formulation, this probability is instead calculated from
+    explicit lower and upper observation limits.
 
     Parameters
     ----------
@@ -199,8 +268,11 @@ def log_likelihood_hist_v2(
     float
         Negative log-likelihood.
     """
-    counts_array = np.asarray(counts, dtype=np.float64)
-    bin_edges_array = np.asarray(bin_edges, dtype=np.float64)
+    counts_array, bin_edges_array = _prepare_histogram_inputs(
+        counts,
+        bin_edges,
+        counts_not_observed,
+    )
 
     a = bin_edges_array[:-1]
     b = bin_edges_array[1:]
@@ -209,17 +281,20 @@ def log_likelihood_hist_v2(
     probs = model(params, domain=(0, np.inf)).cdf(b) - model(
         params, domain=(0, np.inf)
     ).cdf(a)
-    probs = np.clip(probs, a_min=1e-14, a_max=None)  # avoid log(0)
+
+    p_no_event = np.clip(1 - np.sum(probs), a_min=1e-14, a_max=1)
+    probs = np.clip(probs, a_min=1e-14, a_max=1)
+
     log_likelihood_bin = np.sum(counts_array * np.log(probs))
 
-    log_likelihood_no_observation = np.log1p(-np.sum(probs)) * counts_not_observed
+    log_likelihood_no_observation = np.log(p_no_event) * counts_not_observed
     log_likelihood = log_likelihood_bin + log_likelihood_no_observation
     negative_log_likelihood = -log_likelihood
 
     return float(negative_log_likelihood)
 
 
-def log_likelihood_hist_marginal_v2(
+def negative_log_likelihood_hist_marginal_bin_complement(
     model: Callable[..., Any],
     params: Iterable[Any],
     counts: npt.ArrayLike,
@@ -227,16 +302,16 @@ def log_likelihood_hist_marginal_v2(
     counts_not_observed: int,
     truncation_low: float,
     truncation_up: float,
-    pfa_pdf_part: Callable[..., Any],
-    pdf_part_index: int,
+    pfa_cdf_part: Callable[..., Any],
+    cdf_part_index: int,
 ) -> float:
     """
     Negative log-likelihood of a marginal distribution of a sample X from model, where
     the upper truncation is a random variable Y ~ fixed truncation - T, and T is a
-    random variable following a part of PFA distribution.
-    The distribution support is (0, inf), meaning the sum of probabilities of the given
-    bins may not be 1. This is why here, to include the log-likelihood term of not
-    observing an event due to truncation, we can do 1 - sum(probabilities_bins).
+    random variable following a part of PFA distribution. The histogram bins define
+    the observable range, and the probability of not observing an event is one minus
+    the sum of their marginal probabilities. In the marginal observation-window
+    formulation, this probability is instead supplied by the marginal model.
 
     Parameters
     ----------
@@ -254,10 +329,10 @@ def log_likelihood_hist_marginal_v2(
         Fixed lower truncation.
     truncation_up
         Fixed upper truncation.
-    pfa_pdf_part
-        PDF part of the PFA distribution to be used in the marginal distribution.
-    pdf_part_index
-        Index of the PDF part of the PFA distribution to be used in the marginal
+    pfa_cdf_part
+        CDF part of the PFA distribution to be used in the marginal distribution.
+    cdf_part_index
+        Index of the CDF part of the PFA distribution to be used in the marginal
         distribution.
 
     Returns
@@ -267,36 +342,26 @@ def log_likelihood_hist_marginal_v2(
     """
     if truncation_low != 0:
         raise ValueError("Marginal distribution only defined for truncation_low = 0.")
-    counts_array = np.asarray(counts, dtype=np.float64)
-    bin_edges_array = np.asarray(bin_edges, dtype=np.float64)
-
-    x_grid = np.logspace(np.log10(0.01), np.log10(truncation_up), 200)
-    x_grid = np.insert(arr=x_grid, obj=0, values=0)
-    weights = np.asarray(
-        pfa_pdf_part(
-            call=None,
-            x=x_grid,
-            i=pdf_part_index,
-            normalize=True,
-        ),
-        dtype=np.float64,
+    counts_array, bin_edges_array = _prepare_histogram_inputs(
+        counts,
+        bin_edges,
+        counts_not_observed,
     )
-    a = bin_edges_array[:-1, None]
-    b = bin_edges_array[1:, None]
-    true_limits = (truncation_up - x_grid)[None, :]
-    eff_limit = np.minimum(b, true_limits)
-    valid = (a < true_limits).astype(float)
-    qk = model(params, domain=(0, np.inf)).cdf(eff_limit) - model(
-        params, domain=(0, np.inf)
-    ).cdf(a)
-    qk *= valid
-    probs = np.trapezoid(qk * weights[None, :], x=x_grid, axis=1)
-    probs = np.clip(probs, a_min=1e-14, a_max=None)  # avoid log(0)
+
+    current_model = model(
+        params=params,
+        pfa_cdf_part=pfa_cdf_part,
+        cdf_part_index=cdf_part_index,
+        truncation_up=truncation_up,
+    )
+    a = bin_edges_array[:-1]
+    b = bin_edges_array[1:]
+    probs = current_model.observation_cdf(b) - current_model.observation_cdf(a)
+
+    p_no_event = np.clip(1 - np.sum(probs), a_min=1e-14, a_max=1)
+    probs = np.clip(probs, a_min=1e-14, a_max=1)
+
     log_likelihood_bin = np.sum(counts_array * np.log(probs))
-
-    p_no_event = 1 - np.sum(probs)
-    p_no_event = np.clip(p_no_event, a_min=1e-14, a_max=None)  # avoid log(0)
-
     log_likelihood_no_observation = np.log(p_no_event) * counts_not_observed
     log_likelihood = log_likelihood_bin + log_likelihood_no_observation
     negative_log_likelihood = -log_likelihood
@@ -314,6 +379,7 @@ def fit_multiple_mixture_v1(
     pfa_bin_edges: npt.ArrayLike | None = None,
     pfa_counts: npt.ArrayLike | None = None,
     pfa_counts_not_observed: int | None = None,
+    truncation_up: float = 300,
     **diff_ev: Any,
 ) -> OptimizeResult:
     """
@@ -323,9 +389,8 @@ def fit_multiple_mixture_v1(
     If pfa_bin_edges and pfa_counts are provided, the PFA distribution is also fitted,
     sharing parameters with the mixture models.
 
-    v1 because it uses the v1 version of the log-likelihood functions, which include
-    the log likelihood term of not observing an event due to truncation in a different
-    way to the v2 version.
+    Uses observation-window negative log-likelihoods. The observation limits determine
+    the probability of observing an event independently of the histogram bin coverage.
 
     Parameters
     ----------
@@ -364,29 +429,33 @@ def fit_multiple_mixture_v1(
 
     if counts_not_observed is None:
         counts_not_observed = [0 for _ in datasets]
-    else:
-        if norm:
-            raise ValueError(
-                "Normalization to num observed events not possible if general "
-                "log-likelihood of observation/no observation terms are included."
-            )
+    elif norm:
+        raise ValueError(
+            "Normalization to num observed events not possible if general "
+            "log-likelihood of observation/no observation terms are included."
+        )
     if pfa_counts_not_observed is None:
         pfa_counts_not_observed = 0
+    _validate_fitter_histogram_inputs(
+        datasets,
+        bin_edges_array,
+        counts_not_observed,
+        pfa_bin_edges,
+        pfa_counts,
+        pfa_counts_not_observed,
+        norm,
+    )
 
-    if z != -1 and z < len(datasets) - 1:
-        add = 5
-    elif z != -1 and z >= len(datasets) - 1:
+    if z != -1 and not 0 <= z < len(datasets) - 1:
         raise ValueError(
             "z must be -1 or between 0 and number of datasets - 1."
             " The last dataset is assumed to always be a mixture of two exponentials."
         )
-    else:
-        add = 0
 
     def global_objective(params: npt.NDArray[np.float64]) -> float:
         total_negative_log_likelihood = 0.0
-        counter = 0
         pfa_params = prepare_pfa_parameters(z=z, n=len(datasets), params=params)
+        exp_mixture_params = convert_dicts(pfa_params)
         for i, data in enumerate(datasets):
             use: Callable[..., float]
             use_model: Callable[..., Any]
@@ -394,41 +463,27 @@ def fit_multiple_mixture_v1(
             if i != 0:
                 pfa_cdf_part = dist.Photoswitching_fingerprint_model(
                     params=pfa_params,
-                    domain=(0, 300),
+                    domain=(0, truncation_up),
                 ).cdf_part
                 cdf_part_index = i - 1
                 use_model = dist.ExponentialMixtureMarginalModel
-                use = log_likelihood_hist_marginal_v1
+                use = negative_log_likelihood_hist_marginal_observation_window
                 use_parameters = {
                     "pfa_cdf_part": pfa_cdf_part,
                     "cdf_part_index": cdf_part_index,
                 }
             else:
                 use_model = dist.ExponentialMixtureModel
-                use = log_likelihood_hist_v1
+                use = negative_log_likelihood_hist_observation_window
                 use_parameters = {}
-            if i == z:
-                parameters = {
-                    "pis": [params[0], (1 - params[0]) * params[1]],
-                    "lambdas": [params[2], params[3], params[4]],
-                }
-            else:
-                parameters = {
-                    "pis": [params[add + counter * 3]],
-                    "lambdas": [
-                        params[add + counter * 3 + 1],
-                        params[add + counter * 3 + 2],
-                    ],
-                }
-                counter += 1
 
             negative_log_likelihood = use(
                 model=use_model,
-                params=parameters,
+                params=exp_mixture_params[i],
                 counts=data,
                 bin_edges=bin_edges_array,
                 truncation_low=0,
-                truncation_up=300,
+                truncation_up=truncation_up,
                 counts_not_observed=counts_not_observed[i],
                 **use_parameters,
             )
@@ -438,13 +493,13 @@ def fit_multiple_mixture_v1(
         if pfa_bin_edges is not None and pfa_counts is not None:
             pfa_bin_edges_array = np.asarray(pfa_bin_edges, dtype=np.float64)
             pfa_counts_array = np.asarray(pfa_counts, dtype=np.float64)
-            negative_log_likelihood = log_likelihood_hist_v1(
+            negative_log_likelihood = negative_log_likelihood_hist_observation_window(
                 model=dist.Photoswitching_fingerprint_model,
                 params=pfa_params,
                 counts=pfa_counts_array,
                 bin_edges=pfa_bin_edges_array,
                 truncation_low=0,
-                truncation_up=300,
+                truncation_up=truncation_up,
                 counts_not_observed=pfa_counts_not_observed,
             )
             if norm:
@@ -454,13 +509,27 @@ def fit_multiple_mixture_v1(
             total_negative_log_likelihood += negative_log_likelihood
         return total_negative_log_likelihood
 
+    def objective_for_optimizer(params: npt.NDArray[np.float64]) -> float:
+        try:
+            return global_objective(params)
+        except dist.IllConditionedHypoexponentialError:
+            return np.inf
+
     linear_constraint, bounds = prepare_constraints(len(datasets), z)
 
     if not constr:
         linear_constraint = ()
     result = differential_evolution(
-        global_objective, bounds=bounds, constraints=linear_constraint, **diff_ev
+        objective_for_optimizer,
+        bounds=bounds,
+        constraints=linear_constraint,
+        **diff_ev,
     )
+    if not np.isfinite(result.fun):
+        raise RuntimeError(
+            "Optimization did not find parameters for which the hypoexponential "
+            "distribution can be evaluated reliably."
+        )
     return result
 
 
@@ -474,6 +543,7 @@ def fit_multiple_mixture_v2(
     pfa_bin_edges: npt.ArrayLike | None = None,
     pfa_counts: npt.ArrayLike | None = None,
     pfa_counts_not_observed: int | None = None,
+    truncation_up: float = 300,
     **diff_ev: Any,
 ) -> OptimizeResult:
     """
@@ -483,9 +553,8 @@ def fit_multiple_mixture_v2(
     If pfa_bin_edges and pfa_counts are provided, the PFA distribution is also fitted,
     sharing parameters with the mixture models.
 
-    v2 because it uses the v2 version of the log-likelihood functions, which include
-    the log likelihood term of not observing an event due to truncation in a different
-    way to the v1 version.
+    Uses bin-complement negative log-likelihoods. The histogram bins define the
+    observable range, and their probability complement represents unobserved events.
 
     Parameters
     ----------
@@ -524,66 +593,59 @@ def fit_multiple_mixture_v2(
 
     if counts_not_observed is None:
         counts_not_observed = [0 for _ in datasets]
-    else:
-        if norm:
-            raise ValueError(
-                "Normalization to num observed events not possible if general "
-                "log-likelihood of observation/no observation terms are included."
-            )
+    elif norm:
+        raise ValueError(
+            "Normalization to num observed events not possible if general "
+            "log-likelihood of observation/no observation terms are included."
+        )
     if pfa_counts_not_observed is None:
         pfa_counts_not_observed = 0
+    _validate_fitter_histogram_inputs(
+        datasets,
+        bin_edges_array,
+        counts_not_observed,
+        pfa_bin_edges,
+        pfa_counts,
+        pfa_counts_not_observed,
+        norm,
+    )
 
-    if z != -1 and z < len(datasets) - 1:
-        add = 5
-    elif z != -1 and z >= len(datasets) - 1:
+    if z != -1 and not 0 <= z < len(datasets) - 1:
         raise ValueError(
             "z must be -1 or between 0 and number of datasets - 1."
             " The last dataset is assumed to always be a mixture of two exponentials."
         )
-    else:
-        add = 0
 
     def global_objective(params: npt.NDArray[np.float64]) -> float:
         total_negative_log_likelihood = 0.0
-        counter = 0
         pfa_params = prepare_pfa_parameters(z=z, n=len(datasets), params=params)
+        exp_mixture_params = convert_dicts(pfa_params)
         for i, data in enumerate(datasets):
             use: Callable[..., float]
+            use_model: Callable[..., Any]
             use_parameters: dict[str, Any]
             if i != 0:
-                pfa_pdf_part = dist.Photoswitching_fingerprint_model(
+                pfa_cdf_part = dist.Photoswitching_fingerprint_model(
                     params=pfa_params,
-                    domain=(0, 300),
-                ).pdf_part
-                pdf_part_index = i - 1
-                use = log_likelihood_hist_marginal_v2
+                    domain=(0, truncation_up),
+                ).cdf_part
+                cdf_part_index = i - 1
+                use_model = dist.ExponentialMixtureMarginalModel
+                use = negative_log_likelihood_hist_marginal_bin_complement
                 use_parameters = {
                     "truncation_low": 0,
-                    "truncation_up": 300,
-                    "pfa_pdf_part": pfa_pdf_part,
-                    "pdf_part_index": pdf_part_index,
+                    "truncation_up": truncation_up,
+                    "pfa_cdf_part": pfa_cdf_part,
+                    "cdf_part_index": cdf_part_index,
                 }
             else:
-                use = log_likelihood_hist_v2
+                use_model = dist.ExponentialMixtureModel
+                use = negative_log_likelihood_hist_bin_complement
                 use_parameters = {}
-            if i == z:
-                parameters = {
-                    "pis": [params[0], (1 - params[0]) * params[1]],
-                    "lambdas": [params[2], params[3], params[4]],
-                }
-            else:
-                parameters = {
-                    "pis": [params[add + counter * 3]],
-                    "lambdas": [
-                        params[add + counter * 3 + 1],
-                        params[add + counter * 3 + 2],
-                    ],
-                }
-                counter += 1
 
             negative_log_likelihood = use(
-                model=dist.ExponentialMixtureModel,
-                params=parameters,
+                model=use_model,
+                params=exp_mixture_params[i],
                 counts=data,
                 bin_edges=bin_edges_array,
                 counts_not_observed=counts_not_observed[i],
@@ -595,7 +657,7 @@ def fit_multiple_mixture_v2(
         if pfa_bin_edges is not None and pfa_counts is not None:
             pfa_bin_edges_array = np.asarray(pfa_bin_edges, dtype=np.float64)
             pfa_counts_array = np.asarray(pfa_counts, dtype=np.float64)
-            negative_log_likelihood = log_likelihood_hist_v2(
+            negative_log_likelihood = negative_log_likelihood_hist_bin_complement(
                 model=dist.Photoswitching_fingerprint_model,
                 params=pfa_params,
                 counts=pfa_counts_array,
@@ -609,13 +671,27 @@ def fit_multiple_mixture_v2(
             total_negative_log_likelihood += negative_log_likelihood
         return total_negative_log_likelihood
 
+    def objective_for_optimizer(params: npt.NDArray[np.float64]) -> float:
+        try:
+            return global_objective(params)
+        except dist.IllConditionedHypoexponentialError:
+            return np.inf
+
     linear_constraint, bounds = prepare_constraints(len(datasets), z)
 
     if not constr:
         linear_constraint = ()
     result = differential_evolution(
-        global_objective, bounds=bounds, constraints=linear_constraint, **diff_ev
+        objective_for_optimizer,
+        bounds=bounds,
+        constraints=linear_constraint,
+        **diff_ev,
     )
+    if not np.isfinite(result.fun):
+        raise RuntimeError(
+            "Optimization did not find parameters for which the hypoexponential "
+            "distribution can be evaluated reliably."
+        )
     return result
 
 
@@ -845,33 +921,13 @@ def prepare_exp_mixture_parameters(
     parameters : dict
         Dictionary of parameters for the exponential mixture model.
     """
-    parameters: dict[int, dict[str, list[float]]] = {}
-    if z != -1:
-        uz = params[0]
-        vz = params[1]
-        pz1 = uz
-        pz2 = (1 - uz) * vz
-        for i in range(n):
-            if i == z:
-                parameters[i] = {
-                    "pis": [pz1, pz2],
-                    "lambdas": [params[2], params[3], params[4]],
-                }
-            else:
-                parameters[i] = {
-                    "pis": [params[(i - (i > z)) * 3 + 5]],
-                    "lambdas": [
-                        params[(i - (i > z)) * 3 + 1 + 5],
-                        params[(i - (i > z)) * 3 + 2 + 5],
-                    ],
-                }
-    else:
-        for i in range(n):
-            parameters[i] = {
-                "pis": [params[i * 3]],
-                "lambdas": [params[i * 3 + 1], params[i * 3 + 2]],
-            }
-    return parameters
+    return convert_dicts(
+        prepare_pfa_parameters(
+            z=z,
+            n=n,
+            params=params,
+        )
+    )
 
 
 def save_as_array(

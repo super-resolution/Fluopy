@@ -4,14 +4,19 @@ Unit tests for fitting.py
 
 import numpy as np
 import pytest
-from scipy.optimize import Bounds, LinearConstraint
+from scipy.optimize import Bounds, LinearConstraint, OptimizeResult
 
-from fluopy.distributions import ExponentialMixtureModel
+import fluopy.fitting as fitting
+from fluopy.distributions import (
+    ExponentialMixtureMarginalModel,
+    ExponentialMixtureModel,
+)
 from fluopy.fitting import (
     convert_dicts,
     load_from_array,
-    log_likelihood_hist_v1,
-    log_likelihood_hist_v2,
+    negative_log_likelihood_hist_bin_complement,
+    negative_log_likelihood_hist_marginal_bin_complement,
+    negative_log_likelihood_hist_observation_window,
     prepare_constraints,
     prepare_exp_mixture_parameters,
     prepare_pfa_parameters,
@@ -19,7 +24,7 @@ from fluopy.fitting import (
 )
 
 
-class TestLogLikelihoodHistV1:
+class TestNegativeLogLikelihoodHistObservationWindow:
 
     def test_init(self):
         model = ExponentialMixtureModel
@@ -27,9 +32,9 @@ class TestLogLikelihoodHistV1:
             "pis": [0.2],
             "lambdas": [0.1, 1],
         }
-        bin_edges = np.array([0.0, 10.0, 50.0, 100.0])
+        bin_edges = np.array([10.0, 20.0, 50.0, 90.0])
         counts = np.array([5.0, 10.0, 3.0])
-        results = log_likelihood_hist_v1(
+        results = negative_log_likelihood_hist_observation_window(
             model=model,
             params=params,
             counts=counts,
@@ -38,11 +43,11 @@ class TestLogLikelihoodHistV1:
             truncation_up=90,
             counts_not_observed=0,
         )
-        assert results == pytest.approx(46.5051141015797)
+        assert results == pytest.approx(71.82550273177682)
 
-        bin_edges = (0.0, 10.0, 50.0, 100.0)
+        bin_edges = (10.0, 20.0, 50.0, 90.0)
         counts = (5.0, 10.0, 3.0)
-        results = log_likelihood_hist_v1(
+        results = negative_log_likelihood_hist_observation_window(
             model=model,
             params=params,
             counts=counts,
@@ -51,11 +56,11 @@ class TestLogLikelihoodHistV1:
             truncation_up=90,
             counts_not_observed=0,
         )
-        assert results == pytest.approx(46.5051141015797)
+        assert results == pytest.approx(71.82550273177682)
 
-        bin_edges = np.array([0.0, 10.0, 50.0, 100.0])
+        bin_edges = np.array([0.0, 10.0, 50.0, 90.0])
         counts = np.array([5.0, 10.0, 3.0])
-        results = log_likelihood_hist_v1(
+        results = negative_log_likelihood_hist_observation_window(
             model=model,
             params=params,
             counts=counts,
@@ -64,7 +69,7 @@ class TestLogLikelihoodHistV1:
             truncation_up=90,
             counts_not_observed=0,
         )
-        assert results == pytest.approx(46.50511410157997)
+        assert results == pytest.approx(46.54028819370892)
 
     def test_large_counts_not_observed_increases_nll(self):
         model = ExponentialMixtureModel
@@ -74,7 +79,7 @@ class TestLogLikelihoodHistV1:
         }
         bin_edges = np.array([0.0, 10.0, 50.0, 100.0])
         counts = np.array([5.0, 10.0, 3.0])
-        ll0 = log_likelihood_hist_v1(
+        ll0 = negative_log_likelihood_hist_observation_window(
             model=model,
             params=params,
             counts=counts,
@@ -83,7 +88,7 @@ class TestLogLikelihoodHistV1:
             truncation_up=90,
             counts_not_observed=0,
         )
-        ll100 = log_likelihood_hist_v1(
+        ll100 = negative_log_likelihood_hist_observation_window(
             model=model,
             params=params,
             counts=counts,
@@ -95,7 +100,7 @@ class TestLogLikelihoodHistV1:
         assert ll0 < ll100
 
 
-class TestLogLikelihoodHistV2:
+class TestNegativeLogLikelihoodHistBinComplement:
 
     def test_init(self):
         model = ExponentialMixtureModel
@@ -105,7 +110,7 @@ class TestLogLikelihoodHistV2:
         }
         bin_edges = np.array([0.0, 10.0, 50.0, 100.0])
         counts = np.array([5.0, 10.0, 3.0])
-        results = log_likelihood_hist_v2(
+        results = negative_log_likelihood_hist_bin_complement(
             model=model,
             params=params,
             counts=counts,
@@ -116,7 +121,7 @@ class TestLogLikelihoodHistV2:
 
         bin_edges = (0.0, 10.0, 50.0, 100.0)
         counts = (5.0, 10.0, 3.0)
-        results = log_likelihood_hist_v2(
+        results = negative_log_likelihood_hist_bin_complement(
             model=model,
             params=params,
             counts=counts,
@@ -127,7 +132,7 @@ class TestLogLikelihoodHistV2:
 
         bin_edges = np.array([0.0, 10.0, 50.0, 100.0])
         counts = np.array([5.0, 10.0, 3.0])
-        results = log_likelihood_hist_v2(
+        results = negative_log_likelihood_hist_bin_complement(
             model=model,
             params=params,
             counts=counts,
@@ -144,14 +149,14 @@ class TestLogLikelihoodHistV2:
         }
         bin_edges = np.array([0.0, 10.0, 50.0, 100.0])
         counts = np.array([5.0, 10.0, 3.0])
-        ll0 = log_likelihood_hist_v2(
+        ll0 = negative_log_likelihood_hist_bin_complement(
             model=model,
             params=params,
             counts=counts,
             bin_edges=bin_edges,
             counts_not_observed=0,
         )
-        ll100 = log_likelihood_hist_v2(
+        ll100 = negative_log_likelihood_hist_bin_complement(
             model=model,
             params=params,
             counts=counts,
@@ -159,6 +164,240 @@ class TestLogLikelihoodHistV2:
             counts_not_observed=100,
         )
         assert ll0 < ll100
+
+    def test_full_support_with_no_unobserved_counts(self):
+        result = negative_log_likelihood_hist_bin_complement(
+            model=ExponentialMixtureModel,
+            params={"pis": [], "lambdas": [1]},
+            counts=[1],
+            bin_edges=[0, np.inf],
+            counts_not_observed=0,
+        )
+
+        assert result == pytest.approx(0)
+
+
+def test_negative_log_likelihood_hist_marginal_bin_complement_with_small_truncation():
+    truncation_up = 0.001
+
+    def uniform_cdf_part(x, i, normalize):
+        return np.clip(np.asarray(x) / truncation_up, 0, 1)
+
+    result = negative_log_likelihood_hist_marginal_bin_complement(
+        model=ExponentialMixtureMarginalModel,
+        params={"pis": [], "lambdas": [1000]},
+        counts=[1],
+        bin_edges=[0, truncation_up],
+        counts_not_observed=0,
+        truncation_low=0,
+        truncation_up=truncation_up,
+        pfa_cdf_part=uniform_cdf_part,
+        cdf_part_index=0,
+    )
+
+    assert result == pytest.approx(1, rel=1e-4)
+
+
+@pytest.mark.parametrize(
+    "likelihood, extra_arguments",
+    [
+        (
+            fitting.negative_log_likelihood_hist_observation_window,
+            {"truncation_low": 0, "truncation_up": 1},
+        ),
+        (
+            fitting.negative_log_likelihood_hist_marginal_observation_window,
+            {
+                "truncation_low": 0,
+                "truncation_up": 1,
+                "pfa_cdf_part": lambda x, i, normalize: 1.0,
+                "cdf_part_index": 0,
+            },
+        ),
+        (fitting.negative_log_likelihood_hist_bin_complement, {}),
+        (
+            fitting.negative_log_likelihood_hist_marginal_bin_complement,
+            {
+                "truncation_low": 0,
+                "truncation_up": 1,
+                "pfa_cdf_part": lambda x, i, normalize: 1.0,
+                "cdf_part_index": 0,
+            },
+        ),
+    ],
+)
+def test_public_likelihood_rejects_mismatched_histogram(
+    likelihood,
+    extra_arguments,
+):
+    with pytest.raises(ValueError, match="exactly one more value"):
+        likelihood(
+            model=ExponentialMixtureModel,
+            params={"pis": [], "lambdas": [1]},
+            counts=[1],
+            bin_edges=[0, 1, 2],
+            counts_not_observed=0,
+            **extra_arguments,
+        )
+
+
+@pytest.mark.parametrize(
+    "fitter",
+    [fitting.fit_multiple_mixture_v1, fitting.fit_multiple_mixture_v2],
+)
+def test_fitter_penalizes_ill_conditioned_hypoexponential_rates(monkeypatch, fitter):
+    candidate = np.array(
+        [
+            0.8,
+            0.95165,
+            0.5,
+            0.7,
+            0.95055,
+            0.4,
+            0.6,
+            0.94945,
+            0.3,
+            0.5,
+            0.94835,
+            0.2,
+        ]
+    )
+
+    def differential_evolution(objective, **kwargs):
+        assert objective(candidate) == np.inf
+        return OptimizeResult(x=candidate, fun=0.0, success=True)
+
+    monkeypatch.setattr(fitting, "differential_evolution", differential_evolution)
+    datasets = [np.array([1]) for _ in range(4)]
+
+    result = fitter(
+        datasets=datasets,
+        bin_edges=[0, 1],
+        pfa_bin_edges=[0, 1],
+        pfa_counts=[1],
+    )
+
+    assert result.fun == 0.0
+
+
+@pytest.mark.parametrize(
+    "fitter, marginal_likelihood_name",
+    [
+        (
+            fitting.fit_multiple_mixture_v1,
+            "negative_log_likelihood_hist_marginal_observation_window",
+        ),
+        (
+            fitting.fit_multiple_mixture_v2,
+            "negative_log_likelihood_hist_marginal_bin_complement",
+        ),
+    ],
+)
+def test_fitter_uses_custom_truncation_up(
+    monkeypatch,
+    fitter,
+    marginal_likelihood_name,
+):
+    domains = []
+    marginal_truncation_limits = []
+    original_pfa_model = fitting.dist.Photoswitching_fingerprint_model
+    original_marginal_likelihood = getattr(fitting, marginal_likelihood_name)
+
+    def pfa_model(*, params, domain):
+        domains.append(domain)
+        return original_pfa_model(params=params, domain=domain)
+
+    def marginal_likelihood(**kwargs):
+        marginal_truncation_limits.append(kwargs["truncation_up"])
+        return original_marginal_likelihood(**kwargs)
+
+    candidate = np.array([0.8, 1.2, 0.4, 0.7, 0.8, 0.2])
+
+    def differential_evolution(objective, **kwargs):
+        objective_value = objective(candidate)
+        assert np.isfinite(objective_value)
+        return OptimizeResult(x=candidate, fun=objective_value, success=True)
+
+    monkeypatch.setattr(fitting.dist, "Photoswitching_fingerprint_model", pfa_model)
+    monkeypatch.setattr(fitting, marginal_likelihood_name, marginal_likelihood)
+    monkeypatch.setattr(fitting, "differential_evolution", differential_evolution)
+
+    fitter(
+        datasets=[np.array([1]), np.array([1])],
+        bin_edges=[0, 1],
+        truncation_up=17,
+    )
+
+    assert domains == [(0, 17)]
+    assert marginal_truncation_limits == [17]
+
+
+def test_fitter_rejects_nonfinite_best_objective(monkeypatch):
+    def differential_evolution(objective, **kwargs):
+        return OptimizeResult(fun=np.inf, success=False)
+
+    monkeypatch.setattr(fitting, "differential_evolution", differential_evolution)
+
+    with pytest.raises(RuntimeError, match="did not find parameters"):
+        fitting.fit_multiple_mixture_v1(
+            datasets=[np.array([1])],
+            bin_edges=[0, 1],
+        )
+
+
+@pytest.mark.parametrize(
+    "fitter",
+    [fitting.fit_multiple_mixture_v1, fitting.fit_multiple_mixture_v2],
+)
+def test_fitter_rejects_z_below_minus_one(fitter):
+    with pytest.raises(ValueError, match="z must be -1 or between 0"):
+        fitter(
+            datasets=[np.array([1]), np.array([1])],
+            bin_edges=[0, 1],
+            z=-2,
+        )
+
+
+@pytest.mark.parametrize(
+    "arguments, error",
+    [
+        (
+            {"datasets": [np.array([1])], "bin_edges": [0, 1, 2]},
+            "exactly one more value",
+        ),
+        (
+            {"datasets": [np.array([-1])], "bin_edges": [0, 1]},
+            "counts must be finite and nonnegative",
+        ),
+        (
+            {"datasets": [np.array([0])], "bin_edges": [0, 1], "norm": True},
+            "Cannot normalize an empty histogram",
+        ),
+        (
+            {
+                "datasets": [np.array([1])],
+                "bin_edges": [0, 1],
+                "pfa_counts": [1],
+            },
+            "pfa_bin_edges and pfa_counts must be provided together",
+        ),
+        (
+            {
+                "datasets": [np.array([1])],
+                "bin_edges": [0, 1],
+                "counts_not_observed": [],
+            },
+            "counts_not_observed must have one value per dataset",
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "fitter",
+    [fitting.fit_multiple_mixture_v1, fitting.fit_multiple_mixture_v2],
+)
+def test_fitter_validates_histogram_inputs(fitter, arguments, error):
+    with pytest.raises(ValueError, match=error):
+        fitter(**arguments)
 
 
 class TestPrepareConstraints:
