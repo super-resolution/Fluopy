@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-fluopy = ["py.typed", "*.pyi"]
+fluopy = ["py.typed", "*.pyi", "fluorophore_spectra/**/*.csv"]
 
 [tool.setuptools_scm]
 version_file = "src/fluopy/_version.py"
