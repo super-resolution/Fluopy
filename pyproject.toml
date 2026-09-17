@@ -58,15 +58,14 @@ dynamic = ["version"]
 
 dependencies = [
     "iteround",
-    "lmfit",
     "matplotlib",
     "multipletau",
     "networkx",
     "numba",
     "numpy",
     "pandas",
+    "pillow",
     "scipy",
-    "scikit-learn",
 ]
 
 [project.urls]
@@ -89,7 +88,6 @@ typing = [
     "mypy",
     "pandas-stubs",
     "types-networkx",
-    "types-tqdm",
 ]
 dev = [
     "pre-commit",
@@ -233,8 +231,6 @@ disable_error_code = ["attr-defined"]
 
 [[tool.mypy.overrides]]
 module = [
-    'lmfit.*',
     'scipy.*',
-    'sklearn.*',
 ]
 ignore_missing_imports = true
