@@ -32,6 +32,36 @@ jobs:
       - name: Check distribution metadata
         run: python -m twine check dist/*
 
+      - name: Check license in distributions
+        shell: python
+        run: |
+          from email.parser import BytesParser
+          from pathlib import Path
+          from tarfile import open as open_tar
+          from zipfile import ZipFile
+
+          wheel, = Path("dist").glob("*.whl")
+          with ZipFile(wheel) as archive:
+              names = archive.namelist()
+              metadata_path = next(
+                  name for name in names if name.endswith(".dist-info/METADATA")
+              )
+              metadata = BytesParser().parsebytes(archive.read(metadata_path))
+              license_files = metadata.get_all("License-File", [])
+              if "LICENSE" not in license_files:
+                  raise SystemExit(
+                      f"LICENSE missing from wheel metadata: {license_files}"
+                  )
+              if not any(
+                  name.endswith(".dist-info/licenses/LICENSE") for name in names
+              ):
+                  raise SystemExit("LICENSE missing from wheel contents")
+
+          source_distribution, = Path("dist").glob("*.tar.gz")
+          with open_tar(source_distribution) as archive:
+              if not any(member.name.endswith("/LICENSE") for member in archive):
+                  raise SystemExit("LICENSE missing from source distribution")
+
       - name: Install built wheel
         run: python -m pip install dist/*.whl
 

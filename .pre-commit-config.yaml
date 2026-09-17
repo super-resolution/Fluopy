@@ -14,8 +14,6 @@ repos:
       stages: [pre-commit]
       args: [
         "--output-format=grouped",
-        "--exclude", 
-        "notebooks/General/trials.ipynb",
       ]
 
 - repo: local
@@ -44,4 +42,3 @@ repos:
       pass_filenames: false
       always_run: true
       stages: [pre-push]
-      
