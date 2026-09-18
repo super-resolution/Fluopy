@@ -1,6 +1,7 @@
 name: Package build
 
 on:
+  workflow_call:
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -104,3 +105,10 @@ jobs:
                   raise SystemExit(f"Bundled spectrum failed to load for {name}")
 
           print(fluopy.__version__)
+
+      - name: Store distribution packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-package-distributions
+          path: dist
+          retention-days: 7
