@@ -26,7 +26,7 @@ jobs:
         run: uv sync --locked --group dev
 
       - name: Run Black and Ruff
-        run: uv run pre-commit run --all-files
+        run: uv run --locked pre-commit run --all-files
 
       - name: Run mypy
-        run: uv run mypy
+        run: uv run --locked mypy
