@@ -5,15 +5,10 @@ FROM ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-trixie-slim
 ARG PYTHON_VERSION
 
 ENV PYTHON_VERSION=${PYTHON_VERSION}
-ENV UV_SYSTEM_PYTHON=1
 # Enable bytecode compilation
 ENV UV_COMPILE_BYTECODE=1
 # Copy from the cache instead of linking since it's a mounted volume
 ENV UV_LINK_MODE=copy
-# Omit development dependencies
-ENV UV_NO_DEV=1
-# Ensure installed tools can be executed out of the box
-ENV UV_TOOL_BIN_DIR=/usr/local/bin
 
 LABEL maintainer="FluopyDevelopers" \
       project="fluopy" \
@@ -23,44 +18,29 @@ LABEL maintainer="FluopyDevelopers" \
 RUN groupadd --system --gid 999 nonroot && \
     useradd --system --gid 999 --uid 999 --create-home nonroot
 
-# set time zone to local time
-RUN ln -sf /usr/share/zoneinfo/Europe/Amsterdam /etc/localtime
-
-# install git for setuptools_scm to deal with locan source distribution versioning
-# remove package manager cache
-RUN apt-get update && \
-    apt-get install -yq \
-        git && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
 WORKDIR /fluopy
 
-# Copy the current directory contents into the container
-COPY . /fluopy
+# Volume for data
+RUN mkdir /shared && chown nonroot:nonroot /fluopy /shared
+VOLUME /shared
 
-# install dependencies
-RUN uv sync --group test --no-install-project
+# Install locked dependencies before copying the source for better layer caching
+COPY --chown=nonroot:nonroot pyproject.toml uv.lock ./
 
-# install project
-RUN uv sync --inexact
+# Use the non-root user for the environment and application
+USER nonroot
+
+RUN uv sync --locked --no-default-groups --group test --no-install-project
+
+# Copy and install the project without changing the lockfile
+COPY --chown=nonroot:nonroot . .
+RUN uv sync --locked --no-default-groups --group test
 
 # Place executables in the environment at the front of the path
 ENV PATH="/fluopy/.venv/bin:$PATH"
 
-# Volume for data
-VOLUME /shared
-RUN mkdir /shared
-RUN chown -R nonroot:nonroot /shared
-
 # Reset the entrypoint, don't invoke `uv`
 ENTRYPOINT []
 
-# Use the non-root user to run our application
-USER nonroot
-
 # Run a command when the container launches
-CMD today=$(date +"%Y-%m-%d") && \
-    base="-linux-py"${PYTHON_VERSION}_$today && \
-    date > "/shared/test_results$base.txt" && \
-    pytest -s >> "/shared/test_results$base.txt"
+CMD ["pytest", "-s"]
