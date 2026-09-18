@@ -57,15 +57,15 @@ classifiers = [
 dynamic = ["version"]
 
 dependencies = [
-    "iteround",
-    "matplotlib",
-    "multipletau",
-    "networkx",
-    "numba",
-    "numpy",
-    "pandas",
-    "pillow",
-    "scipy",
+    "iteround>=1.0.4",
+    "matplotlib>=3.8.4",
+    "multipletau>=0.4.0",
+    "networkx>=3.3",
+    "numba>=0.60.0",
+    "numpy>=2.0.0",
+    "pandas>=2.2.2",
+    "pillow>=9.3.0",
+    "scipy>=1.13.0",
 ]
 
 [project.urls]
