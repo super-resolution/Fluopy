@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal, Self
 
 import matplotlib.pyplot as plt
 import multipletau as mp  # type: ignore[import-untyped]
-import numba  # type: ignore[import-untyped]
+import numba
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -486,7 +486,7 @@ def make_loglags(
     return bins
 
 
-@numba.jit(nopython=True)  # type: ignore[untyped-decorator]
+@numba.jit(nopython=True)
 def pcorrelate(
     t: npt.ArrayLike,
     u: npt.ArrayLike,
@@ -586,7 +586,7 @@ def pcorrelate(
     return np.asarray(G, dtype=np.float64)
 
 
-@numba.jit(nopython=True)  # type: ignore[untyped-decorator]
+@numba.jit(nopython=True)
 def pnormalize(
     G: npt.ArrayLike,
     t: npt.ArrayLike,
@@ -688,7 +688,7 @@ def coincidence_numpy(
     return hist, bins
 
 
-@numba.jit(nopython=True)  # type: ignore[untyped-decorator]
+@numba.jit(nopython=True)
 def coincidence_numba(
     arr1: npt.NDArray[np.float64],
     arr2: npt.NDArray[np.float64],
