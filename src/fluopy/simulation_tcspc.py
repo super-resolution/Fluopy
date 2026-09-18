@@ -731,9 +731,6 @@ def space_multiple_excitations(time_series: npt.NDArray[np.float64]) -> None:
         Contains the time points at which transitions occur. Transitions may occur at
         the same time point.
 
-    Returns
-    -------
-    None
     """
     if not np.issubdtype(time_series.dtype, np.floating):
         raise ValueError("time_series must be of float type.")
@@ -774,7 +771,7 @@ def insert_excitations(
 
     Returns
     -------
-    transition_series_ad : npt.NDArray[np.uint32]
+    npt.NDArray[np.uint32]
         Contains the indices of the transitions that occur. Includes the indices of the
         excitations.
     """
@@ -881,7 +878,7 @@ def get_state_series(
 
     Returns
     -------
-    state_series : npt.NDArray[np.int8]
+    npt.NDArray[np.int8]
         Contains 1-D array_like for each fluorophore representing its state at index i
         corresponding to transition_series[i-1].
     """

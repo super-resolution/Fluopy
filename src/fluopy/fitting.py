@@ -867,7 +867,7 @@ def prepare_pfa_parameters(
 
     Returns
     -------
-    parameters : dict
+    dict[int, list[float]]
         Dictionary of parameters for the PFA distribution.
     """
     parameters: dict[int, list[float]] = {}
@@ -918,7 +918,7 @@ def prepare_exp_mixture_parameters(
 
     Returns
     -------
-    parameters : dict
+    dict[int, dict[str, list[float]]]
         Dictionary of parameters for the exponential mixture model.
     """
     return convert_dicts(
@@ -968,7 +968,7 @@ def load_from_array(filepath: str | PathLike[str]) -> dict[int, list[float]]:
 
     Returns
     -------
-    parameter_dict : dict
+    dict[int, list[float]]
         Dictionary of parameters loaded from the file.
     """
     parameter_array = np.load(filepath)

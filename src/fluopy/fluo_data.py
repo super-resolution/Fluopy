@@ -28,10 +28,10 @@ class Spectrum:
 
     Attributes
     ----------
-    wavelengths : 1-D array_like
-        The wavelength values in nm.
-    values : 1-D array_like
-        Spectrum values corresponding to wavelengths.
+    wavelengths
+        The one-dimensional wavelength values in nm.
+    values
+        One-dimensional spectrum values corresponding to wavelengths.
     """
 
     wavelengths: npt.NDArray[np.float64]
@@ -48,7 +48,7 @@ class Spectrum:
 
         Parameters
         ----------
-        wavlengths
+        wavelengths
             Wavelengths in nm.
         values
             Spectrum values corresponding to wavelenghts.
@@ -114,7 +114,7 @@ class Spectrum:
 
         Returns
         -------
-        value
+        float
             Spectrum value at the specified wavelength.
         """
         if not np.isfinite(wavelength):
@@ -154,7 +154,7 @@ class Spectrum:
 
         Returns
         -------
-        integral
+        float
             Trapezoidal integral of the spectrum.
         """
         if lower is None:
@@ -242,67 +242,67 @@ class FluorophoreData:
 
     Attributes
     ----------
-    emission_spectrum : Spectrum | None
+    emission_spectrum
         Emission spectrum used for bandpass filtering and as the donor spectrum in
         energy-transfer calculations.
-    absorption_spectra : dict[str, Spectrum]
+    absorption_spectra
         Absorption spectra indexed by lowercase acceptor-state names, for example
         's0', 't1', 'cis' or 'off'. The S0 spectrum is also used to infer the excitation
         rate.
-    QUANTUM_YIELD : float
+    QUANTUM_YIELD
         The fluorescence quantum yield of the fluorophore. Should be between 0 and 1.
-    FLUORESCENCE_LIFETIME : float
+    FLUORESCENCE_LIFETIME
         The fluorescence lifetime of the fluorophore in s.
-    ISC_ST_RATE : float
+    ISC_ST_RATE
         The intersystem crossing rate from S1 to T1 in 1/s.
-    ISC_TS_RATE : float
+    ISC_TS_RATE
         The intersystem crossing rate from T1 to S0 in 1/s.
-    RISC_RATE : float
+    RISC_RATE
         The reverse intersystem crossing rate from T1 to S1 in 1/s.
-    STA_EFFICIENCY : float
+    STA_EFFICIENCY
         The efficiency of STA (singlet-triplet annihilation) resulting in an effective
         transition of the acceptor state: S1|T1 -> S0|T2 -> S0|S1. The step in between
         (S0|T2) is not explicitly modeled, but the overall efficiency of the process is
         captured in this constant. Should be between 0 and 1.
-    PHOTOBLEACH_T1_RATE : float
+    PHOTOBLEACH_T1_RATE
         The photobleaching rate from T1 to B in 1/s.
-    CROSS_SECTION_WAVELENGTH : int | None
+    CROSS_SECTION_WAVELENGTH
         The wavelength in nm at which individual absorption cross sections are defined.
         Standard excitation from S0 is calculated using the S0 absorption spectrum in
         absorption_spectra. For other transitions, such as photoinduced
         back-isomerization from cis, an individual cross section can be provided.
         CROSS_SECTION_WAVELENGTH is used to check whether these cross sections
         correspond to the specified excitation wavelength.
-    DSTORM_PET_T_RATE_MOL : float
+    DSTORM_PET_T_RATE_MOL
         The concentration-dependent PET rate that targets T1 in 1/(M*s).
-    DSTORM_PET_S_RATE_MOL : float
+    DSTORM_PET_S_RATE_MOL
         The concentration-dependent PET rate that targets S1 in 1/(M*s).
-    DSTORM_PET_SUCCESS_RATE : float
+    DSTORM_PET_SUCCESS_RATE
         The efficiency of PET resulting in the long-living OFF state in dSTORM.
         Should be between 0 and 1.
-    DSTORM_TH_EL_RATE_1 : float
+    DSTORM_TH_EL_RATE_1
         The rate of thermal elimination, returning OFF to S0 in 1/s.
-    DSTORM_P_EL_CROSS_SECTION : float
+    DSTORM_P_EL_CROSS_SECTION
         The cross section of the photoinduced uncaging, returning OFF to S0 in
         cm^2.
-    RAD_ESCAPE_EFFICIENCY: float
+    RAD_ESCAPE_EFFICIENCY
         The efficiency of radical escape, resulting in the radical anion following
         PET. Should be between 0 and 1.
-    RAD_RELAX_RATE: float
+    RAD_RELAX_RATE
         The rate of relaxation of the radical anion back to S0 in 1/s.
-    OFRET_EFFICIENCY: float
+    OFRET_EFFICIENCY
         The efficiency of OET (FRET to OFF state) resulting in an effective transition
         of the acceptor state: S1|OFF -> S0|OFF* -> S0|S0. The step in between (S0|OFF*)
         is not explicitly modeled, but the overall efficiency of the process is captured
         in this constant. Should be between 0 and 1.
-    ISO_RATE: float
+    ISO_RATE
         The rate of trans S1 to cis isomerization in 1/s.
-    BISO_CROSS_SECTION: float
+    BISO_CROSS_SECTION
         The cross section of the photoinduced back-isomerization, returning cis to S0 in
         cm^2.
-    BISO_THERMAL_RATE: float
+    BISO_THERMAL_RATE
         The rate of thermal back-isomerization, returning cis to S0 in 1/s.
-    BISO_EFFICIENCY: float
+    BISO_EFFICIENCY
         The efficiency of CET (FRET to cis state) resulting in an effective transition
         of the acceptor state: S1|cis -> S0|cis* -> S0|S0. The step in between (S0|cis*)
         is not explicitly modeled, but the overall efficiency of the process is captured

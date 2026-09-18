@@ -236,7 +236,7 @@ class Prediction:
 
         Returns
         -------
-         npt.NDArray[np.float64]
+        npt.NDArray[np.float64]
             Expected relative frequencies of each transition. Frequencies remain 0 for
             a fluorophore with no expected transitions.
 
@@ -375,7 +375,7 @@ class Prediction:
 
         Returns
         -------
-        frequency_states : dict[str, npt.NDArray[np.float64]]
+        dict[str, npt.NDArray[np.float64]]
             Name of fluorophores as keys and their state's expected relative
             frequencies (array) as values. Frequencies remain 0 if no state visits are
             expected.

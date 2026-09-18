@@ -53,9 +53,9 @@ class SingleState:
 
     Attributes
     ----------
-    name : str
+    name
         Name of the state.
-    value : int
+    value
         Unique numerical identifier of the state.
     """
 
@@ -109,11 +109,11 @@ class PairedState:
 
     Attributes
     ----------
-    name : str
+    name
         Name of the paired state.
-    donor : SingleState
+    donor
         State of the donor.
-    acceptor : SingleState
+    acceptor
         State of the acceptor.
     """
 
@@ -199,13 +199,13 @@ class TransitionType:
 
     Attributes
     ----------
-    abbreviation : str
+    abbreviation
         Abbreviation of the transition.
-    initial_state : SingleState, PairedState
+    initial_state
         Initial state of the transition.
-    final_state : SingleState, PairedState
+    final_state
         Final state of the transition.
-    photon : bool
+    photon
         Whether the transition emits a photon.
     """
 
@@ -431,21 +431,21 @@ class Transition:
 
     Attributes
     ----------
-    identity : int
+    identity
         The id of the transition. Not None if transition is part of a TransitionSet.
-    transition_type : TransitionType
+    transition_type
         The photophysical type of the transitions with its constant attributes.
-    abbreviation : str
+    abbreviation
         The abbreviation of the transition.
-    initial_state : SingleState | PairedState
+    initial_state
         The initial state of the transition.
-    final_state : SingleState | PairedState
+    final_state
         The final state of the transition.
-    rate : float
+    rate
         The rate of the transition.
-    photon : bool
+    photon
         Whether the transition emits a photon.
-    fluorophore_ids : list[int] | list[tuple[int, int]]
+    fluorophore_ids
         Contains the identities of relevant fluorophores.
         If energy transfer, tuples of fluorophore pairs, where the first is the donor
         and the second is the acceptor.
@@ -544,7 +544,7 @@ def get_states_by_value(
 
     Returns
     -------
-    states_by_value : dict[int, SingleState]
+    dict[int, SingleState]
         Built-in and custom single states indexed by their numerical value.
     """
     states_by_value = {state.value: state for state in BUILTIN_SINGLE_STATES}
@@ -779,7 +779,7 @@ class TransitionSet:
 
         Returns
         -------
-        filtered : TransitionSet
+        TransitionSet
             Re-initialization of the object with the modified transition collection.
         """
         transitions = copy.deepcopy(self.transitions)
@@ -820,7 +820,7 @@ class TransitionSet:
 
         Returns
         -------
-        adjusted : TransitionSet
+        TransitionSet
             Re-initialization of the object with the modified transition collection.
         """
         transitions = copy.deepcopy(self.transitions)
@@ -881,7 +881,7 @@ class TransitionSet:
 
         Returns
         -------
-        no_abs : TransitionSet
+        TransitionSet
             Re-initialization of the object with the modified transition collection.
         """
         transitions = copy.deepcopy(self.transitions)  # transitions are objects
@@ -919,7 +919,7 @@ class TransitionSet:
 
         Returns
         -------
-        no_ets : TransitionSet
+        TransitionSet
             Re-initialization of the object with the modified transition collection.
         """
         transitions = copy.deepcopy(self.transitions)
@@ -947,7 +947,7 @@ class TransitionSet:
 
         Returns
         -------
-        self
+        Self
         """
         if self._combined_state_transitions_df is not None:
             return self
@@ -1061,7 +1061,7 @@ def get_single_states(
 
     Returns
     -------
-    single_state_arrays : dict
+    dict[str, npt.NDArray[np.int64]]
         Contains the values of all relevant SingleStates as values. Name of
         fluorophores as keys.
     """
@@ -1242,7 +1242,7 @@ def rate_assignment_standard(
 
     Returns
     -------
-    transition_rate_list : list
+    list[TransitionRateRecord]
         The altered input parameter.
     """
     source = transition["initial_state"].value
@@ -1301,7 +1301,7 @@ def rate_assignment_energy_transfer(
 
     Returns
     -------
-    transition_rate_list : list
+    list[TransitionRateRecord]
         The altered input parameter.
     """
     source_donor, source_acceptor = transition["initial_state"].single_state_values
@@ -1365,7 +1365,7 @@ def construct_transition_rate_list(
 
     Returns
     -------
-    transition_rate_list : list
+    list[TransitionRateRecord]
         Contains lists of each realizable combined_state_transition.
     """
     transition_rate_list: list[TransitionRateRecord] = []
@@ -1477,7 +1477,7 @@ def derive_energy_transfer_rate(
 
     Returns
     -------
-    rate : float
+    float
         Energy-transfer rate in 1/s.
     """
     donor_emission = donor_data.emission_spectrum
@@ -1608,7 +1608,7 @@ def derive_energy_transfer_transitions(
 
     Returns
     -------
-    transitions : list[Transition]
+    list[Transition]
         Contains energy transfer transitions of type Transition.
     """
     acceptor_absorptions = acceptor_data.absorption_spectra
@@ -1812,7 +1812,7 @@ def derive_transitions(
 
     Returns
     -------
-    transitions : list[Transition]
+    list[Transition]
         Contains transitions of type Transition.
     """
     fd = fluorophore_data
