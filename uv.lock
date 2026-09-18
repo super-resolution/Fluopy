@@ -885,7 +885,7 @@ typing = [
 [package.metadata]
 requires-dist = [
     { name = "iteround", specifier = ">=1.0.4" },
-    { name = "matplotlib", specifier = ">=3.8.4" },
+    { name = "matplotlib", specifier = ">=3.9.0" },
     { name = "multipletau", specifier = ">=0.4.0" },
     { name = "networkx", specifier = ">=3.3" },
     { name = "numba", specifier = ">=0.60.0" },
