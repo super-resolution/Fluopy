@@ -388,7 +388,7 @@ def test_simulation(tr_set_1f):
 
 
 # also contains the test for simulation.delete_memmaps()
-@pytest.mark.parametrize("use_memmap", [[None], ["tmp_path"]])
+@pytest.mark.parametrize("use_memmap", [None, "tmp_path"])
 @pytest.mark.parametrize(
     "end_time, kap_sq_var, exp_time_series, exp_transition_series, exp_state_series",
     [

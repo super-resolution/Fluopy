@@ -1,6 +1,6 @@
 # Docker
 
-You can use the provided Dockerfiles to set up a docker image and run the project within a container.
+You can use the provided Dockerfile to set up a Docker image and run the project within a container.
 
 
 ## Prepare for using Docker
@@ -12,20 +12,17 @@ You can use the provided Dockerfiles to set up a docker image and run the projec
     Docker --> Settings --> Shared Drives
 
 
-## Dockerfiles
+## Dockerfile
 
-We provide dockerfiles for testing and deployment.
-
-1) Run tests in a Python 3 environment based on conda or a PyPI environment on Debian Linux.
-2) Run the project in a Python 3 conda environment with Jupyter lab for interactive work (Debian Linux).
-
+The provided Dockerfile creates a uv-managed Python environment on Debian Linux
+and runs the test suite when the container starts.
 
 ## Build a docker image
 
 Download the source code in a project directory.
 Make sure the .dockerignore file is present.
 
-Enter the project directory and run the following command to build the docker image from one of the Dockerfiles:
+Enter the project directory and run the following command to build the Docker image:
 
 ```
 docker build -t <ImageName> -f <Dockerfile> .
@@ -53,7 +50,7 @@ docker run -it <ImageName> bash
 Open the shell with a host directory mounted as volume:
 
 ```
-docker run -it -v <host directory>:/home/shared <ImageName> bash
+docker run -it -v <host directory>:/shared <ImageName> bash
 ```
 
 ## Clean up

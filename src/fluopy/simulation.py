@@ -591,12 +591,12 @@ def direct_method_time(
     if use_memmap is not None:
         _flush_memmap(time_series)
         _flush_memmap(transition_series)
-        cast(Any, time_series).base.resize(
-            8 * (i + 1 + abso)
-        )  # 8 because it is 64/8 byte per number and resize works with byte
-        cast(Any, transition_series).base.resize(4 * (i - 1 + abso))
-        _flush_memmap(time_series)
-        _flush_memmap(transition_series)
+        cast(Any, time_series)._mmap.close()
+        cast(Any, transition_series)._mmap.close()
+        with (Path(use_memmap) / "time_series").open("r+b") as file:
+            file.truncate(8 * (i + 1 + abso))
+        with (Path(use_memmap) / "transition_series").open("r+b") as file:
+            file.truncate(4 * (i - 1 + abso))
         time_series = np.memmap(
             Path(use_memmap) / "time_series",
             mode="r+",

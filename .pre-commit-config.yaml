@@ -1,28 +1,29 @@
 default_install_hook_types: [pre-commit, pre-push]
 
 repos:
-- repo: https://github.com/psf/black-pre-commit-mirror
-  rev: 25.1.0
+- repo: local
   hooks:
-    - id: black-jupyter
+    - id: black
+      name: black
+      entry: uv run --locked black
+      language: system
+      types_or: [python, pyi, jupyter]
+      require_serial: true
       stages: [pre-commit]
 
-- repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.12.2
-  hooks:
     - id: ruff-check
+      name: ruff check
+      entry: uv run --locked ruff check
+      language: system
+      types_or: [python, pyi, jupyter]
       stages: [pre-commit]
       args: [
         "--output-format=grouped",
-        "--exclude", 
-        "notebooks/General/trials.ipynb",
       ]
 
-- repo: local
-  hooks:
     - id: pytest-coverage
       name: pytest with coverage
-      entry: uv run coverage run -m pytest
+      entry: uv run --locked coverage run -m pytest
       language: system
       pass_filenames: false
       always_run: true
@@ -30,7 +31,7 @@ repos:
 
     - id: coverage-report
       name: coverage report
-      entry: uv run coverage report --fail-under=60
+      entry: uv run --locked coverage report --fail-under=60
       language: system
       pass_filenames: false
       always_run: true
@@ -39,9 +40,8 @@ repos:
       
     - id: mypy
       name: mypy
-      entry: uv run mypy
+      entry: uv run --locked mypy
       language: system
       pass_filenames: false
       always_run: true
       stages: [pre-push]
-      

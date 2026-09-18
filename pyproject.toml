@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "setuptools>=64",
+    "setuptools>=77.0.3",
     "setuptools_scm[toml]>=8"
     ]
 build-backend = "setuptools.build_meta"
@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-fluopy = ["py.typed", "*.pyi"]
+fluopy = ["py.typed", "*.pyi", "fluorophore_spectra/**/*.csv"]
 
 [tool.setuptools_scm]
 version_file = "src/fluopy/_version.py"
@@ -18,11 +18,11 @@ fallback_version = "0.0+fallback"
 
 [project]
 name = "fluopy"
-description = "Continous-time Markov chain simulations of photophysical processes in fluorescent dyes"
+description = "Continuous-time Markov chain simulations of photophysical processes in fluorescent dyes"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "BSD-3-Clause"
-license-files = ["LICENSE.md"]
+license-files = ["LICENSE"]
 authors = [
   {name = "Vincent Ebert"},
   {name = "Sören Doose"},
@@ -33,7 +33,7 @@ maintainers = [
   {name = "Sören Doose"}
 ]
 keywords = [
-    "fluorescence", "super-resolution", " single-molecule localization microscopy",
+    "fluorescence", "super-resolution", "single-molecule localization microscopy",
     "cyanine", "Cy5", "photophysics", "Continuous-time Markov chain simulation"
 ]
 classifiers = [
@@ -43,7 +43,6 @@ classifiers = [
     "Programming Language :: C",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
@@ -57,23 +56,15 @@ classifiers = [
 dynamic = ["version"]
 
 dependencies = [
-    "iteround",
-    "lmfit",
-    "matplotlib",
-    "multipletau",
-    "networkx",
-    "numba",
-    "numpy",
-    "pandas",
-    "scipy",
-    "scikit-learn",
-]
-
-[project.optional-dependencies]
-gpu = [
-    "cupy",
-    "torch",
-    "torchvision",
+    "iteround>=1.0.4",
+    "matplotlib>=3.9.0",
+    "multipletau>=0.4.0",
+    "networkx>=3.3",
+    "numba>=0.60.0",
+    "numpy>=2.0.0",
+    "pandas>=2.2.2",
+    "pillow>=10.1.0",
+    "scipy>=1.13.0",
 ]
 
 [project.urls]
@@ -81,7 +72,7 @@ homepage = "https://github.com/super-resolution/Fluopy"
 documentation = "https://fluopy.readthedocs.io/"
 repository = "https://github.com/super-resolution/Fluopy"
 issues = "https://github.com/super-resolution/Fluopy/issues"
-changelog = "https://github.com/super-resolution/Fluopy"
+changelog = "https://github.com/super-resolution/Fluopy/blob/main/CHANGES.rst"
 
 [dependency-groups]
 test = [
@@ -89,15 +80,13 @@ test = [
     "coverage",
 ]
 lint = [
-    "black~=26.0",
+    "black[jupyter]~=26.0",
     "ruff",
-    "black[jupyter]",
 ]
 typing = [
     "mypy",
     "pandas-stubs",
     "types-networkx",
-    "types-tqdm",
 ]
 dev = [
     "pre-commit",
@@ -118,35 +107,6 @@ docs = [
 jupyter = [
     "jupyterlab"
 ]
-
-
-[tool.uv.sources]
-torch = [
-  { index = "pytorch-cpu", marker = "sys_platform != 'darwin'"},
-]
-torchvision = [
-  { index = "pytorch-cu128", marker = "sys_platform != 'darwin'"},
-]
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
-
-[[tool.uv.index]]
-name = "pytorch-cu118"
-url = "https://download.pytorch.org/whl/cu118"
-explicit = true
-
-[[tool.uv.index]]
-name = "pytorch-cu126"
-url = "https://download.pytorch.org/whl/cu126"
-explicit = true
-
-[[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
-explicit = true
 
 
 [tool.black]
@@ -252,6 +212,7 @@ convention = "numpy"
 
 
 [tool.mypy]
+python_version = "3.12"
 files = [
     "$MYPY_CONFIG_FILE_DIR/src",
     "$MYPY_CONFIG_FILE_DIR/tests/"
@@ -270,8 +231,6 @@ disable_error_code = ["attr-defined"]
 
 [[tool.mypy.overrides]]
 module = [
-    'lmfit.*',
     'scipy.*',
-    'sklearn.*',
 ]
 ignore_missing_imports = true

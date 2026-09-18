@@ -1,6 +1,7 @@
 name: Package build
 
 on:
+  workflow_call:
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -19,7 +20,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.14"
+          python-version: "3.13"
 
       - name: Install build tools
         run: |
@@ -32,8 +33,82 @@ jobs:
       - name: Check distribution metadata
         run: python -m twine check dist/*
 
+      - name: Check distribution contents
+        shell: python
+        run: |
+          from email.parser import BytesParser
+          from pathlib import Path
+          from pathlib import PurePosixPath
+          from tarfile import open as open_tar
+          from zipfile import ZipFile
+
+          expected_wheel_spectra = {
+              path.relative_to("src").as_posix()
+              for path in Path("src/fluopy/fluorophore_spectra").rglob("*.csv")
+          }
+          expected_source_spectra = {
+              f"src/{path}" for path in expected_wheel_spectra
+          }
+
+          wheel, = Path("dist").glob("*.whl")
+          with ZipFile(wheel) as archive:
+              wheel_names = set(archive.namelist())
+              metadata_path = next(
+                  name
+                  for name in wheel_names
+                  if name.endswith(".dist-info/METADATA")
+              )
+              metadata = BytesParser().parsebytes(archive.read(metadata_path))
+              license_files = metadata.get_all("License-File", [])
+              if "LICENSE" not in license_files:
+                  raise SystemExit(
+                      f"LICENSE missing from wheel metadata: {license_files}"
+                  )
+              if not any(
+                  name.endswith(".dist-info/licenses/LICENSE")
+                  for name in wheel_names
+              ):
+                  raise SystemExit("LICENSE missing from wheel contents")
+              missing_spectra = expected_wheel_spectra - wheel_names
+              if missing_spectra:
+                  raise SystemExit(
+                      f"Spectrum files missing from wheel: {sorted(missing_spectra)}"
+                  )
+
+          source_distribution, = Path("dist").glob("*.tar.gz")
+          with open_tar(source_distribution) as archive:
+              source_names = {
+                  PurePosixPath(*PurePosixPath(member.name).parts[1:]).as_posix()
+                  for member in archive.getmembers()
+              }
+              if "LICENSE" not in source_names:
+                  raise SystemExit("LICENSE missing from source distribution")
+              missing_spectra = expected_source_spectra - source_names
+              if missing_spectra:
+                  raise SystemExit(
+                      "Spectrum files missing from source distribution: "
+                      f"{sorted(missing_spectra)}"
+                  )
+
       - name: Install built wheel
         run: python -m pip install dist/*.whl
 
-      - name: Test package import
-        run: python -c "import fluopy; print(fluopy.__version__)"
+      - name: Test package import and bundled spectra
+        shell: python
+        run: |
+          import fluopy
+          from fluopy.fluo_data import atto643, cy5_dna
+
+          for name, fluorophore in {"atto643": atto643, "cy5_dna": cy5_dna}.items():
+              emission = fluorophore.emission_spectrum
+              if emission is None or emission.wavelengths.size == 0:
+                  raise SystemExit(f"Bundled spectrum failed to load for {name}")
+
+          print(fluopy.__version__)
+
+      - name: Store distribution packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-package-distributions
+          path: dist
+          retention-days: 7

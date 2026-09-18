@@ -5,7 +5,7 @@ Various routines to deal with simulation results.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypedDict, cast
+from typing import TYPE_CHECKING, Any, TypedDict
 
 import numpy as np
 import numpy.typing as npt
@@ -241,7 +241,7 @@ def fingerprint_analysis(
     fingerprint_data = fingerprint_data.cumsum() / fingerprint_data.sum()
 
     return (
-        cast("pd.Series[Any]", fingerprint_data),
+        fingerprint_data,
         bleaching_times_array,
         delta_times_photons_between_bleaching,
     )

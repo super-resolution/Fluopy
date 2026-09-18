@@ -15,13 +15,9 @@ A list with all hard and optional dependencies is given in `pyproject.toml`.
 Install from pypi
 ------------------------------
 
-Install locan directly from the Python Package Index::
+Install Fluopy directly from the Python Package Index::
 
     pip install fluopy
-
-Extra dependencies can be included::
-
-    pip install fluopy[gpu]
 
 Install from distribution or sources
 -------------------------------------

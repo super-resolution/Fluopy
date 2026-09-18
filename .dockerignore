@@ -49,9 +49,6 @@ test-results-*.xml
 # Documentation builds
 docs/build
 
-# Lock files
-uv.lock
-
 # Secrets
 **/secrets
 **/credentials.json
@@ -88,5 +85,4 @@ docker
 
 # Project specific
 src/fluopy/_version.py
-README.md
 CHANGES_*
