@@ -20,7 +20,7 @@ fallback_version = "0.0+fallback"
 name = "fluopy"
 description = "Continuous-time Markov chain simulations of photophysical processes in fluorescent dyes"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
 authors = [
@@ -43,7 +43,6 @@ classifiers = [
     "Programming Language :: C",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
@@ -213,7 +212,7 @@ convention = "numpy"
 
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 files = [
     "$MYPY_CONFIG_FILE_DIR/src",
     "$MYPY_CONFIG_FILE_DIR/tests/"
