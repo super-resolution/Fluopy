@@ -46,7 +46,7 @@ def construct_state_graphs(transition_df: pd.DataFrame) -> list[nx.MultiDiGraph[
 
     Returns
     -------
-    graphs : list[nx.MultiDiGraph]
+    list[nx.MultiDiGraph]
         Contains objects of type nx.MultiDiGraph.
     """
     graphs: list[nx.MultiDiGraph[Any]] = []
@@ -100,7 +100,7 @@ def construct_transition_graph(transition_df: pd.DataFrame) -> nx.MultiDiGraph[i
 
     Returns
     -------
-    G : nx.MultiDiGraph
+    nx.MultiDiGraph
         Markov chain representation by nodes and edges.
     """
     if transition_df.index.get_level_values(0).nunique() > 1:
@@ -177,7 +177,7 @@ def determine_node_order(
 
     Returns
     -------
-    node_order : generator
+    generator
         Yields the topological sort of the graph.
     """
     G_mutated = G.copy()
@@ -213,7 +213,7 @@ def plot_graph(
         Contains two colors as Hex values of type str.
     scale
         Factor to scale the figure.
-    ax : mpl.Axes
+    ax
         The axes on which to show the image
 
     Returns
@@ -335,7 +335,7 @@ def draw_networkx_curved_edge_labels(
 
     Returns
     -------
-    ax : mpl.Axes
+    mpl.Axes
     """
     if ax is None:
         ax = plt.gca()

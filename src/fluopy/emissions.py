@@ -105,9 +105,6 @@ class Emissions:
         simulation
             Container for simulation-associated attributes.
 
-        Returns
-        -------
-        None
         """
         if simulation.transition_series is None or simulation.time_series is None:
             raise ValueError("emissions not available if simulation has not been run.")
@@ -149,9 +146,6 @@ class Emissions:
             Whether to also create an array which contains the time points at which
             photons are detected.
 
-        Returns
-        -------
-        None
         """
         if start_at is None:
             start_at = tuple(
@@ -356,7 +350,7 @@ class Emissions:
 
         Returns
         -------
-        emission_indices : npt.NDArray[np.int64]
+        npt.NDArray[np.int64]
             Indices of emitting transitions to apply to simulation.transition_series.
         """
         transition_series = simulation.transition_series
@@ -430,9 +424,6 @@ class Emissions:
             For possible input values, see https://pandas.pydata.org/docs/user_guide/
             timeseries.html -> Offset aliases.
 
-        Returns
-        -------
-        None
         """
         event_time_points = np.insert(
             arr=self._require_event_time_points(), obj=0, values=0
@@ -481,14 +472,10 @@ class Emissions:
 
         Parameters
         ----------
-        p : float
+        p
             Between 0 and 1. Probability of photons being collected.
-        seed : None, int, BitGenerator, Generator
+        seed
             A seed to initialize the BitGenerator.
-
-        Returns
-        -------
-        None
         """
         if p > 1 or p < 0:
             raise ValueError("p has to be between 0 and 1.")
@@ -513,9 +500,6 @@ class Emissions:
         seed
             A seed to initialize the BitGenerator.
 
-        Returns
-        -------
-        None
         """
         if p > 1 or p < 0:
             raise ValueError("p has to be between 0 and 1.")
@@ -538,9 +522,6 @@ class Emissions:
         seed
             A seed to initialize the BitGenerator.
 
-        Returns
-        -------
-        None
         """
         if p > 1 or p < 0:
             raise ValueError("p has to be between 0 and 1.")
@@ -565,9 +546,6 @@ class Emissions:
         seed
             A seed to initialize the BitGenerator.
 
-        Returns
-        -------
-        None
         """
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
@@ -595,9 +573,6 @@ class Emissions:
         seed
             A seed to initialize the BitGenerator.
 
-        Returns
-        -------
-        None
         """
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
@@ -621,9 +596,6 @@ class Emissions:
         seed
             A seed to initialize the BitGenerator.
 
-        Returns
-        -------
-        None
         """
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
@@ -639,12 +611,8 @@ class Emissions:
 
         Parameters
         ----------
-        threshold : int
+        threshold
             The minimum number of events per frame to be considered.
-
-        Returns
-        -------
-        None
         """
         event_time_series = self._require_event_time_series()
         event_time_series[event_time_series < threshold] = 0
@@ -776,9 +744,6 @@ class Emissions:
         name_extension
             Optional file name extension.
 
-        Returns
-        -------
-        None
         """
         time_series_file = Path(path) / ("event_time_series" + name_extension + ".csv")
         time_points_file = Path(path) / ("event_time_points" + name_extension + ".npy")
@@ -803,7 +768,7 @@ class Emissions:
 
         Returns
         -------
-        obj : fluopy.emissions.Emissions
+        fluopy.emissions.Emissions
             Instance of Emissions constructed with existing data.
         """
         obj = cls()
@@ -841,7 +806,7 @@ def get_p_filter(
 
     Returns
     -------
-    p_passed : float
+    float
         The probability of a photon passing the bandpass filter.
     """
 
@@ -886,7 +851,7 @@ def get_emitting_transition_ids(
 
     Returns
     -------
-    emitting_transition_ids : dict[int, float]
+    dict[int, float]
         Dictionary with ids of emitting transitions as keys and probabilities of passing
         the bandpass filter as values.
         The ids correspond to transition_set.combined_state_transitions_df.

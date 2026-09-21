@@ -70,9 +70,6 @@ class Simulation:
         transition_set
             Collection of all relevant transitions and related attributes.
 
-        Returns
-        -------
-        None
         """
         self.transition_set = transition_set
         self.time_series: npt.NDArray[np.float64] | None = None
@@ -120,9 +117,6 @@ class Simulation:
         kwargs
             First reaction method arguments: include_kap_sq, minimum_rate.
 
-        Returns
-        -------
-        None
         """
         if start_at is None:
             start_at = tuple(
@@ -234,9 +228,6 @@ class Simulation:
         seed
             A seed to initialize the BitGenerator.
 
-        Returns
-        -------
-        None
         """
         if self.transition_set is not prediction.transition_set:
             raise ValueError(
@@ -277,9 +268,6 @@ class Simulation:
         Source: https://stackoverflow.com/questions/39953501/i-cant-remove-file-created-
         by-memmap
 
-        Returns
-        -------
-        None
         """
         if not isinstance(self.transition_series, np.memmap):
             raise ValueError("transition_series is not a memmap.")
@@ -1067,9 +1055,6 @@ def eval_floating_point_precision_error(
         The largest number used in the simulation. If None, the smallest increment is
         calculated for a probability of 0.001.
 
-    Returns
-    -------
-    None
     """
     max_rate_index = np.argmax(transition_set.row_sums)
     max_rate = transition_set.row_sums[max_rate_index]

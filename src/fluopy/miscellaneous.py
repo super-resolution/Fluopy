@@ -46,9 +46,6 @@ def delete_subplots(
         An array that contains a 1-D array of shape (2,) for each ax to be deleted like
         [row, column].
 
-    Returns
-    -------
-    None
     """
     flattened = axes.ravel()
     fig = flattened[0].get_figure()
@@ -86,9 +83,6 @@ def create_row_subtitles(
         Contains elements of type str. Must have the same length as nrows. If None,
         ['default_title'] is used.
 
-    Returns
-    -------
-    None
     """
     if titles is None:
         titles = ["default_title"] * nrows
@@ -139,7 +133,7 @@ def add_table(
 
     Returns
     -------
-    axes : mplAxes
+    mplAxes
         The input axes object.
     """
     if axes is None:

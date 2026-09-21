@@ -168,7 +168,7 @@ class Analysis:
 
         Returns
         -------
-        frequency_transitions : npt.NDArray[np.float64]
+        npt.NDArray[np.float64]
             Relative number of simulated transition occurrences, normalized separately
             for each fluorophore. Frequencies remain 0 for a fluorophore with no
             observed transitions.
@@ -215,7 +215,7 @@ class Analysis:
 
         Returns
         -------
-        frequency_states : dict[str, npt.NDArray[np.float64]]
+        dict[str, npt.NDArray[np.float64]]
             Relative simulated number of visits to each state, normalized separately
             for each fluorophore. Frequencies remain 0 if no state visits were counted.
             A trajectory without state changes counts as one visit to its initial state.
@@ -409,7 +409,7 @@ class Analysis:
 
         Returns
         -------
-        fluorescence_lifetimes : npt.NDArray[np.float64]
+        npt.NDArray[np.float64]
             The fluorescence lifetimes of the specified fluorophore.
         """
         s1_value = 1  # hardcoded but covered by tests
@@ -449,8 +449,8 @@ class Analysis:
 
         Returns
         -------
-        exp_fluorescence_lifetimes : npt.NDArray[np.float64]
-            The fluorescence lifetimes (photon emssion) of the specified fluorophore.
+        npt.NDArray[np.float64]
+            The fluorescence lifetimes (photon emission) of the specified fluorophore.
         """
         fluorophores = []
         for key, _ in self.simulation.transition_set.single_states.items():

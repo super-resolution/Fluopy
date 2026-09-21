@@ -50,8 +50,12 @@ def convert_wavenumber_wavelength_frequency(
 
     Returns
     -------
-    tuple[npt.NDArray[np.float64]]
-        (wavenumber in 1/cm, wavelength in nm, frequency in Hz)
+    wavenumber : npt.NDArray[np.float64]
+        Wavenumber in 1/cm.
+    wavelength : npt.NDArray[np.float64]
+        Wavelength in nm.
+    frequency : npt.NDArray[np.float64]
+        Frequency in Hz.
     """
     if sum(x is not None for x in [wavelength, wavenumber, frequency]) != 1:
         raise ValueError(
@@ -354,15 +358,16 @@ def calculate_spectral_overlap_integral(
 
     Parameters
     ----------
-    donor : 1-D array_like
-        Contains emission values of the donor - they don't have to be normalized yet.
-    acceptor : 1-D array_like
-        Contains the acceptors molar extinction coefficients in 1/(M cm).
-    wavelengths : 1-D array_like
-        The wavelength values in nm, that correspond to the respective donor and
-        acceptor values.
+    donor
+        One-dimensional emission values of the donor - they don't have to be
+        normalized yet.
+    acceptor
+        One-dimensional acceptor molar extinction coefficients in 1/(M cm).
+    wavelengths
+        One-dimensional wavelength values in nm that correspond to the respective
+        donor and acceptor values.
     donor_area
-        Area of the complete donor emission spectrum. If None, calculate the are from
+        Area of the complete donor emission spectrum. If None, calculate the area from
         donor and wavelengths.
 
     Returns

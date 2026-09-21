@@ -87,10 +87,16 @@ def _marginal_integration_grid(
 
 
 class IllConditionedHypoexponentialError(ValueError):
-    """Raised when hypoexponential partial fractions cannot be evaluated reliably."""
+    """
+    Raised when hypoexponential partial fractions cannot be evaluated reliably.
+    """
 
 
 class HypoexponentialCall(Protocol):
+    """
+    Callable used to evaluate a hypoexponential distribution or derivative.
+    """
+
     def __call__(self, x: npt.ArrayLike, *args: int | float) -> DistributionValue: ...
 
 
@@ -392,7 +398,7 @@ class Photoswitching_fingerprint_model:
 
         Returns
         -------
-        pdf
+        float | npt.NDArray[np.float64]
         """
         n = len(self.params)
         pdf: DistributionValue = 0.0
@@ -596,9 +602,6 @@ class Photoswitching_fingerprint_model:
         """
         Quantile function.
 
-        Returns
-        -------
-        None
         """
         raise ValueError(
             "Quantile function has no closed form. Inverse CDF has to be "
@@ -628,8 +631,10 @@ def photoswitching_fingerprint_prepare(
 
     Returns
     -------
-    tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
-        Combinations of lambdas and pis for the photoswitching fingerprint model.
+    lambdas : npt.NDArray[np.float64]
+        Combinations of rate constants for the photoswitching fingerprint model.
+    pis : npt.NDArray[np.float64]
+        Corresponding combinations of mixture weights.
     """
     valid_combinations = generate_combinations(n=n, z=z)
     lambdas = map_to_lambdas(combos=valid_combinations, params=params, z=z)

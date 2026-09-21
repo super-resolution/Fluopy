@@ -64,9 +64,11 @@ class FCS:
         end_time: float | None = None,
     ) -> Self:
         """
-        Autocorrelation of emissions.event_time_points. Generally much faster than
-        autocorrelation based on emissions.event_time_series.
-        Based on https://opg.optica.org/ol/abstract.cfm?uri=ol-31-6-829.
+        Compute the autocorrelation directly from photon arrival times.
+
+        Photon-pair delays are counted in logarithmically spaced lag intervals. This
+        avoids first converting the sparse arrival times into a uniformly sampled time
+        series.
 
         Parameters
         ----------
@@ -90,6 +92,11 @@ class FCS:
         Returns
         -------
         Self
+
+        Notes
+        -----
+        Implements the photon-pair counting formulation described by
+        `Laurence et al. (2006) <https://doi.org/10.1364/OL.31.000829>`_.
         """
         if self.emissions.event_time_points is None:
             raise ValueError("event_time_points is None.")
@@ -107,10 +114,11 @@ class FCS:
                 stacklevel=2,
             )
             exp_max = int(exp_max_adjusted)
-        bins = make_loglags(
-            exp_min=exp_min, exp_max=exp_max, points_per_base=points_per_base, base=base
+        number_of_edges = points_per_base * (exp_max - exp_min) + 1
+        bins = np.logspace(
+            exp_min, exp_max, number_of_edges, base=base, dtype=np.float64
         )
-        self.autocorrelation = pcorrelate(
+        self.autocorrelation = _event_time_correlation(
             t=event_time_points,
             u=event_time_points,
             bins=bins,
@@ -369,8 +377,7 @@ def fit_triplet_cis(
         Rate constant of excitation.
     k_10
         Inverse of fluorescence lifetime considering all rates from S1 (not just IC and
-        FL). Note: in the PAPER it is not clear which one they mean but the fit is
-        significantly better if using this version.
+        FL).
     k_iso
         Rate constant of isomerization from trans to cis.
     k_biso_eff
@@ -382,6 +389,11 @@ def fit_triplet_cis(
         Autocorrelation values.
     norm : float
         Steady state fraction of other states. Number between 0 and 1.
+
+    Notes
+    -----
+    Implements the triplet-state and photoisomerization model described by
+    `Widengren and Schwille (2000) <https://doi.org/10.1021/jp000059s>`_.
     """
     tau = np.asarray(tau)
     k_isc_eff = k_01 / (k_01 + k_10) * k_isc
@@ -420,227 +432,74 @@ def fit_triplet_cis(
     return autocorrelation, norm
 
 
-def make_loglags(
-    exp_min: int,
-    exp_max: int,
-    points_per_base: int,
-    base: int = 10,
-    return_int: bool = False,
-) -> npt.NDArray[Any]:
-    """Make a log-spaced array useful as lag bins for cross-correlation.
-
-    This function creates an arrays of log-spaced time-lag bins to be used
-    with :func:`pcorrelate`. By default it returns integer time-lag bins
-    to avoid floating point inaccuracies in the correlation
-    (showing up as higher noise at small time-lags).
-
-    Example:
-
-        Compute log10-spaced bins with 5 bins per decade, starting from 1
-        (10^0) and stopping at 10^6::
-
-            >>> make_loglags(0, 6, 5)
-            array([      1,       2,       3,       4,       6,      10,      16,
-                        25,      40,      63,     100,     158,     251,     398,
-                       631,    1000,    1585,    2512,    3981,    6310,   10000,
-                     15849,   25119,   39811,   63096,  100000,  158489,  251189,
-                    398107,  630957, 1000000])
-
-        Compute log10-spaced bins with 2 bins per decade, starting
-        from 10^-1 and stopping at 10^3::
-
-            >>> make_loglags(-1, 3, 2, return_int=False)
-            array([  1.00000000e-01,   3.16227766e-01,   1.00000000e+00,
-                     3.16227766e+00,   1.00000000e+01,   3.16227766e+01,
-                     1.00000000e+02,   3.16227766e+02,   1.00000000e+03])
-
-    See Also
-    ---------
-    :func:`pcorrelate`
-
-    Parameters
-    ----------
-    exp_min
-        exponent of the minimum value
-    exp_max
-        exponent of the maximum value
-    points_per_base
-        number of points per base
-        (i.e. in a decade when `base = 10`)
-    base
-        base of the exponent. Default 10.
-    return_int
-        if True return integer bin edges to avoid floating point inaccuracies.
-        If False, returned bin edges are float.
-
-    Returns
-    --------
-    npt.NDArray[Any]
-        Array of log-spaced values with specified range and spacing.
-    """
-    num_points = points_per_base * (exp_max - exp_min) + 1
-    bins = np.logspace(exp_min, exp_max, num_points, base=base)
-    if return_int:
-        # using `unique` because rounding to int may create duplicates
-        bins = np.unique(np.round(bins).astype("int64"))
-    return bins
-
-
 @numba.jit(nopython=True)
-def pcorrelate(
-    t: npt.ArrayLike,
-    u: npt.ArrayLike,
-    bins: npt.ArrayLike,
-    normalize: bool = False,
-    start_time: float = 0.0,
-    end_time: float | None = None,
+def _event_time_correlation(
+    t: npt.NDArray[np.float64],
+    u: npt.NDArray[np.float64],
+    bins: npt.NDArray[np.float64],
+    normalize: bool,
+    start_time: float,
+    end_time: float,
 ) -> npt.NDArray[np.float64]:
-    """Compute correlation of two arrays of discrete events (Point-process).
+    """
+    Correlate two sorted series of event times over arbitrary lag intervals.
 
-    The input arrays need to be values of a point process, such as
-    photon arrival times or positions. The correlation is efficiently
-    computed on an arbitrary array of lag-bins. As an example, bins can be
-    uniformly spaced in log-space and span several orders of magnitudes.
-    (you can use :func:`make_loglags` to creat log-spaced bins).
-    This function implements the algorithm described in
-    `(Laurence 2006) <https://doi.org/10.1364/OL.31.000829>`__.
-
-    See Also
-    ---------
-    :func:`make_loglags` to genetate log-spaced lag bins.
+    For every bin [bins[k], bins[k + 1]), the function counts pairs (t[i], u[j])
+    whose delay u[j] - t[i] lies in that interval and divides the count by the
+    interval width. Pair counts below successive bin edges are accumulated with a
+    monotonic sweep through u; adjacent cumulative counts then give the count in
+    each interval.
 
     Parameters
     ----------
     t
-        first array of "points" to correlate. The array needs
-        to be monothonically increasing.
+        Sorted event times for the first signal.
     u
-        second array of "points" to correlate. The array needs
-        to be monothonically increasing.
+        Sorted event times for the second signal.
     bins
-        bin edges for lags where correlation is computed.
+        Increasing lag-bin edges in the same units as the event times.
     normalize
-        if True, normalize the correlation function
-        as typically done in FCS using :func:`pnormalize`. If False,
-        return the unnormalized correlation function.
+        Whether to normalize for event counts and the finite measurement duration.
     start_time
-        The time the measurement started. This is used to normalize to the correct
-        measurement duration. Default is 0.0.
+        Beginning of the measurement interval.
     end_time
-        The time the measurement ended. This is used to normalize to the correct
-        measurement duration. Default is None, which means the end time is the last
-        element in the 't' or 'u' array.
+        End of the measurement interval.
 
     Returns
-    --------
+    -------
     npt.NDArray[np.float64]
-        Array containing the correlation of `t` and `u`.
-        The size is `len(bins) - 1`.
+        Correlation values for the intervals between consecutive bin edges.
+
+    Notes
+    -----
+    Implements the photon-pair counting formulation described by
+    `Laurence et al. (2006) <https://doi.org/10.1364/OL.31.000829>`_.
     """
-    t_array = np.asarray(t, dtype=np.float64)
-    u_array = np.asarray(u, dtype=np.float64)
-    bins_array = np.asarray(bins, dtype=np.float64)
-    nbins = len(bins_array) - 1
+    pairs_before_edge = np.zeros(bins.size, dtype=np.int64)
 
-    # Array of counts (histogram)
-    counts = np.zeros(nbins, dtype=np.int64)
+    for edge_index in range(bins.size):
+        u_index = 0
+        pair_count = 0
+        edge = bins[edge_index]
+        for t_value in t:
+            threshold = t_value + edge
+            while u_index < u.size and u[u_index] < threshold:
+                u_index += 1
+            pair_count += u_index
+        pairs_before_edge[edge_index] = pair_count
 
-    # For each bins, imin is the index of first `u` >= of each left bin edge
-    imin = np.zeros(nbins, dtype=np.int64)
-    # For each bins, imax is the index of first `u` >= of each right bin edge
-    imax = np.zeros(nbins, dtype=np.int64)
+    correlation = np.diff(pairs_before_edge) / np.diff(bins)
+    if not normalize:
+        return correlation
 
-    # For each ti, perform binning of (u - ti) and accumulate counts in Y
-    for ti in t_array:
-        for k, (tau_min, tau_max) in enumerate(zip(bins_array[:-1], bins_array[1:])):
-            if k == 0:
-                j = imin[k]
-                # We start by finding the index of the first `u` element
-                # which is >= of the first bin edge `tau_min`
-                while j < len(u_array):
-                    if u_array[j] - ti >= tau_min:
-                        break
-                    j += 1
-
-            imin[k] = j
-            if imax[k] > j:
-                j = imax[k]
-            while j < len(u_array):
-                if u_array[j] - ti >= tau_max:
-                    break
-                j += 1
-            imax[k] = j
-            # Now j is the index of the first `u` element >= of
-            # the next bin left edge
-        counts += imax - imin
-    G = counts / np.diff(bins_array)
-    if normalize:
-        G = pnormalize(
-            G=G,
-            t=t_array,
-            u=u_array,
-            bins=bins_array,
-            start_time=start_time,
-            end_time=end_time,
-        )
-    return np.asarray(G, dtype=np.float64)
-
-
-@numba.jit(nopython=True)
-def pnormalize(
-    G: npt.ArrayLike,
-    t: npt.ArrayLike,
-    u: npt.ArrayLike,
-    bins: npt.ArrayLike,
-    start_time: float = 0.0,
-    end_time: float | None = None,
-) -> npt.NDArray[np.float64]:
-    r"""Normalize point-process cross-correlation function.
-
-    This normalization is usually employed for fluorescence correlation
-    spectroscopy (FCS) analysis.
-    The normalization is performed according to
-    `(Laurence 2006) <https://doi.org/10.1364/OL.31.000829>`__.
-    Basically, the input argument `G` is multiplied by:
-
-    .. math::
-        \frac{T-\tau}{n(\{i \ni t_i \le T - \tau\})n(\{j \ni u_j \ge \tau\})}
-
-    where `n({})` is the operator counting the elements in a set, *t* and *u*
-    are the input arrays of the correlation, *τ* is the time lag and *T*
-    is the measurement duration.
-
-    Parameters
-    ----------
-        G (array): raw cross-correlation to be normalized.
-        t (array): first input array of "points" used to compute `G`.
-        u (array): second input array of "points" used to compute `G`.
-        bins (array): array of bins used to compute `G`. Needs to have the
-            same units as input arguments `t` and `u`.
-        start_time (float): The time the measurement started.
-        end_time (float | None): The time the measurement ended. Default is None, which
-            means the end time is the last element in the 't' or 'u' array.
-
-    Returns
-    --------
-    npt.NDArray[np.float64]
-        Array of normalized values for the cross-correlation function,
-        same size as the input argument `G`.
-    """
-    correlation = np.asarray(G, dtype=np.float64)
-    t_array = np.asarray(t, dtype=np.float64)
-    u_array = np.asarray(u, dtype=np.float64)
-    bins_array = np.asarray(bins, dtype=np.float64)
-    if end_time is None:
-        end_time = float(max(t_array.max(), u_array.max()))
     duration = end_time - start_time
-    Gn = correlation.copy()
-    for i, tau in enumerate(bins_array[1:]):
-        Gn[i] *= (duration - tau) / (
-            float((u_array >= start_time + tau).sum())
-            * float((t_array <= end_time - tau).sum())
-        )
-    return np.asarray(Gn, dtype=np.float64)
+    for bin_index in range(correlation.size):
+        tau = bins[bin_index + 1]
+        usable_u = u.size - np.searchsorted(u, start_time + tau, side="left")
+        usable_t = np.searchsorted(t, end_time - tau, side="right")
+        correlation[bin_index] *= (duration - tau) / (usable_u * usable_t)
+
+    return correlation
 
 
 def coincidence_numpy(

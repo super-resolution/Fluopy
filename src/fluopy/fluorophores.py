@@ -36,14 +36,14 @@ class Fluorophore:
 
     Attributes
     ----------
-    identity : int
+    identity
         The id of the fluorophore. Not None if fluorophore is part of a
         FluorophoreSystem.
-    name : str
+    name
         Name of the fluorophore.
-    position : Collection[float]
+    position
         The position of the fluorophore in space in nm.
-    constants : FluorophoreData | None
+    constants
         If None an instance of FluorophoreData with the same name is inserted
         if available in fluopy.fluo_data.
     """
@@ -79,6 +79,14 @@ class Fluorophore:
                 )
 
     def get_identity(self) -> int:
+        """
+        Return the identity assigned by the containing FluorophoreSystem.
+
+        Returns
+        -------
+        int
+            Fluorophore identity.
+        """
         if self.identity is None:
             raise RuntimeError(
                 "fluorophore identity is only available after adding it "
@@ -94,14 +102,14 @@ class FluorophoreSystem:
 
     Attributes
     ----------
-    fluorophores : Sequence[Fluorophore]
+    fluorophores
         Contains all given fluorophores of type Fluorophore.
-    multi_type : bool
+    multi_type
         Whether there are multiple types of fluorophores in the system.
-    distances :  dict[tuple[int, int], np.float64]
+    distances
         Contains tuples of 2 fluorophore ids as keys and their distance as values.
         The distances are given in nm and are rounded to 3 decimals.
-    count : int
+    count
         The total number of fluorophores given.
     """
 
@@ -251,7 +259,7 @@ class FluorophoreSystem:
 
         Returns
         -------
-        transitions : dict[str, list[Transition]]
+        dict[str, list[Transition]]
             Contains lists of transitions of type Transition as values and fluorophores
             or fluorophore-combinations (D: <donor>, A: <acceptor>, dist: <distance>) as
             keys.
@@ -409,7 +417,7 @@ def get_distances(
 
     Returns
     -------
-    distances : dict[tuple[int, int], np.float64]
+    dict[tuple[int, int], np.float64]
         Contains tuples of ids (order as positions) as keys and their distance as
         values.
     """
@@ -483,7 +491,7 @@ def get_positions_from_distance(
 
     Returns
     -------
-    positions : npt.NDArray[np.float64]
+    npt.NDArray[np.float64]
         Contains np.ndarrays of x and y for each fluorophore.
     """
     position_1 = np.array([0, 0])
@@ -542,7 +550,7 @@ def construct_fluorophores(
 
     Returns
     -------
-    fluorophores : list[Fluorophore]
+    list[Fluorophore]
         Contains fluorophores of type Fluorophore.
     """
     positions = get_positions_from_distance(distance=distance, count=count, shape=shape)

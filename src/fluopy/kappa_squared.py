@@ -119,9 +119,12 @@ def simulate_rotational_motion(
 
     Returns
     -------
-    tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
-        Two arrays containing the dipole orientations over time for two dipoles.
-        Of length int(tau_life / dt).
+    traj1 : npt.NDArray[np.float64]
+        Dipole orientations over time for the first dipole. Has length
+        int(tau_life / dt).
+    traj2 : npt.NDArray[np.float64]
+        Dipole orientations over time for the second dipole. Has length
+        int(tau_life / dt).
     """
     rng = np.random.default_rng(seed)
     n_steps = int(tau_life / dt)

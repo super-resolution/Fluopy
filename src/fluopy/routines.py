@@ -26,6 +26,17 @@ __all__: list[str] = []
 
 
 class EmissionsParameters(TypedDict):
+    """
+    Emission settings used by fingerprint_analysis().
+
+    Attributes
+    ----------
+    frame_time
+        Width of one acquisition frame as a pandas offset alias.
+    bandpass
+        Lower and upper transmitted wavelengths in nm, or None for no filter.
+    """
+
     frame_time: str
     bandpass: tuple[float, float] | None
 
@@ -41,9 +52,6 @@ def emission_post_processing(emis: Emissions, seed: RandomGeneratorSeed) -> None
     seed
         A seed to initialize the BitGenerator.
 
-    Returns
-    -------
-    None
     """
     rng = np.random.default_rng(seed)
     photon_collection_rate = fo.calculate_photon_collection_rate(NA=1.45, n1=1.51)
@@ -115,7 +123,7 @@ def get_delta_bleaching_times(
 
     Returns
     -------
-    delta_bleaching_times_all : list[npt.NDArray[np.float64]]
+    list[npt.NDArray[np.float64]]
         The arrival times of photons between bleaching events. The timer starts at the
         previous bleaching event.
     """
@@ -264,7 +272,7 @@ def truncate_fingerprints(
 
     Returns
     -------
-    trunacted : pd.Series
+    pd.Series
         Truncated fingerprint data - normalized (to [0, 1]) cumulative emissions.
     """
     truncated = fingerprint.iloc[low:high]

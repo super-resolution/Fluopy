@@ -86,7 +86,7 @@ class Blinking:
 
         Parameters
         ----------
-        mode : str
+        mode
             One of 'on_histogram', 'off_histogram', 'on_frame_series',
             'off_frame_series', 'on_boxplot', 'off_boxplot'.
         kwargs
