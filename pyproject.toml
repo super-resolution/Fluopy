@@ -111,6 +111,7 @@ jupyter = [
 
 [tool.black]
 line_length = 88
+target-version = ["py312"]
 
 
 [tool.pytest.ini_options]

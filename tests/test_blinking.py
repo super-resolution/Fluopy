@@ -9,6 +9,19 @@ from fluopy import blinking as bl
 from fluopy.transitions import SingleState
 
 
+def test_blinking(em_large):
+    blink = bl.Blinking(emissions=em_large)
+    assert blink.emissions == em_large
+    exp_on_periods = np.array([1, 2, 3])
+    np.testing.assert_array_equal(blink.on_periods, exp_on_periods)
+    exp_off_periods = np.array([21, 6])
+    np.testing.assert_array_equal(blink.off_periods, exp_off_periods)
+    exp_on_periods_frames = np.array([0, 22, 30])
+    np.testing.assert_array_equal(blink.on_periods_frames, exp_on_periods_frames)
+    exp_off_periods_frames = np.array([1, 24])
+    np.testing.assert_array_equal(blink.off_periods_frames, exp_off_periods_frames)
+
+
 @pytest.mark.parametrize(
     "event_time_series, threshold, memory, exp_on_periods, exp_off_periods, "
     "exp_on_periods_frames, exp_off_periods_frames",
@@ -237,16 +250,3 @@ def test_get_analytical_off_statistics():
     )
     np.testing.assert_array_equal(on_off_times, exp_on_off_times)
     np.testing.assert_array_equal(on_off_values, exp_on_off_values)
-
-
-def test_blinking(em_large):
-    blink = bl.Blinking(emissions=em_large)
-    assert blink.emissions == em_large
-    exp_on_periods = np.array([1, 2, 3])
-    np.testing.assert_array_equal(blink.on_periods, exp_on_periods)
-    exp_off_periods = np.array([21, 6])
-    np.testing.assert_array_equal(blink.off_periods, exp_off_periods)
-    exp_on_periods_frames = np.array([0, 22, 30])
-    np.testing.assert_array_equal(blink.on_periods_frames, exp_on_periods_frames)
-    exp_off_periods_frames = np.array([1, 24])
-    np.testing.assert_array_equal(blink.off_periods_frames, exp_off_periods_frames)

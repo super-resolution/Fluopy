@@ -8,48 +8,6 @@ import scipy.stats as stats
 
 from fluopy import prediction as pr
 
-
-@pytest.mark.parametrize(
-    "drop_transitions, exp_Q",
-    [
-        [np.array([0, 1]), np.array([[0.0, 0.8], [0.4, 0.0]])],
-        [0, np.array([[0.0, 0.05, 0.05], [0.1, 0.0, 0.8], [0.3, 0.4, 0.0]])],
-    ],
-)
-def test_get_Q(drop_transitions, exp_Q):
-    P = np.array(
-        [
-            [0, 0.3, 0.4, 0.3],
-            [0.9, 0, 0.05, 0.05],
-            [0.1, 0.1, 0, 0.8],
-            [0.3, 0.3, 0.4, 0],
-        ]
-    )
-    Q = pr.get_Q(P=P, drop_transitions=drop_transitions)
-    np.testing.assert_array_equal(Q, exp_Q)
-
-
-def test_get_I_t():
-    Q = np.array([[0.0, 0.05, 0.05], [0.1, 0.0, 0.8], [0.3, 0.4, 0.0]])
-    I_t = pr.get_I_t(Q=Q)
-    exp_I_t = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-    np.testing.assert_array_equal(I_t, exp_I_t)
-
-
-def test_get_N():
-    Q = np.array([[0.0, 0.05, 0.05], [0.1, 0.0, 0.8], [0.3, 0.4, 0.0]])
-    I_t = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-    N = pr.get_N(I_t=I_t, Q=Q)
-    exp_N = np.array(
-        [
-            [1.05263158, 0.10835913, 0.13931889],
-            [0.52631579, 1.5247678, 1.24613003],
-            [0.52631579, 0.64241486, 1.54024768],
-        ]
-    )
-    np.testing.assert_array_almost_equal(N, exp_N)
-
-
 # test_prediction_# includes testing of...
 # ...predict_transition_occurrences()
 # ...predict_transition_occurrences_abs()
@@ -612,3 +570,44 @@ def test_prediction_7(tr_set_1f):
     }
     for fluorophore, occ in prediction.state_occupations.items():
         np.testing.assert_allclose(occ, exp_state_occ[fluorophore], rtol=1e-6)
+
+
+@pytest.mark.parametrize(
+    "drop_transitions, exp_Q",
+    [
+        [np.array([0, 1]), np.array([[0.0, 0.8], [0.4, 0.0]])],
+        [0, np.array([[0.0, 0.05, 0.05], [0.1, 0.0, 0.8], [0.3, 0.4, 0.0]])],
+    ],
+)
+def test_get_Q(drop_transitions, exp_Q):
+    P = np.array(
+        [
+            [0, 0.3, 0.4, 0.3],
+            [0.9, 0, 0.05, 0.05],
+            [0.1, 0.1, 0, 0.8],
+            [0.3, 0.3, 0.4, 0],
+        ]
+    )
+    Q = pr.get_Q(P=P, drop_transitions=drop_transitions)
+    np.testing.assert_array_equal(Q, exp_Q)
+
+
+def test_get_I_t():
+    Q = np.array([[0.0, 0.05, 0.05], [0.1, 0.0, 0.8], [0.3, 0.4, 0.0]])
+    I_t = pr.get_I_t(Q=Q)
+    exp_I_t = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+    np.testing.assert_array_equal(I_t, exp_I_t)
+
+
+def test_get_N():
+    Q = np.array([[0.0, 0.05, 0.05], [0.1, 0.0, 0.8], [0.3, 0.4, 0.0]])
+    I_t = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+    N = pr.get_N(I_t=I_t, Q=Q)
+    exp_N = np.array(
+        [
+            [1.05263158, 0.10835913, 0.13931889],
+            [0.52631579, 1.5247678, 1.24613003],
+            [0.52631579, 0.64241486, 1.54024768],
+        ]
+    )
+    np.testing.assert_array_almost_equal(N, exp_N)

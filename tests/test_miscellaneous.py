@@ -58,16 +58,16 @@ def test_print_class(capsys):
     plt.close()
 
 
-def test_format_transition():
-    return_value = format_transition(label="123_456")
-    # print(return_value)
-    assert return_value == "123$_{456}$"
-
-
 def test_format_electronic_state():
     return_value = format_electronic_state(label="___S1_T1__")
     # print(return_value)
     assert return_value == "___S1_T1__"
+
+
+def test_format_transition():
+    return_value = format_transition(label="123_456")
+    # print(return_value)
+    assert return_value == "123$_{456}$"
 
 
 def test_format_axis_labels():

@@ -161,15 +161,15 @@ class TestPhotoswitchingFingerprintModel:
             2: [0.5, 0.5, 0.5, 0.3],
         }
 
-    def test_PFM_cdf(self):
-        cdf = self.pfm.cdf(x=2)
-        expected = 0.487748
-        np.testing.assert_allclose(cdf, expected, rtol=1e-4)
-
     def test_PFM_pdf(self):
         pdf = self.pfm.pdf(x=2)
         expected = 0.174595
         np.testing.assert_allclose(pdf, expected, rtol=1e-4)
+
+    def test_PFM_cdf(self):
+        cdf = self.pfm.cdf(x=2)
+        expected = 0.487748
+        np.testing.assert_allclose(cdf, expected, rtol=1e-4)
 
     def test_PFM_pdf_derivatives(self):
         x = np.array([0.5, 1, 2])
@@ -204,95 +204,18 @@ class TestPhotoswitchingFingerprintModel:
         assert model.cdf_part(x=3, i=0, normalize=True) == 1
 
 
-class TestExponentialMixtureModel:
-    model = ExponentialMixtureModel(
-        params={"lambdas": [1, 10], "pis": [0.2]},
+def test_photoswitching_fingerprint_prepare():
+    lambdas, pis = photoswitching_fingerprint_prepare(
+        params={0: [1, 0, 1, 0.7], 1: [0.7, 0.3, 0.7, 0.5], 2: [0.5, 0.5, 0.5, 0.3]},
+        n=3,
+        z=-1,
     )
-
-    def test_init(self):
-        assert self.model.params == {"lambdas": [1, 10], "pis": [0.2]}
-        assert self.model.domain == (0, np.inf)
-
-    def test_PFM_cdf(self):
-        cdf = self.model.cdf(x=2)
-        expected = 0.972933
-        np.testing.assert_allclose(cdf, expected, rtol=1e-4)
-
-    def test_PFM_pdf(self):
-        pdf = self.model.pdf(x=2)
-        expected = 0.027067
-        np.testing.assert_allclose(pdf, expected, rtol=1e-4)
-
-    def test_domain_and_underlying_cdf(self):
-        model = ExponentialMixtureModel(
-            params={"lambdas": [1, 2], "pis": [0.5]},
-            domain=(1, 2),
-        )
-        x = np.array([0, 1, 1.5, 2, 3])
-
-        np.testing.assert_array_equal(model.pdf(x)[[0, 4]], [0, 0])
-        np.testing.assert_array_equal(model.cdf(x)[[0, 1, 3, 4]], [0, 0, 1, 1])
-        assert 0 < model.untruncated_cdf(3) < 1
-
-
-class TestExponentialMixtureMarginalModel:
-    model = ExponentialMixtureMarginalModel(
-        params={"lambdas": [1, 3, 9], "pis": [0.2, 0.5]},
-        pfa_cdf_part=lambda x, i, normalize: 0.5,
-        cdf_part_index=1,
-        truncation_up=0.5,
+    np.testing.assert_array_equal(
+        lambdas, [[1, 0.7, 0.5], [1, 0.7, 0.3], [1, 0.5, 0.3], [0.7, 0.5, 0.3]]
     )
-
-    def test_init(self):
-        assert self.model.params == {"lambdas": [1, 3, 9], "pis": [0.2, 0.5]}
-        assert isinstance(self.model.pfa_cdf_part, Callable)
-        assert self.model.cdf_part_index == 1
-        assert self.model.truncation_up == 0.5
-
-    def test_PFM_cdf(self):
-        cdf = self.model.cdf(x=(0.1, 2))
-        expected = [0.427669, 1]
-        np.testing.assert_allclose(cdf, expected, rtol=1e-4)
-
-    def test_observation_cdf(self):
-        x = np.array([0, 0.1, self.model.truncation_up])
-
-        np.testing.assert_allclose(
-            self.model.observation_cdf(x),
-            self.model.observation_probability * self.model.cdf(x),
-        )
-        assert self.model.observation_cdf(self.model.truncation_up) == pytest.approx(
-            self.model.observation_probability
-        )
-
-    def test_PFM_pdf(self):
-        pdf = self.model.pdf(x=(0.1, 2))
-        expected = [3.128881, 0]
-        np.testing.assert_allclose(pdf, expected, rtol=1e-4)
-
-    def test_grid_scales_with_small_truncation(self):
-        model = ExponentialMixtureMarginalModel(
-            params={"lambdas": [1], "pis": []},
-            pfa_cdf_part=lambda x, i, normalize: 0.5,
-            cdf_part_index=0,
-            truncation_up=0.001,
-        )
-
-        assert model.x_grid[0] == 0
-        assert model.x_grid[-1] == 0.001
-        assert np.all(np.diff(model.x_grid) > 0)
-
-    def test_sharp_density_observation_probability(self):
-        model = ExponentialMixtureMarginalModel(
-            params={"lambdas": [10000], "pis": []},
-            pfa_cdf_part=lambda x, i, normalize: 1.0,
-            cdf_part_index=0,
-            truncation_up=1,
-        )
-
-        assert model.observation_probability == pytest.approx(1, rel=2e-3)
-        assert np.all(np.diff(model.cdf_grid) >= 0)
-        assert model.cdf_grid[-1] == 1
+    np.testing.assert_array_equal(
+        pis, [[1, 1, 0.5], [1, 0.7, 0.5], [1, 0.3, 0.5], [0, 1, 0.5]]
+    )
 
 
 def test_generate_combinations():
@@ -359,15 +282,92 @@ def test_get_pis_three_component_stage_fully_biased():
     np.testing.assert_array_equal(weights, [0.5, 0.5, 0, 0, 0, 0])
 
 
-def test_photoswitching_fingerprint_prepare():
-    lambdas, pis = photoswitching_fingerprint_prepare(
-        params={0: [1, 0, 1, 0.7], 1: [0.7, 0.3, 0.7, 0.5], 2: [0.5, 0.5, 0.5, 0.3]},
-        n=3,
-        z=-1,
+class TestExponentialMixtureModel:
+    model = ExponentialMixtureModel(
+        params={"lambdas": [1, 10], "pis": [0.2]},
     )
-    np.testing.assert_array_equal(
-        lambdas, [[1, 0.7, 0.5], [1, 0.7, 0.3], [1, 0.5, 0.3], [0.7, 0.5, 0.3]]
+
+    def test_init(self):
+        assert self.model.params == {"lambdas": [1, 10], "pis": [0.2]}
+        assert self.model.domain == (0, np.inf)
+
+    def test_PFM_pdf(self):
+        pdf = self.model.pdf(x=2)
+        expected = 0.027067
+        np.testing.assert_allclose(pdf, expected, rtol=1e-4)
+
+    def test_PFM_cdf(self):
+        cdf = self.model.cdf(x=2)
+        expected = 0.972933
+        np.testing.assert_allclose(cdf, expected, rtol=1e-4)
+
+    def test_domain_and_underlying_cdf(self):
+        model = ExponentialMixtureModel(
+            params={"lambdas": [1, 2], "pis": [0.5]},
+            domain=(1, 2),
+        )
+        x = np.array([0, 1, 1.5, 2, 3])
+
+        np.testing.assert_array_equal(model.pdf(x)[[0, 4]], [0, 0])
+        np.testing.assert_array_equal(model.cdf(x)[[0, 1, 3, 4]], [0, 0, 1, 1])
+        assert 0 < model.untruncated_cdf(3) < 1
+
+
+class TestExponentialMixtureMarginalModel:
+    model = ExponentialMixtureMarginalModel(
+        params={"lambdas": [1, 3, 9], "pis": [0.2, 0.5]},
+        pfa_cdf_part=lambda x, i, normalize: 0.5,
+        cdf_part_index=1,
+        truncation_up=0.5,
     )
-    np.testing.assert_array_equal(
-        pis, [[1, 1, 0.5], [1, 0.7, 0.5], [1, 0.3, 0.5], [0, 1, 0.5]]
-    )
+
+    def test_init(self):
+        assert self.model.params == {"lambdas": [1, 3, 9], "pis": [0.2, 0.5]}
+        assert isinstance(self.model.pfa_cdf_part, Callable)
+        assert self.model.cdf_part_index == 1
+        assert self.model.truncation_up == 0.5
+
+    def test_PFM_pdf(self):
+        pdf = self.model.pdf(x=(0.1, 2))
+        expected = [3.128881, 0]
+        np.testing.assert_allclose(pdf, expected, rtol=1e-4)
+
+    def test_PFM_cdf(self):
+        cdf = self.model.cdf(x=(0.1, 2))
+        expected = [0.427669, 1]
+        np.testing.assert_allclose(cdf, expected, rtol=1e-4)
+
+    def test_observation_cdf(self):
+        x = np.array([0, 0.1, self.model.truncation_up])
+
+        np.testing.assert_allclose(
+            self.model.observation_cdf(x),
+            self.model.observation_probability * self.model.cdf(x),
+        )
+        assert self.model.observation_cdf(self.model.truncation_up) == pytest.approx(
+            self.model.observation_probability
+        )
+
+    def test_grid_scales_with_small_truncation(self):
+        model = ExponentialMixtureMarginalModel(
+            params={"lambdas": [1], "pis": []},
+            pfa_cdf_part=lambda x, i, normalize: 0.5,
+            cdf_part_index=0,
+            truncation_up=0.001,
+        )
+
+        assert model.x_grid[0] == 0
+        assert model.x_grid[-1] == 0.001
+        assert np.all(np.diff(model.x_grid) > 0)
+
+    def test_sharp_density_observation_probability(self):
+        model = ExponentialMixtureMarginalModel(
+            params={"lambdas": [10000], "pis": []},
+            pfa_cdf_part=lambda x, i, normalize: 1.0,
+            cdf_part_index=0,
+            truncation_up=1,
+        )
+
+        assert model.observation_probability == pytest.approx(1, rel=2e-3)
+        assert np.all(np.diff(model.cdf_grid) >= 0)
+        assert model.cdf_grid[-1] == 1

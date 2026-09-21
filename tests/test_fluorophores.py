@@ -74,29 +74,6 @@ def test_fluorophore_position_is_read_only():
 
 
 @pytest.mark.parametrize(
-    "positions, expected",
-    [
-        [
-            [[1, 1], [2, 1], [1, 2]],
-            {
-                (0, 1): 1.0,
-                (0, 2): 1.0,
-                (1, 0): 1.0,
-                (1, 2): 1.414,
-                (2, 0): 1.0,
-                (2, 1): 1.414,
-            },
-        ],
-        [[[0, 0]], {}],
-        [[[0, 0], [0, 0]], {(0, 1): 0.0, (1, 0): 0.0}],
-        [[[-1, 0], [0, 0]], {(0, 1): 1.0, (1, 0): 1.0}],
-    ],
-)
-def test_get_distances(positions, expected):
-    assert fl.get_distances(positions=positions) == expected
-
-
-@pytest.mark.parametrize(
     "dirnames, exp_distances, exp_count, multi_type",
     [
         [["flu_obj_cy5_1"], {}, 1, False],
@@ -362,6 +339,29 @@ def test_load_transitions_does_not_mutate_dstorm_parameters(
     assert parameters == {
         "concentration": 100,
     }
+
+
+@pytest.mark.parametrize(
+    "positions, expected",
+    [
+        [
+            [[1, 1], [2, 1], [1, 2]],
+            {
+                (0, 1): 1.0,
+                (0, 2): 1.0,
+                (1, 0): 1.0,
+                (1, 2): 1.414,
+                (2, 0): 1.0,
+                (2, 1): 1.414,
+            },
+        ],
+        [[[0, 0]], {}],
+        [[[0, 0], [0, 0]], {(0, 1): 0.0, (1, 0): 0.0}],
+        [[[-1, 0], [0, 0]], {(0, 1): 1.0, (1, 0): 1.0}],
+    ],
+)
+def test_get_distances(positions, expected):
+    assert fl.get_distances(positions=positions) == expected
 
 
 @pytest.mark.parametrize(
