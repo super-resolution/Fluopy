@@ -450,7 +450,7 @@ class Analysis:
         Returns
         -------
         npt.NDArray[np.float64]
-            The fluorescence lifetimes (photon emssion) of the specified fluorophore.
+            The fluorescence lifetimes (photon emission) of the specified fluorophore.
         """
         fluorophores = []
         for key, _ in self.simulation.transition_set.single_states.items():

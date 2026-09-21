@@ -367,7 +367,7 @@ def calculate_spectral_overlap_integral(
         One-dimensional wavelength values in nm that correspond to the respective
         donor and acceptor values.
     donor_area
-        Area of the complete donor emission spectrum. If None, calculate the are from
+        Area of the complete donor emission spectrum. If None, calculate the area from
         donor and wavelengths.
 
     Returns

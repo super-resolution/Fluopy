@@ -79,6 +79,14 @@ class Fluorophore:
                 )
 
     def get_identity(self) -> int:
+        """
+        Return the identity assigned by the containing FluorophoreSystem.
+
+        Returns
+        -------
+        int
+            Fluorophore identity.
+        """
         if self.identity is None:
             raise RuntimeError(
                 "fluorophore identity is only available after adding it "

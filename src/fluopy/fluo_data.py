@@ -51,7 +51,7 @@ class Spectrum:
         wavelengths
             Wavelengths in nm.
         values
-            Spectrum values corresponding to wavelenghts.
+            Spectrum values corresponding to wavelengths.
 
         Returns
         -------

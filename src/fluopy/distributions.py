@@ -87,10 +87,16 @@ def _marginal_integration_grid(
 
 
 class IllConditionedHypoexponentialError(ValueError):
-    """Raised when hypoexponential partial fractions cannot be evaluated reliably."""
+    """
+    Raised when hypoexponential partial fractions cannot be evaluated reliably.
+    """
 
 
 class HypoexponentialCall(Protocol):
+    """
+    Callable used to evaluate a hypoexponential distribution or derivative.
+    """
+
     def __call__(self, x: npt.ArrayLike, *args: int | float) -> DistributionValue: ...
 
 

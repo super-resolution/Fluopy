@@ -26,6 +26,17 @@ __all__: list[str] = []
 
 
 class EmissionsParameters(TypedDict):
+    """
+    Emission settings used by fingerprint_analysis().
+
+    Attributes
+    ----------
+    frame_time
+        Width of one acquisition frame as a pandas offset alias.
+    bandpass
+        Lower and upper transmitted wavelengths in nm, or None for no filter.
+    """
+
     frame_time: str
     bandpass: tuple[float, float] | None
 

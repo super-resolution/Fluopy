@@ -495,6 +495,14 @@ class Transition:
         return {item.name: getattr(self, item.name) for item in fields(self)}
 
     def get_identity(self) -> int:
+        """
+        Return the identity assigned by the containing TransitionSet.
+
+        Returns
+        -------
+        int
+            Transition identity.
+        """
         if self.identity is None:
             raise RuntimeError(
                 "transition identity is only available after adding it "
@@ -503,6 +511,14 @@ class Transition:
         return self.identity
 
     def get_single_fluorophore_ids(self) -> list[int]:
+        """
+        Return the fluorophore identities of a non-paired transition.
+
+        Returns
+        -------
+        list[int]
+            Fluorophore identities.
+        """
         fluorophore_ids: list[int] = []
 
         for fluorophore_id in self.fluorophore_ids:
@@ -516,6 +532,14 @@ class Transition:
         return fluorophore_ids
 
     def get_fluorophore_pairs(self) -> list[tuple[int, int]]:
+        """
+        Return the fluorophore pairs of a paired transition.
+
+        Returns
+        -------
+        list[tuple[int, int]]
+            Donor and acceptor identity pairs.
+        """
         fluorophore_pairs: list[tuple[int, int]] = []
 
         for fluorophore_pair in self.fluorophore_ids:
@@ -732,6 +756,9 @@ class TransitionSet:
 
     @property
     def combined_state_transitions_df(self) -> pd.DataFrame:
+        """
+        Combined-state transition table, finalized on first access.
+        """
         if self._combined_state_transitions_df is None:
             self.finalize()
         result = self._combined_state_transitions_df
@@ -744,6 +771,9 @@ class TransitionSet:
 
     @property
     def row_sums(self) -> npt.NDArray[np.float64]:
+        """
+        Transition rates by combined state, finalized on first access.
+        """
         if self._row_sums is None:
             self.finalize()
         result = self._row_sums
@@ -754,6 +784,9 @@ class TransitionSet:
 
     @property
     def transition_matrix(self) -> npt.NDArray[np.float64]:
+        """
+        Transition-probability matrix, finalized on first access.
+        """
         if self._transition_matrix is None:
             self.finalize()
         result = self._transition_matrix
