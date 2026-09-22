@@ -282,6 +282,17 @@ def test_spectrum_integral_limits_error():
         spectrum.integral(510, 500)
 
 
+@pytest.mark.parametrize("limit", [np.nan, np.inf])
+def test_spectrum_integral_rejects_non_finite_limits(limit):
+    spectrum = fd.Spectrum(
+        wavelengths=[500, 510],
+        values=[0, 1],
+    )
+
+    with pytest.raises(ValueError, match="integration limits must be finite"):
+        spectrum.integral(lower=limit)
+
+
 def test_init_FluorophoreData():
     fluorophore_data = fd.FluorophoreData()
     assert fluorophore_data.QUANTUM_YIELD == 0
@@ -360,6 +371,16 @@ def test_fluorophore_data_absorption_spectrum_error():
         fd.FluorophoreData(absorption_spectra={"s0": [0.1, 0.2]})
 
 
+@pytest.mark.parametrize("state", ["", 0])
+def test_fluorophore_data_absorption_state_error(state):
+    absorption = fd.Spectrum(wavelengths=[500, 510], values=[1000, 2000])
+
+    with pytest.raises(
+        TypeError, match="absorption_spectra keys must be non-empty strings"
+    ):
+        fd.FluorophoreData(absorption_spectra={state: absorption})
+
+
 @pytest.mark.parametrize(
     "name, value",
     [
@@ -393,6 +414,15 @@ def test_fluorophore_data_non_negative_value_errors(name, value):
         match=rf"{name} must be finite and non-negative.",
     ):
         fd.FluorophoreData(**{name: value})
+
+
+@pytest.mark.parametrize("wavelength", [0, -1, np.nan, np.inf])
+def test_fluorophore_data_cross_section_wavelength_errors(wavelength):
+    with pytest.raises(
+        ValueError,
+        match="CROSS_SECTION_WAVELENGTH must be finite and greater than zero",
+    ):
+        fd.FluorophoreData(CROSS_SECTION_WAVELENGTH=wavelength)
 
 
 def test_partial_fluorophore_data_allows_zero_lifetime():

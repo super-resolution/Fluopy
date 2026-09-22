@@ -25,7 +25,6 @@ from fluopy.fitting import (
 
 
 class TestNegativeLogLikelihoodHistObservationWindow:
-
     def test_init(self):
         model = ExponentialMixtureModel
         params = {
@@ -101,7 +100,6 @@ class TestNegativeLogLikelihoodHistObservationWindow:
 
 
 class TestNegativeLogLikelihoodHistBinComplement:
-
     def test_init(self):
         model = ExponentialMixtureModel
         params = {
@@ -242,6 +240,30 @@ def test_public_likelihood_rejects_mismatched_histogram(
 
 
 @pytest.mark.parametrize(
+    "likelihood",
+    [
+        fitting.negative_log_likelihood_hist_marginal_observation_window,
+        fitting.negative_log_likelihood_hist_marginal_bin_complement,
+    ],
+)
+def test_marginal_likelihood_rejects_nonzero_lower_truncation(likelihood):
+    with pytest.raises(
+        ValueError, match="Marginal distribution only defined for truncation_low = 0"
+    ):
+        likelihood(
+            model=ExponentialMixtureMarginalModel,
+            params={"pis": [], "lambdas": [1]},
+            counts=[1],
+            bin_edges=[0, 1],
+            counts_not_observed=0,
+            truncation_low=0.1,
+            truncation_up=1,
+            pfa_cdf_part=lambda x, i, normalize: 1.0,
+            cdf_part_index=0,
+        )
+
+
+@pytest.mark.parametrize(
     "fitter",
     [fitting.fit_multiple_mixture_v1, fitting.fit_multiple_mixture_v2],
 )
@@ -332,14 +354,46 @@ def test_fitter_uses_custom_truncation_up(
     assert marginal_truncation_limits == [17]
 
 
-def test_fitter_rejects_nonfinite_best_objective(monkeypatch):
+@pytest.mark.parametrize(
+    "fitter",
+    [fitting.fit_multiple_mixture_v1, fitting.fit_multiple_mixture_v2],
+)
+def test_fitter_normalizes_all_histograms_without_constraints(monkeypatch, fitter):
+    candidate = np.array([0.8, 1.2, 0.4, 0.7, 0.8, 0.2])
+
+    def differential_evolution(objective, *, constraints, **kwargs):
+        assert constraints == ()
+        objective_value = objective(candidate)
+        assert np.isfinite(objective_value)
+        return OptimizeResult(x=candidate, fun=objective_value, success=True)
+
+    monkeypatch.setattr(fitting, "differential_evolution", differential_evolution)
+
+    result = fitter(
+        datasets=[np.array([1]), np.array([1])],
+        bin_edges=[0, 1],
+        pfa_bin_edges=[0, 1],
+        pfa_counts=[1],
+        truncation_up=17,
+        norm=True,
+        constr=False,
+    )
+
+    assert np.isfinite(result.fun)
+
+
+@pytest.mark.parametrize(
+    "fitter",
+    [fitting.fit_multiple_mixture_v1, fitting.fit_multiple_mixture_v2],
+)
+def test_fitter_rejects_nonfinite_best_objective(monkeypatch, fitter):
     def differential_evolution(objective, **kwargs):
         return OptimizeResult(fun=np.inf, success=False)
 
     monkeypatch.setattr(fitting, "differential_evolution", differential_evolution)
 
     with pytest.raises(RuntimeError, match="did not find parameters"):
-        fitting.fit_multiple_mixture_v1(
+        fitter(
             datasets=[np.array([1])],
             bin_edges=[0, 1],
         )
@@ -359,11 +413,40 @@ def test_fitter_rejects_z_below_minus_one(fitter):
 
 
 @pytest.mark.parametrize(
+    "fitter",
+    [fitting.fit_multiple_mixture_v1, fitting.fit_multiple_mixture_v2],
+)
+def test_fitter_rejects_normalization_with_unobserved_counts(fitter):
+    with pytest.raises(
+        ValueError,
+        match="Normalization to num observed events not possible",
+    ):
+        fitter(
+            datasets=[np.array([1])],
+            bin_edges=[0, 1],
+            counts_not_observed=[0],
+            norm=True,
+        )
+
+
+@pytest.mark.parametrize(
     "arguments, error",
     [
         (
+            {"datasets": [], "bin_edges": [0, 1]},
+            "datasets must contain at least one histogram",
+        ),
+        (
+            {"datasets": [np.array([[1]])], "bin_edges": [0, 1]},
+            "counts and bin_edges must be one-dimensional",
+        ),
+        (
             {"datasets": [np.array([1])], "bin_edges": [0, 1, 2]},
             "exactly one more value",
+        ),
+        (
+            {"datasets": [np.array([1])], "bin_edges": [1, 0]},
+            "bin_edges must be strictly increasing",
         ),
         (
             {"datasets": [np.array([-1])], "bin_edges": [0, 1]},
@@ -389,6 +472,32 @@ def test_fitter_rejects_z_below_minus_one(fitter):
             },
             "counts_not_observed must have one value per dataset",
         ),
+        (
+            {
+                "datasets": [np.array([1])],
+                "bin_edges": [0, 1],
+                "counts_not_observed": [-1],
+            },
+            "counts_not_observed must be finite and nonnegative",
+        ),
+        (
+            {
+                "datasets": [np.array([1])],
+                "bin_edges": [0, 1],
+                "pfa_counts_not_observed": -1,
+            },
+            "pfa_counts_not_observed must be finite and nonnegative",
+        ),
+        (
+            {
+                "datasets": [np.array([1])],
+                "bin_edges": [0, 1],
+                "pfa_bin_edges": [0, 1],
+                "pfa_counts": [0],
+                "norm": True,
+            },
+            "Cannot normalize an empty PFA histogram",
+        ),
     ],
 )
 @pytest.mark.parametrize(
@@ -401,7 +510,6 @@ def test_fitter_validates_histogram_inputs(fitter, arguments, error):
 
 
 class TestPrepareConstraints:
-
     def test_returns_linear_constraint_and_bounds(self):
         n = 3
         lc, bounds = prepare_constraints(n=n, z=-1)
@@ -421,9 +529,15 @@ class TestPrepareConstraints:
         assert len(bounds.lb) == expected
         assert len(bounds.ub) == expected
 
+    def test_middle_three_component_dataset_constraints(self):
+        lc, bounds = prepare_constraints(n=3, z=1)
+
+        assert isinstance(lc, LinearConstraint)
+        assert lc.A.shape == (12, 11)
+        assert len(bounds.lb) == 11
+
 
 class TestPreparePfaParameters:
-
     def test_z_minus_one_two_datasets(self):
         """z=-1: each dataset gets [p, 1-p, lam_b, lam_nb]."""
         params = [0.3, 1.0, 0.5, 0.6, 2.0, 0.8]
@@ -455,7 +569,6 @@ class TestPreparePfaParameters:
 
 
 class TestPrepareExpMixtureParameters:
-
     def test_z_minus_one(self):
         """Each entry should have 'pis' (length 1) and 'lambdas' (length 2)."""
         params = [0.3, 1.0, 0.5, 0.6, 2.0, 0.8]  # dataset 0  # dataset 1
@@ -480,7 +593,6 @@ class TestPrepareExpMixtureParameters:
 
 
 class TestSaveLoadArray:
-
     def test_round_trip(self, tmp_path):
         parameter_dict = {0: [0.3, 1.0, 0.5], 1: [0.6, 2.0, 0.8]}
         filepath = str(tmp_path / "params.npy")
@@ -503,7 +615,6 @@ class TestSaveLoadArray:
 
 
 class TestConvertDicts:
-
     def test_length_4_entry(self):
         """A length-4 entry should produce pis=[p0], lambdas=[lam2, lam3]."""
         pfa_dict = {0: [0.3, 0.7, 1.5, 0.5]}
@@ -530,3 +641,7 @@ class TestConvertDicts:
 
     def test_empty_dict(self):
         assert convert_dicts({}) == {}
+
+    def test_invalid_entry_length(self):
+        with pytest.raises(ValueError, match="must have length 4 or 6"):
+            convert_dicts({0: [0.5, 1.0]})

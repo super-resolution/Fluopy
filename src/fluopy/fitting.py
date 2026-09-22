@@ -976,8 +976,6 @@ def load_from_array(filepath: str | PathLike[str]) -> dict[int, list[float]]:
     parameter_df["key"] = parameter_df["key"].astype(int)
     parameter_dict: dict[int, list[float]] = {}
     for key, values in parameter_df.groupby("key")["value"]:
-        if not isinstance(key, (int, np.integer)):
-            raise TypeError("saved parameter keys must be integers.")
         parameter_dict[int(key)] = [float(value) for value in values]
     return parameter_dict
 
