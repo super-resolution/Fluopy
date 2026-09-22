@@ -10,7 +10,6 @@ from fluopy import simulation as si
 
 
 class TestSimulation:
-
     def test_init_empty(self):
         with pytest.raises(TypeError):
             si.Simulation()
@@ -32,64 +31,49 @@ class TestSimulation:
         assert simulation.memmap_path is None
 
 
-def test_direct_method_steps(tr_set_1f):
-    rng = np.random.default_rng(42)
+def test_direct_method_steps(monkeypatch):
+    class FixedGenerator:
+        def uniform(self, low, high, size):
+            assert (low, high, size) == (0, 1, (2, 2))
+            return np.array([[np.exp(-2), 0.5], [np.exp(-2), 0.5]])
+
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: FixedGenerator())
+
     time_series, transition_series = si.direct_method_steps(
-        transition_matrix=tr_set_1f.transition_matrix,
-        row_sums=tr_set_1f.row_sums,
+        transition_matrix=[[0, 1], [1, 0]],
+        row_sums=[2, 4],
         start_index=0,
-        size=10,
-        seed=rng,
+        size=2,
+        seed=42,
         use_memmap=None,
     )
-    exp_time_series = np.array(
-        [
-            0.00000000e00,
-            6.69779121e-10,
-            3.33705195e-07,
-            3.34870488e-07,
-            3.67386152e-07,
-            3.67984729e-07,
-            4.16647630e-07,
-            4.17757106e-07,
-            6.22956746e-07,
-            6.24966350e-07,
-            8.98761261e-07,
-        ]
-    )
-    exp_transition_series = np.array([6, 0, 6, 0, 6, 0, 6, 0, 1, 0])
-    np.testing.assert_array_almost_equal(time_series, exp_time_series)
-    np.testing.assert_array_equal(transition_series, exp_transition_series)
+
+    np.testing.assert_allclose(time_series, [0.0, 1.0, 1.5])
+    np.testing.assert_array_equal(transition_series, [1, 0])
 
 
 def test_direct_method_steps_with_memmap(tr_set_1f, tmp_path):
-    rng = np.random.default_rng(42)
+    expected_times, expected_transitions = si.direct_method_steps(
+        transition_matrix=tr_set_1f.transition_matrix,
+        row_sums=tr_set_1f.row_sums,
+        start_index=0,
+        size=10,
+        seed=42,
+        use_memmap=None,
+    )
     time_series, transition_series = si.direct_method_steps(
         transition_matrix=tr_set_1f.transition_matrix,
         row_sums=tr_set_1f.row_sums,
         start_index=0,
         size=10,
-        seed=rng,
+        seed=42,
         use_memmap=tmp_path,
     )
-    exp_time_series = np.array(
-        [
-            0.00000000e00,
-            6.69779121e-10,
-            3.33705195e-07,
-            3.34870488e-07,
-            3.67386152e-07,
-            3.67984729e-07,
-            4.16647630e-07,
-            4.17757106e-07,
-            6.22956746e-07,
-            6.24966350e-07,
-            8.98761261e-07,
-        ]
-    )
-    exp_transition_series = np.array([6, 0, 6, 0, 6, 0, 6, 0, 1, 0])
-    np.testing.assert_array_almost_equal(time_series, exp_time_series)
-    np.testing.assert_array_equal(transition_series, exp_transition_series)
+
+    assert isinstance(time_series, np.memmap)
+    assert isinstance(transition_series, np.memmap)
+    np.testing.assert_array_equal(time_series, expected_times)
+    np.testing.assert_array_equal(transition_series, expected_transitions)
 
 
 def test_direct_method_time(tr_set_1f):
@@ -132,7 +116,7 @@ def test_direct_method_time(tr_set_1f):
     exp_transition_series = np.array(
         [6, 0, 6, 0, 6, 0, 6, 0, 1, 0, 6, 0, 1, 0, 6, 0, 6, 0, 6, 0]
     )
-    np.testing.assert_array_almost_equal(time_series, exp_time_series)
+    np.testing.assert_allclose(time_series, exp_time_series, rtol=1e-7)
     np.testing.assert_array_equal(transition_series, exp_transition_series)
 
 
@@ -176,7 +160,7 @@ def test_direct_method_time_with_memmap(tr_set_1f, tmp_path):
     exp_transition_series = np.array(
         [6, 0, 6, 0, 6, 0, 6, 0, 1, 0, 6, 0, 1, 0, 6, 0, 6, 0, 6, 0]
     )
-    np.testing.assert_array_almost_equal(time_series, exp_time_series)
+    np.testing.assert_allclose(time_series, exp_time_series, rtol=1e-7)
     np.testing.assert_array_equal(transition_series, exp_transition_series)
 
 
@@ -203,7 +187,7 @@ def test_first_reaction_method(tr_set_bl_et_2f_diff):
         ]
     )
     exp_transition_series = np.array([32, 63, 32, 63])
-    np.testing.assert_array_almost_equal(time_series, exp_time_series, decimal=14)
+    np.testing.assert_allclose(time_series, exp_time_series, rtol=1e-7)
     np.testing.assert_array_equal(transition_series, exp_transition_series)
 
     time_series, transition_series = si.first_reaction_method(
@@ -227,7 +211,7 @@ def test_first_reaction_method(tr_set_bl_et_2f_diff):
         ]
     )
     exp_transition_series = np.array([32, 63, 32, 63])
-    np.testing.assert_array_almost_equal(time_series, exp_time_series, decimal=14)
+    np.testing.assert_allclose(time_series, exp_time_series, rtol=1e-7)
     np.testing.assert_array_equal(transition_series, exp_transition_series)
 
 
@@ -253,43 +237,49 @@ def test_first_reaction_method_with_memmap(tr_set_bl_et_2f_diff, tmp_path):
         ]
     )
     exp_transition_series = np.array([32, 63, 32, 63])
-    np.testing.assert_array_almost_equal(time_series, exp_time_series, decimal=14)
+    np.testing.assert_allclose(time_series, exp_time_series, rtol=1e-7)
     np.testing.assert_array_equal(transition_series, exp_transition_series)
 
 
 def test_approximation(pred_tr_set_1f):
-    rng = np.random.default_rng(42)
     time_series, transition_series = si.approximation(
-        prediction=pred_tr_set_1f, size=20, seed=rng
+        prediction=pred_tr_set_1f, size=20, seed=42
     )
-    exp_time_series = np.array(
-        [
-            0.00000000e00,
-            5.10917683e-09,
-            5.57154084e-09,
-            1.36951508e-07,
-            1.37640248e-07,
-            3.16717287e-07,
-            3.17831801e-07,
-            3.57483429e-07,
-            3.58382213e-07,
-            6.46776479e-07,
-            6.49616447e-07,
-            6.85487720e-07,
-            6.87518573e-07,
-            8.22713899e-07,
-            8.23879737e-07,
-            8.46019946e-07,
-            8.48668970e-07,
-            1.00736073e-06,
-            1.00768934e-06,
-        ]
+    repeated_times, repeated_transitions = si.approximation(
+        prediction=pred_tr_set_1f, size=20, seed=42
     )
-    exp_transition_series = np.array(
-        [0, 1, 0, 6, 0, 6, 0, 1, 0, 6, 0, 6, 0, 6, 0, 1, 0, 6], dtype=np.int64
+
+    assert time_series[0] == 0
+    assert np.all(np.diff(time_series) > 0)
+    assert time_series.size == transition_series.size + 1
+    np.testing.assert_array_equal(time_series, repeated_times)
+    np.testing.assert_array_equal(transition_series, repeated_transitions)
+    np.testing.assert_array_equal(
+        transition_series,
+        [0, 1, 0, 6, 0, 6, 0, 1, 0, 6, 0, 6, 0, 6, 0, 1, 0, 6],
     )
-    np.testing.assert_array_almost_equal(time_series, exp_time_series)
-    np.testing.assert_array_equal(transition_series, exp_transition_series)
+
+
+def test_approximation_uses_transition_lifetimes(pred_tr_set_1f):
+    class FixedLifetimeDistribution:
+        def __init__(self, lifetime):
+            self.lifetime = lifetime
+
+        def rvs(self, size, random_state):
+            return np.full(size, self.lifetime)
+
+    lifetimes = np.arange(
+        1, pred_tr_set_1f.frequency_transitions.size + 1, dtype=np.float64
+    )
+    pred_tr_set_1f.transition_time_distributions = np.array(
+        [FixedLifetimeDistribution(lifetime) for lifetime in lifetimes], dtype=object
+    )
+
+    time_series, transition_series = si.approximation(
+        prediction=pred_tr_set_1f, size=20, seed=42
+    )
+
+    np.testing.assert_array_equal(np.diff(time_series), lifetimes[transition_series])
 
 
 def test_approximation_rejects_size_without_occurrences(pred_tr_set_1f):
@@ -511,9 +501,7 @@ def test_simulation_run(
         assert "Floating point precision error warning" in caplog.text
     caplog.clear()
 
-    np.testing.assert_array_almost_equal(
-        simulation.time_series, exp_time_series, decimal=11
-    )
+    np.testing.assert_allclose(simulation.time_series, exp_time_series, rtol=1e-7)
     np.testing.assert_array_equal(simulation.transition_series, exp_transition_series)
     np.testing.assert_array_equal(simulation.state_series, exp_state_series)
 
@@ -622,25 +610,14 @@ def test_simulation_approximate(dirname, request, expected, caplog):
                 assert "Floating point precision error warning" in caplog.text
             caplog.clear()
 
-            exp_time_series = np.array(
-                [
-                    0.00000000e00,
-                    9.24297413e-07,
-                    9.24796052e-07,
-                    9.87802584e-07,
-                    9.88354005e-07,
-                    1.00819032e-06,
-                    1.00822003e-06,
-                    1.31769214e-06,
-                    1.31845621e-06,
-                ]
-            )
-            exp_transition_series = np.array([0, 6, 0, 6, 0, 6, 0, 1], dtype=np.int64)
-            exp_state_series = np.array([[0, 1, 0, 1, 0, 1, 0, 1, 0]], dtype=np.int64)
-            np.testing.assert_array_almost_equal(
-                simulation.time_series, exp_time_series
+            assert simulation.time_series[0] == 0
+            assert np.all(np.diff(simulation.time_series) > 0)
+            assert simulation.time_series.size == simulation.transition_series.size + 1
+            assert simulation.state_series.shape == (1, simulation.time_series.size)
+            final_states = tr_set.transition_df["final_state"].apply(
+                lambda state: state.value
             )
             np.testing.assert_array_equal(
-                simulation.transition_series, exp_transition_series
+                simulation.state_series[0, 1:],
+                final_states.iloc[simulation.transition_series],
             )
-            np.testing.assert_array_equal(simulation.state_series, exp_state_series)

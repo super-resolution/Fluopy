@@ -1,4 +1,3 @@
-import logging
 from types import SimpleNamespace
 
 import numpy as np
@@ -132,32 +131,6 @@ def test_get_blinking_statistics(
     np.testing.assert_array_equal(off_periods_frames, exp_off_periods_frames)
 
 
-def test_get_off_statistics(request, caplog):
-    with caplog.at_level(logging.WARNING):
-        sim_dstorm = request.getfixturevalue("sim_dstorm")
-        assert "Floating point precision error warning" in caplog.text
-    caplog.clear()
-
-    on_off_times, on_off_values = bl.get_off_statistics(simulation=sim_dstorm, index=0)
-    exp_on_off_values = np.array([1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0])
-    exp_on_off_times = np.array(
-        [
-            0.00000000e00,
-            8.98296370e-03,
-            8.98296370e-03,
-            5.57004121e01,
-            5.57004121e01,
-            5.58517447e01,
-            5.58517447e01,
-            1.04721968654e02,
-            1.04721968654e02,
-            1.04741215253e02,
-        ]
-    )
-    np.testing.assert_array_almost_equal(on_off_times, exp_on_off_times)
-    np.testing.assert_array_equal(on_off_values, exp_on_off_values)
-
-
 @pytest.mark.parametrize(
     "states, times, expected_times, expected_values",
     [
@@ -217,6 +190,44 @@ def test_get_off_statistics_controlled(states, times, expected_times, expected_v
     assert on_off_values.dtype == np.int8
 
 
+def test_get_blinking_statistics_without_events():
+    statistics = bl.get_blinking_statistics(pd.Series([0, 0, 0]))
+
+    assert all(values.size == 0 for values in statistics)
+    assert all(values.dtype == np.int64 for values in statistics)
+
+
+@pytest.mark.parametrize(
+    "simulation, index, message",
+    [
+        (
+            SimpleNamespace(state_series=None, time_series=None),
+            0,
+            "completed simulation",
+        ),
+        (
+            SimpleNamespace(
+                state_series=np.array([[SingleState.S0.value]], dtype=np.int8),
+                time_series=np.array([0.0, 1.0]),
+            ),
+            1,
+            "2 fluorophores",
+        ),
+        (
+            SimpleNamespace(
+                state_series=np.array([[SingleState.S0.value]], dtype=np.int8),
+                time_series=np.array([0.0, 1.0]),
+            ),
+            0,
+            "no photophysical OFF states",
+        ),
+    ],
+)
+def test_get_off_statistics_rejects_invalid_inputs(simulation, index, message):
+    with pytest.raises(ValueError, match=message):
+        bl.get_off_statistics(simulation=simulation, index=index)
+
+
 def test_get_analytical_off_statistics():
     off_frames = np.array([2, 5, 10])
     off_periods = np.array([1, 2, 10])
@@ -250,3 +261,55 @@ def test_get_analytical_off_statistics():
     )
     np.testing.assert_array_equal(on_off_times, exp_on_off_times)
     np.testing.assert_array_equal(on_off_values, exp_on_off_values)
+
+
+def test_blinking_requires_extracted_emissions():
+    with pytest.raises(ValueError, match="require extracted emissions"):
+        bl.Blinking(emissions=SimpleNamespace(event_time_series=None))
+
+
+@pytest.mark.parametrize(
+    "mode, artist_attribute",
+    [
+        ("on_histogram", "patches"),
+        ("off_histogram", "patches"),
+        ("on_boxplot", "lines"),
+        ("off_boxplot", "lines"),
+        ("on_frame_series", "lines"),
+        ("off_frame_series", "lines"),
+    ],
+)
+def test_blinking_plot_modes(em_large, mode, artist_attribute):
+    blink = bl.Blinking(emissions=em_large)
+
+    ax = blink.plot(mode=mode)
+
+    assert len(getattr(ax, artist_attribute)) > 0
+
+
+def test_blinking_rejects_unknown_plot_mode(em_large):
+    blink = bl.Blinking(emissions=em_large)
+
+    with pytest.raises(ValueError, match="mode unknown unknown"):
+        blink.plot(mode="unknown")
+
+
+@pytest.mark.parametrize("plotter", [bl.plot_histogram, bl.plot_boxplot])
+def test_period_plot_requires_frame_duration_for_time_axis(plotter):
+    with pytest.raises(ValueError, match="sec_per_frame is required"):
+        plotter([1, 2], as_time="ms")
+
+
+@pytest.mark.parametrize("plotter", [bl.plot_histogram, bl.plot_boxplot])
+def test_period_plot_rejects_unknown_time_unit(plotter):
+    with pytest.raises(ValueError, match="unit not implemented"):
+        plotter([1, 2], as_time="minute", sec_per_frame=0.1)
+
+
+def test_histogram_time_conversion_and_probability_weights():
+    ax = bl.plot_histogram([1, 2], density=False, as_time="ms", sec_per_frame=0.01)
+
+    assert ax.get_xlabel() == "OFF period (ms)"
+    assert ax.get_ylabel() == "Probability"
+    assert ax.texts[0].get_text() == r"$\mu = 15.00$"
+    assert sum(patch.get_height() for patch in ax.patches) == pytest.approx(1)

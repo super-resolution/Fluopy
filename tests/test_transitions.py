@@ -176,7 +176,6 @@ def test_transition_to_dict_preserves_objects():
 
 
 class TestTransitionSet:
-
     def test_init_empty(self, flu_sys_cy5):
         with pytest.raises(TypeError):
             tr.TransitionSet()
@@ -958,11 +957,11 @@ def test_derive_energy_transfer_transitions(
     )
     if expected == 0:
         assert len(transitions) == 3
-        assert transitions[0].rate == 248130286338181.22
+        assert transitions[0].rate == pytest.approx(248130286338181.22, rel=1e-12)
     elif expected == 1:
         assert len(transitions) == 1
     elif expected == 2:
-        assert transitions[0].rate == 0.1 * 248130286338181.22
+        assert transitions[0].rate == pytest.approx(0.1 * 248130286338181.22, rel=1e-12)
     elif expected == 3:
         assert len(transitions) == 2
     elif expected == 4:
@@ -973,7 +972,7 @@ def test_derive_energy_transfer_transitions(
                 assert_total_rate += transition.rate
                 if transition.abbreviation == "STA_B":
                     assert_rate = transition.rate
-        assert assert_rate == 0.5 * assert_total_rate
+        assert assert_rate == pytest.approx(0.5 * assert_total_rate, rel=1e-12)
 
 
 @pytest.mark.parametrize(
@@ -1121,8 +1120,7 @@ def test_derive_energy_transfer_without_donor_emission():
     with pytest.raises(
         ValueError,
         match=(
-            "cannot derive an energy-transfer rate without "
-            "a donor emission spectrum."
+            "cannot derive an energy-transfer rate without a donor emission spectrum."
         ),
     ):
         tr.derive_energy_transfer_transitions(
