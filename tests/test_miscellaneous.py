@@ -1,4 +1,8 @@
+from dataclasses import dataclass
+from types import SimpleNamespace
+
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import pytest
 from PIL import Image
@@ -49,6 +53,15 @@ def test_create_row_subtitles():
     assert all(not ax.axison for ax in fig.axes[-2:])
 
 
+def test_create_row_subtitles_uses_default_titles():
+    fig, axes = plt.subplots(2, 1)
+
+    create_row_subtitles(axes=axes, nrows=2, titles=None)
+
+    assert [ax.get_title() for ax in fig.axes[-2:]] == ["default_title"] * 2
+    plt.close(fig)
+
+
 def test_add_table():
     fig, ax = plt.subplots(2, 1)
     return_value = add_table(
@@ -58,6 +71,21 @@ def test_add_table():
     )
     assert return_value is ax
     assert len(fig.axes[-1].tables) == 1
+
+
+def test_add_table_accepts_array_data_and_current_axes():
+    fig, ax = plt.subplots()
+    plt.sca(ax)
+
+    result = add_table(
+        axes=None,
+        data=np.array([[1], [2]]),
+        labels=["one", "two"],
+    )
+
+    assert result is ax
+    assert len(fig.axes[-1].tables) == 1
+    plt.close(fig)
 
 
 def test_get_figures():
@@ -71,12 +99,31 @@ def test_get_figures():
     plt.close(fig)
 
 
+def test_get_figure_rejects_detached_axes():
+    axes = SimpleNamespace(get_figure=lambda: None)
+
+    with pytest.raises(ValueError, match="not attached to a figure"):
+        get_figure(axes=axes)
+
+
 def test_print_class(capsys):
     instance = plt.Figure()
     assert print_class(class_instance=instance) is None
     captured = capsys.readouterr()
     assert "Figure" in captured.out
     plt.close()
+
+
+def test_print_class_handles_dataclasses_and_pandas(capsys):
+    @dataclass
+    class Record:
+        value: int
+
+    print_class(Record(value=3))
+    assert "value = 3" in capsys.readouterr().out
+
+    print_class(SimpleNamespace(data=pd.Series(range(7))))
+    assert "data[:6]" in capsys.readouterr().out
 
 
 def test_format_electronic_state():

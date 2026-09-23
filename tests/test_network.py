@@ -223,6 +223,39 @@ def test_plot_graph_without_distance():
     plt.close(ax.figure)
 
 
+@pytest.mark.parametrize("graph_type", ["circular", "planar", "kamada"])
+def test_plot_graph_layouts_and_secondary_node_labels(graph_type):
+    graph = nx.MultiDiGraph()
+    graph.add_edge("S0", "S1(2)", w="EXC", dist="distance")
+    _, ax = plt.subplots()
+
+    result = net.plot_graph(
+        G=graph,
+        graph_type=graph_type,
+        colors=["red", "blue"],
+        ax=ax,
+    )
+
+    assert result is ax
+    assert "S1" in [text.get_text() for text in ax.texts]
+    plt.close(ax.figure)
+
+
+def test_plot_graph_draws_parallel_and_reversed_edges():
+    graph = nx.MultiDiGraph()
+    graph.add_edge("S0", "S1", w="first")
+    graph.add_edge("S0", "S1", w="parallel")
+    graph.add_edge("S1", "S0", w="reverse")
+    _, ax = plt.subplots()
+
+    result = net.plot_graph(G=graph, ax=ax)
+
+    assert result is ax
+    edge_labels = [text.get_text() for text in ax.texts]
+    assert set(edge_labels) >= {"first", "parallel", "reverse"}
+    plt.close(ax.figure)
+
+
 @pytest.mark.visual
 def test_plot_graph_visual():
     G = nx.MultiDiGraph()
@@ -238,6 +271,22 @@ def test_draw_networkx_curved_edge_labels():
         G=G, pos=pos, ax=None, edge_labels=None, rad=0
     )
     assert isinstance(ax, matplotlib.axes.Axes)
+
+
+def test_draw_networkx_curved_edge_labels_for_simple_graph():
+    graph = nx.DiGraph()
+    graph.add_edge("S0", "S1", w="EXC")
+    _, ax = plt.subplots()
+
+    result = net.draw_networkx_curved_edge_labels(
+        G=graph,
+        pos={"S0": (0, 0), "S1": (1, 0)},
+        ax=ax,
+    )
+
+    assert result is ax
+    assert [text.get_text() for text in ax.texts] == ["EXC"]
+    plt.close(ax.figure)
 
 
 @pytest.mark.visual

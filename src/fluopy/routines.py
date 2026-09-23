@@ -222,16 +222,10 @@ def fingerprint_analysis(
                 else:
                     start = 0
                 start_index = np.searchsorted(event_time_points, start)
-                if bleaching_times.size > n:
-                    end_index = np.searchsorted(event_time_points, bleaching_times[n])
-                    delta_times_photons_between_bleaching[n].append(
-                        event_time_points[start_index:end_index] - start
-                    )
-                else:
-                    delta_times_photons_between_bleaching[n].append(
-                        event_time_points[start_index:] - start
-                    )  # the delta, not the actual times
-                    break
+                end_index = np.searchsorted(event_time_points, bleaching_times[n])
+                delta_times_photons_between_bleaching[n].append(
+                    event_time_points[start_index:end_index] - start
+                )
 
             emission_post_processing(emis=emis, seed=rng)
             event_time_series = emis.event_time_series

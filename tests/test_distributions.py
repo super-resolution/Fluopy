@@ -108,6 +108,20 @@ def test_hypoexponential_distribution_rejects_ill_conditioned_rates(call):
 
 
 @pytest.mark.parametrize(
+    "rates, exception, message",
+    [
+        ([], ValueError, "At least one rate"),
+        ([np.nan], ValueError, "Rates must be finite"),
+        ([0], ValueError, "Rates must be positive"),
+        ([1, 1], IllConditionedHypoexponentialError, "Rates must be distinct"),
+    ],
+)
+def test_hypoexponential_distribution_rejects_invalid_rates(rates, exception, message):
+    with pytest.raises(exception, match=message):
+        hypoexponential_distribution_cdf(1, *rates)
+
+
+@pytest.mark.parametrize(
     "call, expected",
     [
         (hypoexponential_distribution_cdf, 0.01607397677271227),
@@ -149,7 +163,6 @@ def test_fingerprint_skips_zero_weight_ill_conditioned_combinations():
 
 
 class TestPhotoswitchingFingerprintModel:
-
     pfm = Photoswitching_fingerprint_model(
         params={0: [1, 0, 1, 0.7], 1: [0.7, 0.3, 0.7, 0.5], 2: [0.5, 0.5, 0.5, 0.3]},
     )
@@ -202,6 +215,25 @@ class TestPhotoswitchingFingerprintModel:
         assert model.pdf_part(None, x=3, i=0, normalize=True) == 0
         assert model.cdf_part(x=3, i=0, normalize=False) < 1
         assert model.cdf_part(x=3, i=0, normalize=True) == 1
+
+    def test_PFM_supports_semi_infinite_domain(self):
+        model = Photoswitching_fingerprint_model(
+            params={0: [1, 0, 1, 0.7]},
+            domain=(1, np.inf),
+        )
+
+        assert model.pdf(2) == pytest.approx(np.exp(-1))
+        assert model.pdf_part(None, x=2, i=0, normalize=True) == pytest.approx(
+            np.exp(-1)
+        )
+        assert model.cdf(2) == pytest.approx(1 - np.exp(-1))
+        assert model.cdf_part(x=2, i=0, normalize=True) == pytest.approx(1 - np.exp(-1))
+
+    def test_logp_and_quantile_function(self):
+        assert self.pfm.logp(2) == pytest.approx(np.log(self.pfm.pdf(2)))
+
+        with pytest.raises(ValueError, match="no closed form"):
+            self.pfm.quantile_function()
 
 
 def test_photoswitching_fingerprint_prepare():
@@ -258,6 +290,29 @@ def test_map_to_lambdas():
     )
 
 
+def test_map_to_lambdas_with_three_component_stage():
+    params = {
+        0: [1, 0, 3, 1.5],
+        1: [1, 0, 0, 2, 1, 0.5],
+        2: [0.5, 0.5, 0.4, 0.2],
+    }
+    combinations = generate_combinations(n=3, z=1)
+
+    lambdas = map_to_lambdas(combos=combinations, params=params, z=1)
+
+    np.testing.assert_array_equal(
+        lambdas,
+        [
+            [3, 2, 0.4],
+            [3, 2, 0.2],
+            [3, 1, 0.2],
+            [3, 0.5, 0.2],
+            [1.5, 1, 0.2],
+            [1.5, 0.5, 0.2],
+        ],
+    )
+
+
 def test_get_pis():
     valid_combinations = generate_combinations(n=3, z=-1)
     params = {0: [1, 0, 1, 0.7], 1: [0.7, 0.3, 0.7, 0.5], 2: [0.5, 0.5, 0.5, 0.3]}
@@ -311,6 +366,15 @@ class TestExponentialMixtureModel:
         np.testing.assert_array_equal(model.pdf(x)[[0, 4]], [0, 0])
         np.testing.assert_array_equal(model.cdf(x)[[0, 1, 3, 4]], [0, 0, 1, 1])
         assert 0 < model.untruncated_cdf(3) < 1
+
+    def test_semi_infinite_domain(self):
+        model = ExponentialMixtureModel(
+            params={"lambdas": [1], "pis": []},
+            domain=(1, np.inf),
+        )
+
+        assert model.pdf(2) == pytest.approx(np.exp(-1))
+        assert model.cdf(2) == pytest.approx(1 - np.exp(-1))
 
 
 class TestExponentialMixtureMarginalModel:
@@ -371,3 +435,22 @@ class TestExponentialMixtureMarginalModel:
         assert model.observation_probability == pytest.approx(1, rel=2e-3)
         assert np.all(np.diff(model.cdf_grid) >= 0)
         assert model.cdf_grid[-1] == 1
+
+    @pytest.mark.parametrize("truncation_up", [0, np.inf])
+    def test_rejects_invalid_truncation(self, truncation_up):
+        with pytest.raises(ValueError, match="truncation_up must be finite"):
+            ExponentialMixtureMarginalModel(
+                params={"lambdas": [1], "pis": []},
+                pfa_cdf_part=lambda x, i, normalize: 0.5,
+                cdf_part_index=0,
+                truncation_up=truncation_up,
+            )
+
+    def test_rejects_invalid_observation_probability(self):
+        with pytest.raises(ValueError, match="observation probability is invalid"):
+            ExponentialMixtureMarginalModel(
+                params={"lambdas": [1], "pis": []},
+                pfa_cdf_part=lambda x, i, normalize: np.zeros_like(x),
+                cdf_part_index=0,
+                truncation_up=1,
+            )
