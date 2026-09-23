@@ -63,6 +63,39 @@ def test_fcs_autocorrelation_requires_emission_data(small_emissions, attribute, 
         getattr(fcs_obj, method)()
 
 
+def test_fcs_autocorrelate_time_points_small_fixture(
+    small_emissions, caplog, monkeypatch
+):
+    correlation = np.array([4.0, 2.0])
+    correlation_arguments = {}
+
+    def event_time_correlation(**kwargs):
+        correlation_arguments.update(kwargs)
+        return correlation
+
+    monkeypatch.setattr(fcs_p, "_event_time_correlation", event_time_correlation)
+    fcs_obj = fcs_p.FCS(emissions=small_emissions)
+
+    result = fcs_obj.autocorrelate_time_points(
+        exp_min=-1, exp_max=1, points_per_base=2, base=10, normalize=False
+    )
+
+    bins = np.logspace(-1, 0, 3)
+    assert result is fcs_obj
+    assert "exp_max is adjusted to 0" in caplog.text
+    np.testing.assert_allclose(fcs_obj.tau, np.mean([bins[1:], bins[:-1]], axis=0))
+    np.testing.assert_array_equal(fcs_obj.autocorrelation, correlation)
+    np.testing.assert_array_equal(correlation_arguments.pop("t"), [0.1, 0.4, 0.9, 1.6])
+    np.testing.assert_array_equal(correlation_arguments.pop("u"), [0.1, 0.4, 0.9, 1.6])
+    np.testing.assert_allclose(correlation_arguments.pop("bins"), bins)
+    assert correlation_arguments == {
+        "normalize": False,
+        "start_time": 0,
+        "end_time": 1.6,
+    }
+
+
+@pytest.mark.slow
 def test_fcs_autocorrelate_time_points(em_very_large, caplog):
     fcs_obj = fcs_p.FCS(emissions=em_very_large)
 

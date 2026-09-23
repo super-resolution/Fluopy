@@ -731,6 +731,7 @@ def test_simulate_TCSPC(
         np.testing.assert_allclose(event_time_series.values.sum(), 4e4 + 1e4, rtol=1e-1)
 
 
+@pytest.mark.slow
 def test_simulate_TCSPC_detailed(request, caplog):
     rng = np.random.default_rng(42)
     transition_set = request.getfixturevalue("tr_set_bl_et_2f_diff")
