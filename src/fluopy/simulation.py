@@ -662,7 +662,7 @@ def first_reaction_method(
         The simulated transitions. At index i, they correspond to time_series[i + 1].
     """
     matrix = np.asarray(transition_matrix, dtype=np.float64)
-    rates = np.asarray(row_sums, dtype=np.float64)
+    state_rates = np.asarray(row_sums, dtype=np.float64)
     rng = np.random.default_rng(seed)
 
     time_step_series: npt.NDArray[np.float32]
@@ -693,7 +693,7 @@ def first_reaction_method(
         transition_series = np.empty(size, dtype=np.uint32)
         time_series = np.empty(size + 1, dtype=np.float64)
 
-    row_sums_exp = np.tile(np.expand_dims(rates, axis=1), reps=rates.size)
+    row_sums_exp = np.tile(np.expand_dims(state_rates, axis=1), reps=state_rates.size)
     transition_rate_matrix = matrix * row_sums_exp
 
     time_step_series[0] = 0
@@ -722,14 +722,14 @@ def first_reaction_method(
     current_state_index = start_index
     absorbing_state_reached = False
     for i in range(size):
-        if rates[current_state_index] == 0:
+        if state_rates[current_state_index] == 0:
             # the Markov chain has encountered an absorbing state
             absorbing_state_reached = True
             break
-        rates = transition_rate_matrix[current_state_index, :].copy()
-        rates[fret_indices] *= kappa_squared_ratio[i]
-        non_zero_indices = np.nonzero(rates)[0]
-        non_zero_rates = rates[non_zero_indices]
+        transition_rates = transition_rate_matrix[current_state_index, :].copy()
+        transition_rates[fret_indices] *= kappa_squared_ratio[i]
+        non_zero_indices = np.nonzero(transition_rates)[0]
+        non_zero_rates = transition_rates[non_zero_indices]
         times = rng.exponential(scale=1 / non_zero_rates)
         min_index = np.argmin(times)
         transition_series[i] = current_state_index = non_zero_indices[min_index]

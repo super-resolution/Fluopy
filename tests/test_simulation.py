@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 
+import networkx as nx
 import numpy as np
 import pandas as pd
 import pytest
@@ -50,6 +51,25 @@ def test_direct_method_steps(monkeypatch):
 
     np.testing.assert_allclose(time_series, [0.0, 1.0, 1.5])
     np.testing.assert_array_equal(transition_series, [1, 0])
+
+
+@pytest.mark.parametrize("use_memmap", [False, True])
+def test_direct_method_steps_stops_at_absorbing_state(use_memmap, tmp_path):
+    memmap_path = tmp_path if use_memmap else None
+
+    time_series, transition_series = si.direct_method_steps(
+        transition_matrix=[[0, 1], [0, 0]],
+        row_sums=[1, 0],
+        start_index=0,
+        size=3,
+        seed=42,
+        use_memmap=memmap_path,
+    )
+
+    assert isinstance(time_series, np.memmap) is use_memmap
+    assert isinstance(transition_series, np.memmap) is use_memmap
+    assert time_series.shape == (2,)
+    np.testing.assert_array_equal(transition_series, [1])
 
 
 def test_direct_method_steps_with_memmap(tr_set_1f, tmp_path):
@@ -118,6 +138,20 @@ def test_direct_method_time(tr_set_1f):
     )
     np.testing.assert_allclose(time_series, exp_time_series, rtol=1e-7)
     np.testing.assert_array_equal(transition_series, exp_transition_series)
+
+
+def test_direct_method_time_stops_at_absorbing_state():
+    time_series, transition_series = si.direct_method_time(
+        transition_matrix=[[0, 1], [0, 0]],
+        row_sums=[1, 0],
+        start_index=0,
+        size=3,
+        end_time=10,
+        seed=42,
+    )
+
+    assert time_series[-1] == 10
+    np.testing.assert_array_equal(transition_series, [1])
 
 
 def test_direct_method_time_with_memmap(tr_set_1f, tmp_path):
@@ -239,6 +273,33 @@ def test_first_reaction_method_with_memmap(tr_set_bl_et_2f_diff, tmp_path):
     exp_transition_series = np.array([32, 63, 32, 63])
     np.testing.assert_allclose(time_series, exp_time_series, rtol=1e-7)
     np.testing.assert_array_equal(transition_series, exp_transition_series)
+
+
+@pytest.mark.parametrize("use_memmap", [False, True])
+def test_first_reaction_method_stops_at_absorbing_state(use_memmap, tmp_path):
+    transitions = pd.DataFrame(
+        {
+            "fluorophore_ids": [[0], [0]],
+            "rate": [1.0, 0.0],
+        }
+    )
+    memmap_path = tmp_path if use_memmap else None
+
+    time_series, transition_series = si.first_reaction_method(
+        transition_matrix=[[0, 1], [0, 0]],
+        row_sums=[1, 0],
+        combined_state_transitions_df=transitions,
+        include_kap_sq=False,
+        start_index=0,
+        size=3,
+        seed=42,
+        use_memmap=memmap_path,
+    )
+
+    assert isinstance(time_series, np.memmap) is use_memmap
+    assert isinstance(transition_series, np.memmap) is use_memmap
+    assert time_series.shape == (2,)
+    np.testing.assert_array_equal(transition_series, [1])
 
 
 def test_approximation(pred_tr_set_1f):
@@ -574,6 +635,42 @@ def test_simulation_run_rejects_invalid_boundaries(tr_set_1f):
         simulation.run(start_at=(99,), size=10, seed=42)
 
 
+def test_simulation_run_requires_transition_output(tr_set_1f, monkeypatch):
+    monkeypatch.setattr(
+        si,
+        "direct_method_steps",
+        lambda **kwargs: (np.array([0.0]), None),
+    )
+
+    with pytest.raises(RuntimeError, match="did not produce a transition series"):
+        si.Simulation(tr_set_1f).run(size=1, seed=42)
+
+
+def test_delete_memmaps_validates_all_arrays(tr_set_1f, tmp_path):
+    simulation = si.Simulation(tr_set_1f)
+    with pytest.raises(ValueError, match="transition_series is not a memmap"):
+        simulation.delete_memmaps()
+
+    transition = np.memmap(tmp_path / "transition", mode="w+", dtype=np.uint32, shape=1)
+    simulation.transition_series = transition
+    with pytest.raises(ValueError, match="time_series is not a memmap"):
+        simulation.delete_memmaps()
+
+    time = np.memmap(tmp_path / "time", mode="w+", dtype=np.float64, shape=1)
+    simulation.time_series = time
+    with pytest.raises(ValueError, match="state_series is not a memmap"):
+        simulation.delete_memmaps()
+
+    state = np.memmap(tmp_path / "state", mode="w+", dtype=np.int8, shape=(1, 1))
+    simulation.state_series = state
+    with pytest.raises(ValueError, match="memmap path is unavailable"):
+        simulation.delete_memmaps()
+
+    transition._mmap.close()
+    time._mmap.close()
+    state._mmap.close()
+
+
 @pytest.mark.parametrize(
     "dirname, expected",
     [
@@ -621,3 +718,80 @@ def test_simulation_approximate(dirname, request, expected, caplog):
                 simulation.state_series[0, 1:],
                 final_states.iloc[simulation.transition_series],
             )
+
+
+def test_simulation_approximate_warns_for_absorbing_chain(pred_tr_set_1f_bl, caplog):
+    simulation = si.Simulation(pred_tr_set_1f_bl.transition_set)
+
+    with caplog.at_level(logging.WARNING):
+        simulation.approximate(pred_tr_set_1f_bl, size=20, seed=42)
+
+    assert "approximation ignors absorbing states" in caplog.text
+
+
+def test_approximation_rejects_unsuitable_graph(pred_tr_set_1f, monkeypatch):
+    monkeypatch.setattr(si.net, "check_graph_suitable", lambda **kwargs: (False, []))
+
+    with pytest.raises(ValueError, match="graph not suited for approximation"):
+        si.approximation(pred_tr_set_1f, size=20, seed=42)
+
+
+def test_approximation_requires_transition_time_distributions(pred_tr_set_1f):
+    pred_tr_set_1f.transition_time_distributions = None
+
+    with pytest.raises(ValueError, match="transition-time distributions"):
+        si.approximation(pred_tr_set_1f, size=20, seed=42)
+
+
+def test_approximation_handles_terminal_transition(pred_tr_set_1f, monkeypatch):
+    occurrences = (pred_tr_set_1f.frequency_transitions * 20).astype(np.int64)
+    starting_transition = int(np.argmax(occurrences))
+    graph = nx.DiGraph()
+    graph.add_node(starting_transition)
+    monkeypatch.setattr(si.net, "construct_transition_graph", lambda **kwargs: graph)
+    monkeypatch.setattr(si.net, "check_graph_suitable", lambda **kwargs: (True, []))
+    monkeypatch.setattr(
+        si.net, "determine_node_order", lambda **kwargs: iter([starting_transition])
+    )
+
+    time_series, transition_series = si.approximation(pred_tr_set_1f, size=20, seed=42)
+
+    assert time_series.size == transition_series.size + 1
+
+
+def test_approximation_ignores_absorbing_successors(pred_tr_set_1f_bl, monkeypatch):
+    prediction = pred_tr_set_1f_bl
+    occurrences = (prediction.frequency_transitions * 20).astype(np.int64)
+    starting_transition = int(np.argmax(occurrences))
+    transition_df = prediction.transition_set.transition_df
+    absorbing_transition = int(
+        transition_df[transition_df["absorbing"]].index.get_level_values(1)[0]
+    )
+    graph = nx.DiGraph([(starting_transition, absorbing_transition)])
+    monkeypatch.setattr(si.net, "construct_transition_graph", lambda **kwargs: graph)
+    monkeypatch.setattr(si.net, "check_graph_suitable", lambda **kwargs: (True, []))
+    monkeypatch.setattr(
+        si.net, "determine_node_order", lambda **kwargs: iter([starting_transition])
+    )
+
+    time_series, transition_series = si.approximation(prediction, size=20, seed=42)
+
+    assert time_series.size == transition_series.size + 1
+
+
+def test_simulate_experiment_stops_at_absorbing_state(caplog):
+    with caplog.at_level(logging.WARNING):
+        event_time_points, event_time_series = si.simulate_experiment(
+            transition_matrix=[[0]],
+            row_sums=[0],
+            emitting_transition_ids={},
+            start_index=0,
+            frames=2,
+            frame_time="1ms",
+            store_time_points=True,
+            seed=42,
+        )
+
+    np.testing.assert_array_equal(event_time_points, [])
+    np.testing.assert_array_equal(event_time_series, [0, 0, 0])
+    assert "absorbing state" in caplog.text
