@@ -8,48 +8,6 @@ import scipy.stats as stats
 
 from fluopy import prediction as pr
 
-
-@pytest.mark.parametrize(
-    "drop_transitions, exp_Q",
-    [
-        [np.array([0, 1]), np.array([[0.0, 0.8], [0.4, 0.0]])],
-        [0, np.array([[0.0, 0.05, 0.05], [0.1, 0.0, 0.8], [0.3, 0.4, 0.0]])],
-    ],
-)
-def test_get_Q(drop_transitions, exp_Q):
-    P = np.array(
-        [
-            [0, 0.3, 0.4, 0.3],
-            [0.9, 0, 0.05, 0.05],
-            [0.1, 0.1, 0, 0.8],
-            [0.3, 0.3, 0.4, 0],
-        ]
-    )
-    Q = pr.get_Q(P=P, drop_transitions=drop_transitions)
-    np.testing.assert_array_equal(Q, exp_Q)
-
-
-def test_get_I_t():
-    Q = np.array([[0.0, 0.05, 0.05], [0.1, 0.0, 0.8], [0.3, 0.4, 0.0]])
-    I_t = pr.get_I_t(Q=Q)
-    exp_I_t = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-    np.testing.assert_array_equal(I_t, exp_I_t)
-
-
-def test_get_N():
-    Q = np.array([[0.0, 0.05, 0.05], [0.1, 0.0, 0.8], [0.3, 0.4, 0.0]])
-    I_t = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-    N = pr.get_N(I_t=I_t, Q=Q)
-    exp_N = np.array(
-        [
-            [1.05263158, 0.10835913, 0.13931889],
-            [0.52631579, 1.5247678, 1.24613003],
-            [0.52631579, 0.64241486, 1.54024768],
-        ]
-    )
-    np.testing.assert_array_almost_equal(N, exp_N)
-
-
 # test_prediction_# includes testing of...
 # ...predict_transition_occurrences()
 # ...predict_transition_occurrences_abs()
@@ -116,6 +74,27 @@ def test_absorbing_prediction_uses_initial_state_index(tr_set_1f_bl):
     )
 
     assert not np.array_equal(frequencies_0, frequencies_1)
+
+
+def test_absorbing_prediction_started_in_absorbing_state_is_zero(tr_set_1f_bl):
+    prediction = pr.Prediction.__new__(pr.Prediction)
+    prediction.transition_set = tr_set_1f_bl
+    prediction._absorbing_state_combinations = (
+        prediction._get_absorbing_state_combinations()
+    )
+    combined_transitions = tr_set_1f_bl.combined_state_transitions_df
+    absorbing_states = set(prediction._absorbing_state_combinations)
+    absorbing_indices = combined_transitions.index[
+        combined_transitions["final_state"].isin(absorbing_states)
+    ]
+
+    frequencies = prediction.predict_transition_occurrences_absorbing(
+        initial_state_index=int(absorbing_indices[0])
+    )
+
+    np.testing.assert_array_equal(
+        frequencies, np.zeros(tr_set_1f_bl.transition_df.shape[0])
+    )
 
 
 def test_prediction_rejects_partial_absorption(tr_set_bl_et_2f_diff):
@@ -612,3 +591,224 @@ def test_prediction_7(tr_set_1f):
     }
     for fluorophore, occ in prediction.state_occupations.items():
         np.testing.assert_allclose(occ, exp_state_occ[fluorophore], rtol=1e-6)
+
+
+def test_infer_stats_rejects_unavailable_lifetimes():
+    prediction = pr.Prediction.__new__(pr.Prediction)
+    prediction.lifetime_distributions = None
+
+    with pytest.raises(ValueError, match="unavailable for energy transfer"):
+        prediction.infer_stats()
+
+
+@pytest.mark.parametrize(
+    "method, attribute, ylabel",
+    [
+        ("plot_frequency_transitions", "frequency_transitions", "Prob. occurrence"),
+        ("plot_mean_transition_times", "mean_transition_times", r"$\tau$ (s)"),
+    ],
+)
+def test_prediction_transition_bar_plots(pred_tr_set_1f, method, attribute, ylabel):
+    expected = getattr(pred_tr_set_1f, attribute)
+
+    ax = getattr(pred_tr_set_1f, method)(yscale="linear")
+
+    np.testing.assert_allclose([patch.get_height() for patch in ax.patches], expected)
+    assert ax.get_yscale() == "linear"
+    assert ax.get_ylabel() == ylabel
+    assert [text.get_text() for text in ax.get_legend().get_texts()] == ["testfluo_1"]
+    assert len(ax.get_xticklabels()) == expected.size
+
+
+@pytest.mark.parametrize(
+    "method, attribute, ylabel",
+    [
+        ("plot_frequency_states", "frequency_states", "Prob. occurrence"),
+        ("plot_mean_lifetimes", "mean_lifetimes", r"$\tau$ (s)"),
+        ("plot_state_occupations", "state_occupations", "Prob. occupation"),
+    ],
+)
+def test_prediction_state_bar_plots(pred_tr_set_1f, method, attribute, ylabel):
+    values_by_fluorophore = getattr(pred_tr_set_1f, attribute)
+    expected = np.concatenate(list(values_by_fluorophore.values()))
+
+    ax = getattr(pred_tr_set_1f, method)(yscale="linear")
+
+    np.testing.assert_allclose([patch.get_height() for patch in ax.patches], expected)
+    assert ax.get_yscale() == "linear"
+    assert ax.get_ylabel() == ylabel
+    assert [text.get_text() for text in ax.get_legend().get_texts()] == ["testfluo_1"]
+    assert len(ax.get_xticklabels()) == expected.size
+
+
+def test_prediction_distribution_plots(pred_tr_set_1f):
+    fluorophore = "testfluo_1"
+    state_identity = int(pred_tr_set_1f.transition_set.single_states[fluorophore][0])
+    state_index = 0
+
+    lifetime_ax = pred_tr_set_1f.plot_lifetime_distributions(
+        fluorophore=fluorophore, state_identity=state_identity
+    )
+    lifetime_x = lifetime_ax.lines[0].get_xdata()
+    lifetime_distribution = pred_tr_set_1f.lifetime_distributions[fluorophore][
+        state_index
+    ]
+    assert lifetime_x.size == 1000
+    assert lifetime_x[-1] == pytest.approx(
+        pred_tr_set_1f.mean_lifetimes[fluorophore][state_index] * 10
+    )
+    np.testing.assert_allclose(
+        lifetime_ax.lines[0].get_ydata(), lifetime_distribution.pdf(lifetime_x)
+    )
+    assert lifetime_ax.get_xlabel() == "lifetime [s]"
+    assert lifetime_ax.get_ylabel() == "PD"
+
+    transition_x = np.array([0.0, 1e-9, 2e-9])
+    transition_ax = pred_tr_set_1f.plot_transition_time_distributions(
+        fluorophore=fluorophore, transition_id=0, x=transition_x
+    )
+    transition_distribution = pred_tr_set_1f.transition_time_distributions[0]
+    np.testing.assert_array_equal(transition_ax.lines[0].get_xdata(), transition_x)
+    np.testing.assert_allclose(
+        transition_ax.lines[0].get_ydata(), transition_distribution.pdf(transition_x)
+    )
+    assert transition_ax.get_xlabel() == "time to transition [s]"
+    assert transition_ax.get_ylabel() == "PD"
+
+    default_transition_ax = pred_tr_set_1f.plot_transition_time_distributions(
+        fluorophore=fluorophore, transition_id=0
+    )
+    default_transition_x = default_transition_ax.lines[0].get_xdata()
+    assert default_transition_x.size == 1000
+    assert default_transition_x[-1] == pytest.approx(
+        pred_tr_set_1f.mean_transition_times[0] * 10
+    )
+
+
+def test_prediction_rejects_constant_lifetime_plot(pred_tr_set_1f_bl):
+    fluorophore = "testfluo_1"
+    absorbing_state = int(
+        pred_tr_set_1f_bl.transition_set.single_states[fluorophore][-1]
+    )
+
+    with pytest.raises(ValueError, match="lifetimes are all equal to inf"):
+        pred_tr_set_1f_bl.plot_lifetime_distributions(
+            fluorophore=fluorophore, state_identity=absorbing_state
+        )
+
+
+@pytest.mark.parametrize(
+    "method, arguments, message",
+    [
+        ("plot_mean_transition_times", {}, "mean_transition_times"),
+        ("plot_mean_lifetimes", {}, "mean_lifetimes"),
+        ("plot_state_occupations", {}, "state_occupations"),
+        (
+            "plot_lifetime_distributions",
+            {"fluorophore": "testfluo_1", "state_identity": 0},
+            "lifetime_distributions",
+        ),
+        (
+            "plot_transition_time_distributions",
+            {"fluorophore": "testfluo_1", "transition_id": 0},
+            "transition_time_distributions",
+        ),
+    ],
+)
+def test_prediction_plots_reject_energy_transfer(method, arguments, message):
+    prediction = pr.Prediction.__new__(pr.Prediction)
+    prediction.energy_transfer = True
+
+    with pytest.raises(ValueError, match=message):
+        getattr(prediction, method)(**arguments)
+
+
+@pytest.mark.parametrize(
+    "method, attribute, arguments, message",
+    [
+        (
+            "plot_mean_transition_times",
+            "mean_transition_times",
+            {},
+            "mean transition times are unavailable",
+        ),
+        (
+            "plot_mean_lifetimes",
+            "mean_lifetimes",
+            {},
+            "mean lifetimes are unavailable",
+        ),
+        (
+            "plot_state_occupations",
+            "state_occupations",
+            {},
+            "state occupations are unavailable",
+        ),
+        (
+            "plot_lifetime_distributions",
+            "lifetime_distributions",
+            {"fluorophore": "testfluo_1", "state_identity": 0},
+            "lifetime distributions are unavailable",
+        ),
+        (
+            "plot_transition_time_distributions",
+            "transition_time_distributions",
+            {"fluorophore": "testfluo_1", "transition_id": 0},
+            "transition-time distributions are unavailable",
+        ),
+    ],
+)
+def test_prediction_plots_reject_missing_statistics(
+    method, attribute, arguments, message
+):
+    prediction = pr.Prediction.__new__(pr.Prediction)
+    prediction.energy_transfer = False
+    setattr(prediction, attribute, None)
+    if method == "plot_lifetime_distributions":
+        prediction.mean_lifetimes = {"testfluo_1": np.array([1.0])}
+    elif method == "plot_transition_time_distributions":
+        prediction.mean_transition_times = np.array([1.0])
+
+    with pytest.raises(ValueError, match=message):
+        getattr(prediction, method)(**arguments)
+
+
+@pytest.mark.parametrize(
+    "drop_transitions, exp_Q",
+    [
+        [np.array([0, 1]), np.array([[0.0, 0.8], [0.4, 0.0]])],
+        [0, np.array([[0.0, 0.05, 0.05], [0.1, 0.0, 0.8], [0.3, 0.4, 0.0]])],
+    ],
+)
+def test_get_Q(drop_transitions, exp_Q):
+    P = np.array(
+        [
+            [0, 0.3, 0.4, 0.3],
+            [0.9, 0, 0.05, 0.05],
+            [0.1, 0.1, 0, 0.8],
+            [0.3, 0.3, 0.4, 0],
+        ]
+    )
+    Q = pr.get_Q(P=P, drop_transitions=drop_transitions)
+    np.testing.assert_array_equal(Q, exp_Q)
+
+
+def test_get_I_t():
+    Q = np.array([[0.0, 0.05, 0.05], [0.1, 0.0, 0.8], [0.3, 0.4, 0.0]])
+    I_t = pr.get_I_t(Q=Q)
+    exp_I_t = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+    np.testing.assert_array_equal(I_t, exp_I_t)
+
+
+def test_get_N():
+    Q = np.array([[0.0, 0.05, 0.05], [0.1, 0.0, 0.8], [0.3, 0.4, 0.0]])
+    I_t = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+    N = pr.get_N(I_t=I_t, Q=Q)
+    exp_N = np.array(
+        [
+            [1.05263158, 0.10835913, 0.13931889],
+            [0.52631579, 1.5247678, 1.24613003],
+            [0.52631579, 0.64241486, 1.54024768],
+        ]
+    )
+    np.testing.assert_allclose(N, exp_N, rtol=1e-7)

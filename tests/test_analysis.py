@@ -16,6 +16,33 @@ from fluopy import transitions as tr
 # ...infer_stats()
 
 
+@pytest.fixture()
+def analysis_1f(sim_tr_set_1f_bl):
+    return an.Analysis(simulation=sim_tr_set_1f_bl)
+
+
+def test_analysis_requires_completed_simulation():
+    simulation = SimpleNamespace(
+        transition_series=None,
+        state_series=None,
+        time_series=None,
+    )
+
+    with pytest.raises(ValueError, match="simulation has not been run"):
+        an.Analysis(simulation=simulation)
+
+
+def test_analysis_warns_when_absorbing_state_was_reached(
+    sim_tr_set_1f_bl, monkeypatch, caplog
+):
+    monkeypatch.setattr(an.Analysis, "is_absorbing", lambda self: True)
+
+    with caplog.at_level(logging.WARNING):
+        an.Analysis(simulation=sim_tr_set_1f_bl)
+
+    assert "absolute state and transition frequency of 1" in caplog.text
+
+
 # test with 1 fluorophore, with bleaching
 def test_analysis_1(request, caplog):
     with caplog.at_level(logging.WARNING):
@@ -35,12 +62,14 @@ def test_analysis_1(request, caplog):
     analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
     assert analysis.simulation == sim_tr_set_1f_bl
     exp_freq_trans = np.array([0.496, 0.147, 0.001, 0.001, 0.008, 0.008, 0.339, 0.0])
-    np.testing.assert_array_almost_equal(analysis.frequency_transitions, exp_freq_trans)
+    np.testing.assert_allclose(
+        analysis.frequency_transitions, exp_freq_trans, rtol=1e-6
+    )
     exp_freq_states = {
-        "testfluo_1": np.array([0.4955045, 0.4955045, 0.000999, 0.00799201, 0.0])
+        "testfluo_1": np.array([0.4955045, 0.4955045, 0.000999001, 0.00799201, 0.0])
     }
     for fluorophore, freq in analysis.frequency_states.items():
-        np.testing.assert_array_almost_equal(freq, exp_freq_states[fluorophore])
+        np.testing.assert_allclose(freq, exp_freq_states[fluorophore], rtol=1e-6)
     for time_distribution in analysis.transition_time_distributions:
         assert isinstance(time_distribution, np.ndarray)
     for _, distr_col in analysis.lifetime_distributions.items():
@@ -58,8 +87,8 @@ def test_analysis_1(request, caplog):
             np.nan,
         ]
     )
-    np.testing.assert_array_almost_equal(
-        analysis.mean_transition_times, exp_mean_trans_times
+    np.testing.assert_allclose(
+        analysis.mean_transition_times, exp_mean_trans_times, rtol=1e-6
     )
     exp_mean_lifetimes = {
         "testfluo_1": np.array(
@@ -67,14 +96,16 @@ def test_analysis_1(request, caplog):
         )
     }
     for fluorophore, mean_lifetimes in analysis.mean_lifetimes.items():
-        np.testing.assert_array_almost_equal(
-            mean_lifetimes, exp_mean_lifetimes[fluorophore]
+        np.testing.assert_allclose(
+            mean_lifetimes, exp_mean_lifetimes[fluorophore], rtol=1e-6
         )
     exp_state_occ = {
-        "testfluo_1": np.array([0.19614058, 0.00102595, 0.6989477, 0.10388577, 0.0])
+        "testfluo_1": np.array(
+            [0.196140584, 0.00102594567, 0.698947697, 0.103885773, 0.0]
+        )
     }
     for fluorophore, state_occ in analysis.state_occupations.items():
-        np.testing.assert_array_almost_equal(state_occ, exp_state_occ[fluorophore])
+        np.testing.assert_allclose(state_occ, exp_state_occ[fluorophore], rtol=1e-6)
 
     with caplog.at_level(logging.WARNING):
         analysis.plot_frequency_transitions(prediction=pred_bl_2)
@@ -257,6 +288,184 @@ def test_plot_rejects_incompatible_transition_dimensions(sim_tr_set_1f_bl):
         analysis.plot_frequency_transitions(prediction=prediction)
 
 
+@pytest.mark.parametrize(
+    "method, arguments, message",
+    [
+        (
+            "plot_mean_transition_times",
+            {},
+            "predicted mean_transition_times not available",
+        ),
+        (
+            "plot_mean_lifetimes",
+            {},
+            "predicted lifetime_distributions not available",
+        ),
+        (
+            "plot_state_occupations",
+            {},
+            "predicted state_occupations not available",
+        ),
+        (
+            "plot_lifetime_distributions",
+            {"fluorophore": "testfluo_1", "state_identity": 0},
+            "predicted lifetime_distributions not available",
+        ),
+        (
+            "plot_transition_time_distributions",
+            {"fluorophore": "testfluo_1", "transition_id": 0},
+            "predicted transition_time_distributions not available",
+        ),
+    ],
+)
+def test_analysis_plots_reject_energy_transfer_prediction(
+    analysis_1f, method, arguments, message
+):
+    prediction = SimpleNamespace(
+        transition_set=analysis_1f.simulation.transition_set,
+        energy_transfer=True,
+    )
+
+    with pytest.raises(ValueError, match=message):
+        getattr(analysis_1f, method)(prediction=prediction, **arguments)
+
+
+@pytest.mark.parametrize(
+    "method, attribute, arguments, message",
+    [
+        (
+            "plot_mean_transition_times",
+            "mean_transition_times",
+            {},
+            "predicted mean transition times are unavailable",
+        ),
+        (
+            "plot_mean_lifetimes",
+            "mean_lifetimes",
+            {},
+            "predicted mean lifetimes are unavailable",
+        ),
+        (
+            "plot_state_occupations",
+            "state_occupations",
+            {},
+            "predicted state occupations are unavailable",
+        ),
+        (
+            "plot_lifetime_distributions",
+            "lifetime_distributions",
+            {"fluorophore": "testfluo_1", "state_identity": 0},
+            "predicted lifetime distributions are unavailable",
+        ),
+        (
+            "plot_transition_time_distributions",
+            "transition_time_distributions",
+            {"fluorophore": "testfluo_1", "transition_id": 0},
+            "predicted transition-time distributions are unavailable",
+        ),
+    ],
+)
+def test_analysis_plots_reject_unavailable_prediction_statistics(
+    analysis_1f, method, attribute, arguments, message
+):
+    prediction = SimpleNamespace(
+        transition_set=analysis_1f.simulation.transition_set,
+        energy_transfer=False,
+    )
+    setattr(prediction, attribute, None)
+
+    with pytest.raises(ValueError, match=message):
+        getattr(analysis_1f, method)(prediction=prediction, **arguments)
+
+
+@pytest.mark.parametrize(
+    "method, prediction_attributes, message",
+    [
+        (
+            "plot_frequency_states",
+            {"frequency_states": {"testfluo_1": np.array([1.0])}},
+            "incompatible state dimensions",
+        ),
+        (
+            "plot_mean_transition_times",
+            {"energy_transfer": False, "mean_transition_times": np.array([1.0])},
+            "incompatible transition dimensions",
+        ),
+        (
+            "plot_mean_lifetimes",
+            {
+                "energy_transfer": False,
+                "mean_lifetimes": {"testfluo_1": np.array([1.0])},
+            },
+            "incompatible state dimensions",
+        ),
+        (
+            "plot_state_occupations",
+            {
+                "energy_transfer": False,
+                "state_occupations": {"testfluo_1": np.array([1.0])},
+            },
+            "incompatible state dimensions",
+        ),
+    ],
+)
+def test_analysis_plots_reject_incompatible_prediction_dimensions(
+    analysis_1f, method, prediction_attributes, message
+):
+    prediction = SimpleNamespace(
+        transition_set=analysis_1f.simulation.transition_set,
+        **prediction_attributes,
+    )
+
+    with pytest.raises(ValueError, match=message):
+        getattr(analysis_1f, method)(prediction=prediction)
+
+
+def test_analysis_transition_plots_can_collapse_transfer_distances():
+    transition_df = pd.DataFrame(
+        {"abbreviation": ["A", "ET1", "ET2", "ET1", "ET2", "B"]},
+        index=pd.MultiIndex.from_tuples(
+            [
+                ("A", 0),
+                ("D: A, A: B, dist: 1", 1),
+                ("D: A, A: B, dist: 1", 2),
+                ("D: A, A: B, dist: 2", 3),
+                ("D: A, A: B, dist: 2", 4),
+                ("B", 5),
+            ]
+        ),
+    )
+    transition_set = SimpleNamespace(
+        transition_df=transition_df,
+        single_states={"A": np.array([0]), "B": np.array([0])},
+    )
+    analysis = an.Analysis.__new__(an.Analysis)
+    analysis.simulation = SimpleNamespace(transition_set=transition_set)
+    analysis.frequency_transitions = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+    analysis.transition_time_distributions = [
+        np.array([1.0]),
+        np.array([2.0]),
+        np.array([3.0]),
+        np.array([4.0, 6.0]),
+        np.array([5.0, 7.0]),
+        np.array([], dtype=np.float64),
+    ]
+    analysis.mean_transition_times = np.array([1.0, 2.0, 3.0, 5.0, 6.0, np.nan])
+
+    frequency_ax = analysis.plot_frequency_transitions(diff_dist=False, yscale="linear")
+    mean_ax = analysis.plot_mean_transition_times(diff_dist=False, yscale="linear")
+
+    np.testing.assert_allclose(
+        [patch.get_height() for patch in frequency_ax.patches],
+        [0.1, 0.6, 0.8, 0.6],
+    )
+    np.testing.assert_allclose(
+        [patch.get_height() for patch in mean_ax.patches],
+        [1.0, 4.0, 5.0, np.nan],
+        equal_nan=True,
+    )
+
+
 # test with 2 fluorophores, with energy transfer
 def test_analysis_2(request, caplog):
     with caplog.at_level(logging.WARNING):
@@ -285,13 +494,15 @@ def test_analysis_2(request, caplog):
             0.000000e00,
         ]
     )
-    np.testing.assert_array_almost_equal(analysis.frequency_transitions, exp_freq_trans)
+    np.testing.assert_allclose(
+        analysis.frequency_transitions, exp_freq_trans, rtol=1e-6
+    )
     exp_freq_states = {
         "testfluo_1": np.array([0.50006424, 0.49993576, 0.0, 0.0]),
         "testfluo_2": np.array([0.50006424, 0.49993576, 0.0]),
     }
     for fluorophore, freq in analysis.frequency_states.items():
-        np.testing.assert_array_almost_equal(freq, exp_freq_states[fluorophore])
+        np.testing.assert_allclose(freq, exp_freq_states[fluorophore], rtol=1e-6)
     for time_distribution in analysis.transition_time_distributions:
         assert isinstance(time_distribution, np.ndarray)
     for _, distr_col in analysis.lifetime_distributions.items():
@@ -316,23 +527,23 @@ def test_analysis_2(request, caplog):
             np.nan,
         ]
     )
-    np.testing.assert_array_almost_equal(
-        analysis.mean_transition_times, exp_mean_trans_times
+    np.testing.assert_allclose(
+        analysis.mean_transition_times, exp_mean_trans_times, rtol=1e-6
     )
     exp_mean_lifetimes = {
-        "testfluo_1": np.array([1.14838204e-10, 4.77090756e-13, np.nan, np.nan]),
-        "testfluo_2": np.array([1.14847159e-10, 4.68138143e-13, np.nan]),
+        "testfluo_1": np.array([1.14833593e-10, 4.77090756e-13, np.nan, np.nan]),
+        "testfluo_2": np.array([1.14847159e-10, 4.63527596e-13, np.nan]),
     }
     for fluorophore, mean_lifetimes in analysis.mean_lifetimes.items():
-        np.testing.assert_array_almost_equal(
-            mean_lifetimes, exp_mean_lifetimes[fluorophore]
+        np.testing.assert_allclose(
+            mean_lifetimes, exp_mean_lifetimes[fluorophore], rtol=1e-6
         )
     exp_state_occ = {
-        "testfluo_1": np.array([0.99586379, 0.00413621, 0.0, 0.0]),
-        "testfluo_2": np.array([0.995981, 0.004019, 0.0]),
+        "testfluo_1": np.array([0.99586362, 0.00413638, 0.0, 0.0]),
+        "testfluo_2": np.array([0.99598121, 0.00401878603, 0.0]),
     }
     for fluorophore, state_occ in analysis.state_occupations.items():
-        np.testing.assert_array_almost_equal(state_occ, exp_state_occ[fluorophore])
+        np.testing.assert_allclose(state_occ, exp_state_occ[fluorophore], rtol=1e-6)
 
 
 # test with 2 fluorophores, without energy transfer
@@ -355,18 +566,20 @@ def test_analysis_3(request, caplog):
             0.36065574,
             0.5,
             0.30283912,
-            0.00157729,
-            0.00157729,
+            0.00157728707,
+            0.00157728707,
             0.19400631,
         ]
     )
-    np.testing.assert_array_almost_equal(analysis.frequency_transitions, exp_freq_trans)
+    np.testing.assert_allclose(
+        analysis.frequency_transitions, exp_freq_trans, rtol=1e-6
+    )
     exp_freq_states = {
         "testfluo_1": np.array([0.49318801, 0.49046322, 0.0, 0.01634877]),
-        "testfluo_2": np.array([0.4992126, 0.4992126, 0.0015748]),
+        "testfluo_2": np.array([0.4992126, 0.4992126, 0.00157480315]),
     }
     for fluorophore, freq in analysis.frequency_states.items():
-        np.testing.assert_array_almost_equal(freq, exp_freq_states[fluorophore])
+        np.testing.assert_allclose(freq, exp_freq_states[fluorophore], rtol=1e-6)
     for time_distribution in analysis.transition_time_distributions:
         assert isinstance(time_distribution, np.ndarray)
     for _, distr_col in analysis.lifetime_distributions.items():
@@ -388,8 +601,8 @@ def test_analysis_3(request, caplog):
             2.84417298e-09,
         ]
     )
-    np.testing.assert_array_almost_equal(
-        analysis.mean_transition_times, exp_mean_trans_times
+    np.testing.assert_allclose(
+        analysis.mean_transition_times, exp_mean_trans_times, rtol=1e-6
     )
     exp_mean_lifetimes = {
         "testfluo_1": np.array(
@@ -398,15 +611,15 @@ def test_analysis_3(request, caplog):
         "testfluo_2": np.array([2.73973283e-07, 2.90870254e-09, 4.79878872e-06]),
     }
     for fluorophore, mean_lifetimes in analysis.mean_lifetimes.items():
-        np.testing.assert_array_almost_equal(
-            mean_lifetimes, exp_mean_lifetimes[fluorophore]
+        np.testing.assert_allclose(
+            mean_lifetimes, exp_mean_lifetimes[fluorophore], rtol=1e-6
         )
     exp_state_occ = {
-        "testfluo_1": np.array([0.3422721, 0.00169536, 0.0, 0.65603253]),
-        "testfluo_2": np.array([0.93820002, 0.00996062, 0.05183936]),
+        "testfluo_1": np.array([0.342272103, 0.00169536294, 0.0, 0.656032534]),
+        "testfluo_2": np.array([0.938200021, 0.00996062374, 0.0518393553]),
     }
     for fluorophore, state_occ in analysis.state_occupations.items():
-        np.testing.assert_array_almost_equal(state_occ, exp_state_occ[fluorophore])
+        np.testing.assert_allclose(state_occ, exp_state_occ[fluorophore], rtol=1e-6)
 
 
 def test_get_fluorescence_lifetimes(request, caplog):
@@ -419,7 +632,7 @@ def test_get_fluorescence_lifetimes(request, caplog):
     # analysis.get_fluorescence_lifetimes
     analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
     fluorescence_lifetimes = analysis.get_fluorescence_lifetimes()
-    np.testing.assert_array_almost_equal(
+    np.testing.assert_allclose(
         fluorescence_lifetimes[:12],
         np.array(
             [
@@ -437,6 +650,7 @@ def test_get_fluorescence_lifetimes(request, caplog):
                 6.71603162e-10,
             ]
         ),
+        rtol=1e-6,
     )
 
     with pytest.raises(
@@ -454,48 +668,49 @@ def test_get_fluorescence_lifetimes(request, caplog):
     analysis.get_fluorescence_lifetimes("testfluo_1")
 
 
-def test_get_emitting_transition_lifetimes(request, caplog):
-    with caplog.at_level(logging.WARNING):
-        sim_tr_set_1f_bl = request.getfixturevalue("sim_tr_set_1f_bl")
-        sim_tr_set_2f_diff = request.getfixturevalue("sim_tr_set_2f_diff")
-        assert "Floating point precision error" in caplog.text
-
-    analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
-    exp_fluorescence_lifetimes = analysis.get_emitting_transition_lifetimes()
-    np.testing.assert_array_almost_equal(
-        exp_fluorescence_lifetimes[:12],
-        np.array(
-            [
-                1.93683425e-09,
-                1.89101373e-10,
-                2.83008866e-10,
-                1.19337973e-09,
-                1.59230928e-09,
-                7.23212712e-10,
-                6.13916751e-10,
-                6.61515620e-10,
-                4.89384977e-10,
-                7.77973574e-10,
-                5.22660359e-10,
-                6.71603162e-10,
-            ]
+def test_get_emitting_transition_lifetimes():
+    transition_df = pd.DataFrame(
+        {"photon": [True, False, True]},
+        index=pd.MultiIndex.from_tuples(
+            [("A", 0), ("A", 1), ("B", 2)], names=["fluorophore", "identity"]
         ),
     )
+    analysis = an.Analysis.__new__(an.Analysis)
+    analysis.simulation = SimpleNamespace(
+        transition_set=SimpleNamespace(
+            single_states={"A": np.array([0, 1]), "B": np.array([0])},
+            transition_df=transition_df,
+        )
+    )
+    analysis.transition_time_distributions = [
+        np.array([1.0, 2.0]),
+        np.array([3.0]),
+        np.array([4.0, 5.0]),
+    ]
+
+    np.testing.assert_array_equal(
+        analysis.get_emitting_transition_lifetimes("A"), [1.0, 2.0]
+    )
+    np.testing.assert_array_equal(
+        analysis.get_emitting_transition_lifetimes("B"), [4.0, 5.0]
+    )
+
+    analysis.simulation.transition_set.single_states = {"A": np.array([0, 1])}
+    np.testing.assert_array_equal(
+        analysis.get_emitting_transition_lifetimes(), [1.0, 2.0]
+    )
+    analysis.simulation.transition_set.single_states["B"] = np.array([0])
 
     with pytest.raises(
         ValueError, match="fluorophore wrong_name not found in transition dataframe."
     ):
         analysis.get_emitting_transition_lifetimes(fluorophore="wrong_name")
 
-    analysis = an.Analysis(simulation=sim_tr_set_2f_diff)
-
     with pytest.raises(
         ValueError,
         match="if multiple fluorophores are present, fluorophore must be specified.",
     ):
         analysis.get_emitting_transition_lifetimes()
-
-    analysis.get_emitting_transition_lifetimes("testfluo_1")
 
 
 def test_no_diff_dist():
@@ -545,3 +760,25 @@ def test_no_diff_dist():
         pd.testing.assert_index_equal(dict2[key], dict2_exp[key])
     dict2_vals_exp = np.array([5, 7, 6, 8, 14, 15])
     np.testing.assert_array_equal(dict2_vals, dict2_vals_exp)
+
+
+def test_no_diff_dist_keeps_single_distance_pair():
+    index = pd.MultiIndex.from_tuples(
+        [("Cy5", 0), ("D: Cy5, A: H, dist: 1", 1)],
+        names=["Group", "Number"],
+    )
+    transition_df = pd.DataFrame({"rate": [1.0, 2.0]}, index=index)
+
+    collapsed, discarded_by_position, discarded = an.no_diff_dist(
+        transition_df, ["Cy5", "H"]
+    )
+
+    pd.testing.assert_frame_equal(
+        collapsed.reset_index(drop=True), transition_df.reset_index(drop=True)
+    )
+    assert (
+        collapsed.index.get_level_values(0).tolist()
+        == index.get_level_values(0).tolist()
+    )
+    assert discarded_by_position == {}
+    np.testing.assert_array_equal(discarded, np.array([], dtype=np.int64))

@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -8,121 +9,6 @@ import pytest
 
 from fluopy import emissions as em
 from fluopy import fluo_data as fd
-
-
-@pytest.mark.parametrize(
-    "bandpass, expected",
-    [
-        [(650, 700), 0.6820037131347214],
-        [(450, 400), "ValueError"],
-        [(200, 1000), 1.0],
-    ],
-)
-def test_get_p_filter(bandpass, expected):
-    emission_spectrum = fd.testfluo_1.emission_spectrum
-    assert emission_spectrum is not None
-    if expected == "ValueError":
-        with pytest.raises(
-            ValueError,
-            match=("The lower bandpass limit has to be smaller than the upper limit."),
-        ):
-            p_passed = em.get_p_filter(
-                emission_spectrum=emission_spectrum,
-                bandpass=bandpass,
-            )
-    else:
-        p_passed = em.get_p_filter(
-            emission_spectrum=emission_spectrum,
-            bandpass=bandpass,
-        )
-        assert p_passed == pytest.approx(expected)
-
-
-@pytest.mark.parametrize("bandpass", [(np.nan, 700), (650, np.inf)])
-def test_get_p_filter_non_finite_bandpass(bandpass):
-    emission_spectrum = fd.Spectrum(
-        wavelengths=[500, 600],
-        values=[0, 1],
-    )
-    with pytest.raises(
-        ValueError,
-        match="bandpass limits must be finite.",
-    ):
-        em.get_p_filter(
-            emission_spectrum=emission_spectrum,
-            bandpass=bandpass,
-        )
-
-
-def test_get_p_filter_with_in_memory_spectrum():
-    emission_spectrum = fd.Spectrum(
-        wavelengths=[500, 510, 520],
-        values=[0, 1, 0],
-    )
-
-    p_passed = em.get_p_filter(
-        emission_spectrum=emission_spectrum,
-        bandpass=(505, 515),
-    )
-
-    assert p_passed == pytest.approx(0.75)
-
-
-def test_get_p_filter_zero_emission_spectrum():
-    emission_spectrum = fd.Spectrum(
-        wavelengths=[500, 600],
-        values=[0, 0],
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="emission spectrum has zero total intensity.",
-    ):
-        em.get_p_filter(
-            emission_spectrum=emission_spectrum,
-            bandpass=(500, 600),
-        )
-
-
-def test_get_p_filter_without_spectral_overlap():
-    emission_spectrum = fd.Spectrum(
-        wavelengths=[500, 600],
-        values=[0, 1],
-    )
-
-    p_passed = em.get_p_filter(
-        emission_spectrum=emission_spectrum,
-        bandpass=(700, 800),
-    )
-
-    assert p_passed == 0
-
-
-@pytest.mark.parametrize(
-    "bandpass, expected",
-    [
-        [None, {4: 1, 5: 1, 6: 1, 7: 1, 38: 1, 39: 1, 40: 1, 41: 1, 42: 1}],
-        [
-            (650, 700),
-            {
-                4: 0.6820037131347214,
-                5: 0.6820037131347214,
-                6: 0.6820037131347214,
-                7: 0.6820037131347214,
-                38: 0.5847564420110373,
-                39: 0.5847564420110373,
-                40: 0.5847564420110373,
-                41: 0.5847564420110373,
-                42: 0.5847564420110373,
-            },
-        ],
-    ],
-)
-def test_get_emitting_transition_ids(bandpass, expected, tr_set_bl_et_2f_diff):
-    emitting_transition_ids = em.get_emitting_transition_ids(
-        bandpass=bandpass, transition_set=tr_set_bl_et_2f_diff
-    )
-    assert emitting_transition_ids == expected
 
 
 def test_emissions():
@@ -135,6 +21,22 @@ def test_emissions():
     assert emis.parameters["seed"] == rng
     assert emis.event_time_points is None
     assert emis.event_time_series is None
+
+
+def test_emissions_requires_available_event_data():
+    emis = em.Emissions()
+
+    with pytest.raises(ValueError, match="event time series is unavailable"):
+        emis._require_event_time_series()
+    with pytest.raises(ValueError, match="event time points are unavailable"):
+        emis._require_event_time_points()
+
+
+def test_emissions_extract_requires_completed_simulation():
+    simulation = SimpleNamespace(transition_series=None, time_series=None)
+
+    with pytest.raises(ValueError, match="simulation has not been run"):
+        em.Emissions().extract(simulation)
 
 
 # test_emissions_extract also tests for...
@@ -186,9 +88,52 @@ def test_emissions_extract_orders_filtered_time_points(sim_tr_set_2f_diff):
     assert np.all(np.diff(emis.event_time_points) >= 0)
 
 
+def test_get_emission_indices_requires_completed_simulation():
+    simulation = SimpleNamespace(transition_series=None)
+
+    with pytest.raises(ValueError, match="completed simulation"):
+        em.Emissions().get_emission_indices(simulation, bandpass=None, seed=1)
+
+
+def test_get_emission_indices_requires_spectral_data_for_bandpass():
+    fluorophore = SimpleNamespace(name="unknown", constants=None)
+    simulation = SimpleNamespace(
+        transition_series=np.array([0]),
+        transition_set=SimpleNamespace(
+            fluorophore_system=SimpleNamespace(fluorophores=[fluorophore])
+        ),
+    )
+
+    with pytest.raises(ValueError, match="emission data not available"):
+        em.Emissions().get_emission_indices(
+            simulation,
+            bandpass=(500, 600),
+            seed=1,
+        )
+
+
 def test_generated_event_time_series_starts_with_boundary(em_tr_set_1f_bl):
     assert em_tr_set_1f_bl.event_time_series.index[0] == 0
     assert em_tr_set_1f_bl.event_time_series.iloc[0] == 0
+
+
+def test_construct_event_time_series_requires_completed_simulation():
+    emis = em.Emissions()
+    emis.event_time_points = np.array([0.001])
+
+    with pytest.raises(ValueError, match="requires a completed simulation"):
+        emis.construct_event_time_series(simulation=SimpleNamespace(time_series=None))
+
+
+def test_construct_event_time_series_drops_bin_after_simulation_end():
+    emis = em.Emissions()
+    emis.event_time_points = np.array([0.001])
+    simulation = SimpleNamespace(time_series=np.array([0.0, 0.011]))
+
+    emis.construct_event_time_series(simulation=simulation, resample="5ms")
+
+    assert emis.event_time_series.index[-1] == pytest.approx(0.01)
+    np.testing.assert_array_equal(emis.event_time_series.values, [0, 1, 0])
 
 
 def test_emissions_simulate(tr_set_1f_bl):
@@ -207,6 +152,15 @@ def test_emissions_simulate(tr_set_1f_bl):
         index=np.linspace(0, 0.001, 11),
     )
     pd.testing.assert_series_equal(emis.event_time_series, exp_event_time_series)
+
+
+def test_emissions_simulate_requires_one_start_state_per_fluorophore(tr_set_1f_bl):
+    with pytest.raises(ValueError, match="number of starting states"):
+        em.Emissions().simulate(
+            transition_set=tr_set_1f_bl,
+            start_at=(0, 1),
+            frames=1,
+        )
 
 
 @pytest.mark.slow
@@ -279,6 +233,48 @@ def test_emissions_tcspc_parameters(tr_set_bl_et_2f_diff):
             kwargs["et_transition_ids"], np.array([4, 38, 40])
         )
         assert kwargs["emitting_transition_ids"] == emitting_transition_ids
+
+
+def test_emissions_tcspc_details_infers_excitation_rates(tr_set_1f_bl, caplog):
+    emis = em.Emissions(seed=1)
+    event_time_series = pd.Series([0, 1], index=[0.0, 0.005])
+    event_time_points = np.array([0.001])
+    lifetimes_da = np.array([1.0])
+    lifetimes_d = np.array([2.0])
+    lifetimes_all = np.array([1.0, 2.0])
+    simulation_object = object()
+    excitation_rate = tr_set_1f_bl.transition_df.loc[
+        tr_set_1f_bl.transition_df["abbreviation"] == "EXC", "rate"
+    ].iloc[0]
+
+    with (
+        patch(
+            "fluopy.emissions.simulate_TCSPC_detailed",
+            return_value=(
+                event_time_series,
+                event_time_points,
+                lifetimes_da,
+                lifetimes_d,
+                lifetimes_all,
+                simulation_object,
+            ),
+        ) as mock_tcspc,
+        caplog.at_level(logging.WARNING),
+    ):
+        result = emis.tcspc(
+            transition_set=tr_set_1f_bl,
+            number_pulses=2,
+            pulse_duration=1e-9,
+            time_between_pulses=1e-6,
+            excitation_rates=None,
+            details=True,
+        )
+
+    assert "assumed to be the mean irradiance" in caplog.text
+    assert result[3] is simulation_object
+    np.testing.assert_array_equal(result[0], lifetimes_da)
+    actual_rate = mock_tcspc.call_args.kwargs["excitation_rates"]["testfluo_1"]
+    assert actual_rate == pytest.approx(excitation_rate * 1000)
 
 
 @pytest.mark.parametrize(
@@ -444,6 +440,18 @@ def test_emissions_post_processing_preserves_int64_counts():
     assert emis.event_time_series.dtype == np.int64
 
 
+def test_emissions_apply_threshold():
+    emis = em.Emissions()
+    emis.event_time_series = pd.Series([0, 1, 3, 2], dtype=np.int64)
+
+    emis.apply_threshold(3)
+
+    pd.testing.assert_series_equal(
+        emis.event_time_series,
+        pd.Series([0, 0, 3, 0], dtype=np.int64),
+    )
+
+
 def test_emissions_add_emccd_gain(em_large):
     rng = np.random.default_rng(1)
     # fmt: off
@@ -577,6 +585,21 @@ def test_emissions_plot_methods(plot_method):
     assert ax.has_data()
 
 
+def test_emissions_histogram_probability_and_mean():
+    emis = em.Emissions()
+    emis.event_time_series = pd.Series([0, 1, 3], dtype=np.int64)
+
+    ax = emis.plot_histogram(
+        density=False,
+        display_mean=True,
+        include_0=True,
+    )
+
+    assert ax.get_ylabel() == "Probability"
+    assert sum(patch.get_height() for patch in ax.patches) == pytest.approx(1)
+    assert ax.texts[0].get_text() == r"$\mu = 1.33$"
+
+
 def test_save_and_load(request, tmp_path, caplog):
     with caplog.at_level(logging.WARNING):
         em_tr_set_1f_bl = request.getfixturevalue("em_tr_set_1f_bl")
@@ -610,3 +633,132 @@ def test_save_and_load_without_event_time_points(tmp_path):
     pd.testing.assert_series_equal(loaded.event_time_series, emis.event_time_series)
     assert loaded.event_time_points is None
     assert not (tmp_path / "event_time_points.npy").is_file()
+
+
+@pytest.mark.parametrize(
+    "bandpass, expected",
+    [
+        [(650, 700), 0.6820037131347214],
+        [(450, 400), "ValueError"],
+        [(200, 1000), 1.0],
+    ],
+)
+def test_get_p_filter(bandpass, expected):
+    emission_spectrum = fd.testfluo_1.emission_spectrum
+    assert emission_spectrum is not None
+    if expected == "ValueError":
+        with pytest.raises(
+            ValueError,
+            match=("The lower bandpass limit has to be smaller than the upper limit."),
+        ):
+            p_passed = em.get_p_filter(
+                emission_spectrum=emission_spectrum,
+                bandpass=bandpass,
+            )
+    else:
+        p_passed = em.get_p_filter(
+            emission_spectrum=emission_spectrum,
+            bandpass=bandpass,
+        )
+        assert p_passed == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("bandpass", [(np.nan, 700), (650, np.inf)])
+def test_get_p_filter_non_finite_bandpass(bandpass):
+    emission_spectrum = fd.Spectrum(
+        wavelengths=[500, 600],
+        values=[0, 1],
+    )
+    with pytest.raises(
+        ValueError,
+        match="bandpass limits must be finite.",
+    ):
+        em.get_p_filter(
+            emission_spectrum=emission_spectrum,
+            bandpass=bandpass,
+        )
+
+
+def test_get_p_filter_with_in_memory_spectrum():
+    emission_spectrum = fd.Spectrum(
+        wavelengths=[500, 510, 520],
+        values=[0, 1, 0],
+    )
+
+    p_passed = em.get_p_filter(
+        emission_spectrum=emission_spectrum,
+        bandpass=(505, 515),
+    )
+
+    assert p_passed == pytest.approx(0.75)
+
+
+def test_get_p_filter_zero_emission_spectrum():
+    emission_spectrum = fd.Spectrum(
+        wavelengths=[500, 600],
+        values=[0, 0],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="emission spectrum has zero total intensity.",
+    ):
+        em.get_p_filter(
+            emission_spectrum=emission_spectrum,
+            bandpass=(500, 600),
+        )
+
+
+def test_get_p_filter_without_spectral_overlap():
+    emission_spectrum = fd.Spectrum(
+        wavelengths=[500, 600],
+        values=[0, 1],
+    )
+
+    p_passed = em.get_p_filter(
+        emission_spectrum=emission_spectrum,
+        bandpass=(700, 800),
+    )
+
+    assert p_passed == 0
+
+
+@pytest.mark.parametrize(
+    "bandpass, expected",
+    [
+        [None, {4: 1, 5: 1, 6: 1, 7: 1, 38: 1, 39: 1, 40: 1, 41: 1, 42: 1}],
+        [
+            (650, 700),
+            {
+                4: 0.6820037131347214,
+                5: 0.6820037131347214,
+                6: 0.6820037131347214,
+                7: 0.6820037131347214,
+                38: 0.5847564420110373,
+                39: 0.5847564420110373,
+                40: 0.5847564420110373,
+                41: 0.5847564420110373,
+                42: 0.5847564420110373,
+            },
+        ],
+    ],
+)
+def test_get_emitting_transition_ids(bandpass, expected, tr_set_bl_et_2f_diff):
+    emitting_transition_ids = em.get_emitting_transition_ids(
+        bandpass=bandpass, transition_set=tr_set_bl_et_2f_diff
+    )
+    assert emitting_transition_ids == expected
+
+
+def test_get_emitting_transition_ids_requires_spectral_data_for_bandpass():
+    transition_set = SimpleNamespace(
+        fluorophore_system=SimpleNamespace(
+            fluorophores=[SimpleNamespace(name="unknown", constants=None)]
+        )
+    )
+
+    with pytest.raises(ValueError, match="emission data not available"):
+        em.get_emitting_transition_ids(
+            bandpass=(500, 600),
+            transition_set=transition_set,
+        )

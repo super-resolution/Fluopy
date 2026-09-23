@@ -583,8 +583,7 @@ class Analysis:
             # distance-specific collapsing is only required for the simulation.
             if predicted_frequencies.shape != frequencies.shape:
                 raise ValueError(
-                    "prediction and simulation have incompatible transition "
-                    "dimensions."
+                    "prediction and simulation have incompatible transition dimensions."
                 )
             draw_marker = [
                 np.arange(transition_df.shape[0]),
@@ -804,8 +803,7 @@ class Analysis:
             # distance-specific collapsing is only required for the simulation.
             if predicted_means.shape != mean_transition_times.shape:
                 raise ValueError(
-                    "prediction and simulation have incompatible transition "
-                    "dimensions."
+                    "prediction and simulation have incompatible transition dimensions."
                 )
             draw_marker = [np.arange(transition_df.shape[0]), predicted_means]
 
@@ -1094,9 +1092,16 @@ class Analysis:
         kwargs.setdefault(
             "title",
             rf"""$\tau$ of {fluorophore}
-            {format_transition(cast(str, self.simulation.transition_set.transition_df.loc[(fluorophore,
-                                                               transition_id),
-                                                               "abbreviation"]))}""",
+            {
+                format_transition(
+                    cast(
+                        str,
+                        self.simulation.transition_set.transition_df.loc[
+                            (fluorophore, transition_id), "abbreviation"
+                        ],
+                    )
+                )
+            }""",
         )
         kwargs.setdefault("yscale", "log")
         kwargs.setdefault("xlabel", "time to transition [s]")
@@ -1211,12 +1216,15 @@ def no_diff_dist(transition_df: pd.DataFrame, fluorophores: Iterable[str]) -> tu
             discarded_ids_by_retained_position[retained_position] = (
                 discarded_transition_ids[i::transitions_per_distance]
             )
-    discarded_ids = np.concatenate(
-        [
-            values.to_numpy(dtype=np.int64)
-            for values in discarded_ids_by_retained_position.values()
-        ]
-    )
+    if discarded_ids_by_retained_position:
+        discarded_ids = np.concatenate(
+            [
+                values.to_numpy(dtype=np.int64)
+                for values in discarded_ids_by_retained_position.values()
+            ]
+        )
+    else:
+        discarded_ids = np.array([], dtype=np.int64)
 
     return (
         collapsed_transition_df,

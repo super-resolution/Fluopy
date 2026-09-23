@@ -1,9 +1,21 @@
-import matplotlib.pyplot as plt  # needed for visual inspection  # noqa: F401
+from types import SimpleNamespace
+
 import numpy as np
+import pandas as pd
 import pytest
 from matplotlib.axes import Axes as mplAxes
 
 from fluopy import fcs as fcs_p
+
+
+@pytest.fixture()
+def small_emissions():
+    return SimpleNamespace(
+        event_time_points=np.array([0.1, 0.4, 0.9, 1.6], dtype=np.float64),
+        event_time_series=pd.Series(
+            [1, 2, 3], index=np.array([0.0, 0.5, 1.0], dtype=np.float64)
+        ),
+    )
 
 
 def test_fcs(em_very_large):
@@ -13,20 +25,77 @@ def test_fcs(em_very_large):
     assert fcs_obj.tau is None
 
 
-@pytest.mark.slow
-def test_fcs_plot(em_very_large):
-    fcs_obj = fcs_p.FCS(emissions=em_very_large)
-    fcs_obj.autocorrelate_time_points(
-        exp_min=-8, exp_max=-2, points_per_base=4, base=10, normalize=True
-    )
-    ax = fcs_obj.plot_matplotlib()
+def test_fcs_plot(small_emissions):
+    fcs_obj = fcs_p.FCS(emissions=small_emissions)
+    fcs_obj.tau = np.array([0.001, 0.002])
+    fcs_obj.autocorrelation = np.array([2.0, 1.0])
+
+    ax = fcs_obj.plot_matplotlib(normalize_to=0, unit="ms")
     assert isinstance(ax, mplAxes)
-    # plt.show()
+    np.testing.assert_array_equal(ax.lines[0].get_xdata(), [1.0, 2.0])
+    np.testing.assert_array_equal(ax.lines[0].get_ydata(), [1.0, 0.5])
+    assert ax.get_xlabel() == r"$\tau \ (ms)$"
 
-    fcs_obj.plot()
-    # plt.show()
+    ax = fcs_obj.plot(normalize_to=1)
+    np.testing.assert_array_equal(ax.lines[0].get_ydata(), [2.0, 1.0])
 
 
+@pytest.mark.parametrize("method", ["plot", "plot_matplotlib"])
+def test_fcs_plot_requires_correlation_data(small_emissions, method):
+    fcs_obj = fcs_p.FCS(emissions=small_emissions)
+
+    with pytest.raises(RuntimeError, match="has not been calculated"):
+        getattr(fcs_obj, method)()
+
+
+@pytest.mark.parametrize(
+    "attribute, method",
+    [
+        ("event_time_points", "autocorrelate_time_points"),
+        ("event_time_series", "autocorrelate_time_series"),
+    ],
+)
+def test_fcs_autocorrelation_requires_emission_data(small_emissions, attribute, method):
+    setattr(small_emissions, attribute, None)
+    fcs_obj = fcs_p.FCS(emissions=small_emissions)
+
+    with pytest.raises(ValueError, match=f"{attribute} is None"):
+        getattr(fcs_obj, method)()
+
+
+def test_fcs_autocorrelate_time_points_small_fixture(
+    small_emissions, caplog, monkeypatch
+):
+    correlation = np.array([4.0, 2.0])
+    correlation_arguments = {}
+
+    def event_time_correlation(**kwargs):
+        correlation_arguments.update(kwargs)
+        return correlation
+
+    monkeypatch.setattr(fcs_p, "_event_time_correlation", event_time_correlation)
+    fcs_obj = fcs_p.FCS(emissions=small_emissions)
+
+    result = fcs_obj.autocorrelate_time_points(
+        exp_min=-1, exp_max=1, points_per_base=2, base=10, normalize=False
+    )
+
+    bins = np.logspace(-1, 0, 3)
+    assert result is fcs_obj
+    assert "exp_max is adjusted to 0" in caplog.text
+    np.testing.assert_allclose(fcs_obj.tau, np.mean([bins[1:], bins[:-1]], axis=0))
+    np.testing.assert_array_equal(fcs_obj.autocorrelation, correlation)
+    np.testing.assert_array_equal(correlation_arguments.pop("t"), [0.1, 0.4, 0.9, 1.6])
+    np.testing.assert_array_equal(correlation_arguments.pop("u"), [0.1, 0.4, 0.9, 1.6])
+    np.testing.assert_allclose(correlation_arguments.pop("bins"), bins)
+    assert correlation_arguments == {
+        "normalize": False,
+        "start_time": 0,
+        "end_time": 1.6,
+    }
+
+
+@pytest.mark.slow
 def test_fcs_autocorrelate_time_points(em_very_large, caplog):
     fcs_obj = fcs_p.FCS(emissions=em_very_large)
 
@@ -103,8 +172,8 @@ def test_fcs_autocorrelate_time_points(em_very_large, caplog):
         ]
     )
 
-    np.testing.assert_array_almost_equal(fcs_obj.tau, exp_tau)
-    np.testing.assert_array_almost_equal(fcs_obj.autocorrelation, exp_autocorrelation)
+    np.testing.assert_allclose(fcs_obj.tau, exp_tau, rtol=1e-7)
+    np.testing.assert_allclose(fcs_obj.autocorrelation, exp_autocorrelation, rtol=1e-7)
 
     fcs_obj.autocorrelate_time_points(
         exp_min=-8, exp_max=-2, points_per_base=4, base=10, normalize=False
@@ -201,8 +270,8 @@ def test_fcs_autocorrelate_time_series(em_very_large):
         ]
     )
 
-    np.testing.assert_array_almost_equal(fcs_obj.tau, exp_tau)
-    np.testing.assert_array_almost_equal(fcs_obj.autocorrelation, exp_autocorrelation)
+    np.testing.assert_allclose(fcs_obj.tau, exp_tau, rtol=1e-7)
+    np.testing.assert_allclose(fcs_obj.autocorrelation, exp_autocorrelation, rtol=1e-7)
 
     fcs_obj.autocorrelate_time_series(log=True, m=4, normalize=False)
     exp_autocorrelation = np.array(
@@ -236,6 +305,23 @@ def test_fcs_autocorrelate_time_series(em_very_large):
     np.testing.assert_allclose(fcs_obj.autocorrelation, exp_autocorrelation, rtol=1e-5)
 
 
+@pytest.mark.parametrize(
+    "normalize, expected",
+    [
+        (False, [8.0, 3.0]),
+        (True, [1.0, 0.75]),
+    ],
+)
+def test_fcs_autocorrelate_linear_time_series(small_emissions, normalize, expected):
+    fcs_obj = fcs_p.FCS(emissions=small_emissions)
+
+    returned = fcs_obj.autocorrelate_time_series(log=False, normalize=normalize)
+
+    assert returned is fcs_obj
+    np.testing.assert_array_equal(fcs_obj.tau, [0.5, 1.0])
+    np.testing.assert_allclose(fcs_obj.autocorrelation, expected)
+
+
 def test_fit_dark():
     exp_autocorrelation = np.array([0.485225, 0.294304, 0.178504])
     exp_norm = 0.2
@@ -244,6 +330,12 @@ def test_fit_dark():
     )
     np.testing.assert_allclose(autocorrelation, exp_autocorrelation, rtol=1e-5)
     np.testing.assert_allclose(norm, exp_norm, rtol=1e-5)
+
+
+@pytest.mark.parametrize("dark_occupation", [-0.1, 1.0])
+def test_fit_dark_rejects_invalid_occupation(dark_occupation):
+    with pytest.raises(ValueError, match="between 0 and 1"):
+        fcs_p.fit_dark(tau=[1], dark_lifetime=2, dark_occupation=dark_occupation)
 
 
 def test_fit_antibunching():
@@ -267,3 +359,97 @@ def test_fit_triplet_cis():
     )
     np.testing.assert_allclose(autocorrelation, exp_autocorrelation, rtol=1e-3)
     np.testing.assert_allclose(norm, 0.4841126, rtol=1e-4)
+
+
+def test_coincidence_backends_agree_for_controlled_events():
+    detector_1 = np.array([0.0, 1.0, 3.0])
+    detector_2 = np.array([0.2, 1.4, 2.6])
+
+    numpy_hist, numpy_bins = fcs_p.coincidence_numpy(
+        detector_1, detector_2, tau_max=0.75, bin_width=0.5
+    )
+    numba_hist, numba_bins = fcs_p.coincidence_numba(
+        detector_1, detector_2, tau_max=0.75, bin_width=0.5
+    )
+
+    np.testing.assert_array_equal(numba_bins, numpy_bins)
+    np.testing.assert_array_equal(numba_hist, numpy_hist)
+    np.testing.assert_array_equal(numpy_hist, [1.0, 1.0, 1.0])
+
+
+def test_event_time_correlation_python_implementation():
+    first = np.array([0.0, 2.0])
+    second = np.array([0.5, 1.5, 3.0])
+    bins = np.array([0.0, 1.0, 2.0])
+
+    unnormalized = fcs_p._event_time_correlation.py_func(
+        first,
+        second,
+        bins,
+        False,
+        0.0,
+        4.0,
+    )
+    normalized = fcs_p._event_time_correlation.py_func(
+        first,
+        second,
+        bins,
+        True,
+        0.0,
+        4.0,
+    )
+
+    np.testing.assert_array_equal(unnormalized, [1.0, 2.0])
+    np.testing.assert_array_equal(normalized, [0.75, 2.0])
+
+
+def test_coincidence_numba_python_implementation_matches_numpy():
+    detector_1 = np.array([0.0, 3.0])
+    detector_2 = np.array([0.2, 1.4, 2.6])
+
+    expected_hist, expected_bins = fcs_p.coincidence_numpy(
+        detector_1, detector_2, tau_max=0.75, bin_width=0.5
+    )
+    actual_hist, actual_bins = fcs_p.coincidence_numba.py_func(
+        detector_1, detector_2, tau_max=0.75, bin_width=0.5
+    )
+
+    np.testing.assert_array_equal(actual_bins, expected_bins)
+    np.testing.assert_array_equal(actual_hist, expected_hist)
+
+
+@pytest.mark.parametrize("method", ["numpy", "numba"])
+def test_coincidence_is_reproducible_and_normalized(method):
+    arrival_times = np.linspace(0.1, 9.9, 100)
+
+    first = fcs_p.coincidence(
+        arrival_times,
+        tau_max=0.5,
+        bin_width=0.1,
+        seed=4,
+        method=method,
+        end_time=10,
+    )
+    second = fcs_p.coincidence(
+        arrival_times,
+        tau_max=0.5,
+        bin_width=0.1,
+        seed=4,
+        method=method,
+        end_time=10,
+    )
+
+    np.testing.assert_array_equal(first[0], second[0])
+    np.testing.assert_array_equal(first[1], second[1])
+    assert np.all(np.isfinite(first[0]))
+
+
+def test_coincidence_rejects_unknown_method():
+    with pytest.raises(ValueError, match="Unknown method: invalid"):
+        fcs_p.coincidence(
+            np.array([0.1, 0.2]),
+            tau_max=0.1,
+            bin_width=0.01,
+            seed=1,
+            method="invalid",
+        )

@@ -31,7 +31,7 @@ repos:
 
     - id: coverage-report
       name: coverage report
-      entry: uv run --locked coverage report --fail-under=60
+      entry: uv run --locked coverage report --fail-under=90
       language: system
       pass_filenames: false
       always_run: true

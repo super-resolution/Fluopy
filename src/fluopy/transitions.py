@@ -11,7 +11,7 @@ from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, fields
 from itertools import product
 from numbers import Real
-from typing import TYPE_CHECKING, Any, ClassVar, Self
+from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -1127,12 +1127,13 @@ def get_single_states(
             single_state_df = pd.DataFrame(single_states_, columns=["single_states"])
             single_state_df["absorbing"] = False
 
-            initial_state_series = transition_df.loc[
-                fluorophore_comb,
-                "initial_state",
-            ]
-            if not isinstance(initial_state_series, pd.Series):
-                raise TypeError("initial_state selection must produce a pandas Series.")
+            initial_state_series = cast(
+                "pd.Series[Any]",
+                transition_df.loc[
+                    fluorophore_comb,
+                    "initial_state",
+                ],
+            )
 
             initial_states = initial_state_series.map(
                 lambda state: state.value
@@ -1142,12 +1143,13 @@ def get_single_states(
                 if single_state not in initial_states:
                     single_state_df.at[i, "absorbing"] = True
 
-            final_state_series = transition_df.loc[
-                fluorophore_comb,
-                "final_state",
-            ]
-            if not isinstance(final_state_series, pd.Series):
-                raise TypeError("final_state selection must produce a pandas Series.")
+            final_state_series = cast(
+                "pd.Series[Any]",
+                transition_df.loc[
+                    fluorophore_comb,
+                    "final_state",
+                ],
+            )
 
             final_states = final_state_series.map(lambda state: state.value).to_numpy()
             absorbing_states = single_state_df.loc[

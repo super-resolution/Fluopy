@@ -198,21 +198,6 @@ def tr_set_1f(flu_sys_cy5):
 
 
 @pytest.fixture()
-def tr_set_large(flu_sys_cy5):
-    transitions = flu_sys_cy5.load_transitions(
-        irradiance=2,
-        wavelength=640,
-        bleaching=True,
-        energy_transfer=False,
-        dstorm=True,
-        dstorm_parameters={"reducing_agent": "mea", "ph": 7.5},
-    )
-    tset = tr.TransitionSet(transitions=transitions, fluorophore_system=flu_sys_cy5)
-    tset.finalize()
-    return tset
-
-
-@pytest.fixture()
 def pred_tr_set_1f(tr_set_1f):
     pred = pr.Prediction(transition_set=tr_set_1f)
     return pred
@@ -251,14 +236,6 @@ def sim_tr_set_2f_diff(tr_set_2f_diff):
     rng = np.random.default_rng(1)
     sim = si.Simulation(transition_set=tr_set_2f_diff)
     sim.run(size=1000, seed=rng)
-    return sim
-
-
-@pytest.fixture()
-def sim_dstorm(tr_set_large):
-    rng = np.random.default_rng(1)
-    sim = si.Simulation(transition_set=tr_set_large)
-    sim.run(size=1e6, seed=rng)
     return sim
 
 

@@ -4,7 +4,7 @@ Mathematical formulas for optical and spectral properties.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -161,10 +161,8 @@ def calculate_excitation_rate(
             )
         cross_section = extinction_coefficient * 1e3 * np.log(10) / constants.Avogadro
     else:
-        if absorption_cross_section is None:
-            raise RuntimeError("absorption_cross_section unexpectedly missing")
         cross_section = np.asarray(
-            absorption_cross_section,
+            cast(npt.ArrayLike, absorption_cross_section),
             dtype=np.float64,
         )
         if np.any(~np.isfinite(cross_section)) or np.any(cross_section < 0):
