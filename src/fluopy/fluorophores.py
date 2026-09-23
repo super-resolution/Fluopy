@@ -461,10 +461,12 @@ def triangle_third_position(
         position_2 = np.array([0, 10])
     else:
         position_2 = np.asarray(position_2)
+    if np.array_equal(position_1, position_2):
+        raise ValueError("position_1 and position_2 must be different.")
     x1, y1 = position_1
     x2, y2 = position_2
     x3 = (x1 + x2 + np.sqrt(3) * (y1 - y2)) / 2
-    y3 = (y1 + y2 + np.sqrt(3) * (x1 - x2)) / -2
+    y3 = (y1 + y2 + np.sqrt(3) * (x2 - x1)) / 2
     position_3 = np.array([x3, y3])
 
     return position_3

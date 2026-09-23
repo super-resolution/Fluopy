@@ -13,6 +13,16 @@ from fluopy import formulas as fo
         [1, None, None, (np.array(1), np.array(10000000), np.array(2.9979e10))],
         [
             None,
+            None,
+            [2.99792458e14, 1.49896229e14],
+            (
+                np.array([10000, 5000]),
+                np.array([1000, 2000]),
+                np.array([2.99792458e14, 1.49896229e14]),
+            ),
+        ],
+        [
+            None,
             [1e3, 2e3],
             None,
             (
@@ -63,6 +73,18 @@ def test_calculate_photon_flux(irradiance, frequency, expected):
 
 
 @pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"irradiance": -1, "frequency": 1e14}, "irradiance"),
+        ({"irradiance": 1, "frequency": 0}, "frequency"),
+    ],
+)
+def test_calculate_photon_flux_rejects_invalid_inputs(kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        fo.calculate_photon_flux(**kwargs)
+
+
+@pytest.mark.parametrize(
     "photon_flux, extinction_coefficient, absorption_cross_section ,expected",
     [
         [1e10, None, None, "ValueError"],
@@ -91,6 +113,18 @@ def test_calculate_excitation_rate(
             absorption_cross_section=absorption_cross_section,
         )
         np.testing.assert_allclose(result, expected, rtol=1e-5)
+
+
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"extinction_coefficient": -1}, "extinction_coefficient"),
+        ({"absorption_cross_section": -1}, "absorption_cross_section"),
+    ],
+)
+def test_calculate_excitation_rate_rejects_invalid_coefficient(kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        fo.calculate_excitation_rate(photon_flux=1e10, **kwargs)
 
 
 @pytest.mark.parametrize(
@@ -126,6 +160,15 @@ def test_calculate_emission_rate_rejects_invalid_quantum_yield(
         )
 
 
+@pytest.mark.parametrize("lifetime", [0, -1, np.inf])
+def test_calculate_emission_rate_rejects_invalid_lifetime(lifetime):
+    with pytest.raises(ValueError, match="fluorescence_lifetime"):
+        fo.calculate_emission_rate(
+            quantum_yield=0.5,
+            fluorescence_lifetime=lifetime,
+        )
+
+
 @pytest.mark.parametrize(
     "quantum_yield, emission_rate, other_outgoing_rate, expected",
     [
@@ -156,6 +199,23 @@ def test_calculate_internal_conversion_rate(
         np.testing.assert_allclose(result, expected)
 
 
+def test_calculate_internal_conversion_rate_with_positional_outgoing_rate():
+    result = fo.calculate_internal_conversion_rate(0.5, 1e5, 2e4)
+
+    assert result == pytest.approx(8e4)
+
+
+@pytest.mark.parametrize("emission_rate", [-1, np.inf])
+def test_calculate_internal_conversion_rate_rejects_invalid_emission_rate(
+    emission_rate,
+):
+    with pytest.raises(ValueError, match="emission_rate"):
+        fo.calculate_internal_conversion_rate(
+            quantum_yield=0.5,
+            emission_rate=emission_rate,
+        )
+
+
 @pytest.mark.parametrize("ph, pka, concentration, expected", [[8, 9.6, 143, 3.50398]])
 def test_henderson_hasselbalch_equation(ph, pka, concentration, expected):
     base_concentration = fo.henderson_hasselbalch_equation(
@@ -180,6 +240,11 @@ def test_calculate_pet_rate(reducing_agent, expected):
     )
 
     assert result == pytest.approx(expected, rel=1e-3)
+
+
+def test_calculate_pet_rate_rejects_unknown_agent():
+    with pytest.raises(ValueError, match="reducing_agent has to be one of"):
+        fo.calculate_pet_rate(reducing_agent="unknown")
 
 
 @pytest.mark.parametrize(
@@ -212,6 +277,24 @@ def test_spectral_overlap_rejects_mismatched_shapes():
             donor=[1, 2, 3],
             acceptor=[1, 1],
             wavelengths=[500, 510, 520],
+        )
+
+
+def test_spectral_overlap_requires_two_values():
+    with pytest.raises(ValueError, match="must contain at least two values"):
+        fo.calculate_spectral_overlap_integral(
+            donor=[1],
+            acceptor=[1],
+            wavelengths=[500],
+        )
+
+
+def test_spectral_overlap_rejects_non_finite_values():
+    with pytest.raises(ValueError, match="must contain finite values"):
+        fo.calculate_spectral_overlap_integral(
+            donor=[1, np.nan],
+            acceptor=[1, 1],
+            wavelengths=[500, 510],
         )
 
 
@@ -318,11 +401,51 @@ def test_calculate_fret_rate():
     np.testing.assert_allclose(result, 292833333.3333, rtol=1e-4)
 
 
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"distance": 0}, "distance"),
+        ({"emission_rate": -1}, "emission_rate"),
+        ({"spectral_overlap_integral": -1}, "spectral_overlap_integral"),
+        ({"dipole_orientation_factor": 5}, "dipole_orientation_factor"),
+        ({"refractive_index": 0}, "refractive_index"),
+    ],
+)
+def test_calculate_fret_rate_rejects_invalid_inputs(kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        fo.calculate_fret_rate(**kwargs)
+
+
 def test_calculate_fret_efficiency():
     result = fo.calculate_fret_efficiency(fret_rate=1e8, fluorescence_lifetime=1e-8)
     np.testing.assert_allclose(result, 0.5)
 
 
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"fret_rate": -1}, "fret_rate"),
+        ({"fluorescence_lifetime": 0}, "fluorescence_lifetime"),
+    ],
+)
+def test_calculate_fret_efficiency_rejects_invalid_inputs(kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        fo.calculate_fret_efficiency(**kwargs)
+
+
 def test_calcualte_photon_collection_rate():
     result = fo.calculate_photon_collection_rate(NA=1.45, n1=1.51)
     np.testing.assert_allclose(result, 0.3604549)
+
+
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"n1": 0}, "n1"),
+        ({"NA": -1}, "NA"),
+        ({"NA": 2, "n1": 1.5}, "NA"),
+    ],
+)
+def test_calculate_photon_collection_rate_rejects_invalid_inputs(kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        fo.calculate_photon_collection_rate(**kwargs)

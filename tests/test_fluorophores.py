@@ -74,6 +74,26 @@ def test_fluorophore_position_is_read_only():
 
 
 @pytest.mark.parametrize(
+    "position, message",
+    [
+        ([[0, 1]], "must be one-dimensional"),
+        ([], "must not be empty"),
+        ([0, np.nan], "must be finite"),
+    ],
+)
+def test_fluorophore_rejects_invalid_position(position, message):
+    with pytest.raises(ValueError, match=message):
+        fl.Fluorophore("testfluo_1", position)
+
+
+def test_fluorophore_identity_requires_system():
+    fluorophore = fl.Fluorophore("testfluo_1", [0, 0])
+
+    with pytest.raises(RuntimeError, match="only available after adding it"):
+        fluorophore.get_identity()
+
+
+@pytest.mark.parametrize(
     "dirnames, exp_distances, exp_count, multi_type",
     [
         [["flu_obj_cy5_1"], {}, 1, False],
@@ -160,6 +180,11 @@ def test_fluorophore_system_requires_fluorophores():
         match="a fluorophore system must contain at least one fluorophore.",
     ):
         fl.FluorophoreSystem([])
+
+
+def test_fluorophore_system_rejects_non_fluorophore():
+    with pytest.raises(TypeError, match="only Fluorophore objects"):
+        fl.FluorophoreSystem([object()])
 
 
 def test_fluorophore_system_requires_matching_dimensions():
@@ -303,6 +328,50 @@ def test_load_transitions_warns_once_per_unknown_name(caplog):
     )
 
 
+def test_load_transitions_warns_for_unknown_acceptor(caplog):
+    system = fl.FluorophoreSystem(
+        [
+            fl.Fluorophore("testfluo_1", [0, 0]),
+            fl.Fluorophore("unknown", [1, 0]),
+        ]
+    )
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        system.load_transitions(energy_transfer=True)
+
+    assert (
+        caplog.text.count(
+            "load_transitions() not available for this kind of fluorophore: unknown."
+        )
+        == 1
+    )
+
+
+def test_fluorophore_system_plot(flu_sys_cy5):
+    ax = flu_sys_cy5.plot()
+
+    offsets = ax.collections[0].get_offsets()
+    expected = np.array(
+        [fluorophore.position for fluorophore in flu_sys_cy5.fluorophores]
+    )
+    np.testing.assert_array_equal(offsets, expected)
+    assert ax.get_xlabel() == "x [nm]"
+    assert ax.get_ylabel() == "y [nm]"
+    assert ax.get_aspect() == 1.0
+    assert [text.get_text() for text in ax.texts] == [
+        f"{fluorophore.name} ({fluorophore.identity})"
+        for fluorophore in flu_sys_cy5.fluorophores
+    ]
+
+
+def test_fluorophore_system_plot_requires_two_dimensions():
+    system = fl.FluorophoreSystem([fl.Fluorophore("testfluo_1", [0, 0, 0])])
+
+    with pytest.raises(ValueError, match="Only 2D positions can be plotted"):
+        system.plot()
+
+
 def test_load_transitions_does_not_mutate_energy_transfer_parameters(
     flu_sys_cy5,
 ):
@@ -377,6 +446,18 @@ def test_triangle_third_position(position_1, position_2, expected):
         expected,
         rtol=1e-5,
     )
+
+
+def test_triangle_third_position_defaults():
+    np.testing.assert_allclose(
+        fl.triangle_third_position(),
+        [-5 * np.sqrt(3), 5],
+    )
+
+
+def test_triangle_third_position_requires_distinct_vertices():
+    with pytest.raises(ValueError, match="position_1 and position_2 must be different"):
+        fl.triangle_third_position(position_1=[1, 2], position_2=[1, 2])
 
 
 @pytest.mark.parametrize(
