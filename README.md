@@ -2,8 +2,7 @@
   src="docs/_static/logo.svg"
   alt="Fluopy logo"
   width="110"
-  align="left"
->
+  align="left">
 
 [![PyPI](https://img.shields.io/pypi/v/Fluopy)](https://pypi.org/project/fluopy/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/Fluopy)](https://www.python.org/)
