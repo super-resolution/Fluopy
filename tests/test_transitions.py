@@ -1,3 +1,5 @@
+import logging
+
 import matplotlib.axes
 import matplotlib.pyplot as plt
 import numpy as np
@@ -173,6 +175,37 @@ def test_transition_to_dict_preserves_objects():
     assert transition_dict["transition_type"] is tr.TransitionType.EXCITATION
     assert transition_dict["initial_state"] is tr.SingleState.S0
     assert transition_dict["final_state"] is tr.SingleState.S1
+
+
+def test_transition_identity_requires_transition_set():
+    transition = tr.Transition(
+        transition_type=tr.TransitionType.EXCITATION,
+        rate=1,
+        fluorophore_ids=[0],
+    )
+
+    with pytest.raises(RuntimeError, match="only available after adding it"):
+        transition.get_identity()
+
+
+def test_transition_identity_accessors_reject_wrong_id_container():
+    transition = tr.Transition(
+        transition_type=tr.TransitionType.EXCITATION,
+        rate=1,
+        fluorophore_ids=[0],
+    )
+    transition.fluorophore_ids = [(0, 1)]
+    with pytest.raises(RuntimeError, match="must contain integer"):
+        transition.get_single_fluorophore_ids()
+
+    transfer = tr.Transition(
+        transition_type=tr.TransitionType.FRET,
+        rate=1,
+        fluorophore_ids=[(0, 1)],
+    )
+    transfer.fluorophore_ids = [0]
+    with pytest.raises(RuntimeError, match="must contain fluorophore identity pairs"):
+        transfer.get_fluorophore_pairs()
 
 
 class TestTransitionSet:
@@ -506,6 +539,121 @@ class TestTransitionSet:
         ):
             tr_set_1f.adjust_rates({0: -1})
 
+    def test_adjust_rates_rejects_non_scalar_rate(self, tr_set_1f):
+        with pytest.raises(
+            ValueError,
+            match="rate must be a finite, non-negative scalar",
+        ):
+            tr_set_1f.adjust_rates({0: "invalid"})
+
+    def test_default_filter_and_rate_adjustment_leave_transitions_unchanged(
+        self, tr_set_1f
+    ):
+        filtered = tr_set_1f.filter_by_identity()
+        adjusted = tr_set_1f.adjust_rates()
+
+        assert (
+            filtered.transition_df["rate"].tolist()
+            == tr_set_1f.transition_df["rate"].tolist()
+        )
+        assert (
+            adjusted.transition_df["rate"].tolist()
+            == tr_set_1f.transition_df["rate"].tolist()
+        )
+
+    def test_remove_zero_rates_method(self, flu_sys_cy5):
+        transition_set = tr.TransitionSet(
+            transitions={
+                "testfluo_1": [
+                    tr.Transition(
+                        tr.TransitionType.EXCITATION,
+                        rate=0,
+                        fluorophore_ids=[0],
+                    ),
+                    tr.Transition(
+                        tr.TransitionType.FLUORESCENT_EMISSION,
+                        rate=1,
+                        fluorophore_ids=[0],
+                    ),
+                ]
+            },
+            fluorophore_system=flu_sys_cy5,
+            keep_zero_rates=True,
+        )
+
+        without_zero_rates = transition_set.remove_zero_rates()
+
+        assert without_zero_rates.transition_df["rate"].tolist() == [1.0]
+
+    def test_remove_energy_transfers_skips_empty_collection(self, tr_set_1f):
+        tr_set_1f.transitions["empty"] = []
+
+        without_transfers = tr_set_1f.remove_energy_transfers()
+
+        assert "empty" not in without_transfers.transitions
+
+    def test_finalize_is_idempotent(self, tr_set_1f):
+        assert tr_set_1f.finalize() is tr_set_1f
+
+    def test_plot_creates_axes(self, tr_set_1f):
+        axes = tr_set_1f.plot()
+
+        assert axes
+        assert all(isinstance(ax, matplotlib.axes.Axes) for ax in axes)
+
+    @pytest.mark.parametrize(
+        "property_name, expected_type",
+        [
+            ("combined_state_transitions_df", pd.DataFrame),
+            ("row_sums", np.ndarray),
+            ("transition_matrix", np.ndarray),
+        ],
+    )
+    def test_properties_finalize_lazily(
+        self, flu_sys_cy5, property_name, expected_type
+    ):
+        transition_set = tr.TransitionSet(
+            transitions={
+                "testfluo_1": [
+                    tr.Transition(
+                        tr.TransitionType.EXCITATION,
+                        rate=1,
+                        fluorophore_ids=[0],
+                    ),
+                    tr.Transition(
+                        tr.TransitionType.FLUORESCENT_EMISSION,
+                        rate=1,
+                        fluorophore_ids=[0],
+                    ),
+                ]
+            },
+            fluorophore_system=flu_sys_cy5,
+        )
+
+        assert isinstance(getattr(transition_set, property_name), expected_type)
+
+    @pytest.mark.parametrize(
+        "property_name, message",
+        [
+            ("combined_state_transitions_df", "did not create a DataFrame"),
+            ("row_sums", "did not create row sums"),
+            ("transition_matrix", "did not create a transition matrix"),
+        ],
+    )
+    def test_properties_reject_failed_finalization(
+        self, tr_set_1f, monkeypatch, property_name, message
+    ):
+        private_name = {
+            "combined_state_transitions_df": "_combined_state_transitions_df",
+            "row_sums": "_row_sums",
+            "transition_matrix": "_transition_matrix",
+        }[property_name]
+        setattr(tr_set_1f, private_name, None)
+        monkeypatch.setattr(tr_set_1f, "finalize", lambda: tr_set_1f)
+
+        with pytest.raises(RuntimeError, match=message):
+            getattr(tr_set_1f, property_name)
+
     def test_transition_set_remove_absorbing_states(self, tr_set_bl_et_3f):
         assert tr_set_bl_et_3f.transition_df["absorbing"].any()
         tr_set_et = tr_set_bl_et_3f.remove_absorbing_states()
@@ -744,6 +892,82 @@ def test_get_combined_state_transitions():
     ]
 
 
+def test_get_single_states_skips_empty_transition_collection(flu_sys_cy5):
+    transition_df = pd.DataFrame(
+        index=pd.MultiIndex.from_tuples([], names=["Fluorophore", "identity"])
+    )
+
+    result = tr.get_single_states(
+        transitions={"empty": []},
+        transition_df=transition_df,
+        fluorophore_system=flu_sys_cy5,
+    )
+
+    assert result == {}
+
+
+@pytest.mark.parametrize(
+    "invalid_field, invalid_value, message",
+    [
+        (
+            "initial_state",
+            "invalid",
+            "non-paired transition must have a SingleState initial state",
+        ),
+        (
+            "final_state",
+            tr.PairedState.S1_S0,
+            "non-paired transition must have a SingleState final state",
+        ),
+    ],
+)
+def test_get_single_states_rejects_invalid_nonpaired_states(
+    flu_sys_cy5, invalid_field, invalid_value, message
+):
+    first = tr.Transition(
+        tr.TransitionType.EXCITATION,
+        rate=1,
+        fluorophore_ids=[0],
+    )
+    invalid = tr.Transition(
+        tr.TransitionType.EXCITATION,
+        rate=1,
+        fluorophore_ids=[0],
+    )
+    setattr(invalid, invalid_field, invalid_value)
+    transitions = {"testfluo_1": [first, invalid]}
+    transition_df = pd.DataFrame(
+        {
+            "initial_state": [first.initial_state, invalid.initial_state],
+            "final_state": [first.final_state, invalid.final_state],
+        },
+        index=pd.MultiIndex.from_tuples([("testfluo_1", 0), ("testfluo_1", 1)]),
+    )
+
+    with pytest.raises(TypeError, match=message):
+        tr.get_single_states(transitions, transition_df, flu_sys_cy5)
+
+
+def test_get_single_states_rejects_invalid_paired_final_state(flu_sys_2xcy5):
+    transition = tr.Transition(
+        tr.TransitionType.FRET,
+        rate=1,
+        fluorophore_ids=[(0, 1)],
+    )
+    transition.final_state = tr.SingleState.S0
+    transitions = {"transfer": [transition]}
+    transition_df = pd.DataFrame(
+        {
+            "initial_state": [transition.initial_state],
+            "final_state": [transition.final_state],
+        },
+        index=pd.MultiIndex.from_tuples([("transfer", 0)]),
+    )
+
+    with pytest.raises(TypeError, match="paired transition must have a PairedState"):
+        tr.get_single_states(transitions, transition_df, flu_sys_2xcy5)
+
+
 def test_rate_assignment_standard():
     combined_state_transitions = [
         ((0, 0, 0), (1, 1, 1)),
@@ -878,6 +1102,45 @@ def test_construct_transition_matrix():
     expected_row_sums = np.array([10002, 0, 1])
     np.testing.assert_allclose(transition_matrix, expected_transition_matrix, rtol=1e-6)
     np.testing.assert_allclose(row_sums, expected_row_sums, rtol=1e-5)
+
+
+def test_construct_transition_rate_list_requires_two_level_index():
+    transition_df = pd.DataFrame(
+        {
+            "initial_state": [tr.SingleState.S0],
+            "final_state": [tr.SingleState.S1],
+        }
+    )
+
+    with pytest.raises(TypeError, match="two-level index"):
+        tr.construct_transition_rate_list(transition_df, [])
+
+
+def test_construct_transition_rate_list_requires_integer_identity():
+    transition_df = pd.DataFrame(
+        {
+            "initial_state": [tr.SingleState.S0],
+            "final_state": [tr.SingleState.S1],
+        },
+        index=pd.MultiIndex.from_tuples([("testfluo_1", "invalid")]),
+    )
+
+    with pytest.raises(TypeError, match="identity must be an integer"):
+        tr.construct_transition_rate_list(transition_df, [])
+
+
+def test_construct_transition_matrix_requires_integer_index():
+    combined = pd.DataFrame(
+        {
+            "initial_state": [(0,)],
+            "final_state": [(0,)],
+            "rate": [1.0],
+        },
+        index=["invalid"],
+    )
+
+    with pytest.raises(TypeError, match="index must be an integer"):
+        tr.construct_transition_matrix(combined)
 
 
 def test_transition_set_finalize(tr_set_bl_et_3f):
@@ -1276,3 +1539,108 @@ def test_derive_transitions_without_absorption_error():
             fluorophore_data=fluorophore_data,
             dstorm=False,
         )
+
+
+def test_derive_energy_transfer_rate_requires_positive_donor_area():
+    donor_data = fd.FluorophoreData(
+        QUANTUM_YIELD=0.5,
+        FLUORESCENCE_LIFETIME=2e-9,
+        emission_spectrum=fd.Spectrum(
+            wavelengths=[500, 510],
+            values=[0, 0],
+        ),
+    )
+    acceptor_absorption = fd.Spectrum(
+        wavelengths=[500, 510],
+        values=[1000, 2000],
+    )
+
+    with pytest.raises(ValueError, match="donor emission spectrum must have positive"):
+        tr.derive_energy_transfer_rate(
+            donor_data=donor_data,
+            acceptor_absorption=acceptor_absorption,
+            distance=5,
+            dipole_orientation_factor=2 / 3,
+            refractive_index=1.33,
+        )
+
+
+def test_derive_energy_transfer_requires_acceptor_absorption(flu_obj_cy5_1):
+    with pytest.raises(ValueError, match="without acceptor absorption spectra"):
+        tr.derive_energy_transfer_transitions(
+            donor_data=flu_obj_cy5_1.constants,
+            acceptor_data=fd.FluorophoreData(),
+            fluorophore_ids=[(0, 1)],
+            distance=5,
+            dipole_orientation_factor=2 / 3,
+            refractive_index=1.33,
+        )
+
+
+@pytest.mark.parametrize(
+    "option, value, message",
+    [
+        ("overwrite", {"invalid": [1, 0.5]}, "unsupported acceptor state"),
+        ("exclude", ["invalid"], "unsupported acceptor states"),
+        ("include", {"invalid": []}, "unsupported acceptor state"),
+    ],
+)
+def test_derive_energy_transfer_rejects_unsupported_configuration(
+    flu_obj_cy5_1, option, value, message
+):
+    with pytest.raises(ValueError, match=message):
+        tr.derive_energy_transfer_transitions(
+            donor_data=flu_obj_cy5_1.constants,
+            acceptor_data=flu_obj_cy5_1.constants,
+            fluorophore_ids=[(0, 1)],
+            distance=5,
+            dipole_orientation_factor=2 / 3,
+            refractive_index=1.33,
+            **{option: value},
+        )
+
+
+def test_derive_energy_transfer_rejects_unsupported_absorption_state(
+    flu_obj_cy5_1,
+):
+    acceptor_data = fd.FluorophoreData(
+        absorption_spectra={
+            "invalid": fd.Spectrum(
+                wavelengths=[600, 650],
+                values=[1000, 2000],
+            )
+        }
+    )
+
+    with pytest.raises(ValueError, match="energy transfer to acceptor state 'invalid'"):
+        tr.derive_energy_transfer_transitions(
+            donor_data=flu_obj_cy5_1.constants,
+            acceptor_data=acceptor_data,
+            fluorophore_ids=[(0, 1)],
+            distance=5,
+            dipole_orientation_factor=2 / 3,
+            refractive_index=1.33,
+        )
+
+
+def test_derive_transitions_warns_for_cross_section_wavelength(caplog):
+    fluorophore_data = fd.FluorophoreData(
+        QUANTUM_YIELD=0.5,
+        FLUORESCENCE_LIFETIME=2e-9,
+        CROSS_SECTION_WAVELENGTH=510,
+        absorption_spectra={
+            "s0": fd.Spectrum(
+                wavelengths=[500, 510],
+                values=[1000, 2000],
+            )
+        },
+    )
+
+    with caplog.at_level(logging.WARNING):
+        tr.derive_transitions(
+            fluorophore_data=fluorophore_data,
+            wavelength=505,
+            dstorm=False,
+        )
+
+    assert "cross sections of states other than S0 are defined at 510 nm" in caplog.text

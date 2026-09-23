@@ -1131,8 +1131,6 @@ def get_single_states(
                 fluorophore_comb,
                 "initial_state",
             ]
-            if not isinstance(initial_state_series, pd.Series):
-                raise TypeError("initial_state selection must produce a pandas Series.")
 
             initial_states = initial_state_series.map(
                 lambda state: state.value
@@ -1146,8 +1144,6 @@ def get_single_states(
                 fluorophore_comb,
                 "final_state",
             ]
-            if not isinstance(final_state_series, pd.Series):
-                raise TypeError("final_state selection must produce a pandas Series.")
 
             final_states = final_state_series.map(lambda state: state.value).to_numpy()
             absorbing_states = single_state_df.loc[
