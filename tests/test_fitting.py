@@ -187,7 +187,6 @@ def test_negative_log_likelihood_hist_marginal_bin_complement_with_small_truncat
         counts=[1],
         bin_edges=[0, truncation_up],
         counts_not_observed=0,
-        truncation_low=0,
         truncation_up=truncation_up,
         pfa_cdf_part=uniform_cdf_part,
         cdf_part_index=0,
@@ -216,7 +215,6 @@ def test_negative_log_likelihood_hist_marginal_bin_complement_with_small_truncat
         (
             fitting.negative_log_likelihood_hist_marginal_bin_complement,
             {
-                "truncation_low": 0,
                 "truncation_up": 1,
                 "pfa_cdf_part": lambda x, i, normalize: 1.0,
                 "cdf_part_index": 0,
@@ -239,28 +237,35 @@ def test_public_likelihood_rejects_mismatched_histogram(
         )
 
 
-@pytest.mark.parametrize(
-    "likelihood",
-    [
-        fitting.negative_log_likelihood_hist_marginal_observation_window,
-        fitting.negative_log_likelihood_hist_marginal_bin_complement,
-    ],
-)
-def test_marginal_likelihood_rejects_nonzero_lower_truncation(likelihood):
-    with pytest.raises(
-        ValueError, match="Marginal distribution only defined for truncation_low = 0"
-    ):
-        likelihood(
-            model=ExponentialMixtureMarginalModel,
-            params={"pis": [], "lambdas": [1]},
-            counts=[1],
-            bin_edges=[0, 1],
-            counts_not_observed=0,
-            truncation_low=0.1,
-            truncation_up=1,
-            pfa_cdf_part=lambda x, i, normalize: 1.0,
-            cdf_part_index=0,
+def test_marginal_likelihoods_with_nonzero_lower_observation_limit():
+    common_arguments = {
+        "model": ExponentialMixtureMarginalModel,
+        "params": {"pis": [], "lambdas": [1]},
+        "counts": [2, 1],
+        "bin_edges": [0.5, 1, 2],
+        "counts_not_observed": 3,
+        "truncation_up": 2,
+        "pfa_cdf_part": lambda x, i, normalize: 1.0,
+        "cdf_part_index": 0,
+    }
+
+    observation_window = (
+        fitting.negative_log_likelihood_hist_marginal_observation_window(
+            truncation_low=0.5,
+            **common_arguments,
         )
+    )
+    bin_complement = fitting.negative_log_likelihood_hist_marginal_bin_complement(
+        **common_arguments
+    )
+
+    bin_probabilities = np.array([np.exp(-0.5) - np.exp(-1), np.exp(-1) - np.exp(-2)])
+    expected = -(
+        np.dot(common_arguments["counts"], np.log(bin_probabilities))
+        + common_arguments["counts_not_observed"] * np.log1p(-bin_probabilities.sum())
+    )
+    assert observation_window == pytest.approx(expected, rel=1e-5)
+    assert bin_complement == pytest.approx(expected, rel=1e-5)
 
 
 @pytest.mark.parametrize(

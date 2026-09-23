@@ -200,8 +200,6 @@ def negative_log_likelihood_hist_marginal_observation_window(
     float
         Negative log-likelihood.
     """
-    if truncation_low != 0:
-        raise ValueError("Marginal distribution only defined for truncation_low = 0.")
     counts_array, bin_edges_array = _prepare_histogram_inputs(
         counts,
         bin_edges,
@@ -218,11 +216,19 @@ def negative_log_likelihood_hist_marginal_observation_window(
         cdf_part_index=cdf_part_index,
         truncation_up=truncation_up,
     )
-    probs = current_model.cdf(b) - current_model.cdf(a)
+    probability_below_lower_limit = current_model.observation_cdf(truncation_low)
+    observation_probability = (
+        current_model.observation_probability - probability_below_lower_limit
+    )
+    a = np.maximum(a, truncation_low)
+    b = np.maximum(b, truncation_low)
+    probs = (
+        current_model.observation_cdf(b) - current_model.observation_cdf(a)
+    ) / observation_probability
     probs = np.clip(probs, a_min=1e-14, a_max=1)
     log_likelihood_bin = np.sum(counts_array * np.log(probs))
 
-    prob_event = current_model.observation_probability
+    prob_event = observation_probability
     # probability of observing an event
     # within the truncation range (given the distribution is non-truncated)
     prob_event = np.clip(prob_event, a_min=1e-14, a_max=1 - 1e-14)
@@ -300,7 +306,6 @@ def negative_log_likelihood_hist_marginal_bin_complement(
     counts: npt.ArrayLike,
     bin_edges: npt.ArrayLike,
     counts_not_observed: int,
-    truncation_low: float,
     truncation_up: float,
     pfa_cdf_part: Callable[..., Any],
     cdf_part_index: int,
@@ -325,8 +330,6 @@ def negative_log_likelihood_hist_marginal_bin_complement(
         Edges of the histogram bins.
     counts_not_observed
         Number of events not observed due to truncation.
-    truncation_low
-        Fixed lower truncation.
     truncation_up
         Fixed upper truncation.
     pfa_cdf_part
@@ -340,8 +343,6 @@ def negative_log_likelihood_hist_marginal_bin_complement(
     float
         Negative log-likelihood.
     """
-    if truncation_low != 0:
-        raise ValueError("Marginal distribution only defined for truncation_low = 0.")
     counts_array, bin_edges_array = _prepare_histogram_inputs(
         counts,
         bin_edges,
@@ -633,7 +634,6 @@ def fit_multiple_mixture_v2(
                 use_model = dist.ExponentialMixtureMarginalModel
                 use = negative_log_likelihood_hist_marginal_bin_complement
                 use_parameters = {
-                    "truncation_low": 0,
                     "truncation_up": truncation_up,
                     "pfa_cdf_part": pfa_cdf_part,
                     "cdf_part_index": cdf_part_index,
