@@ -338,7 +338,7 @@ def plot_histogram(
     Parameters
     ----------
     data
-        The data
+        The data.
     mode
         One of 'ON' or 'OFF'.
     density
@@ -410,7 +410,7 @@ def plot_boxplot(
     Parameters
     ----------
     data
-        The data
+        The data.
     mode
         One of 'ON' or 'OFF'.
     as_time

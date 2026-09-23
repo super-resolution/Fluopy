@@ -263,6 +263,18 @@ def test_get_analytical_off_statistics():
     np.testing.assert_array_equal(on_off_values, exp_on_off_values)
 
 
+def test_get_analytical_off_statistics_starting_off():
+    on_off_times, on_off_values = bl.get_analytical_off_statistics(
+        off_frames=[5],
+        off_periods=[2],
+        on_frames=[3],
+        frame_time="1s",
+    )
+
+    np.testing.assert_array_equal(on_off_times, [0, 0, 0, 3, 3, 5, 5, 7, 7])
+    np.testing.assert_array_equal(on_off_values, [1, 1, 0, 0, 1, 1, 0, 0, 0])
+
+
 def test_blinking_requires_extracted_emissions():
     with pytest.raises(ValueError, match="require extracted emissions"):
         bl.Blinking(emissions=SimpleNamespace(event_time_series=None))
@@ -294,6 +306,26 @@ def test_blinking_rejects_unknown_plot_mode(em_large):
         blink.plot(mode="unknown")
 
 
+def test_blinking_plot_requires_current_emission_data(em_large):
+    blink = bl.Blinking(emissions=em_large)
+    blink.emissions.event_time_series = None
+
+    with pytest.raises(ValueError, match="plotting requires extracted emissions"):
+        blink.plot()
+
+
+def test_plot_off_statistics():
+    ax = bl.plot_off_statistics(
+        on_off_times=[0.0, 1.0, 1.0, 2.0],
+        on_off_values=[1, 1, 0, 0],
+    )
+
+    np.testing.assert_array_equal(ax.lines[0].get_xdata(), [0.0, 1.0, 1.0, 2.0])
+    np.testing.assert_array_equal(ax.lines[0].get_ydata(), [1, 1, 0, 0])
+    assert ax.get_xlabel() == "Time (s)"
+    assert [tick.get_text() for tick in ax.get_yticklabels()] == ["OFF", "ON"]
+
+
 @pytest.mark.parametrize("plotter", [bl.plot_histogram, bl.plot_boxplot])
 def test_period_plot_requires_frame_duration_for_time_axis(plotter):
     with pytest.raises(ValueError, match="sec_per_frame is required"):
@@ -313,3 +345,22 @@ def test_histogram_time_conversion_and_probability_weights():
     assert ax.get_ylabel() == "Probability"
     assert ax.texts[0].get_text() == r"$\mu = 15.00$"
     assert sum(patch.get_height() for patch in ax.patches) == pytest.approx(1)
+
+
+def test_histogram_seconds_conversion():
+    ax = bl.plot_histogram([1, 2], as_time="s", sec_per_frame=0.5)
+
+    assert ax.get_xlabel() == "OFF period (s)"
+    assert ax.texts[0].get_text() == r"$\mu = 0.75$"
+
+
+@pytest.mark.parametrize(
+    "unit, expected_max",
+    [("ms", 1000), ("s", 1)],
+)
+def test_boxplot_time_conversion(unit, expected_max):
+    ax = bl.plot_boxplot([1, 2], as_time=unit, sec_per_frame=0.5)
+
+    plotted_values = np.concatenate([line.get_ydata() for line in ax.lines])
+    assert plotted_values.max() == expected_max
+    assert ax.get_ylabel() == f"OFF period ({unit})"

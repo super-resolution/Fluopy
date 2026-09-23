@@ -16,6 +16,33 @@ from fluopy import transitions as tr
 # ...infer_stats()
 
 
+@pytest.fixture()
+def analysis_1f(sim_tr_set_1f_bl):
+    return an.Analysis(simulation=sim_tr_set_1f_bl)
+
+
+def test_analysis_requires_completed_simulation():
+    simulation = SimpleNamespace(
+        transition_series=None,
+        state_series=None,
+        time_series=None,
+    )
+
+    with pytest.raises(ValueError, match="simulation has not been run"):
+        an.Analysis(simulation=simulation)
+
+
+def test_analysis_warns_when_absorbing_state_was_reached(
+    sim_tr_set_1f_bl, monkeypatch, caplog
+):
+    monkeypatch.setattr(an.Analysis, "is_absorbing", lambda self: True)
+
+    with caplog.at_level(logging.WARNING):
+        an.Analysis(simulation=sim_tr_set_1f_bl)
+
+    assert "absolute state and transition frequency of 1" in caplog.text
+
+
 # test with 1 fluorophore, with bleaching
 def test_analysis_1(request, caplog):
     with caplog.at_level(logging.WARNING):
@@ -259,6 +286,184 @@ def test_plot_rejects_incompatible_transition_dimensions(sim_tr_set_1f_bl):
         match="prediction and simulation have incompatible transition dimensions",
     ):
         analysis.plot_frequency_transitions(prediction=prediction)
+
+
+@pytest.mark.parametrize(
+    "method, arguments, message",
+    [
+        (
+            "plot_mean_transition_times",
+            {},
+            "predicted mean_transition_times not available",
+        ),
+        (
+            "plot_mean_lifetimes",
+            {},
+            "predicted lifetime_distributions not available",
+        ),
+        (
+            "plot_state_occupations",
+            {},
+            "predicted state_occupations not available",
+        ),
+        (
+            "plot_lifetime_distributions",
+            {"fluorophore": "testfluo_1", "state_identity": 0},
+            "predicted lifetime_distributions not available",
+        ),
+        (
+            "plot_transition_time_distributions",
+            {"fluorophore": "testfluo_1", "transition_id": 0},
+            "predicted transition_time_distributions not available",
+        ),
+    ],
+)
+def test_analysis_plots_reject_energy_transfer_prediction(
+    analysis_1f, method, arguments, message
+):
+    prediction = SimpleNamespace(
+        transition_set=analysis_1f.simulation.transition_set,
+        energy_transfer=True,
+    )
+
+    with pytest.raises(ValueError, match=message):
+        getattr(analysis_1f, method)(prediction=prediction, **arguments)
+
+
+@pytest.mark.parametrize(
+    "method, attribute, arguments, message",
+    [
+        (
+            "plot_mean_transition_times",
+            "mean_transition_times",
+            {},
+            "predicted mean transition times are unavailable",
+        ),
+        (
+            "plot_mean_lifetimes",
+            "mean_lifetimes",
+            {},
+            "predicted mean lifetimes are unavailable",
+        ),
+        (
+            "plot_state_occupations",
+            "state_occupations",
+            {},
+            "predicted state occupations are unavailable",
+        ),
+        (
+            "plot_lifetime_distributions",
+            "lifetime_distributions",
+            {"fluorophore": "testfluo_1", "state_identity": 0},
+            "predicted lifetime distributions are unavailable",
+        ),
+        (
+            "plot_transition_time_distributions",
+            "transition_time_distributions",
+            {"fluorophore": "testfluo_1", "transition_id": 0},
+            "predicted transition-time distributions are unavailable",
+        ),
+    ],
+)
+def test_analysis_plots_reject_unavailable_prediction_statistics(
+    analysis_1f, method, attribute, arguments, message
+):
+    prediction = SimpleNamespace(
+        transition_set=analysis_1f.simulation.transition_set,
+        energy_transfer=False,
+    )
+    setattr(prediction, attribute, None)
+
+    with pytest.raises(ValueError, match=message):
+        getattr(analysis_1f, method)(prediction=prediction, **arguments)
+
+
+@pytest.mark.parametrize(
+    "method, prediction_attributes, message",
+    [
+        (
+            "plot_frequency_states",
+            {"frequency_states": {"testfluo_1": np.array([1.0])}},
+            "incompatible state dimensions",
+        ),
+        (
+            "plot_mean_transition_times",
+            {"energy_transfer": False, "mean_transition_times": np.array([1.0])},
+            "incompatible transition dimensions",
+        ),
+        (
+            "plot_mean_lifetimes",
+            {
+                "energy_transfer": False,
+                "mean_lifetimes": {"testfluo_1": np.array([1.0])},
+            },
+            "incompatible state dimensions",
+        ),
+        (
+            "plot_state_occupations",
+            {
+                "energy_transfer": False,
+                "state_occupations": {"testfluo_1": np.array([1.0])},
+            },
+            "incompatible state dimensions",
+        ),
+    ],
+)
+def test_analysis_plots_reject_incompatible_prediction_dimensions(
+    analysis_1f, method, prediction_attributes, message
+):
+    prediction = SimpleNamespace(
+        transition_set=analysis_1f.simulation.transition_set,
+        **prediction_attributes,
+    )
+
+    with pytest.raises(ValueError, match=message):
+        getattr(analysis_1f, method)(prediction=prediction)
+
+
+def test_analysis_transition_plots_can_collapse_transfer_distances():
+    transition_df = pd.DataFrame(
+        {"abbreviation": ["A", "ET1", "ET2", "ET1", "ET2", "B"]},
+        index=pd.MultiIndex.from_tuples(
+            [
+                ("A", 0),
+                ("D: A, A: B, dist: 1", 1),
+                ("D: A, A: B, dist: 1", 2),
+                ("D: A, A: B, dist: 2", 3),
+                ("D: A, A: B, dist: 2", 4),
+                ("B", 5),
+            ]
+        ),
+    )
+    transition_set = SimpleNamespace(
+        transition_df=transition_df,
+        single_states={"A": np.array([0]), "B": np.array([0])},
+    )
+    analysis = an.Analysis.__new__(an.Analysis)
+    analysis.simulation = SimpleNamespace(transition_set=transition_set)
+    analysis.frequency_transitions = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+    analysis.transition_time_distributions = [
+        np.array([1.0]),
+        np.array([2.0]),
+        np.array([3.0]),
+        np.array([4.0, 6.0]),
+        np.array([5.0, 7.0]),
+        np.array([], dtype=np.float64),
+    ]
+    analysis.mean_transition_times = np.array([1.0, 2.0, 3.0, 5.0, 6.0, np.nan])
+
+    frequency_ax = analysis.plot_frequency_transitions(diff_dist=False, yscale="linear")
+    mean_ax = analysis.plot_mean_transition_times(diff_dist=False, yscale="linear")
+
+    np.testing.assert_allclose(
+        [patch.get_height() for patch in frequency_ax.patches],
+        [0.1, 0.6, 0.8, 0.6],
+    )
+    np.testing.assert_allclose(
+        [patch.get_height() for patch in mean_ax.patches],
+        [1.0, 4.0, 5.0, np.nan],
+        equal_nan=True,
+    )
 
 
 # test with 2 fluorophores, with energy transfer
@@ -555,3 +760,25 @@ def test_no_diff_dist():
         pd.testing.assert_index_equal(dict2[key], dict2_exp[key])
     dict2_vals_exp = np.array([5, 7, 6, 8, 14, 15])
     np.testing.assert_array_equal(dict2_vals, dict2_vals_exp)
+
+
+def test_no_diff_dist_keeps_single_distance_pair():
+    index = pd.MultiIndex.from_tuples(
+        [("Cy5", 0), ("D: Cy5, A: H, dist: 1", 1)],
+        names=["Group", "Number"],
+    )
+    transition_df = pd.DataFrame({"rate": [1.0, 2.0]}, index=index)
+
+    collapsed, discarded_by_position, discarded = an.no_diff_dist(
+        transition_df, ["Cy5", "H"]
+    )
+
+    pd.testing.assert_frame_equal(
+        collapsed.reset_index(drop=True), transition_df.reset_index(drop=True)
+    )
+    assert (
+        collapsed.index.get_level_values(0).tolist()
+        == index.get_level_values(0).tolist()
+    )
+    assert discarded_by_position == {}
+    np.testing.assert_array_equal(discarded, np.array([], dtype=np.int64))
