@@ -344,6 +344,47 @@ def test_coincidence_backends_agree_for_controlled_events():
     np.testing.assert_array_equal(numpy_hist, [1.0, 1.0, 1.0])
 
 
+def test_event_time_correlation_python_implementation():
+    first = np.array([0.0, 2.0])
+    second = np.array([0.5, 1.5, 3.0])
+    bins = np.array([0.0, 1.0, 2.0])
+
+    unnormalized = fcs_p._event_time_correlation.py_func(
+        first,
+        second,
+        bins,
+        False,
+        0.0,
+        4.0,
+    )
+    normalized = fcs_p._event_time_correlation.py_func(
+        first,
+        second,
+        bins,
+        True,
+        0.0,
+        4.0,
+    )
+
+    np.testing.assert_array_equal(unnormalized, [1.0, 2.0])
+    np.testing.assert_array_equal(normalized, [0.75, 2.0])
+
+
+def test_coincidence_numba_python_implementation_matches_numpy():
+    detector_1 = np.array([0.0, 3.0])
+    detector_2 = np.array([0.2, 1.4, 2.6])
+
+    expected_hist, expected_bins = fcs_p.coincidence_numpy(
+        detector_1, detector_2, tau_max=0.75, bin_width=0.5
+    )
+    actual_hist, actual_bins = fcs_p.coincidence_numba.py_func(
+        detector_1, detector_2, tau_max=0.75, bin_width=0.5
+    )
+
+    np.testing.assert_array_equal(actual_bins, expected_bins)
+    np.testing.assert_array_equal(actual_hist, expected_hist)
+
+
 @pytest.mark.parametrize("method", ["numpy", "numba"])
 def test_coincidence_is_reproducible_and_normalized(method):
     arrival_times = np.linspace(0.1, 9.9, 100)
