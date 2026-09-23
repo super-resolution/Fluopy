@@ -1,5 +1,5 @@
 <img
-  src="docs/logo.svg"
+  src="docs/_static/logo.svg"
   alt="Fluopy logo"
   width="110"
   align="left"
