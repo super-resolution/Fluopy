@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from os import PathLike
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -976,7 +976,7 @@ def load_from_array(filepath: str | PathLike[str]) -> dict[int, list[float]]:
     parameter_df["key"] = parameter_df["key"].astype(int)
     parameter_dict: dict[int, list[float]] = {}
     for key, values in parameter_df.groupby("key")["value"]:
-        parameter_dict[int(key)] = [float(value) for value in values]
+        parameter_dict[int(cast(int, key))] = [float(value) for value in values]
     return parameter_dict
 
 
