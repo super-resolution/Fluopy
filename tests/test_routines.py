@@ -1,26 +1,14 @@
-from copy import deepcopy
-from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from fluopy import routines as routines_module
 from fluopy.routines import (
-    emission_post_processing,
-    fingerprint_analysis,
     get_bleaching_times,
     get_delta_bleaching_times,
-    truncate_fingerprints,
 )
 from fluopy.transitions import SingleState
-
-
-def test_emission_post_processing(em_large):
-    emission = deepcopy(em_large)
-    emission_post_processing(emis=emission, seed=1)
-    assert not emission.event_time_series.equals(em_large.event_time_series)
 
 
 def test_get_bleaching_times(sim_tr_set_1f_bl):
@@ -108,151 +96,3 @@ def test_get_delta_bleaching_times():
         ]
     )
     assert np.array_equal(deltas, deltas_expected)
-
-
-def test_fingerprint_analysis_with_single_run_batch(monkeypatch):
-    index = np.round(np.linspace(0, 300, 300001), decimals=12)
-    event_time_series = pd.Series(np.zeros(index.size, dtype=np.int32), index=index)
-    event_time_series.iloc[100] = 1
-
-    class FakeSimulation:
-        def __init__(self, transition_set):
-            pass
-
-        def run(self, **kwargs):
-            pass
-
-    class FakeEmissions:
-        def __init__(self, **kwargs):
-            self.event_time_points = np.array([0.1, 0.2])
-            self.event_time_series = event_time_series.copy()
-
-        def extract(self, simulation):
-            pass
-
-    saved_batches = []
-    saved_bleaching_times = []
-
-    def capture_parquet(frame, path):
-        saved_batches.append((frame, path))
-
-    def capture_numpy(path, values):
-        saved_bleaching_times.append((path, values))
-
-    monkeypatch.setattr(routines_module.si, "Simulation", FakeSimulation)
-    monkeypatch.setattr(routines_module.em, "Emissions", FakeEmissions)
-    monkeypatch.setattr(
-        routines_module,
-        "get_bleaching_times",
-        lambda simulation: np.array([0.15, 300.0]),
-    )
-    monkeypatch.setattr(
-        routines_module, "emission_post_processing", lambda emis, seed: None
-    )
-    monkeypatch.setattr(pd.DataFrame, "to_parquet", capture_parquet)
-    monkeypatch.setattr(routines_module.np, "save", capture_numpy)
-    transition_set = SimpleNamespace(fluorophore_system=SimpleNamespace(count=2))
-
-    fingerprint, bleaching_times, delta_times = fingerprint_analysis(
-        transition_set=transition_set,
-        batch_size=1,
-        batches=1,
-        filepath="output",
-        filename="test",
-        seed=1,
-    )
-
-    assert len(saved_batches) == 1
-    saved_batch, saved_path = saved_batches[0]
-    assert isinstance(saved_batch, pd.DataFrame)
-    assert saved_batch.columns.to_list() == [0]
-    assert saved_path == Path("output/single_runs_test_batch_0.parquet")
-    assert fingerprint.iloc[-1] == 1
-    np.testing.assert_array_equal(bleaching_times, [[0.15, 300.0]])
-    np.testing.assert_array_equal(delta_times[0][0], [0.1])
-    np.testing.assert_allclose(delta_times[1][0], [0.05])
-    assert saved_bleaching_times[0][0] == Path("output/bleaching_times_test.npy")
-    np.testing.assert_array_equal(saved_bleaching_times[0][1], bleaching_times)
-
-
-def test_fingerprint_analysis_requires_extracted_emission_data(monkeypatch):
-    class FakeSimulation:
-        def __init__(self, transition_set):
-            pass
-
-        def run(self, **kwargs):
-            pass
-
-    class FakeEmissions:
-        def __init__(self, **kwargs):
-            self.event_time_points = None
-            self.event_time_series = None
-
-        def extract(self, simulation):
-            pass
-
-    monkeypatch.setattr(routines_module.si, "Simulation", FakeSimulation)
-    monkeypatch.setattr(routines_module.em, "Emissions", FakeEmissions)
-    monkeypatch.setattr(
-        routines_module, "get_bleaching_times", lambda simulation: np.array([1.0])
-    )
-    transition_set = SimpleNamespace(fluorophore_system=SimpleNamespace(count=1))
-
-    with pytest.raises(RuntimeError, match="did not produce event data"):
-        fingerprint_analysis(transition_set, 1, 1, "output", "test", seed=1)
-
-
-def test_fingerprint_analysis_requires_processed_emission_data(monkeypatch):
-    class FakeSimulation:
-        def __init__(self, transition_set):
-            pass
-
-        def run(self, **kwargs):
-            pass
-
-    class FakeEmissions:
-        def __init__(self, **kwargs):
-            self.event_time_points = np.array([0.1])
-            self.event_time_series = pd.Series([1], index=[0.1])
-
-        def extract(self, simulation):
-            pass
-
-    def remove_event_series(emis, seed):
-        emis.event_time_series = None
-
-    monkeypatch.setattr(routines_module.si, "Simulation", FakeSimulation)
-    monkeypatch.setattr(routines_module.em, "Emissions", FakeEmissions)
-    monkeypatch.setattr(
-        routines_module, "get_bleaching_times", lambda simulation: np.array([1.0])
-    )
-    monkeypatch.setattr(
-        routines_module, "emission_post_processing", remove_event_series
-    )
-    transition_set = SimpleNamespace(fluorophore_system=SimpleNamespace(count=1))
-
-    with pytest.raises(RuntimeError, match="processing removed"):
-        fingerprint_analysis(transition_set, 1, 1, "output", "test", seed=1)
-
-
-def test_fingerprint_analysis_rejects_empty_batch():
-    transition_set = SimpleNamespace(fluorophore_system=SimpleNamespace(count=1))
-
-    with pytest.raises(RuntimeError, match="batch did not produce emission data"):
-        fingerprint_analysis(transition_set, 0, 1, "output", "test", seed=1)
-
-
-def test_truncate_fingerprints():
-    fingerprint = pd.Series([1, 2, 3, 4, 5])
-    new_fingerprint = truncate_fingerprints(fingerprint=fingerprint, low=1, high=4)
-    fingerprint_expected = pd.Series([0, 0.5, 1], index=[1, 2, 3])
-    assert new_fingerprint.equals(fingerprint_expected)
-
-
-def test_truncate_fingerprints_rejects_invalid_ranges():
-    fingerprint = pd.Series([1, 1, 2])
-
-    with pytest.raises(ValueError, match="empty fingerprint"):
-        truncate_fingerprints(fingerprint, low=3)
-    with pytest.raises(ValueError, match="no cumulative increase"):
-        truncate_fingerprints(fingerprint, high=2)

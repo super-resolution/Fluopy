@@ -36,20 +36,26 @@ class FCS:
     ----------
     emissions : fluopy.emissions.Emissions
         Container for emission-associated attributes.
+    channel : str
+        Detection channel used for autocorrelation.
     autocorrelation : npt.NDArray[np.float64]
         Autocorrelation values.
     tau : npt.NDArray[np.float64]
         Time differences (i.e., τ, lag times).
     """
 
-    def __init__(self, emissions: Emissions):
+    def __init__(self, emissions: Emissions, channel: str | None = None):
         """
         Parameters
         ----------
         emissions
             Container for emission-associated attributes.
+        channel
+            Detection channel used for autocorrelation. If None, the only configured
+            channel is used.
         """
         self.emissions = emissions
+        self.channel = emissions.resolve_channel(channel)
         self.autocorrelation: npt.NDArray[np.float64] | None = None
         self.tau: npt.NDArray[np.float64] | None = None
 
@@ -101,7 +107,9 @@ class FCS:
         if self.emissions.event_time_points is None:
             raise ValueError("event_time_points is None.")
 
-        event_time_points = self.emissions.event_time_points
+        event_time_points = self.emissions.select_event_time_points(self.channel)
+        if event_time_points.size == 0:
+            raise ValueError("selected channel contains no photon arrival times.")
         if end_time is None:
             end_time = float(event_time_points[-1])
         duration = end_time - start_time
@@ -156,7 +164,9 @@ class FCS:
         """
         if self.emissions.event_time_series is None:
             raise ValueError("event_time_series is None.")
-        event_time_series = self.emissions.event_time_series.astype(float)
+        event_time_series = self.emissions.select_event_time_series(
+            self.channel
+        ).astype(float)
         event_values = event_time_series.to_numpy(dtype=np.float64)
         deltat = float(event_time_series.index[1] - event_time_series.index[0])
         if normalize and log:

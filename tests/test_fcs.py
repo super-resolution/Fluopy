@@ -1,26 +1,29 @@
-from types import SimpleNamespace
-
 import numpy as np
 import pandas as pd
 import pytest
 from matplotlib.axes import Axes as mplAxes
 
+from fluopy import emissions as em
 from fluopy import fcs as fcs_p
 
 
 @pytest.fixture()
 def small_emissions():
-    return SimpleNamespace(
-        event_time_points=np.array([0.1, 0.4, 0.9, 1.6], dtype=np.float64),
-        event_time_series=pd.Series(
-            [1, 2, 3], index=np.array([0.0, 0.5, 1.0], dtype=np.float64)
-        ),
+    emissions = em.Emissions(channels={"detector": em.DetectionChannel()})
+    emissions.event_time_points = {
+        "detector": np.array([0.1, 0.4, 0.9, 1.6], dtype=np.float64)
+    }
+    emissions.event_time_series = pd.DataFrame(
+        {"detector": [1, 2, 3]},
+        index=np.array([0.0, 0.5, 1.0], dtype=np.float64),
     )
+    return emissions
 
 
 def test_fcs(em_very_large):
     fcs_obj = fcs_p.FCS(emissions=em_very_large)
     assert fcs_obj.emissions == em_very_large
+    assert fcs_obj.channel == "all"
     assert fcs_obj.autocorrelation is None
     assert fcs_obj.tau is None
 
@@ -320,6 +323,65 @@ def test_fcs_autocorrelate_linear_time_series(small_emissions, normalize, expect
     assert returned is fcs_obj
     np.testing.assert_array_equal(fcs_obj.tau, [0.5, 1.0])
     np.testing.assert_allclose(fcs_obj.autocorrelation, expected)
+
+
+def test_fcs_selects_channel_for_autocorrelation(monkeypatch):
+    emissions = em.Emissions(
+        channels={
+            "green": em.DetectionChannel(),
+            "red": em.DetectionChannel(),
+        }
+    )
+    emissions.event_time_points = {
+        "green": np.array([0.1]),
+        "red": np.array([0.2, 0.4]),
+    }
+    emissions.event_time_series = pd.DataFrame(
+        {"green": [1, 0, 0], "red": [1, 2, 3]},
+        index=[0.0, 0.5, 1.0],
+    )
+    correlation_arguments = {}
+
+    def event_time_correlation(**kwargs):
+        correlation_arguments.update(kwargs)
+        return np.array([1.0])
+
+    monkeypatch.setattr(fcs_p, "_event_time_correlation", event_time_correlation)
+    fcs_obj = fcs_p.FCS(emissions=emissions, channel="red")
+
+    fcs_obj.autocorrelate_time_points(
+        exp_min=-1,
+        exp_max=0,
+        points_per_base=1,
+        normalize=False,
+        end_time=1.0,
+    )
+    np.testing.assert_array_equal(correlation_arguments["t"], [0.2, 0.4])
+    fcs_obj.autocorrelate_time_series(log=False, normalize=False)
+    np.testing.assert_allclose(fcs_obj.autocorrelation, [8.0, 3.0])
+
+
+def test_fcs_requires_channel_for_multichannel_emissions():
+    emissions = em.Emissions(
+        channels={
+            "green": em.DetectionChannel(),
+            "red": em.DetectionChannel(),
+        }
+    )
+    emissions.event_time_series = pd.DataFrame(
+        {"green": [0, 1], "red": [0, 1]}, index=[0.0, 0.5]
+    )
+    with pytest.raises(ValueError, match="channel must be specified"):
+        fcs_p.FCS(emissions=emissions)
+
+
+def test_fcs_time_point_autocorrelation_requires_photons():
+    emissions = em.Emissions()
+    emissions.event_time_points = {"all": np.array([], dtype=np.float64)}
+    fcs_obj = fcs_p.FCS(emissions=emissions)
+
+    with pytest.raises(ValueError, match="contains no photon"):
+        fcs_obj.autocorrelate_time_points()
 
 
 def test_fit_dark():

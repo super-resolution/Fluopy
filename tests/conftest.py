@@ -242,7 +242,7 @@ def sim_tr_set_2f_diff(tr_set_2f_diff):
 @pytest.fixture()
 def em_tr_set_1f_bl(sim_tr_set_1f_bl):
     rng = np.random.default_rng(1)
-    emis = em.Emissions(frame_time="5ms", bandpass=None, seed=rng)
+    emis = em.Emissions(frame_time="5ms", seed=rng)
     emis.extract(simulation=sim_tr_set_1f_bl)
     return emis
 
@@ -250,7 +250,7 @@ def em_tr_set_1f_bl(sim_tr_set_1f_bl):
 @pytest.fixture()
 def em_tr_set_et_2f_diff(sim_tr_set_et_2f_diff):
     rng = np.random.default_rng(1)
-    emis = em.Emissions(frame_time="5ms", bandpass=None, seed=rng)
+    emis = em.Emissions(frame_time="5ms", seed=rng)
     emis.extract(simulation=sim_tr_set_et_2f_diff)
     return emis
 

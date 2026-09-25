@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import gc
 import logging
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -897,14 +898,15 @@ def approximation(
 def simulate_experiment(
     transition_matrix: npt.ArrayLike,
     row_sums: npt.ArrayLike,
-    emitting_transition_ids: dict[int, float],
+    detection_probabilities: npt.ArrayLike,
+    channel_names: Sequence[str],
     start_index: int = 0,
     size: int = 100_000,
     frames: int = 10,
     frame_time: str = "5ms",
     store_time_points: bool = False,
     seed: RandomGeneratorSeed = None,
-) -> tuple[npt.NDArray[np.float64] | None, pd.Series]:
+) -> tuple[dict[str, npt.NDArray[np.float64]] | None, pd.DataFrame]:
     """
     Simulates experimental data (i.e., number of photons per frame). Methodically the
     direct method of the gillespie algorithm. Stores only the number of photons per
@@ -918,9 +920,10 @@ def simulate_experiment(
     row_sums
         Contains the sum of each row of non-normalized transition rates, i.e., the sum
         of rates of all possible combined_state_transitions.
-    emitting_transition_ids
-        Contains the combined_state_transition indices as keys and their probability of
-        passing a bandpass filter as values.
+    detection_probabilities
+        Detection probability for every combined transition and channel.
+    channel_names
+        Channel names in the order used by detection_probabilities.
     start_index
         Starting index. The final state of the transition indexed is the starting state
         configuration.
@@ -939,16 +942,32 @@ def simulate_experiment(
 
     Returns
     -------
-    event_time_points : npt.NDArray[np.float64] | None
-        The time points at which emissions are detected.
+    event_time_points : dict[str, npt.NDArray[np.float64]] | None
+        The time points at which emissions are detected, grouped by channel.
         If store_time_points is False, None is returned.
-    event_time_series : pd.Series
+    event_time_series : pd.DataFrame
         Contains the time points (increasing by a defined time interval) as index and
-        the number of events (i.e., detected emissions) as values.
+        the number of detected emissions in each channel as columns.
     """
 
     matrix = np.asarray(transition_matrix, dtype=np.float64)
     rates = np.asarray(row_sums, dtype=np.float64)
+    probabilities = np.asarray(detection_probabilities, dtype=np.float64)
+    channel_names = tuple(channel_names)
+    if probabilities.shape != (matrix.shape[1], len(channel_names)):
+        raise ValueError(
+            "detection_probabilities must contain one row per transition and one "
+            "column per channel."
+        )
+    if np.any(~np.isfinite(probabilities)) or np.any(
+        (probabilities < 0) | (probabilities > 1)
+    ):
+        raise ValueError("detection probabilities must be finite and between 0 and 1.")
+    if np.any(probabilities.sum(axis=1) > 1 + 1e-12):
+        raise ValueError(
+            "detection probabilities must sum to at most 1 per transition."
+        )
+    cumulative_detection_probabilities = np.cumsum(probabilities, axis=1)
     transition_matrix_sorted_indices = np.argsort(matrix, axis=1)
     sorted_transition_matrix = np.take_along_axis(
         arr=matrix, indices=transition_matrix_sorted_indices, axis=1
@@ -961,10 +980,10 @@ def simulate_experiment(
     seconds_per_frame = float(pd.Timedelta(frame_time) / np.timedelta64(1, "s"))
     time_stamps = np.linspace(0, seconds_per_frame * frames, frames + 1)
     time_stamps = np.round(time_stamps, decimals=12)
-    photon_collector = np.zeros(time_stamps.size)
+    photon_collector = np.zeros((time_stamps.size, len(channel_names)), dtype=np.int64)
     time = 0
     if store_time_points:
-        time_points: list[float] = []
+        time_points: list[list[float]] = [[] for _ in channel_names]
     else:
         event_time_points = None
 
@@ -973,7 +992,6 @@ def simulate_experiment(
     skip = False
     while frame < frames:
         frame += 1
-        photons = 0
         random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
         i = 0
         j = 1
@@ -982,9 +1000,11 @@ def simulate_experiment(
                 current_state_lambda = rates[current_state_index]
 
                 if current_state_lambda == 0:
-                    photon_collector[frame] = photons
-                    event_time_series = pd.Series(
-                        photon_collector, index=time_stamps, dtype=np.int64
+                    event_time_series = pd.DataFrame(
+                        photon_collector,
+                        index=time_stamps,
+                        columns=channel_names,
+                        dtype=np.int64,
                     )
                     logger.warning(
                         "All fluorophores underwent photobleaching or entered "
@@ -992,7 +1012,12 @@ def simulate_experiment(
                         stacklevel=2,
                     )
                     if store_time_points:
-                        event_time_points = np.array(time_points)
+                        event_time_points = {
+                            channel_name: np.asarray(
+                                time_points[channel_index], dtype=np.float64
+                            )
+                            for channel_index, channel_name in enumerate(channel_names)
+                        }
                     return event_time_points, event_time_series
 
                 transition_time = (
@@ -1015,14 +1040,21 @@ def simulate_experiment(
             next_transition = transition_matrix_sorted_indices[
                 current_state_index, sorted_index
             ]
-            if next_transition in emitting_transition_ids:
-                if (
-                    random_numbers[i - (j - 1) * size, 2]
-                    < emitting_transition_ids[next_transition]
-                ):
-                    photons += 1
+            cumulative_probabilities = cumulative_detection_probabilities[
+                next_transition
+            ]
+            if cumulative_probabilities[-1] > 0:
+                channel_index = np.searchsorted(
+                    cumulative_probabilities,
+                    random_numbers[i - (j - 1) * size, 2],
+                    side="right",
+                )
+                if channel_index < len(channel_names):
+                    photon_collector[frame, channel_index] += 1
                     if store_time_points:
-                        time_points.append((frame - 1) * seconds_per_frame + time)
+                        time_points[channel_index].append(
+                            (frame - 1) * seconds_per_frame + time
+                        )
 
             current_state_index = next_transition
             i += 1
@@ -1030,12 +1062,19 @@ def simulate_experiment(
                 j += 1
                 random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
 
-        photon_collector[frame] = photons
         frame += frame_diff
 
-    event_time_series = pd.Series(photon_collector, index=time_stamps, dtype=np.int64)
+    event_time_series = pd.DataFrame(
+        photon_collector,
+        index=time_stamps,
+        columns=channel_names,
+        dtype=np.int64,
+    )
     if store_time_points:
-        event_time_points = np.array(time_points)
+        event_time_points = {
+            channel_name: np.asarray(time_points[channel_index], dtype=np.float64)
+            for channel_index, channel_name in enumerate(channel_names)
+        }
 
     return event_time_points, event_time_series
 
