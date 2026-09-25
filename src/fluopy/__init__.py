@@ -22,18 +22,17 @@ from .blinking import *
 from .distributions import *
 from .emissions import *
 from .fcs import *
-from .figure import *
+from .plotting import *
 from .fitting import *
 from .fluo_data import *
 from .fluorophores import *
-from .formulas import *
+from .photophysics import *
 from .kappa_squared import *
 from .miscellaneous import *
-from .network import *
 from .prediction import *
 from .routines import *
 from .simulation import *
-from .simulation_tcspc import *
+from .tcspc import *
 from .transitions import *
 
 submodules: list[str] = [
@@ -42,18 +41,17 @@ submodules: list[str] = [
     "distributions",
     "emissions",
     "fcs",
-    "figure",
+    "plotting",
     "fitting",
     "fluo_data",
     "fluorophores",
-    "formulas",
+    "photophysics",
     "kappa_squared",
     "miscellaneous",
-    "network",
     "prediction",
     "routines",
     "simulation",
-    "simulation_tcspc",
+    "tcspc",
     "transitions",
 ]
 

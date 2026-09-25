@@ -14,14 +14,14 @@ import numpy.typing as npt
 import pandas as pd
 from scipy.stats import gamma, norm, poisson
 
-from . import figure as fi
+from . import plotting as fi
 from .fluo_data import Spectrum
 from .simulation import (
     Simulation,
     eval_floating_point_precision_error,
     simulate_experiment,
 )
-from .simulation_tcspc import simulate_TCSPC, simulate_TCSPC_detailed
+from .tcspc import simulate_TCSPC, simulate_TCSPC_detailed
 from .transitions import TransitionSet
 
 if TYPE_CHECKING:
@@ -672,7 +672,7 @@ class Emissions:
         channel
             Detection channel to plot. If None, the only configured channel is used.
         kwargs
-            fluopy.figure.universal_figure arguments
+            fluopy.plotting.universal_figure arguments
 
         Returns
         -------
@@ -721,7 +721,7 @@ class Emissions:
         channel
             Detection channel to plot. If None, the only configured channel is used.
         kwargs
-            fluopy.figure.universal_figure arguments
+            fluopy.plotting.universal_figure arguments
 
         Returns
         -------
@@ -769,7 +769,7 @@ class Emissions:
         channel
             Detection channel to plot. If None, the only configured channel is used.
         kwargs
-            fluopy.figure.universal_figure arguments
+            fluopy.plotting.universal_figure arguments
 
         Returns
         -------

@@ -14,7 +14,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-from . import figure as fi
+from . import plotting as fi
 from .miscellaneous import format_electronic_state, format_transition
 
 if TYPE_CHECKING:
@@ -494,7 +494,7 @@ class Analysis:
         diff_dist
             Whether to plot energy transfers distance-specific or not.
         kwargs
-            kwargs for fluopy.figure.universal_figure
+            kwargs for fluopy.plotting.universal_figure
 
         Returns
         -------

@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING, Any, Literal
 import numpy as np
 import numpy.typing as npt
 
-from . import figure as fi
 from . import fluo_data as fd
+from . import plotting as fi
 from .transitions import (
     derive_energy_transfer_transitions,
     derive_transitions,
@@ -377,7 +377,7 @@ class FluorophoreSystem:
         quadratic
             Whether to display the plot with same x and y axis scaling.
         kwargs
-            fluopy.figure.universal_figure arguments
+            fluopy.plotting.universal_figure arguments
 
         Returns
         -------

@@ -27,18 +27,17 @@ def test_logging():
         # 'distributions',
         "emissions",
         # 'fcs',
-        # 'figure',
+        # 'plotting',
         # 'fitting',
         # 'fluo_data',
         "fluorophores",
-        # 'formulas',
+        # 'photophysics',
         # 'kappa_squared',
         # 'miscellaneous',
-        # 'network',
         "prediction",
         # 'routines',
         "simulation",
-        "simulation_tcspc",
+        "tcspc",
         # 'transitions'
     ]:
         module = getattr(fluopy, module_name)

@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import pytest
 
-from fluopy import network as net
+from fluopy import _graphs as net
 
 
 def test_construct_state_graphs(tr_set_bl_et_3f):

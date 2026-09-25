@@ -14,7 +14,7 @@ import numpy as np
 import numpy.typing as npt
 from scipy.stats import expon
 
-from . import figure as fi
+from . import plotting as fi
 from .miscellaneous import format_electronic_state, format_transition
 
 if TYPE_CHECKING:
@@ -513,7 +513,7 @@ class Prediction:
         Parameters
         ----------
         kwargs
-            kwargs for fluopy.figure.universal_figure
+            kwargs for fluopy.plotting.universal_figure
 
         Returns
         -------
@@ -565,7 +565,7 @@ class Prediction:
         Parameters
         ----------
         kwargs
-            kwargs for fluopy.figure.universal_figure
+            kwargs for fluopy.plotting.universal_figure
 
         Returns
         -------
@@ -621,7 +621,7 @@ class Prediction:
         Parameters
         ----------
         kwargs
-            kwargs for fluopy.figure.universal_figure
+            kwargs for fluopy.plotting.universal_figure
 
         Returns
         -------
@@ -680,7 +680,7 @@ class Prediction:
         Parameters
         ----------
         kwargs
-            kwargs for fluopy.figure.universal_figure
+            kwargs for fluopy.plotting.universal_figure
 
         Returns
         -------
@@ -744,7 +744,7 @@ class Prediction:
         Parameters
         ----------
         kwargs
-            kwargs for fluopy.figure.universal_figure
+            kwargs for fluopy.plotting.universal_figure
 
         Returns
         -------
@@ -819,7 +819,7 @@ class Prediction:
         x
             The x values for which the distribution is to be shown.
         kwargs
-            kwargs for fluopy.figure.universal_figure
+            kwargs for fluopy.plotting.universal_figure
 
         Returns
         -------
@@ -876,7 +876,7 @@ class Prediction:
         x
             The x values for which the distribution is to be shown.
         kwargs
-            kwargs for fluopy.figure.universal_figure
+            kwargs for fluopy.plotting.universal_figure
 
         Returns
         -------

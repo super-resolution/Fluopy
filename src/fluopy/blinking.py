@@ -10,7 +10,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-from . import figure as fi
+from . import plotting as fi
 from . import transitions as tr
 
 if TYPE_CHECKING:
@@ -100,7 +100,7 @@ class Blinking:
             One of 'on_histogram', 'off_histogram', 'on_frame_series',
             'off_frame_series', 'on_boxplot', 'off_boxplot'.
         kwargs
-            fluopy.figure.universal_figure arguments
+            fluopy.plotting.universal_figure arguments
 
         Returns
         -------
@@ -315,7 +315,7 @@ def plot_off_statistics(
         Values that correspond to all_times. 0 if time is associated with OFF, 1
         otherwise.
     kwargs
-        kwargs for fluopy.figure.universal_figure arguments
+        kwargs for fluopy.plotting.universal_figure arguments
 
     Returns
     -------
@@ -361,7 +361,7 @@ def plot_histogram(
     sec_per_frame
         Duration of a frame in seconds.
     kwargs
-        kwargs for fluopy.figure.universal_figure arguments
+        kwargs for fluopy.plotting.universal_figure arguments
 
     Returns
     -------
@@ -428,7 +428,7 @@ def plot_boxplot(
     sec_per_frame
         Duration of a frame in seconds.
     kwargs
-        kwargs for fluopy.figure.universal_figure arguments
+        kwargs for fluopy.plotting.universal_figure arguments
 
     Returns
     -------
@@ -469,7 +469,7 @@ def plot_frame_series(
     mode
         One of 'ON' or 'OFF'.
     kwargs
-        kwargs for fluopy.figure.universal_figure arguments
+        kwargs for fluopy.plotting.universal_figure arguments
 
     Returns
     -------

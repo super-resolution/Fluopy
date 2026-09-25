@@ -14,7 +14,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-from . import figure as fi
+from . import plotting as fi
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes
@@ -279,7 +279,7 @@ class FCS:
         unit
             One of 's', 'ms', 'us'. Influences the unit of the x-axis.
         kwargs
-            fluopy.figure.universal_figure arguments
+            fluopy.plotting.universal_figure arguments
 
         Returns
         -------

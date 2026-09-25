@@ -5,7 +5,7 @@ import pytest
 from matplotlib.patches import Patch
 from scipy.stats import norm, poisson
 
-from fluopy.figure import universal_figure
+from fluopy.plotting import universal_figure
 
 
 def test_universal_figure():
