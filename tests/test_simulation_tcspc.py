@@ -394,8 +394,8 @@ def test_tcspc_detailed_removes_excitation_beyond_last_pulse(tr_set_1f, monkeypa
         ],
         [
             "tr_set_1f",
-            {10: 1, 11: 1, 12: 1, 13: 1, 14: 1, 15: 1, 16: 1, 17: 1, 18: 1, 19: 1},
-            [10, 11],
+            {1: 1},
+            [],
             8e4,
             5e-11,
             1e-8,
