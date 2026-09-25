@@ -93,7 +93,9 @@ class FCS:
             measurement duration.
         end_time
             The time the measurement ended. This is used to normalize to the correct
-            measurement duration.
+            measurement duration. If None, the last photon arrival time in the selected
+            channel is used. Supply end_time explicitly to normalize to the full
+            acquisition duration or to compare channels over the same duration.
 
         Returns
         -------

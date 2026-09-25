@@ -32,11 +32,15 @@ def _prepare_detection_configuration(
 ) -> tuple[npt.NDArray[np.float64], tuple[str, ...]]:
     """Validate and accumulate channel-resolved detection probabilities."""
     probabilities = np.asarray(detection_probabilities, dtype=np.float64)
-    if channel_names is None:
-        raise ValueError("channel_names must be provided.")
+    if channel_names is None or isinstance(channel_names, str):
+        raise ValueError("channel_names must be a sequence of channel names.")
     names = tuple(channel_names)
     if not names:
         raise ValueError("at least one channel name is required.")
+    if any(not isinstance(name, str) or not name for name in names):
+        raise ValueError("channel names must be non-empty strings.")
+    if len(set(names)) != len(names):
+        raise ValueError("channel names must be unique.")
 
     if probabilities.shape != (transition_count, len(names)):
         raise ValueError(

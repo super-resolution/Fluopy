@@ -162,7 +162,10 @@ def test_tcspc_routes_detected_photons_to_channels(call, store_time_points, tr_s
     "case, error",
     [
         ("no_names", "channel_names"),
+        ("string_names", "sequence of channel names"),
         ("empty_names", "at least one channel"),
+        ("invalid_names", "non-empty strings"),
+        ("duplicate_names", "unique"),
         ("shape", "one row per transition"),
         ("range", "between 0 and 1"),
         ("sum", "at most 1"),
@@ -174,8 +177,14 @@ def test_tcspc_validates_detection_probabilities(case, error, tr_set_1f):
     detection_probabilities = np.zeros((transition_count, 2))
     if case == "no_names":
         channel_names = None
+    elif case == "string_names":
+        channel_names = "green"
     elif case == "empty_names":
         channel_names = ()
+    elif case == "invalid_names":
+        channel_names = ("green", "")
+    elif case == "duplicate_names":
+        channel_names = ("green", "green")
     elif case == "shape":
         detection_probabilities = detection_probabilities[:-1]
     elif case == "range":

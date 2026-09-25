@@ -439,6 +439,11 @@ def test_simulate_experiment(
 @pytest.mark.parametrize(
     "detection_probabilities, channel_names, match",
     [
+        ([[1]], None, "sequence of channel names"),
+        ([[1]], "detector", "sequence of channel names"),
+        ([[1]], (), "at least one channel"),
+        ([[1]], ("",), "non-empty strings"),
+        ([[0.5, 0.5]], ("detector", "detector"), "unique"),
         ([[0.5, 0.5]], ("detector",), "one row per transition"),
         ([[np.nan]], ("detector",), "finite and between"),
         ([[0.6, 0.6]], ("first", "second"), "sum to at most 1"),

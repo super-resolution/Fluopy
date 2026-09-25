@@ -953,7 +953,15 @@ def simulate_experiment(
     matrix = np.asarray(transition_matrix, dtype=np.float64)
     rates = np.asarray(row_sums, dtype=np.float64)
     probabilities = np.asarray(detection_probabilities, dtype=np.float64)
+    if channel_names is None or isinstance(channel_names, str):
+        raise ValueError("channel_names must be a sequence of channel names.")
     channel_names = tuple(channel_names)
+    if not channel_names:
+        raise ValueError("at least one channel name is required.")
+    if any(not isinstance(name, str) or not name for name in channel_names):
+        raise ValueError("channel names must be non-empty strings.")
+    if len(set(channel_names)) != len(channel_names):
+        raise ValueError("channel names must be unique.")
     if probabilities.shape != (matrix.shape[1], len(channel_names)):
         raise ValueError(
             "detection_probabilities must contain one row per transition and one "

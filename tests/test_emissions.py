@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -438,6 +437,39 @@ def test_emissions_apply_threshold():
     )
 
 
+def test_emissions_applies_channel_specific_thresholds():
+    emis = em.Emissions(
+        channels={"green": em.DetectionChannel(), "red": em.DetectionChannel()}
+    )
+    emis.event_time_series = pd.DataFrame(
+        {"green": [0, 2, 4], "red": [0, 2, 4]}, dtype=np.int64
+    )
+
+    emis.apply_threshold({"green": 3, "red": 2})
+
+    expected = pd.DataFrame({"green": [0, 0, 4], "red": [0, 2, 4]}, dtype=np.int64)
+    pd.testing.assert_frame_equal(emis.event_time_series, expected)
+
+
+@pytest.mark.parametrize(
+    "threshold",
+    [
+        {"green": 2},
+        {"green": 2, "red": 2, "blue": 2},
+    ],
+)
+def test_emissions_requires_complete_channel_parameter_mappings(threshold):
+    emis = em.Emissions(
+        channels={"green": em.DetectionChannel(), "red": em.DetectionChannel()}
+    )
+    emis.event_time_series = pd.DataFrame(
+        {"green": [0, 2], "red": [0, 2]}, dtype=np.int64
+    )
+
+    with pytest.raises(ValueError, match="must contain exactly"):
+        emis.apply_threshold(threshold)
+
+
 def test_emissions_add_emccd_gain(em_large):
     rng = np.random.default_rng(1)
     # fmt: off
@@ -468,6 +500,20 @@ def test_emissions_add_emccd_gain(em_large):
     # fmt: on
     exp_event_time_series = pd.Series(exp_values, index=exp_index)
     assert_all_channel_equal(em_large, exp_event_time_series)
+
+
+def test_emissions_adds_channel_specific_emccd_gain():
+    emis = em.Emissions(
+        channels={"green": em.DetectionChannel(), "red": em.DetectionChannel()}
+    )
+    emis.event_time_series = pd.DataFrame(
+        {"green": [0, 2, 4], "red": [0, 3, 5]}, dtype=np.int64
+    )
+
+    emis.add_emccd_gain({"green": 2, "red": 5}, seed=1)
+
+    expected = pd.DataFrame({"green": [0, 4, 11], "red": [0, 16, 18]}, dtype=np.int64)
+    pd.testing.assert_frame_equal(emis.event_time_series, expected)
 
 
 def test_emissions_add_gaussian_noise(em_large):
@@ -503,6 +549,24 @@ def test_emissions_add_gaussian_noise(em_large):
     assert_all_channel_equal(em_large, exp_event_time_series)
 
 
+def test_emissions_adds_channel_specific_gaussian_noise():
+    emis = em.Emissions(
+        channels={"green": em.DetectionChannel(), "red": em.DetectionChannel()}
+    )
+    emis.event_time_series = pd.DataFrame(
+        {"green": [0, 1, 1], "red": [0, 1, 1]}, dtype=np.int64
+    )
+
+    emis.add_gaussian_noise(
+        mean={"green": 2, "red": 5},
+        std={"green": 0, "red": 0},
+        seed=1,
+    )
+
+    expected = pd.DataFrame({"green": [0, 3, 3], "red": [0, 6, 6]}, dtype=np.int64)
+    pd.testing.assert_frame_equal(emis.event_time_series, expected)
+
+
 def test_emissions_add_poisson_noise(em_large):
     rng = np.random.default_rng(1)
     # fmt: off
@@ -533,6 +597,20 @@ def test_emissions_add_poisson_noise(em_large):
     # fmt: on
     exp_event_time_series = pd.Series(exp_values, index=exp_index)
     assert_all_channel_equal(em_large, exp_event_time_series)
+
+
+def test_emissions_adds_channel_specific_poisson_noise():
+    emis = em.Emissions(
+        channels={"green": em.DetectionChannel(), "red": em.DetectionChannel()}
+    )
+    emis.event_time_series = pd.DataFrame(
+        {"green": [0, 1, 1], "red": [0, 1, 1]}, dtype=np.int64
+    )
+
+    emis.add_poisson_noise({"green": 0, "red": 4}, seed=1)
+
+    expected = pd.DataFrame({"green": [0, 1, 1], "red": [0, 6, 4]}, dtype=np.int64)
+    pd.testing.assert_frame_equal(emis.event_time_series, expected)
 
 
 def test_emissions_add_poisson_noise_is_frame_only_for_multiple_channels():
@@ -623,51 +701,6 @@ def test_emissions_histogram_probability_and_mean():
     assert ax.get_ylabel() == "Probability"
     assert sum(patch.get_height() for patch in ax.patches) == pytest.approx(1)
     assert ax.texts[0].get_text() == r"$\mu = 1.33$"
-
-
-def test_save_and_load(request, tmp_path, caplog):
-    with caplog.at_level(logging.WARNING):
-        em_tr_set_1f_bl = request.getfixturevalue("em_tr_set_1f_bl")
-        assert "Floating point precision error warning" in caplog.text
-    caplog.clear()
-
-    em_tr_set_1f_bl.save(path=tmp_path, name_extension="_test_extension")
-    assert (Path(tmp_path) / "event_time_series_test_extension.csv").is_file()
-    assert (Path(tmp_path) / "event_time_points_test_extension.npy").is_file()
-    emis = em.Emissions.load(path=tmp_path, name_extension="_test_extension")
-    assert isinstance(emis.event_time_points, dict)
-    assert isinstance(emis.event_time_series, pd.DataFrame)
-    assert em_tr_set_1f_bl.event_time_points is not None
-    assert em_tr_set_1f_bl.event_time_series is not None
-    np.testing.assert_array_equal(
-        emis.event_time_points["all"], em_tr_set_1f_bl.event_time_points["all"]
-    )
-    pd.testing.assert_frame_equal(
-        emis.event_time_series, em_tr_set_1f_bl.event_time_series
-    )
-    assert emis.parameters == {
-        "frame_time": "5ms",
-        "seed": None,
-        "channels": {"all": em.DetectionChannel()},
-    }
-    (Path(tmp_path) / "event_time_series_test_extension.csv").unlink(missing_ok=True)
-    (Path(tmp_path) / "event_time_points_test_extension.npy").unlink(missing_ok=True)
-    assert not (Path(tmp_path) / "event_time_series_test_extension.csv").is_file()
-    assert not (Path(tmp_path) / "event_time_points_test_extension.npy").is_file()
-
-
-def test_save_and_load_without_event_time_points(tmp_path):
-    emis = em.Emissions()
-    emis.event_time_series = pd.DataFrame(
-        {"all": [0, 2]}, index=[0.0, 0.005], dtype=np.int64
-    )
-
-    emis.save(path=tmp_path)
-    loaded = em.Emissions.load(path=tmp_path)
-
-    pd.testing.assert_frame_equal(loaded.event_time_series, emis.event_time_series)
-    assert loaded.event_time_points is None
-    assert not (tmp_path / "event_time_points.npy").is_file()
 
 
 @pytest.mark.parametrize(

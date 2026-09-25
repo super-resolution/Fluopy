@@ -7,7 +7,6 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -49,7 +48,11 @@ class DetectionChannel:
         same fluorophore must not overlap.
     fluorophore_ids
         Physical fluorophore identifiers whose photons may enter the channel. If None,
-        photons from every fluorophore may enter it.
+        photons from every fluorophore may enter it. Restricting fluorophore_ids is
+        primarily intended for simulations of fluorophore-specific collection paths.
+        For ordinary wavelength-resolved detection, leave it as None because a photon
+        may enter any channel whose bandpass accepts its wavelength, regardless of
+        which fluorophore emitted it.
     detection_efficiency
         Combined probability that a photon passing the bandpass is detected. This can
         combine independent scalar losses such as objective photon collection, optical
@@ -521,7 +524,9 @@ class Emissions:
         self.event_time_series = pd.DataFrame(collected_series, dtype=np.int64)
 
     def add_emccd_gain(
-        self, emccd_gain: float, seed: RandomGeneratorSeed = None
+        self,
+        emccd_gain: float | Mapping[str, float],
+        seed: RandomGeneratorSeed = None,
     ) -> None:
         """
         Add EMCCD gain to the frame-based detector signal.
@@ -532,23 +537,34 @@ class Emissions:
         Parameters
         ----------
         emccd_gain
-            The gain of an EMCCD.
+            The gain of an EMCCD. A scalar is applied to every detection channel. A
+            mapping assigns a separate gain to each channel and must contain every
+            channel in event_time_series.
         seed
             A seed to initialize the BitGenerator.
 
         """
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
+        gains = _resolve_channel_parameter(
+            emccd_gain,
+            event_time_series.columns,
+            "emccd_gain",
+        )
         values = event_time_series.to_numpy(dtype=np.int64, copy=True)
         nonzero = values != 0
+        scales = np.broadcast_to(gains, values.shape)
         values[nonzero] = np.asarray(
-            gamma.rvs(a=values[nonzero], scale=emccd_gain, random_state=rng),
+            gamma.rvs(a=values[nonzero], scale=scales[nonzero], random_state=rng),
             dtype=np.int64,
         )
         event_time_series.iloc[:] = values
 
     def add_gaussian_noise(
-        self, mean: float, std: float, seed: RandomGeneratorSeed = None
+        self,
+        mean: float | Mapping[str, float],
+        std: float | Mapping[str, float],
+        seed: RandomGeneratorSeed = None,
     ) -> None:
         """
         Add normally distributed noise to the frame-based detector signal.
@@ -561,9 +577,14 @@ class Emissions:
         Parameters
         ----------
         mean
-            Mean of normal distributed noise events per frame.
+            Mean of normally distributed noise events per frame. A scalar is applied
+            to every detection channel. A mapping assigns a separate mean to each
+            channel and must contain every channel in event_time_series.
         std
-            Standard deviation of normal distributed noise events per frame.
+            Standard deviation of normally distributed noise events per frame. A
+            scalar is applied to every detection channel. A mapping assigns a separate
+            standard deviation to each channel and must contain every channel in
+            event_time_series.
         seed
             A seed to initialize the BitGenerator.
 
@@ -571,15 +592,25 @@ class Emissions:
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
         frame_counts = event_time_series.iloc[1:]
+        means = _resolve_channel_parameter(mean, frame_counts.columns, "mean")
+        standard_deviations = _resolve_channel_parameter(
+            std,
+            frame_counts.columns,
+            "std",
+        )
         values = frame_counts.to_numpy(dtype=np.int64)
-        variates = norm(loc=mean, scale=std).rvs(
+        variates = norm(loc=means, scale=standard_deviations).rvs(
             size=frame_counts.shape, random_state=rng
         )
         variates = variates.astype(np.int64)
         event_time_series.iloc[1:] = values + variates
         event_time_series[event_time_series < 0] = 0
 
-    def add_poisson_noise(self, rate: float, seed: RandomGeneratorSeed = None) -> None:
+    def add_poisson_noise(
+        self,
+        rate: float | Mapping[str, float],
+        seed: RandomGeneratorSeed = None,
+    ) -> None:
         """
         Add Poisson noise to the frame-based detector signal.
 
@@ -590,7 +621,9 @@ class Emissions:
         Parameters
         ----------
         rate
-            Expected number of Poisson-distributed noise events per frame.
+            Expected number of Poisson-distributed noise events per frame. A scalar is
+            applied to every detection channel. A mapping assigns a separate rate to
+            each channel and must contain every channel in event_time_series.
         seed
             A seed to initialize the BitGenerator.
 
@@ -598,12 +631,13 @@ class Emissions:
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
         frame_counts = event_time_series.iloc[1:]
+        rates = _resolve_channel_parameter(rate, frame_counts.columns, "rate")
         values = frame_counts.to_numpy(dtype=np.int64)
-        variates = poisson(rate).rvs(size=frame_counts.shape, random_state=rng)
+        variates = poisson(rates).rvs(size=frame_counts.shape, random_state=rng)
         variates = variates.astype(np.int64)
         event_time_series.iloc[1:] = values + variates
 
-    def apply_threshold(self, threshold: int) -> None:
+    def apply_threshold(self, threshold: int | Mapping[str, int]) -> None:
         """
         Apply a threshold to the frame-based detector signal.
 
@@ -613,10 +647,19 @@ class Emissions:
         Parameters
         ----------
         threshold
-            The minimum number of events per frame to be considered.
+            The minimum number of events per frame to be considered. A scalar is
+            applied to every detection channel. A mapping assigns a separate threshold
+            to each channel and must contain every channel in event_time_series.
         """
         event_time_series = self._require_event_time_series()
-        event_time_series[event_time_series < threshold] = 0
+        thresholds = _resolve_channel_parameter(
+            threshold,
+            event_time_series.columns,
+            "threshold",
+        )
+        values = event_time_series.to_numpy(copy=True)
+        values[values < thresholds] = 0
+        event_time_series.iloc[:] = values
 
     def plot_cumulative_events(
         self, channel: str | None = None, **kwargs: Any
@@ -743,85 +786,24 @@ class Emissions:
 
         return ax
 
-    def save(self, path: str | Path, name_extension: str = "") -> None:
-        """
-        Saves event_time_series and, when available, event_time_points to files.
 
-        Parameters
-        ----------
-        path
-            Directory where the files shall be stored.
-        name_extension
-            Optional file name extension.
+def _resolve_channel_parameter(
+    value: float | Mapping[str, float],
+    channel_names: pd.Index,
+    parameter_name: str,
+) -> npt.NDArray[np.float64]:
+    """Return one parameter value per event-time-series channel."""
+    if not isinstance(value, Mapping):
+        return np.full(len(channel_names), value, dtype=np.float64)
 
-        """
-        time_series_file = Path(path) / ("event_time_series" + name_extension + ".csv")
-        time_points_file = Path(path) / ("event_time_points" + name_extension + ".npy")
-        self._require_event_time_series().to_csv(
-            time_series_file, header=True, index_label="time"
+    missing = [name for name in channel_names if name not in value]
+    unexpected = [name for name in value if name not in channel_names]
+    if missing or unexpected:
+        raise ValueError(
+            f"{parameter_name} mapping must contain exactly the event_time_series "
+            f"channels; missing={missing}, unexpected={unexpected}."
         )
-        if self.event_time_points is None:
-            time_points_file.unlink(missing_ok=True)
-        else:
-            np.save(
-                time_points_file,
-                np.asarray(self.event_time_points, dtype=object),
-                allow_pickle=True,
-            )
-
-    @classmethod
-    def load(cls, path: str | Path, name_extension: str = "") -> Emissions:
-        """
-        Load event_time_series and, when available, event_time_points from files.
-        Initialization parameters are not persisted and use their constructor defaults.
-
-        Parameters
-        ----------
-        path
-            Directory where the files are stored.
-        name_extension
-            Optional file name extension.
-
-        Returns
-        -------
-        fluopy.emissions.Emissions
-            Instance of Emissions constructed with existing data.
-        """
-        time_series_file = Path(path) / ("event_time_series" + name_extension + ".csv")
-        loaded_series = pd.read_csv(
-            time_series_file,
-            index_col=0,
-        )
-        if loaded_series.index.name == "time":
-            event_time_series = loaded_series.astype(np.int64)
-        else:
-            event_time_series = pd.read_csv(
-                time_series_file,
-                index_col=0,
-                header=None,
-                names=["time", "all"],
-            ).astype(np.int64)
-        event_time_series.index.name = None
-        obj = cls(
-            channels={name: DetectionChannel() for name in event_time_series.columns}
-        )
-        obj.event_time_series = event_time_series
-        time_points_file = Path(path) / ("event_time_points" + name_extension + ".npy")
-        if time_points_file.is_file():
-            loaded_time_points = np.load(time_points_file, allow_pickle=True)
-            if loaded_time_points.shape == () and isinstance(
-                loaded_time_points.item(), dict
-            ):
-                obj.event_time_points = {
-                    str(name): np.asarray(time_points, dtype=np.float64)
-                    for name, time_points in loaded_time_points.item().items()
-                }
-            else:
-                obj.event_time_points = {
-                    "all": np.asarray(loaded_time_points, dtype=np.float64)
-                }
-
-        return obj
+    return np.asarray([value[name] for name in channel_names], dtype=np.float64)
 
 
 def get_p_filter(

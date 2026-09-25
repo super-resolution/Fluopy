@@ -571,16 +571,15 @@ def test_custom_fluorophore_automatic_transitions_and_bandpass():
         transitions=transitions,
         fluorophore_system=fluorophore_system,
     )
-    emitting_transition_ids = em.get_emitting_transition_ids(
-        bandpass=(505, 515),
+    detection_probabilities = em.get_detection_probabilities(
         transition_set=transition_set,
+        channels={"detector": em.DetectionChannel(bandpass=(505, 515))},
     )
+    emitting_probabilities = detection_probabilities[:, 0]
+    emitting_probabilities = emitting_probabilities[emitting_probabilities > 0]
 
-    assert emitting_transition_ids
-    assert all(
-        probability == pytest.approx(0.75)
-        for probability in emitting_transition_ids.values()
-    )
+    assert emitting_probabilities.size > 0
+    np.testing.assert_allclose(emitting_probabilities, 0.75)
 
 
 def test_custom_fluorophores_automatic_energy_transfer():
