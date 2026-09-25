@@ -31,6 +31,8 @@ class Blinking:
     ----------
     emissions : fluopy.emissions.Emissions
         Container for emission-associated attributes.
+    channel : str
+        Detection channel used to determine blinking periods.
     on_periods : npt.NDArray[np.int64]
         Contains the durations of each ON period (in frames).
     off_periods : npt.NDArray[np.int64]
@@ -42,7 +44,11 @@ class Blinking:
     """
 
     def __init__(
-        self, emissions: Emissions, threshold: int = 0, memory: int = 0
+        self,
+        emissions: Emissions,
+        threshold: int = 0,
+        memory: int = 0,
+        channel: str | None = None,
     ) -> None:
         """
         Parameters
@@ -53,11 +59,15 @@ class Blinking:
             Maximum value of photons per frame to be considered an OFF frame.
         memory
             Number of OFF frames to be neglected. They are included in the ON times.
+        channel
+            Detection channel used to determine blinking periods. If None, the only
+            configured channel is used.
         """
         self.emissions = emissions
-        event_time_series = self.emissions.event_time_series
-        if event_time_series is None:
+        self.channel = emissions.resolve_channel(channel)
+        if self.emissions.event_time_series is None:
             raise ValueError("blinking statistics require extracted emissions.")
+        event_time_series = self.emissions.select_event_time_series(self.channel)
         (
             self.on_periods,
             self.off_periods,
@@ -97,9 +107,9 @@ class Blinking:
         matplotlib.axes.Axes
             The modified axis.
         """
-        event_time_series = self.emissions.event_time_series
-        if event_time_series is None:
+        if self.emissions.event_time_series is None:
             raise ValueError("plotting requires extracted emissions.")
+        event_time_series = self.emissions.select_event_time_series(self.channel)
         sec_per_frame = float(event_time_series.index[1] - event_time_series.index[0])
         if mode == "on_histogram":
             data = self.on_periods

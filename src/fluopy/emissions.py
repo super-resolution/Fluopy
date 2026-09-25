@@ -5,13 +5,14 @@ Work with observable photon emission time series.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-from scipy.stats import binom, gamma, norm, poisson
+from scipy.stats import gamma, norm, poisson
 
 from . import figure as fi
 from .fluo_data import Spectrum
@@ -29,9 +30,54 @@ if TYPE_CHECKING:
     from fluopy.fluopy_types import RandomGeneratorSeed
 
 
-__all__: list[str] = ["Emissions"]
+__all__: list[str] = ["DetectionChannel", "Emissions"]
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class DetectionChannel:
+    """
+    Define how emitted photons are detected in one named channel.
+
+    Attributes
+    ----------
+    bandpass
+        The lowest and highest wavelength in nm passed by the channel. If None, no
+        wavelength filter is applied. Bandpasses of channels accepting photons from the
+        same fluorophore must not overlap.
+    fluorophore_ids
+        Physical fluorophore identifiers whose photons may enter the channel. If None,
+        photons from every fluorophore may enter it. Restricting fluorophore_ids is
+        primarily intended for simulations of fluorophore-specific collection paths.
+        For ordinary wavelength-resolved detection, leave it as None because a photon
+        may enter any channel whose bandpass accepts its wavelength, regardless of
+        which fluorophore emitted it.
+    detection_efficiency
+        Combined probability that a photon passing the bandpass is detected. This can
+        combine independent scalar losses such as objective photon collection, optical
+        transmittance, and detector quantum efficiency.
+    """
+
+    bandpass: tuple[float, float] | None = None
+    fluorophore_ids: frozenset[int] | None = None
+    detection_efficiency: float = 1.0
+
+    def __post_init__(self) -> None:
+        """Validate the channel configuration."""
+        if self.bandpass is not None:
+            lower, upper = self.bandpass
+            if not np.isfinite(lower) or not np.isfinite(upper):
+                raise ValueError("bandpass limits must be finite.")
+            if lower >= upper:
+                raise ValueError(
+                    "The lower bandpass limit has to be smaller than the upper limit."
+                )
+        if (
+            not np.isfinite(self.detection_efficiency)
+            or not 0 <= self.detection_efficiency <= 1
+        ):
+            raise ValueError("detection_efficiency must be finite and between 0 and 1.")
 
 
 class Emissions:
@@ -42,19 +88,17 @@ class Emissions:
     ----------
     parameters : dict[str, Any]
         Contains the parameters with which the instance was initialized.
-    event_time_points : npt.NDArray[np.float64]
-        The photon time points selected by the method that populated the object.
-        extract() records emitting transitions after optional bandpass filtering,
-        whereas simulate() and tcspc() record photons treated as detected after
-        bandpass acceptance. Detector and optical-path post-processing methods modify
-        only event_time_series, so the two representations no longer describe the same
-        photons after post-processing. Array of shape (n_time_points,). None until
-        extract() has been called, or until simulate() or tcspc() has been called with
-        time-point storage enabled.
-    event_time_series : pd.Series
+    event_time_points : dict[str, npt.NDArray[np.float64]]
+        Detected photon time points grouped by detection channel. Bandpass filtering and
+        detection efficiency are represented consistently in event_time_points and
+        event_time_series. Frame-based detector processing such as gain, noise, and
+        thresholding modifies only event_time_series. None until extract() has been
+        called, or until simulate() or tcspc() has been called with time-point storage
+        enabled.
+    event_time_series : pd.DataFrame
         Contains the time points (increasing by a defined time interval) as index and
-        the number of events as values. Detector and optical-path post-processing is
-        applied to this series without updating event_time_points. Internally generated
+        one event-count column per detection channel. Gain, noise, and thresholding are
+        frame-based operations and do not modify event_time_points. Internally generated
         series start with a zero-valued boundary entry at time zero; measured frames
         start at the second entry. None until extract(), simulate() or tcspc() has been
         called.
@@ -63,7 +107,7 @@ class Emissions:
     def __init__(
         self,
         frame_time: str = "5ms",
-        bandpass: tuple[float, float] | None = None,
+        channels: Mapping[str, DetectionChannel] | None = None,
         seed: RandomGeneratorSeed = None,
     ) -> None:
         """
@@ -72,48 +116,140 @@ class Emissions:
         frame_time
             For possible input values, see
             https://pandas.pydata.org/docs/user_guide/timeseries.html -> Offset aliases.
-        bandpass
-            The lowest and highest wavelength in nm passed by the bandpass filter.
-            Requires emission spectrum data when specified.
+        channels
+            Named, mutually exclusive detection channels.
         seed
             A seed to initialize the BitGenerator.
         """
+        if channels is None:
+            channels = {"all": DetectionChannel()}
+        if not channels:
+            raise ValueError("at least one detection channel is required.")
+        if any(not isinstance(name, str) or not name for name in channels):
+            raise ValueError("detection channel names must be non-empty strings.")
+        if any(
+            not isinstance(channel, DetectionChannel) for channel in channels.values()
+        ):
+            raise TypeError("channels must contain DetectionChannel values.")
+
+        self.channels = dict(channels)
         self.parameters: dict[str, Any] = {
             "frame_time": frame_time,
             "seed": seed,
-            "bandpass": bandpass,
+            "channels": self.channels,
         }
-        self.event_time_points: npt.NDArray[np.float64] | None = None
-        self.event_time_series: pd.Series[Any] | None = None
+        self.event_time_points: dict[str, npt.NDArray[np.float64]] | None = None
+        self.event_time_series: pd.DataFrame | None = None
 
-    def _require_event_time_series(self) -> pd.Series[Any]:
+    def _require_event_time_series(self) -> pd.DataFrame:
+        """Return event_time_series after checking that it is available."""
         if self.event_time_series is None:
             raise ValueError("event time series is unavailable.")
         return self.event_time_series
 
-    def _require_event_time_points(self) -> npt.NDArray[np.float64]:
+    def _require_event_time_points(self) -> dict[str, npt.NDArray[np.float64]]:
+        """Return event_time_points after checking that they are available."""
         if self.event_time_points is None:
             raise ValueError("event time points are unavailable.")
         return self.event_time_points
 
+    def resolve_channel(self, channel: str | None = None) -> str:
+        """
+        Resolve an optional channel name.
+
+        Parameters
+        ----------
+        channel
+            Name of the detection channel. If None, the only configured channel is
+            selected.
+
+        Returns
+        -------
+        str
+            Resolved detection channel name.
+        """
+        if channel is None:
+            if len(self.channels) != 1:
+                raise ValueError(
+                    "channel must be specified when multiple channels are configured."
+                )
+            return next(iter(self.channels))
+        if channel not in self.channels:
+            raise ValueError(f"unknown detection channel: {channel}.")
+        return channel
+
+    def select_event_time_series(self, channel: str | None = None) -> pd.Series[Any]:
+        """
+        Select the frame-based signal of one detection channel.
+
+        Parameters
+        ----------
+        channel
+            Name of the detection channel. If None, the only configured channel is
+            selected.
+
+        Returns
+        -------
+        pd.Series
+            Frame-based signal of the selected channel.
+        """
+        channel_name = self.resolve_channel(channel)
+        return self._require_event_time_series()[channel_name]
+
+    def select_event_time_points(
+        self, channel: str | None = None
+    ) -> npt.NDArray[np.float64]:
+        """
+        Select detected photon arrival times of one detection channel.
+
+        Parameters
+        ----------
+        channel
+            Name of the detection channel. If None, the only configured channel is
+            selected.
+
+        Returns
+        -------
+        npt.NDArray[np.float64]
+            Photon arrival times of the selected channel.
+        """
+        channel_name = self.resolve_channel(channel)
+        return self._require_event_time_points()[channel_name]
+
     def extract(self, simulation: Simulation) -> None:
         """
-        Extracts events from a simulation. The events may be filtered by bandpass.
+        Extract detected photons from a completed simulation.
 
         Parameters
         ----------
         simulation
             Container for simulation-associated attributes.
-
         """
         if simulation.transition_series is None or simulation.time_series is None:
             raise ValueError("emissions not available if simulation has not been run.")
-        emission_indices = self.get_emission_indices(
-            simulation=simulation,
-            bandpass=self.parameters["bandpass"],
-            seed=self.parameters["seed"],
+        detection_probabilities = get_detection_probabilities(
+            transition_set=simulation.transition_set,
+            channels=self.channels,
         )
-        self.event_time_points = simulation.time_series[emission_indices + 1]
+        transition_series = simulation.transition_series
+        emitting = simulation.transition_set.combined_state_transitions_df["photon"]
+        emitting_transition_ids = emitting.index[emitting].to_numpy()
+        emission_indices = np.flatnonzero(
+            np.isin(transition_series, emitting_transition_ids)
+        )
+        channel_indices = assign_detection_channels(
+            transition_ids=transition_series[emission_indices],
+            detection_probabilities=detection_probabilities,
+            random_numbers=np.random.default_rng(self.parameters["seed"]).random(
+                emission_indices.size
+            ),
+        )
+        self.event_time_points = {
+            channel_name: simulation.time_series[
+                emission_indices[channel_indices == channel_index] + 1
+            ]
+            for channel_index, channel_name in enumerate(self.channels)
+        }
         self.construct_event_time_series(
             simulation=simulation,
             resample=self.parameters["frame_time"],
@@ -157,15 +293,17 @@ class Emissions:
                 "fluorophores."
             )
         size = int(size)
-        emitting_transition_ids = get_emitting_transition_ids(
-            bandpass=self.parameters["bandpass"], transition_set=transition_set
+        detection_probabilities = get_detection_probabilities(
+            transition_set=transition_set,
+            channels=self.channels,
         )
         df = transition_set.combined_state_transitions_df
         start_index = df[df["final_state"] == start_at].index[0]
         self.event_time_points, self.event_time_series = simulate_experiment(
             transition_matrix=transition_set.transition_matrix,
             row_sums=transition_set.row_sums,
-            emitting_transition_ids=emitting_transition_ids,
+            detection_probabilities=detection_probabilities,
+            channel_names=tuple(self.channels),
             start_index=start_index,
             size=size,
             frames=frames,
@@ -185,15 +323,15 @@ class Emissions:
         store_time_points: bool = False,
         details: bool = False,
     ) -> tuple[
-        npt.NDArray[np.float64],
-        npt.NDArray[np.float64],
-        npt.NDArray[np.float64],
+        dict[str, npt.NDArray[np.float64]],
+        dict[str, npt.NDArray[np.float64]],
+        dict[str, npt.NDArray[np.float64]],
         Simulation | None,
     ]:
         """
         Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence
         lifetime measurements). The return value lifetimes_DA contains the S1 durations
-        of detected emissions when energy transfer is available. This does not
+        of detected emissions by channel when energy transfer is available. This does not
         discriminate between the number or kind of energy transfers. Note that if energy
         transfer is available, the emitting fluorophore could have been the donor even
         if other potential donors exist, because all implemented energy transfers have
@@ -231,14 +369,14 @@ class Emissions:
 
         Returns
         -------
-        lifetimes_DA : 1-D array_like
-            Contains the S1 durations of detected emissions when energy
-            transfer available.
-        lifetimes_D : 1-D array_like
-            Contains the S1 durations of detected emissions when energy
-            transfer not available.
-        lifetimes_all : 1-D array_like
-            Contains the S1 durations of all detected emissions.
+        lifetimes_DA : dict[str, npt.NDArray[np.float64]]
+            S1 durations of detected emissions when energy transfer was available,
+            grouped by detection channel.
+        lifetimes_D : dict[str, npt.NDArray[np.float64]]
+            S1 durations of detected emissions when energy transfer was not available,
+            grouped by detection channel.
+        lifetimes_all : dict[str, npt.NDArray[np.float64]]
+            S1 durations of all detected emissions, grouped by detection channel.
         simulation_object : fluopy.simulation.Simulation
             Container for simulation-associated attributes and methods. Only returned if
             details is True.
@@ -266,10 +404,11 @@ class Emissions:
                     "rate"
                 ].values[0]
                 excitation_rates[f.name] = exc_rate * factor_excitation_rate
-        emitting_transition_ids = get_emitting_transition_ids(
-            bandpass=self.parameters["bandpass"], transition_set=transition_set
+        detection_probabilities = get_detection_probabilities(
+            transition_set=transition_set,
+            channels=self.channels,
         )
-        emit_ids_list = list(emitting_transition_ids.keys())
+        emit_ids_list = np.flatnonzero(detection_probabilities.sum(axis=1) > 0)
         df = transition_set.combined_state_transitions_df
         # if fluorophore_ids length is greater than 1, it is an energy transfer
         et_initial_states = (
@@ -285,16 +424,10 @@ class Emissions:
                 transition_set=transition_set,
                 largest_number=number_pulses * time_between_pulses,
             )
-            (
-                self.event_time_series,
-                self.event_time_points,
-                lifetimes_DA,
-                lifetimes_D,
-                lifetimes_all,
-                simulation_object,
-            ) = simulate_TCSPC_detailed(
+            detailed_result = simulate_TCSPC_detailed(
                 transition_set=transition_set,
-                emitting_transition_ids=emitting_transition_ids,
+                detection_probabilities=detection_probabilities,
+                channel_names=tuple(self.channels),
                 et_transition_ids=et_transition_ids,
                 number_pulses=number_pulses,
                 pulse_duration=pulse_duration,
@@ -305,17 +438,18 @@ class Emissions:
                 store_time_points=store_time_points,
                 seed=self.parameters["seed"],
             )
+            self.event_time_series = detailed_result[0]
+            self.event_time_points = detailed_result[1]
+            lifetimes_DA = detailed_result[2]
+            lifetimes_D = detailed_result[3]
+            lifetimes_all = detailed_result[4]
+            simulation_object = detailed_result[5]
             return lifetimes_DA, lifetimes_D, lifetimes_all, simulation_object
         else:
-            (
-                self.event_time_series,
-                self.event_time_points,
-                lifetimes_DA,
-                lifetimes_D,
-                lifetimes_all,
-            ) = simulate_TCSPC(
+            basic_result = simulate_TCSPC(
                 transition_set=transition_set,
-                emitting_transition_ids=emitting_transition_ids,
+                detection_probabilities=detection_probabilities,
+                channel_names=tuple(self.channels),
                 et_transition_ids=et_transition_ids,
                 number_pulses=number_pulses,
                 pulse_duration=pulse_duration,
@@ -326,89 +460,12 @@ class Emissions:
                 store_time_points=store_time_points,
                 seed=self.parameters["seed"],
             )
+            self.event_time_series = basic_result[0]
+            self.event_time_points = basic_result[1]
+            lifetimes_DA = basic_result[2]
+            lifetimes_D = basic_result[3]
+            lifetimes_all = basic_result[4]
             return lifetimes_DA, lifetimes_D, lifetimes_all, None
-
-    def get_emission_indices(
-        self,
-        simulation: Simulation,
-        bandpass: tuple[float, float] | None,
-        seed: RandomGeneratorSeed,
-    ) -> npt.NDArray[np.int64]:
-        """
-        Get indices to apply to simulation.transition_series to yield (detected)
-        emitting transitions.
-
-        Parameters
-        ----------
-        simulation
-            Container of simulation-associated attributes and methods.
-        bandpass
-            The lowest and highest emission wavelength to be passed by the bandpass
-            filter.
-        seed
-            A seed to initialize the BitGenerator.
-
-        Returns
-        -------
-        npt.NDArray[np.int64]
-            Indices of emitting transitions to apply to simulation.transition_series.
-        """
-        transition_series = simulation.transition_series
-        if transition_series is None:
-            raise ValueError("emission indices require a completed simulation.")
-        if bandpass is not None:
-            rng = np.random.default_rng(seed)
-            processed = []
-            collect_emission_indices = []
-
-            for (
-                fluorophore
-            ) in simulation.transition_set.fluorophore_system.fluorophores:
-                constants = fluorophore.constants
-                if constants is None or constants.emission_spectrum is None:
-                    raise ValueError(
-                        "bandpass not None but emission data not available for "
-                        f"this kind of fluorophore: {fluorophore.name}"
-                    )
-                if fluorophore.name not in processed:
-                    p_passed = get_p_filter(
-                        emission_spectrum=constants.emission_spectrum,
-                        bandpass=bandpass,
-                    )
-                    p_not_passed = 1 - p_passed
-                    sub_df = simulation.transition_set.transition_df.loc[
-                        fluorophore.name
-                    ]
-                    emitting_transitions_f = sub_df[sub_df["photon"]].index.to_numpy()
-                    df = simulation.transition_set.combined_state_transitions_df
-                    emitting_transition_ids_f = df[
-                        df["transition_id"].isin(emitting_transitions_f)
-                    ].index.to_numpy()
-                    emission_indices_f = np.isin(
-                        transition_series, emitting_transition_ids_f
-                    ).nonzero()[0]
-                    amount_not_detected = binom.rvs(
-                        n=emission_indices_f.size, p=p_not_passed, random_state=rng
-                    )
-                    not_detected_indices = rng.choice(
-                        np.arange(0, emission_indices_f.size),
-                        size=amount_not_detected,
-                        replace=False,
-                    )
-                    filtered_emission_indices_f = np.delete(
-                        emission_indices_f, not_detected_indices
-                    )
-                    collect_emission_indices.append(filtered_emission_indices_f)
-                    processed.append(fluorophore.name)
-            emission_indices = np.sort(np.concatenate(collect_emission_indices))
-        else:
-            df = simulation.transition_set.combined_state_transitions_df
-            emitting_transition_ids = df.loc[df["photon"]].index.to_numpy()
-            emission_indices = np.isin(
-                transition_series, emitting_transition_ids
-            ).nonzero()[0]
-
-        return emission_indices
 
     def construct_event_time_series(
         self, simulation: Simulation, resample: str = "5ms"
@@ -425,151 +482,109 @@ class Emissions:
             timeseries.html -> Offset aliases.
 
         """
-        event_time_points = np.insert(
-            arr=self._require_event_time_points(), obj=0, values=0
-        )
+        event_time_points_by_channel = self._require_event_time_points()
         time_series = simulation.time_series
         if time_series is None:
             raise ValueError("event time series requires a completed simulation.")
 
-        added_end_time = False
-        if event_time_points[-1] != time_series[-1]:
-            added_end_time = True
-            event_time_points = np.append(event_time_points, time_series[-1])
+        collected_series = {}
+        for channel_name, channel_time_points in event_time_points_by_channel.items():
+            event_time_points = np.insert(arr=channel_time_points, obj=0, values=0)
+            added_end_time = False
+            if event_time_points[-1] != time_series[-1]:
+                added_end_time = True
+                event_time_points = np.append(event_time_points, time_series[-1])
 
-        time_deltas = pd.to_timedelta(event_time_points, unit="s")
-        events = np.ones(shape=event_time_points.shape[0], dtype=np.int64)
-        events[0] = 0
+            time_deltas = pd.to_timedelta(event_time_points, unit="s")
+            events = np.ones(shape=event_time_points.shape[0], dtype=np.int64)
+            events[0] = 0
 
-        if added_end_time:
-            events[-1] = 0
+            if added_end_time:
+                events[-1] = 0
 
-        event_time_series = pd.Series(events, index=time_deltas)
-        event_time_series_r = event_time_series.resample(
-            resample, closed="right", label="right"
-        ).sum()
-        if (
-            event_time_series_r.index[-1] > event_time_series.index[-1]
-            and event_time_series_r.values[-1] == 0
-        ):
-            event_time_series_r = event_time_series_r.drop(
-                event_time_series_r.index[-1]
+            event_time_series = pd.Series(events, index=time_deltas)
+            event_time_series_r = event_time_series.resample(
+                resample, closed="right", label="right"
+            ).sum()
+            if (
+                event_time_series_r.index[-1] > event_time_series.index[-1]
+                and event_time_series_r.values[-1] == 0
+            ):
+                event_time_series_r = event_time_series_r.drop(
+                    event_time_series_r.index[-1]
+                )
+            resampled_index = event_time_series_r.index
+            in_seconds = np.asarray(
+                resampled_index.to_numpy() / np.timedelta64(1, "s"),
+                dtype=np.float64,
             )
-        resampled_index = event_time_series_r.index
-        in_seconds = np.asarray(
-            resampled_index.to_numpy() / np.timedelta64(1, "s"), dtype=np.float64
-        )
-        in_seconds = np.round(in_seconds, decimals=12)
-        event_time_series_r.index = in_seconds
+            event_time_series_r.index = np.round(in_seconds, decimals=12)
+            collected_series[channel_name] = event_time_series_r
 
-        self.event_time_series = event_time_series_r
-
-    def add_photon_collection_objective(
-        self, p: float, seed: RandomGeneratorSeed = None
-    ) -> None:
-        """
-        Adds the effect of photon collection of the objective.
-
-        Parameters
-        ----------
-        p
-            Between 0 and 1. Probability of photons being collected.
-        seed
-            A seed to initialize the BitGenerator.
-        """
-        if p > 1 or p < 0:
-            raise ValueError("p has to be between 0 and 1.")
-        rng = np.random.default_rng(seed)
-        event_time_series = self._require_event_time_series()
-        values = event_time_series.to_numpy(dtype=np.int64)
-        nonzero = np.flatnonzero(values)
-        event_time_series.iloc[nonzero] = np.asarray(
-            binom.rvs(n=values[nonzero], p=p, random_state=rng), dtype=np.int64
-        )
-
-    def add_quantum_efficiency(
-        self, p: float, seed: RandomGeneratorSeed = None
-    ) -> None:
-        """
-        Adds the effect of quantum efficiency of the EMCCD.
-
-        Parameters
-        ----------
-        p
-            Between 0 and 1. Quantum efficiency of the EMCCD.
-        seed
-            A seed to initialize the BitGenerator.
-
-        """
-        if p > 1 or p < 0:
-            raise ValueError("p has to be between 0 and 1.")
-        rng = np.random.default_rng(seed)
-        event_time_series = self._require_event_time_series()
-        values = event_time_series.to_numpy(dtype=np.int64)
-        nonzero = np.flatnonzero(values)
-        event_time_series.iloc[nonzero] = np.asarray(
-            binom.rvs(n=values[nonzero], p=p, random_state=rng), dtype=np.int64
-        )
-
-    def add_transmittance(self, p: float, seed: RandomGeneratorSeed = None) -> None:
-        """
-        Adds the effect of transmittance of a component of the optical path.
-
-        Parameters
-        ----------
-        p
-            Between 0 and 1. Transmittance of the component.
-        seed
-            A seed to initialize the BitGenerator.
-
-        """
-        if p > 1 or p < 0:
-            raise ValueError("p has to be between 0 and 1.")
-        rng = np.random.default_rng(seed)
-        event_time_series = self._require_event_time_series()
-        values = event_time_series.to_numpy(dtype=np.int64)
-        nonzero = np.flatnonzero(values)
-        event_time_series.iloc[nonzero] = np.asarray(
-            binom.rvs(n=values[nonzero], p=p, random_state=rng), dtype=np.int64
-        )
+        self.event_time_series = pd.DataFrame(collected_series, dtype=np.int64)
 
     def add_emccd_gain(
-        self, emccd_gain: float, seed: RandomGeneratorSeed = None
+        self,
+        emccd_gain: float | Mapping[str, float],
+        seed: RandomGeneratorSeed = None,
     ) -> None:
         """
-        Add the effect of the gain of the EMCCD.
+        Add EMCCD gain to the frame-based detector signal.
+
+        This method modifies event_time_series but not photon arrival times in
+        event_time_points.
 
         Parameters
         ----------
         emccd_gain
-            The gain of an EMCCD.
+            The gain of an EMCCD. A scalar is applied to every detection channel. A
+            mapping assigns a separate gain to each channel and must contain every
+            channel in event_time_series.
         seed
             A seed to initialize the BitGenerator.
 
         """
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
-        values = event_time_series.to_numpy(dtype=np.int64)
-        nonzero = np.flatnonzero(values)
-        event_time_series.iloc[nonzero] = np.asarray(
-            gamma.rvs(a=values[nonzero], scale=emccd_gain, random_state=rng),
+        gains = _resolve_channel_parameter(
+            emccd_gain,
+            event_time_series.columns,
+            "emccd_gain",
+        )
+        values = event_time_series.to_numpy(dtype=np.int64, copy=True)
+        nonzero = values != 0
+        scales = np.broadcast_to(gains, values.shape)
+        values[nonzero] = np.asarray(
+            gamma.rvs(a=values[nonzero], scale=scales[nonzero], random_state=rng),
             dtype=np.int64,
         )
+        event_time_series.iloc[:] = values
 
     def add_gaussian_noise(
-        self, mean: float, std: float, seed: RandomGeneratorSeed = None
+        self,
+        mean: float | Mapping[str, float],
+        std: float | Mapping[str, float],
+        seed: RandomGeneratorSeed = None,
     ) -> None:
         """
-        Add artificial noise to the events. The noise is normal distributed and can
-        represent readout noise (insignificant in the case of EMCCD). The leading
-        boundary entry is not a measured frame and remains unchanged.
+        Add normally distributed noise to the frame-based detector signal.
+
+        This can represent readout noise, which is insignificant for an EMCCD. The
+        leading boundary entry is not a measured frame and remains unchanged. This
+        method modifies event_time_series but does not create photon arrival times in
+        event_time_points.
 
         Parameters
         ----------
         mean
-            Mean of normal distributed noise events per frame.
+            Mean of normally distributed noise events per frame. A scalar is applied
+            to every detection channel. A mapping assigns a separate mean to each
+            channel and must contain every channel in event_time_series.
         std
-            Standard deviation of normal distributed noise events per frame.
+            Standard deviation of normally distributed noise events per frame. A
+            scalar is applied to every detection channel. A mapping assigns a separate
+            standard deviation to each channel and must contain every channel in
+            event_time_series.
         seed
             A seed to initialize the BitGenerator.
 
@@ -577,22 +592,38 @@ class Emissions:
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
         frame_counts = event_time_series.iloc[1:]
+        means = _resolve_channel_parameter(mean, frame_counts.columns, "mean")
+        standard_deviations = _resolve_channel_parameter(
+            std,
+            frame_counts.columns,
+            "std",
+        )
         values = frame_counts.to_numpy(dtype=np.int64)
-        variates = norm(loc=mean, scale=std).rvs(frame_counts.size, random_state=rng)
+        variates = norm(loc=means, scale=standard_deviations).rvs(
+            size=frame_counts.shape, random_state=rng
+        )
         variates = variates.astype(np.int64)
         event_time_series.iloc[1:] = values + variates
         event_time_series[event_time_series < 0] = 0
 
-    def add_poisson_noise(self, rate: float, seed: RandomGeneratorSeed = None) -> None:
+    def add_poisson_noise(
+        self,
+        rate: float | Mapping[str, float],
+        seed: RandomGeneratorSeed = None,
+    ) -> None:
         """
-        Add Poisson noise to the events. The noise is Poisson distributed and can
-        represent dark current noise. The leading boundary entry is not a measured
-        frame and remains unchanged.
+        Add Poisson noise to the frame-based detector signal.
+
+        This can represent dark current noise. The leading boundary entry is not a
+        measured frame and remains unchanged. This method modifies event_time_series
+        but does not create photon arrival times in event_time_points.
 
         Parameters
         ----------
         rate
-            Expected number of Poisson-distributed noise events per frame.
+            Expected number of Poisson-distributed noise events per frame. A scalar is
+            applied to every detection channel. A mapping assigns a separate rate to
+            each channel and must contain every channel in event_time_series.
         seed
             A seed to initialize the BitGenerator.
 
@@ -600,29 +631,46 @@ class Emissions:
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
         frame_counts = event_time_series.iloc[1:]
+        rates = _resolve_channel_parameter(rate, frame_counts.columns, "rate")
         values = frame_counts.to_numpy(dtype=np.int64)
-        variates = poisson(rate).rvs(frame_counts.size, random_state=rng)
+        variates = poisson(rates).rvs(size=frame_counts.shape, random_state=rng)
         variates = variates.astype(np.int64)
         event_time_series.iloc[1:] = values + variates
 
-    def apply_threshold(self, threshold: int) -> None:
+    def apply_threshold(self, threshold: int | Mapping[str, int]) -> None:
         """
-        Apply a threshold to the events. All events below the threshold are set to 0.
+        Apply a threshold to the frame-based detector signal.
+
+        Values below the threshold are set to zero in event_time_series without
+        modifying event_time_points.
 
         Parameters
         ----------
         threshold
-            The minimum number of events per frame to be considered.
+            The minimum number of events per frame to be considered. A scalar is
+            applied to every detection channel. A mapping assigns a separate threshold
+            to each channel and must contain every channel in event_time_series.
         """
         event_time_series = self._require_event_time_series()
-        event_time_series[event_time_series < threshold] = 0
+        thresholds = _resolve_channel_parameter(
+            threshold,
+            event_time_series.columns,
+            "threshold",
+        )
+        values = event_time_series.to_numpy(copy=True)
+        values[values < thresholds] = 0
+        event_time_series.iloc[:] = values
 
-    def plot_cumulative_events(self, **kwargs: Any) -> mplAxes:
+    def plot_cumulative_events(
+        self, channel: str | None = None, **kwargs: Any
+    ) -> mplAxes:
         """
         Plot cumulative events versus time.
 
         Parameters
         ----------
+        channel
+            Detection channel to plot. If None, the only configured channel is used.
         kwargs
             fluopy.figure.universal_figure arguments
 
@@ -631,7 +679,7 @@ class Emissions:
         matplotlib.axes.Axes
             The modified axis.
         """
-        event_time_series = self._require_event_time_series()
+        event_time_series = self.select_event_time_series(channel)
         if event_time_series.empty:
             raise ValueError("cumulative events require at least one event.")
         cum_events = event_time_series.cumsum()
@@ -654,6 +702,7 @@ class Emissions:
         density: bool = True,
         display_mean: bool = False,
         include_0: bool = False,
+        channel: str | None = None,
         **kwargs: Any,
     ) -> mplAxes:
         """
@@ -669,6 +718,8 @@ class Emissions:
             unit of the x-axis.
         include_0
             Whether to include counts of 0 events.
+        channel
+            Detection channel to plot. If None, the only configured channel is used.
         kwargs
             fluopy.figure.universal_figure arguments
 
@@ -677,7 +728,7 @@ class Emissions:
         matplotlib.axes.Axes
             The modified axis.
         """
-        data = self._require_event_time_series()
+        data = self.select_event_time_series(channel)
         if not include_0:
             data = data[data != 0]
         if data.empty:
@@ -709,12 +760,14 @@ class Emissions:
 
         return ax
 
-    def plot_time_series(self, **kwargs: Any) -> mplAxes:
+    def plot_time_series(self, channel: str | None = None, **kwargs: Any) -> mplAxes:
         """
         Plot time series of events.
 
         Parameters
         ----------
+        channel
+            Detection channel to plot. If None, the only configured channel is used.
         kwargs
             fluopy.figure.universal_figure arguments
 
@@ -723,7 +776,7 @@ class Emissions:
         matplotlib.axes.Axes
             The modified axis.
         """
-        event_time_series = self._require_event_time_series()
+        event_time_series = self.select_event_time_series(channel)
         data = [event_time_series.index, event_time_series.to_numpy()]
         kwargs.setdefault("type_", "line")
         kwargs.setdefault("xlabel", "Time (s)")
@@ -733,61 +786,24 @@ class Emissions:
 
         return ax
 
-    def save(self, path: str | Path, name_extension: str = "") -> None:
-        """
-        Saves event_time_series and, when available, event_time_points to files.
 
-        Parameters
-        ----------
-        path
-            Directory where the files shall be stored.
-        name_extension
-            Optional file name extension.
+def _resolve_channel_parameter(
+    value: float | Mapping[str, float],
+    channel_names: pd.Index,
+    parameter_name: str,
+) -> npt.NDArray[np.float64]:
+    """Return one parameter value per event-time-series channel."""
+    if not isinstance(value, Mapping):
+        return np.full(len(channel_names), value, dtype=np.float64)
 
-        """
-        time_series_file = Path(path) / ("event_time_series" + name_extension + ".csv")
-        time_points_file = Path(path) / ("event_time_points" + name_extension + ".npy")
-        self._require_event_time_series().to_csv(time_series_file, header=False)
-        if self.event_time_points is None:
-            time_points_file.unlink(missing_ok=True)
-        else:
-            np.save(time_points_file, self.event_time_points)
-
-    @classmethod
-    def load(cls, path: str | Path, name_extension: str = "") -> Emissions:
-        """
-        Load event_time_series and, when available, event_time_points from files.
-        Initialization parameters are not persisted and use their constructor defaults.
-
-        Parameters
-        ----------
-        path
-            Directory where the files are stored.
-        name_extension
-            Optional file name extension.
-
-        Returns
-        -------
-        fluopy.emissions.Emissions
-            Instance of Emissions constructed with existing data.
-        """
-        obj = cls()
-        loaded_series = pd.read_csv(
-            Path(path) / ("event_time_series" + name_extension + ".csv"),
-            index_col=0,
-            header=None,
+    missing = [name for name in channel_names if name not in value]
+    unexpected = [name for name in value if name not in channel_names]
+    if missing or unexpected:
+        raise ValueError(
+            f"{parameter_name} mapping must contain exactly the event_time_series "
+            f"channels; missing={missing}, unexpected={unexpected}."
         )
-        obj.event_time_series = pd.Series(
-            loaded_series.to_numpy().flatten(), index=loaded_series.index
-        )
-        obj.event_time_series.index.name = None
-        time_points_file = Path(path) / ("event_time_points" + name_extension + ".npy")
-        if time_points_file.is_file():
-            obj.event_time_points = np.asarray(
-                np.load(time_points_file, allow_pickle=True), dtype=np.float64
-            )
-
-        return obj
+    return np.asarray([value[name] for name in channel_names], dtype=np.float64)
 
 
 def get_p_filter(
@@ -832,57 +848,148 @@ def get_p_filter(
     return p_passed
 
 
-def get_emitting_transition_ids(
-    bandpass: tuple[float, float] | None, transition_set: TransitionSet
-) -> dict[int, float]:
+def get_detection_probabilities(
+    transition_set: TransitionSet,
+    channels: Mapping[str, DetectionChannel],
+) -> npt.NDArray[np.float64]:
     """
-    Get a dictionary with ids of emitting transitions as keys and probabilities of
-    passing the bandpass filter as values. If bandpass is None, all emitting transitions
-    are returned with a probability of 1.
+    Get the detection probability of each transition in each channel.
+
+    An emitting transition can contribute to multiple channels when their bandpasses
+    are non-overlapping. Overlapping bandpasses are only allowed when the channels apply
+    to disjoint fluorophores because routing within the overlap is otherwise undefined.
 
     Parameters
     ----------
-    bandpass
-        The lowest and highest emission wavelength to be passed by the bandpass filter.
-        If bandpass is None, all emitting transitions are returned with a probability of
-        1.
     transition_set
         Collection of all relevant transitions and related attributes.
+    channels
+        Named detection channels in output-column order.
 
     Returns
     -------
-    dict[int, float]
-        Dictionary with ids of emitting transitions as keys and probabilities of passing
-        the bandpass filter as values.
-        The ids correspond to transition_set.combined_state_transitions_df.
+    npt.NDArray[np.float64]
+        Array with one row per combined transition and one column per channel. Each row
+        contains mutually exclusive probabilities and sums to at most one.
     """
-    emitting_transition_ids = {}
-    if bandpass is not None:
-        processed = []
-        for fluorophore in transition_set.fluorophore_system.fluorophores:
-            constants = fluorophore.constants
-            if constants is None or constants.emission_spectrum is None:
-                raise ValueError(
-                    "bandpass not None but emission data not available for "
-                    f"this kind of fluorophore: {fluorophore.name}"
-                )
-            if fluorophore.name not in processed:
+    df = transition_set.combined_state_transitions_df
+    probabilities = np.zeros((len(df), len(channels)), dtype=np.float64)
+    fluorophores = transition_set.fluorophore_system.fluorophores
+
+    for transition_id in np.flatnonzero(df["photon"].to_numpy()):
+        transition = df.iloc[transition_id]
+        fluorophore_ids = transition["fluorophore_ids"]
+        if len(fluorophore_ids) != 1:
+            raise ValueError("an emitting transition must belong to one fluorophore.")
+        fluorophore_id = fluorophore_ids[0]
+        fluorophore = fluorophores[fluorophore_id]
+
+        eligible_channels = [
+            channel
+            for channel in channels.values()
+            if channel.fluorophore_ids is None
+            or fluorophore_id in channel.fluorophore_ids
+        ]
+        for channel_index, channel in enumerate(channels.values()):
+            if channel not in eligible_channels:
+                continue
+            if channel.bandpass is None:
+                p_passed = 1.0
+            else:
+                constants = fluorophore.constants
+                if constants is None or constants.emission_spectrum is None:
+                    raise ValueError(
+                        "bandpass not None but emission data not available for "
+                        f"this kind of fluorophore: {fluorophore.name}"
+                    )
                 p_passed = get_p_filter(
                     emission_spectrum=constants.emission_spectrum,
-                    bandpass=bandpass,
+                    bandpass=channel.bandpass,
                 )
-                sub_df = transition_set.transition_df.loc[fluorophore.name]
-                emitting_transitions_f = sub_df[sub_df["photon"]].index.to_numpy()
-                df = transition_set.combined_state_transitions_df
-                emitting_transition_ids_f = df[
-                    df["transition_id"].isin(emitting_transitions_f)
-                ].index.to_numpy()
-                for emitting_transition_id in emitting_transition_ids_f:
-                    emitting_transition_ids[emitting_transition_id] = p_passed
-                processed.append(fluorophore.name)
-    else:
-        df = transition_set.combined_state_transitions_df
-        emitting_transition_ids_ = df.loc[df["photon"]].index.to_numpy()
-        emitting_transition_ids = {identity: 1 for identity in emitting_transition_ids_}
+            probabilities[transition_id, channel_index] = (
+                p_passed * channel.detection_efficiency
+            )
 
-    return emitting_transition_ids
+        for channel_index, channel in enumerate(eligible_channels):
+            for other_channel in eligible_channels[channel_index + 1 :]:
+                if channel.bandpass is None or other_channel.bandpass is None:
+                    raise ValueError(
+                        "detection channel bandpasses must not overlap for the same "
+                        "fluorophore."
+                    )
+                lower = max(channel.bandpass[0], other_channel.bandpass[0])
+                upper = min(channel.bandpass[1], other_channel.bandpass[1])
+                if lower < upper:
+                    raise ValueError(
+                        "detection channel bandpasses must not overlap for the same "
+                        "fluorophore."
+                    )
+
+    if np.any(probabilities.sum(axis=1) > 1 + 1e-12):
+        raise ValueError(
+            "detection probabilities must sum to at most 1 per transition."
+        )
+
+    return probabilities
+
+
+def assign_detection_channels(
+    transition_ids: npt.ArrayLike,
+    detection_probabilities: npt.ArrayLike,
+    random_numbers: npt.ArrayLike,
+) -> npt.NDArray[np.int64]:
+    """
+    Assign each transition to one channel or to the undetected outcome.
+
+    Parameters
+    ----------
+    transition_ids
+        Combined transition identifier for each candidate photon.
+    detection_probabilities
+        Detection probability for every combined transition and channel.
+    random_numbers
+        One uniform random number in the half-open interval [0, 1) per candidate
+        photon.
+
+    Returns
+    -------
+    npt.NDArray[np.int64]
+        Channel index for each transition. An index equal to the number of channels
+        represents an undetected photon.
+    """
+    transition_ids_array = np.asarray(transition_ids, dtype=np.int64)
+    probabilities = np.asarray(detection_probabilities, dtype=np.float64)
+    random_numbers_array = np.asarray(random_numbers, dtype=np.float64)
+
+    if probabilities.ndim != 2:
+        raise ValueError("detection_probabilities must be a two-dimensional array.")
+    if transition_ids_array.ndim != 1 or random_numbers_array.ndim != 1:
+        raise ValueError("transition ids and random numbers must be one-dimensional.")
+    if transition_ids_array.shape != random_numbers_array.shape:
+        raise ValueError("one random number is required per transition.")
+    if np.any(~np.isfinite(probabilities)) or np.any(
+        (probabilities < 0) | (probabilities > 1)
+    ):
+        raise ValueError("detection probabilities must be finite and between 0 and 1.")
+    if np.any(probabilities.sum(axis=1) > 1 + 1e-12):
+        raise ValueError(
+            "detection probabilities must sum to at most 1 per transition."
+        )
+    if np.any(~np.isfinite(random_numbers_array)) or np.any(
+        (random_numbers_array < 0) | (random_numbers_array >= 1)
+    ):
+        raise ValueError(
+            "random numbers must be between 0 (inclusive) and 1 (exclusive)."
+        )
+    if np.any(
+        (transition_ids_array < 0) | (transition_ids_array >= len(probabilities))
+    ):
+        raise ValueError("transition ids are outside the detection probability array.")
+
+    cumulative_probabilities = np.cumsum(probabilities, axis=1)
+    return np.sum(
+        random_numbers_array[:, np.newaxis]
+        >= cumulative_probabilities[transition_ids_array],
+        axis=1,
+        dtype=np.int64,
+    )

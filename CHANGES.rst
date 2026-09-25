@@ -11,6 +11,7 @@ New Features
 - derive transitions and FRET rates from user-defined fluorophore data
 - allow custom single states, paired states and transition types
 - add a public function for deriving energy-transfer rates from spectra
+- add multiple detector channels
 
 API Changes
 -----------
@@ -26,6 +27,7 @@ space
 Other Changes and Additions
 ---------------------------
 - expand the extending-Fluopy tutorial with customization examples
+- removed project-specific code
 
 
 0.3.0 - 2026-06-02

@@ -351,17 +351,20 @@ def test_approximation_rejects_size_without_occurrences(pred_tr_set_1f):
 
 
 @pytest.mark.parametrize(
-    "store_time_points, emitting_transition_ids, expected",
-    [[False, {1: 1}, None], [True, {1: 0.9}, ""]],
+    "store_time_points, detection_probability, expected",
+    [[False, 1.0, None], [True, 0.9, ""]],
 )
 def test_simulate_experiment(
-    tr_set_1f, store_time_points, emitting_transition_ids, expected
+    tr_set_1f, store_time_points, detection_probability, expected
 ):
     rng = np.random.default_rng(42)
+    detection_probabilities = np.zeros((tr_set_1f.transition_matrix.shape[1], 1))
+    detection_probabilities[1, 0] = detection_probability
     event_time_points, event_time_series = si.simulate_experiment(
         transition_matrix=tr_set_1f.transition_matrix,
         row_sums=tr_set_1f.row_sums,
-        emitting_transition_ids=emitting_transition_ids,
+        detection_probabilities=detection_probabilities,
+        channel_names=("detector",),
         start_index=0,
         size=10,
         frames=10,
@@ -391,7 +394,10 @@ def test_simulate_experiment(
                 ]
             ),
         )
-        pd.testing.assert_series_equal(event_time_series, exp_event_time_series)
+        pd.testing.assert_frame_equal(
+            event_time_series,
+            exp_event_time_series.to_frame(name="detector"),
+        )
     else:
         exp_event_time_series = pd.Series(
             np.array(
@@ -413,16 +419,47 @@ def test_simulate_experiment(
                 ]
             ),
         )
-        assert event_time_points.size == event_time_series.values.sum()
-        frame_indices = np.ceil(event_time_points / 1e-3).astype(int)
+        assert event_time_points is not None
+        detector_time_points = event_time_points["detector"]
+        assert detector_time_points.size == event_time_series.values.sum()
+        frame_indices = np.ceil(detector_time_points / 1e-3).astype(int)
         counts_from_time_points = np.bincount(
-            frame_indices, minlength=event_time_series.size
+            frame_indices, minlength=event_time_series.shape[0]
         )
         np.testing.assert_array_equal(
-            counts_from_time_points, event_time_series.to_numpy()
+            counts_from_time_points, event_time_series["detector"].to_numpy()
         )
-        assert event_time_points.max() <= event_time_series.index[-1]
-        pd.testing.assert_series_equal(event_time_series, exp_event_time_series)
+        assert detector_time_points.max() <= event_time_series.index[-1]
+        pd.testing.assert_frame_equal(
+            event_time_series,
+            exp_event_time_series.to_frame(name="detector"),
+        )
+
+
+@pytest.mark.parametrize(
+    "detection_probabilities, channel_names, match",
+    [
+        ([[1]], None, "sequence of channel names"),
+        ([[1]], "detector", "sequence of channel names"),
+        ([[1]], (), "at least one channel"),
+        ([[1]], ("",), "non-empty strings"),
+        ([[0.5, 0.5]], ("detector", "detector"), "unique"),
+        ([[0.5, 0.5]], ("detector",), "one row per transition"),
+        ([[np.nan]], ("detector",), "finite and between"),
+        ([[0.6, 0.6]], ("first", "second"), "sum to at most 1"),
+    ],
+)
+def test_simulate_experiment_validates_detection_probabilities(
+    detection_probabilities, channel_names, match
+):
+    with pytest.raises(ValueError, match=match):
+        si.simulate_experiment(
+            transition_matrix=[[1]],
+            row_sums=[1],
+            detection_probabilities=detection_probabilities,
+            channel_names=channel_names,
+            frames=1,
+        )
 
 
 def test_simulation(tr_set_1f):
@@ -784,7 +821,8 @@ def test_simulate_experiment_stops_at_absorbing_state(caplog):
         event_time_points, event_time_series = si.simulate_experiment(
             transition_matrix=[[0]],
             row_sums=[0],
-            emitting_transition_ids={},
+            detection_probabilities=[[0]],
+            channel_names=("detector",),
             start_index=0,
             frames=2,
             frame_time="1ms",
@@ -792,6 +830,7 @@ def test_simulate_experiment_stops_at_absorbing_state(caplog):
             seed=42,
         )
 
-    np.testing.assert_array_equal(event_time_points, [])
-    np.testing.assert_array_equal(event_time_series, [0, 0, 0])
+    assert event_time_points is not None
+    np.testing.assert_array_equal(event_time_points["detector"], [])
+    np.testing.assert_array_equal(event_time_series["detector"], [0, 0, 0])
     assert "absorbing state" in caplog.text

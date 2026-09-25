@@ -6,6 +6,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import pytest
 
 from fluopy import emissions as em
@@ -242,7 +243,7 @@ def sim_tr_set_2f_diff(tr_set_2f_diff):
 @pytest.fixture()
 def em_tr_set_1f_bl(sim_tr_set_1f_bl):
     rng = np.random.default_rng(1)
-    emis = em.Emissions(frame_time="5ms", bandpass=None, seed=rng)
+    emis = em.Emissions(frame_time="5ms", seed=rng)
     emis.extract(simulation=sim_tr_set_1f_bl)
     return emis
 
@@ -250,24 +251,37 @@ def em_tr_set_1f_bl(sim_tr_set_1f_bl):
 @pytest.fixture()
 def em_tr_set_et_2f_diff(sim_tr_set_et_2f_diff):
     rng = np.random.default_rng(1)
-    emis = em.Emissions(frame_time="5ms", bandpass=None, seed=rng)
+    emis = em.Emissions(frame_time="5ms", seed=rng)
     emis.extract(simulation=sim_tr_set_et_2f_diff)
     return emis
 
 
 @pytest.fixture()
 def em_large():
-    emis = em.Emissions.load(
-        path=Path(__file__).parent / "test_data",
-        name_extension="_em_large",
-    )
-    return emis
+    return _load_test_emissions("em_large")
 
 
 @pytest.fixture()
 def em_very_large():
-    emis = em.Emissions.load(
-        path=Path(__file__).parent / "test_data",
-        name_extension="_em_very_large",
-    )
+    return _load_test_emissions("em_very_large")
+
+
+def _load_test_emissions(name):
+    data_path = Path(__file__).parent / "test_data"
+    event_time_series = pd.read_csv(
+        data_path / f"event_time_series_{name}.csv",
+        index_col=0,
+        header=None,
+        names=["time", "all"],
+    ).astype(np.int64)
+    event_time_series.index.name = None
+
+    emis = em.Emissions()
+    emis.event_time_series = event_time_series
+    emis.event_time_points = {
+        "all": np.asarray(
+            np.load(data_path / f"event_time_points_{name}.npy", allow_pickle=True),
+            dtype=np.float64,
+        )
+    }
     return emis

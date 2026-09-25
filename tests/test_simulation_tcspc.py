@@ -24,6 +24,30 @@ def _without_continuous_excitation(transition_set):
     return result
 
 
+def _single_channel_probabilities(transition_set, emitting_transition_ids):
+    probabilities = np.zeros(
+        (transition_set.transition_matrix.shape[1], 1), dtype=np.float64
+    )
+    for identity, probability in emitting_transition_ids.items():
+        probabilities[identity, 0] = probability
+    return probabilities
+
+
+def _unwrap_single_channel(result):
+    event_time_series = result[0]["all"]
+    event_time_points = None if result[1] is None else result[1]["all"]
+    values = (
+        event_time_series,
+        event_time_points,
+        result[2]["all"],
+        result[3]["all"],
+        result[4]["all"],
+    )
+    if len(result) == 6:
+        return (*values, result[5])
+    return values
+
+
 class FixedTCSPCGenerator:
     def __init__(self, excitation_random, transition_random, geometric):
         self.excitation_random = excitation_random
@@ -44,15 +68,10 @@ def test_compare_simulate_TCSPC_and_simulate_TCSPC_detailed(tr_set_1f):
     tr_set.finalize()
 
     rng = np.random.default_rng(42)
-    (
-        event_time_series,
-        event_time_points,
-        lifetimes_DA,
-        lifetimes_D,
-        lifetimes_all,
-    ) = si.simulate_TCSPC(
+    result = si.simulate_TCSPC(
         transition_set=tr_set,
-        emitting_transition_ids={1: 1},
+        detection_probabilities=_single_channel_probabilities(tr_set, {1: 1}),
+        channel_names=("all",),
         et_transition_ids=[],
         number_pulses=41000,
         pulse_duration=5e-11,
@@ -62,8 +81,31 @@ def test_compare_simulate_TCSPC_and_simulate_TCSPC_detailed(tr_set_1f):
         store_time_points=True,
         seed=rng,
     )
+    assert list(result[0].columns) == ["all"]
+    assert set(result[1]) == {"all"}
+    assert set(result[4]) == {"all"}
+    (
+        event_time_series,
+        event_time_points,
+        lifetimes_DA,
+        lifetimes_D,
+        lifetimes_all,
+    ) = _unwrap_single_channel(result)
 
     rng = np.random.default_rng(42)
+    detailed_result = si.simulate_TCSPC_detailed(
+        transition_set=tr_set,
+        detection_probabilities=_single_channel_probabilities(tr_set, {1: 1}),
+        channel_names=("all",),
+        et_transition_ids=[],
+        number_pulses=41000,
+        pulse_duration=5e-11,
+        time_between_pulses=25e-9,
+        excitation_rates={"testfluo_1": 1e11},
+        frame_time="1ms",
+        store_time_points=True,
+        seed=rng,
+    )
     (
         event_time_series_,
         event_time_points_,
@@ -71,18 +113,7 @@ def test_compare_simulate_TCSPC_and_simulate_TCSPC_detailed(tr_set_1f):
         lifetimes_D_,
         lifetimes_all_,
         simulation,
-    ) = si.simulate_TCSPC_detailed(
-        transition_set=tr_set,
-        emitting_transition_ids={1: 1},
-        et_transition_ids=[],
-        number_pulses=41000,
-        pulse_duration=5e-11,
-        time_between_pulses=25e-9,
-        excitation_rates={"testfluo_1": 1e11},
-        frame_time="1ms",
-        store_time_points=True,
-        seed=rng,
-    )
+    ) = _unwrap_single_channel(detailed_result)
 
     assert len(event_time_series) == 3
     assert event_time_series.equals(event_time_series_)
@@ -94,11 +125,89 @@ def test_compare_simulate_TCSPC_and_simulate_TCSPC_detailed(tr_set_1f):
 
 
 @pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
+@pytest.mark.parametrize("store_time_points", [False, True])
+def test_tcspc_routes_detected_photons_to_channels(call, store_time_points, tr_set_1f):
+    transition_set = _without_continuous_excitation(deepcopy(tr_set_1f))
+    detection_probabilities = np.zeros(
+        (transition_set.transition_matrix.shape[1], 2), dtype=np.float64
+    )
+    detection_probabilities[1] = [0.25, 0.75]
+
+    result = call(
+        transition_set=transition_set,
+        detection_probabilities=detection_probabilities,
+        channel_names=("green", "red"),
+        number_pulses=5_000,
+        pulse_duration=5e-11,
+        time_between_pulses=25e-9,
+        excitation_rates={"testfluo_1": 1e11},
+        frame_time="100us",
+        store_time_points=store_time_points,
+        seed=42,
+    )
+
+    event_time_series, event_time_points, _, _, lifetimes_all = result[:5]
+    assert list(event_time_series.columns) == ["green", "red"]
+    assert set(lifetimes_all) == {"green", "red"}
+    if not store_time_points:
+        assert event_time_points is None
+    for channel in ("green", "red"):
+        if event_time_points is not None:
+            assert event_time_points[channel].size == lifetimes_all[channel].size
+        assert event_time_series[channel].sum() == lifetimes_all[channel].size
+        assert lifetimes_all[channel].size > 0
+
+
+@pytest.mark.parametrize(
+    "case, error",
+    [
+        ("no_names", "channel_names"),
+        ("string_names", "sequence of channel names"),
+        ("empty_names", "at least one channel"),
+        ("invalid_names", "non-empty strings"),
+        ("duplicate_names", "unique"),
+        ("shape", "one row per transition"),
+        ("range", "between 0 and 1"),
+        ("sum", "at most 1"),
+    ],
+)
+def test_tcspc_validates_detection_probabilities(case, error, tr_set_1f):
+    transition_count = tr_set_1f.transition_matrix.shape[1]
+    channel_names = ("green", "red")
+    detection_probabilities = np.zeros((transition_count, 2))
+    if case == "no_names":
+        channel_names = None
+    elif case == "string_names":
+        channel_names = "green"
+    elif case == "empty_names":
+        channel_names = ()
+    elif case == "invalid_names":
+        channel_names = ("green", "")
+    elif case == "duplicate_names":
+        channel_names = ("green", "green")
+    elif case == "shape":
+        detection_probabilities = detection_probabilities[:-1]
+    elif case == "range":
+        detection_probabilities[-1, 0] = 1.1
+    else:
+        detection_probabilities[-1] = [0.6, 0.6]
+
+    with pytest.raises(ValueError, match=error):
+        si.simulate_TCSPC(
+            transition_set=tr_set_1f,
+            detection_probabilities=detection_probabilities,
+            channel_names=channel_names,
+            number_pulses=1,
+        )
+
+
+@pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
 def test_tcspc_requires_all_excitation_rates(call, tr_set_1f):
     with pytest.raises(ValueError, match="provided for all fluorophores"):
         call(
             transition_set=tr_set_1f,
-            emitting_transition_ids={},
+            detection_probabilities=_single_channel_probabilities(tr_set_1f, {}),
+            channel_names=("all",),
             excitation_rates=None,
             number_pulses=1,
         )
@@ -109,18 +218,23 @@ def test_tcspc_defaults_and_random_number_replenishment(call, tr_set_1f, caplog)
     transition_set = _without_continuous_excitation(deepcopy(tr_set_1f))
 
     with caplog.at_level(logging.WARNING):
-        result = call(
-            transition_set=transition_set,
-            emitting_transition_ids={1: 1},
-            et_transition_ids=None,
-            number_pulses=3,
-            pulse_duration=1,
-            time_between_pulses=1e-6,
-            excitation_rates={"testfluo_1": 1e12},
-            frame_time="10us",
-            size=1,
-            store_time_points=False,
-            seed=42,
+        result = _unwrap_single_channel(
+            call(
+                transition_set=transition_set,
+                detection_probabilities=_single_channel_probabilities(
+                    transition_set, {1: 1}
+                ),
+                channel_names=("all",),
+                et_transition_ids=None,
+                number_pulses=3,
+                pulse_duration=1,
+                time_between_pulses=1e-6,
+                excitation_rates={"testfluo_1": 1e12},
+                frame_time="10us",
+                size=1,
+                store_time_points=False,
+                seed=42,
+            )
         )
 
     assert result[1] is None
@@ -137,16 +251,21 @@ def test_tcspc_stops_at_absorbing_state(call, tr_set_1f_bl, caplog):
     transition_set.finalize()
 
     with caplog.at_level(logging.WARNING):
-        result = call(
-            transition_set=transition_set,
-            emitting_transition_ids={},
-            number_pulses=3,
-            pulse_duration=1,
-            time_between_pulses=1e-6,
-            excitation_rates={"testfluo_1": 1e12},
-            frame_time="1us",
-            store_time_points=True,
-            seed=42,
+        result = _unwrap_single_channel(
+            call(
+                transition_set=transition_set,
+                detection_probabilities=_single_channel_probabilities(
+                    transition_set, {}
+                ),
+                channel_names=("all",),
+                number_pulses=3,
+                pulse_duration=1,
+                time_between_pulses=1e-6,
+                excitation_rates={"testfluo_1": 1e12},
+                frame_time="1us",
+                store_time_points=True,
+                seed=42,
+            )
         )
 
     assert result[1].size == 0
@@ -192,18 +311,23 @@ def test_tcspc_resumes_remembered_transition(
     monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
     transition_ids = transition_set.combined_state_transitions_df.index.to_list()
 
-    result = call(
-        transition_set=transition_set,
-        emitting_transition_ids={identity: 1 for identity in transition_ids},
-        et_transition_ids=transition_ids,
-        number_pulses=2,
-        pulse_duration=1,
-        time_between_pulses=interval,
-        excitation_rates={"testfluo_1": 1, "testfluo_2": 1},
-        frame_time="1ns",
-        size=10,
-        store_time_points=True,
-        seed=42,
+    result = _unwrap_single_channel(
+        call(
+            transition_set=transition_set,
+            detection_probabilities=_single_channel_probabilities(
+                transition_set, {identity: 1 for identity in transition_ids}
+            ),
+            channel_names=("all",),
+            et_transition_ids=transition_ids,
+            number_pulses=2,
+            pulse_duration=1,
+            time_between_pulses=interval,
+            excitation_rates={"testfluo_1": 1, "testfluo_2": 1},
+            frame_time="1ns",
+            size=10,
+            store_time_points=True,
+            seed=42,
+        )
     )
 
     assert result[2].size == 1
@@ -222,7 +346,8 @@ def test_tcspc_detailed_removes_excitation_beyond_last_pulse(tr_set_1f, monkeypa
 
     result = si.simulate_TCSPC_detailed(
         transition_set=transition_set,
-        emitting_transition_ids={},
+        detection_probabilities=_single_channel_probabilities(transition_set, {}),
+        channel_names=("all",),
         number_pulses=2,
         pulse_duration=1,
         time_between_pulses=1e-9,
@@ -269,8 +394,8 @@ def test_tcspc_detailed_removes_excitation_beyond_last_pulse(tr_set_1f, monkeypa
         ],
         [
             "tr_set_1f",
-            {10: 1, 11: 1, 12: 1, 13: 1, 14: 1, 15: 1, 16: 1, 17: 1, 18: 1, 19: 1},
-            [10, 11],
+            {1: 1},
+            [],
             8e4,
             5e-11,
             1e-8,
@@ -363,6 +488,24 @@ def test_simulate_TCSPC(
     rng = np.random.default_rng(42)
     tr_set = request.getfixturevalue(dirname)
 
+    def simulate():
+        result = si.simulate_TCSPC(
+            transition_set=tr_set,
+            detection_probabilities=_single_channel_probabilities(
+                tr_set, emitting_transition_ids
+            ),
+            channel_names=("all",),
+            et_transition_ids=et_transition_ids,
+            number_pulses=number_pulses,
+            pulse_duration=pulse_duration,
+            time_between_pulses=time_between_pulses,
+            excitation_rates=excitation_rates,
+            frame_time=frame_time,
+            store_time_points=store_time_points,
+            seed=rng,
+        )
+        return _unwrap_single_channel(result)
+
     # this tests a standard case of a single fluorophore
     if expected == 0:
         assert tr.SingleState.S1.value == 1
@@ -376,18 +519,7 @@ def test_simulate_TCSPC(
                 lifetimes_DA,
                 lifetimes_D,
                 lifetimes_all,
-            ) = si.simulate_TCSPC(
-                transition_set=tr_set,
-                emitting_transition_ids=emitting_transition_ids,
-                et_transition_ids=et_transition_ids,
-                number_pulses=number_pulses,
-                pulse_duration=pulse_duration,
-                time_between_pulses=time_between_pulses,
-                excitation_rates=excitation_rates,
-                frame_time=frame_time,
-                store_time_points=store_time_points,
-                seed=rng,
-            )
+            ) = simulate()
             assert (
                 "the last frame (of index 0.002) has 2.50e-02 times the pulses of other frames."
                 in caplog.text
@@ -420,18 +552,7 @@ def test_simulate_TCSPC(
                 lifetimes_DA,
                 lifetimes_D,
                 lifetimes_all,
-            ) = si.simulate_TCSPC(
-                transition_set=tr_set,
-                emitting_transition_ids=emitting_transition_ids,
-                et_transition_ids=et_transition_ids,
-                number_pulses=number_pulses,
-                pulse_duration=pulse_duration,
-                time_between_pulses=time_between_pulses,
-                excitation_rates=excitation_rates,
-                frame_time=frame_time,
-                store_time_points=store_time_points,
-                seed=rng,
-            )
+            ) = simulate()
             assert (
                 "the last frame (of index 0.103) has 5.00e-01 times the pulses of other frames."
                 in caplog.text
@@ -457,18 +578,7 @@ def test_simulate_TCSPC(
                 lifetimes_DA,
                 lifetimes_D,
                 lifetimes_all,
-            ) = si.simulate_TCSPC(
-                transition_set=tr_set,
-                emitting_transition_ids=emitting_transition_ids,
-                et_transition_ids=et_transition_ids,
-                number_pulses=number_pulses,
-                pulse_duration=pulse_duration,
-                time_between_pulses=time_between_pulses,
-                excitation_rates=excitation_rates,
-                frame_time=frame_time,
-                store_time_points=store_time_points,
-                seed=rng,
-            )
+            ) = simulate()
             assert (
                 "Not enough laser pulses to completely simulate a single frame "
                 "(requires at least 1.0e+05 pulses)."
@@ -501,18 +611,7 @@ def test_simulate_TCSPC(
                 lifetimes_DA,
                 lifetimes_D,
                 lifetimes_all,
-            ) = si.simulate_TCSPC(
-                transition_set=tr_set,
-                emitting_transition_ids=emitting_transition_ids,
-                et_transition_ids=et_transition_ids,
-                number_pulses=number_pulses,
-                pulse_duration=pulse_duration,
-                time_between_pulses=time_between_pulses,
-                excitation_rates=excitation_rates,
-                frame_time=frame_time,
-                store_time_points=store_time_points,
-                seed=rng,
-            )
+            ) = simulate()
             assert (
                 "the last frame (of index 4000.0) has 0.00e+00 times the pulses of other frames."
                 in caplog.text
@@ -555,18 +654,7 @@ def test_simulate_TCSPC(
                 lifetimes_DA,
                 lifetimes_D,
                 lifetimes_all,
-            ) = si.simulate_TCSPC(
-                transition_set=tr_set,
-                emitting_transition_ids=emitting_transition_ids,
-                et_transition_ids=et_transition_ids,
-                number_pulses=number_pulses,
-                pulse_duration=pulse_duration,
-                time_between_pulses=time_between_pulses,
-                excitation_rates=excitation_rates,
-                frame_time=frame_time,
-                store_time_points=store_time_points,
-                seed=rng,
-            )
+            ) = simulate()
             assert "Not enough laser pulses to completely" in caplog.text
         caplog.clear()
 
@@ -596,18 +684,7 @@ def test_simulate_TCSPC(
                 lifetimes_DA,
                 lifetimes_D,
                 lifetimes_all,
-            ) = si.simulate_TCSPC(
-                transition_set=tr_set,
-                emitting_transition_ids=emitting_transition_ids,
-                et_transition_ids=et_transition_ids,
-                number_pulses=number_pulses,
-                pulse_duration=pulse_duration,
-                time_between_pulses=time_between_pulses,
-                excitation_rates=excitation_rates,
-                frame_time=frame_time,
-                store_time_points=store_time_points,
-                seed=rng,
-            )
+            ) = simulate()
             assert "the last frame (of index" in caplog.text
         caplog.clear()
 
@@ -645,18 +722,7 @@ def test_simulate_TCSPC(
                 lifetimes_DA,
                 lifetimes_D,
                 lifetimes_all,
-            ) = si.simulate_TCSPC(
-                transition_set=tr_set,
-                emitting_transition_ids=emitting_transition_ids,
-                et_transition_ids=et_transition_ids,
-                number_pulses=number_pulses,
-                pulse_duration=pulse_duration,
-                time_between_pulses=time_between_pulses,
-                excitation_rates=excitation_rates,
-                frame_time=frame_time,
-                store_time_points=store_time_points,
-                seed=rng,
-            )
+            ) = simulate()
             assert "the last frame (of index" in caplog.text
         caplog.clear()
 
@@ -681,18 +747,7 @@ def test_simulate_TCSPC(
                 lifetimes_DA,
                 lifetimes_D,
                 lifetimes_all,
-            ) = si.simulate_TCSPC(
-                transition_set=tr_set,
-                emitting_transition_ids=emitting_transition_ids,
-                et_transition_ids=et_transition_ids,
-                number_pulses=number_pulses,
-                pulse_duration=pulse_duration,
-                time_between_pulses=time_between_pulses,
-                excitation_rates=excitation_rates,
-                frame_time=frame_time,
-                store_time_points=store_time_points,
-                seed=rng,
-            )
+            ) = simulate()
             assert "the last frame (of index" in caplog.text
         caplog.clear()
 
@@ -713,18 +768,7 @@ def test_simulate_TCSPC(
                 lifetimes_DA,
                 lifetimes_D,
                 lifetimes_all,
-            ) = si.simulate_TCSPC(
-                transition_set=tr_set,
-                emitting_transition_ids=emitting_transition_ids,
-                et_transition_ids=et_transition_ids,
-                number_pulses=number_pulses,
-                pulse_duration=pulse_duration,
-                time_between_pulses=time_between_pulses,
-                excitation_rates=excitation_rates,
-                frame_time=frame_time,
-                store_time_points=store_time_points,
-                seed=rng,
-            )
+            ) = simulate()
             assert "the last frame (of index" in caplog.text
         caplog.clear()
 
@@ -751,7 +795,10 @@ def test_simulate_TCSPC_detailed(request, caplog):
     with caplog.at_level(logging.WARNING):
         return_values = si.simulate_TCSPC_detailed(
             transition_set=transition_set,
-            emitting_transition_ids=emitting_transition_ids,
+            detection_probabilities=_single_channel_probabilities(
+                transition_set, emitting_transition_ids
+            ),
+            channel_names=("all",),
             et_transition_ids=et_transition_ids,
             number_pulses=number_pulses,
             pulse_duration=pulse_duration,

@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from fluopy import blinking as bl
+from fluopy import emissions as em
 from fluopy.transitions import SingleState
 
 
@@ -277,7 +278,36 @@ def test_get_analytical_off_statistics_starting_off():
 
 def test_blinking_requires_extracted_emissions():
     with pytest.raises(ValueError, match="require extracted emissions"):
-        bl.Blinking(emissions=SimpleNamespace(event_time_series=None))
+        bl.Blinking(emissions=em.Emissions())
+
+
+def test_blinking_selects_channel():
+    emissions = em.Emissions(
+        channels={
+            "green": em.DetectionChannel(),
+            "red": em.DetectionChannel(),
+        }
+    )
+    emissions.event_time_series = pd.DataFrame(
+        {"green": [0, 0, 0, 0], "red": [0, 1, 1, 0]}, dtype=np.int64
+    )
+
+    blink = bl.Blinking(emissions=emissions, channel="red")
+
+    assert blink.channel == "red"
+    np.testing.assert_array_equal(blink.on_periods, [2])
+
+
+def test_blinking_requires_channel_for_multichannel_emissions():
+    emissions = em.Emissions(
+        channels={
+            "green": em.DetectionChannel(),
+            "red": em.DetectionChannel(),
+        }
+    )
+
+    with pytest.raises(ValueError, match="channel must be specified"):
+        bl.Blinking(emissions=emissions)
 
 
 @pytest.mark.parametrize(

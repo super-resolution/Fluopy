@@ -25,9 +25,95 @@ __all__: list[str] = []
 logger = logging.getLogger(__name__)
 
 
+def _prepare_detection_configuration(
+    transition_count: int,
+    detection_probabilities: npt.ArrayLike,
+    channel_names: Sequence[str],
+) -> tuple[npt.NDArray[np.float64], tuple[str, ...]]:
+    """Validate and accumulate channel-resolved detection probabilities."""
+    probabilities = np.asarray(detection_probabilities, dtype=np.float64)
+    if channel_names is None or isinstance(channel_names, str):
+        raise ValueError("channel_names must be a sequence of channel names.")
+    names = tuple(channel_names)
+    if not names:
+        raise ValueError("at least one channel name is required.")
+    if any(not isinstance(name, str) or not name for name in names):
+        raise ValueError("channel names must be non-empty strings.")
+    if len(set(names)) != len(names):
+        raise ValueError("channel names must be unique.")
+
+    if probabilities.shape != (transition_count, len(names)):
+        raise ValueError(
+            "detection_probabilities must contain one row per transition and one "
+            "column per channel."
+        )
+    if np.any(~np.isfinite(probabilities)) or np.any(
+        (probabilities < 0) | (probabilities > 1)
+    ):
+        raise ValueError("detection probabilities must be finite and between 0 and 1.")
+    if np.any(probabilities.sum(axis=1) > 1 + 1e-12):
+        raise ValueError(
+            "detection probabilities must sum to at most 1 per transition."
+        )
+    return np.cumsum(probabilities, axis=1), names
+
+
+def _prepare_photon_outputs(
+    photon_collector: npt.NDArray[np.int64],
+    time_stamps: npt.NDArray[np.float64],
+    time_points: list[list[float]] | None,
+    lifetimes_DA: list[list[float]],
+    lifetimes_D: list[list[float]],
+    lifetimes_all: list[list[float]],
+    channel_names: tuple[str, ...],
+) -> tuple[
+    pd.DataFrame,
+    dict[str, npt.NDArray[np.float64]] | None,
+    dict[str, npt.NDArray[np.float64]],
+    dict[str, npt.NDArray[np.float64]],
+    dict[str, npt.NDArray[np.float64]],
+]:
+    """Convert collected photons to channel-resolved return values."""
+    event_time_series = pd.DataFrame(
+        photon_collector,
+        index=time_stamps,
+        columns=channel_names,
+        dtype=np.int64,
+    )
+    event_time_points = (
+        None
+        if time_points is None
+        else {
+            name: np.asarray(time_points[index], dtype=np.float64)
+            for index, name in enumerate(channel_names)
+        }
+    )
+    lifetimes_DA_output = {
+        name: np.asarray(lifetimes_DA[index], dtype=np.float64)
+        for index, name in enumerate(channel_names)
+    }
+    lifetimes_D_output = {
+        name: np.asarray(lifetimes_D[index], dtype=np.float64)
+        for index, name in enumerate(channel_names)
+    }
+    lifetimes_all_output = {
+        name: np.asarray(lifetimes_all[index], dtype=np.float64)
+        for index, name in enumerate(channel_names)
+    }
+
+    return (
+        event_time_series,
+        event_time_points,
+        lifetimes_DA_output,
+        lifetimes_D_output,
+        lifetimes_all_output,
+    )
+
+
 def simulate_TCSPC(
     transition_set: TransitionSet,
-    emitting_transition_ids: dict[int, float],
+    detection_probabilities: npt.ArrayLike,
+    channel_names: Sequence[str],
     et_transition_ids: Sequence[int] | None = None,
     number_pulses: int = 100_000,
     pulse_duration: float = 5e-11,
@@ -38,28 +124,28 @@ def simulate_TCSPC(
     store_time_points: bool = False,
     seed: RandomGeneratorSeed = None,
 ) -> tuple[
-    pd.Series,
-    npt.NDArray[np.float64] | None,
-    npt.NDArray[np.float64],
-    npt.NDArray[np.float64],
-    npt.NDArray[np.float64],
+    pd.DataFrame,
+    dict[str, npt.NDArray[np.float64]] | None,
+    dict[str, npt.NDArray[np.float64]],
+    dict[str, npt.NDArray[np.float64]],
+    dict[str, npt.NDArray[np.float64]],
 ]:
     """
     Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence lifetime
     measurement). Methodically the direct method of the gillespie algorithm.
     The simulation is bound to start at the state configuration where all fluorophores
     are in the ground state. The S1 durations used for fluorescence lifetimes are the
-    time differences of photon emission to last laser pulse. Only photons that pass the
-    bandpass filter are taken into account. The simulation approximates laser pulses to
-    be instantaneous.
+    time differences of photon emission to last laser pulse. Only detected photons are
+    taken into account. The simulation approximates laser pulses to be instantaneous.
 
     Parameters
     ----------
     transition_set
         Collection of all relevant transitions and related attributes
-    emitting_transition_ids
-        Contains the combined_state_transition indices as keys and their probability of
-        passing a bandpass filter as values.
+    detection_probabilities
+        Detection probability for every combined transition and channel.
+    channel_names
+        Channel names in the order used by detection_probabilities.
     et_transition_ids
         Contains the combined_state_transition indices that are emissions when energy
         transfer is available.
@@ -82,28 +168,34 @@ def simulate_TCSPC(
         Whether to store the time points at which emissions are detected.
     seed
         A seed to initialize the BitGenerator.
-
     Returns
     -------
-    event_time_series : pd.Series
+    event_time_series : pd.DataFrame
         Contains the time points (increasing by a defined time interval) as index and
-        the number of events (i.e., detected emissions) as values.
-    event_time_points : npt.NDArray[np.float64] | None
-        The time points at which emissions are detected.
+        the number of detected emissions in each channel as columns.
+    event_time_points : dict[str, npt.NDArray[np.float64]] or None
+        The time points at which emissions are detected, grouped by channel.
         If store_time_points is False, this will be None.
-    lifetimes_DA : npt.NDArray[np.float64]
+    lifetimes_DA : dict[str, npt.NDArray[np.float64]]
         Contains the S1 durations of detected emissions when energy transfer
-        available.
-    lifetimes_D : npt.NDArray[np.float64]
+        available, grouped by channel.
+    lifetimes_D : dict[str, npt.NDArray[np.float64]]
         Contains the S1 durations of detected emissions when energy transfer
-        not available.
-    lifetimes_all : npt.NDArray[np.float64]
-        Contains the S1 durations of all detected emissions.
+        not available, grouped by channel.
+    lifetimes_all : dict[str, npt.NDArray[np.float64]]
+        Contains the S1 durations of all detected emissions, grouped by channel.
     """
     number_pulses = int(number_pulses)
     size = int(size)
     transition_matrix_non_exc = transition_set.transition_matrix
     row_sums_non_exc = transition_set.row_sums
+    cumulative_detection_probabilities, resolved_channel_names = (
+        _prepare_detection_configuration(
+            transition_count=transition_matrix_non_exc.shape[1],
+            detection_probabilities=detection_probabilities,
+            channel_names=channel_names,
+        )
+    )
 
     transition_matrix_sorted_indices_non_exc = np.argsort(
         transition_matrix_non_exc, axis=1
@@ -151,14 +243,16 @@ def simulate_TCSPC(
         "times the pulses of other frames.",
         stacklevel=2,
     )
-    photon_collector = np.zeros(time_stamps.size)
+    photon_collector = np.zeros(
+        (time_stamps.size, len(resolved_channel_names)), dtype=np.int64
+    )
     df = transition_set.combined_state_transitions_df
     current_state_index = df.loc[
         df["final_state"] == tuple(np.zeros(number_fluorophores))
     ].index[0]
-    lifetimes_D: list[float] = []
-    lifetimes_DA: list[float] = []
-    lifetimes_all: list[float] = []
+    lifetimes_D: list[list[float]] = [[] for _ in resolved_channel_names]
+    lifetimes_DA: list[list[float]] = [[] for _ in resolved_channel_names]
+    lifetimes_all: list[list[float]] = [[] for _ in resolved_channel_names]
     remember: tuple[int, float] = (0, np.inf)
     if et_transition_ids is None:
         et_transition_ids = []
@@ -180,9 +274,9 @@ def simulate_TCSPC(
     random_numbers_exc = rng.uniform(low=0, high=1, size=(size, excitable_indices.size))
     random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
     if store_time_points:
-        time_points: list[float] = []
+        time_points: list[list[float]] | None = [[] for _ in resolved_channel_names]
     else:
-        event_time_points = None
+        time_points = None
 
     while i < number_pulses:
         i += 1
@@ -265,17 +359,14 @@ def simulate_TCSPC(
                         "another Markov chain absorbing state.",
                         stacklevel=2,
                     )
-                    event_time_series = pd.Series(
-                        photon_collector, index=time_stamps, dtype=np.int64
-                    )
-                    if store_time_points:
-                        event_time_points = np.array(time_points)
-                    return (
-                        event_time_series,
-                        event_time_points,
-                        np.asarray(lifetimes_DA, dtype=np.float64),
-                        np.asarray(lifetimes_D, dtype=np.float64),
-                        np.asarray(lifetimes_all, dtype=np.float64),
+                    return _prepare_photon_outputs(
+                        photon_collector=photon_collector,
+                        time_stamps=time_stamps,
+                        time_points=time_points,
+                        lifetimes_DA=lifetimes_DA,
+                        lifetimes_D=lifetimes_D,
+                        lifetimes_all=lifetimes_all,
+                        channel_names=resolved_channel_names,
                     )
                 # note that not_broken will be set to False. The rembered transition will be
                 # carried out and after that, if the transition was not to an all-absorbing
@@ -322,43 +413,46 @@ def simulate_TCSPC(
                     break
             skip = False
             current_state_index = next_transition
-            if next_transition in emitting_transition_ids:
-                if (
-                    random_numbers[k - (m - 1) * size, 2]
-                    < emitting_transition_ids[next_transition]
-                ):
-                    if next_transition in et_transition_ids:
-                        lifetimes_DA.append(time - last_pulse_time)
-                    else:
-                        lifetimes_D.append(time - last_pulse_time)
-                    lifetimes_all.append(time - last_pulse_time)
-                    frame = int(np.ceil(time / seconds_per_frame))
-                    try:
-                        photon_collector[frame] += 1
-                        if store_time_points:
-                            time_points.append(time)
-                    except IndexError:
-                        pass
+            cumulative_probabilities = cumulative_detection_probabilities[
+                next_transition
+            ]
+            if cumulative_probabilities[-1] == 0:
+                continue
+            channel_index = np.searchsorted(
+                cumulative_probabilities,
+                random_numbers[k - (m - 1) * size, 2],
+                side="right",
+            )
+            if channel_index < len(resolved_channel_names):
+                lifetime = time - last_pulse_time
+                if next_transition in et_transition_ids:
+                    lifetimes_DA[channel_index].append(lifetime)
+                else:
+                    lifetimes_D[channel_index].append(lifetime)
+                lifetimes_all[channel_index].append(lifetime)
+                frame = int(np.ceil(time / seconds_per_frame))
+                try:
+                    photon_collector[frame, channel_index] += 1
+                    if time_points is not None:
+                        time_points[channel_index].append(time)
+                except IndexError:
+                    pass
 
-    event_time_series = pd.Series(photon_collector, index=time_stamps, dtype=np.int64)
-    if store_time_points:
-        event_time_points = np.array(time_points)
-    lifetimes_DA_array = np.asarray(lifetimes_DA, dtype=np.float64)
-    lifetimes_D_array = np.asarray(lifetimes_D, dtype=np.float64)
-    lifetimes_all_array = np.asarray(lifetimes_all, dtype=np.float64)
-
-    return (
-        event_time_series,
-        event_time_points,
-        lifetimes_DA_array,
-        lifetimes_D_array,
-        lifetimes_all_array,
+    return _prepare_photon_outputs(
+        photon_collector=photon_collector,
+        time_stamps=time_stamps,
+        time_points=time_points,
+        lifetimes_DA=lifetimes_DA,
+        lifetimes_D=lifetimes_D,
+        lifetimes_all=lifetimes_all,
+        channel_names=resolved_channel_names,
     )
 
 
 def simulate_TCSPC_detailed(
     transition_set: TransitionSet,
-    emitting_transition_ids: dict[int, float],
+    detection_probabilities: npt.ArrayLike,
+    channel_names: Sequence[str],
     et_transition_ids: Sequence[int] | None = None,
     number_pulses: int = 100_000,
     pulse_duration: float = 5e-11,
@@ -369,11 +463,11 @@ def simulate_TCSPC_detailed(
     store_time_points: bool = False,
     seed: RandomGeneratorSeed = None,
 ) -> tuple[
-    pd.Series,
-    npt.NDArray[np.float64] | None,
-    npt.NDArray[np.float64],
-    npt.NDArray[np.float64],
-    npt.NDArray[np.float64],
+    pd.DataFrame,
+    dict[str, npt.NDArray[np.float64]] | None,
+    dict[str, npt.NDArray[np.float64]],
+    dict[str, npt.NDArray[np.float64]],
+    dict[str, npt.NDArray[np.float64]],
     Simulation,
 ]:
     """
@@ -391,9 +485,10 @@ def simulate_TCSPC_detailed(
     ----------
     transition_set
         Collection of all relevant transitions and related attributes
-    emitting_transition_ids
-        Contains the combined_state_transition indices as keys and their probability of
-        passing a bandpass filter as values.
+    detection_probabilities
+        Detection probability for every combined transition and channel.
+    channel_names
+        Channel names in the order used by detection_probabilities.
     et_transition_ids
         Contains the combined_state_transition indices that are emissions when energy
         transfer is available.
@@ -416,23 +511,22 @@ def simulate_TCSPC_detailed(
         Whether to store the time points at which emissions are detected.
     seed
         A seed to initialize the BitGenerator.
-
     Returns
     -------
-    event_time_series : pd.Series
+    event_time_series : pd.DataFrame
         Contains the time points (increasing by a defined time interval) as index and
-        the number of events (i.e., detected emissions) as values.
-    event_time_points : npt.NDArray[np.float64] | None
-        The time points at which emissions are detected.
+        the number of detected emissions in each channel as columns.
+    event_time_points : dict[str, npt.NDArray[np.float64]] or None
+        The time points at which emissions are detected, grouped by channel.
         If store_time_points is False, this will be None.
-    lifetimes_DA : npt.NDArray[np.float64]
+    lifetimes_DA : dict[str, npt.NDArray[np.float64]]
         Contains the S1 durations of detected emissions when energy transfer
-        available.
-    lifetimes_D : npt.NDArray[np.float64]
+        available, grouped by channel.
+    lifetimes_D : dict[str, npt.NDArray[np.float64]]
         Contains the S1 durations of detected emissions when energy transfer
-        not available.
-    lifetimes_all : npt.NDArray[np.float64]
-        Contains the S1 durations of all detected emissions.
+        not available, grouped by channel.
+    lifetimes_all : dict[str, npt.NDArray[np.float64]]
+        Contains the S1 durations of all detected emissions, grouped by channel.
     simulation_object : fluopy.simulation.Simulation
         Container for simulation-associated attributes and methods.
     """
@@ -440,6 +534,13 @@ def simulate_TCSPC_detailed(
     size = int(size)
     transition_matrix_non_exc = transition_set.transition_matrix
     row_sums_non_exc = transition_set.row_sums
+    cumulative_detection_probabilities, resolved_channel_names = (
+        _prepare_detection_configuration(
+            transition_count=transition_matrix_non_exc.shape[1],
+            detection_probabilities=detection_probabilities,
+            channel_names=channel_names,
+        )
+    )
 
     transition_matrix_sorted_indices_non_exc = np.argsort(
         transition_matrix_non_exc, axis=1
@@ -487,7 +588,9 @@ def simulate_TCSPC_detailed(
         "times the pulses of other frames.",
         stacklevel=2,
     )
-    photon_collector = np.zeros(time_stamps.size)
+    photon_collector = np.zeros(
+        (time_stamps.size, len(resolved_channel_names)), dtype=np.int64
+    )
     df = transition_set.combined_state_transitions_df
     current_state_index = df.loc[
         df["final_state"] == tuple(np.zeros(number_fluorophores))
@@ -495,9 +598,9 @@ def simulate_TCSPC_detailed(
     time_series: list[float] = [0.0]
     transition_series: list[int] = []
     excitation_series: list[int] = []
-    lifetimes_D: list[float] = []
-    lifetimes_DA: list[float] = []
-    lifetimes_all: list[float] = []
+    lifetimes_D: list[list[float]] = [[] for _ in resolved_channel_names]
+    lifetimes_DA: list[list[float]] = [[] for _ in resolved_channel_names]
+    lifetimes_all: list[list[float]] = [[] for _ in resolved_channel_names]
     remember: tuple[int, float] = (0, np.inf)
     if et_transition_ids is None:
         et_transition_ids = []
@@ -519,7 +622,7 @@ def simulate_TCSPC_detailed(
     random_numbers_exc = rng.uniform(low=0, high=1, size=(size, excitable_indices.size))
     random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
     if store_time_points:
-        time_points: list[float] | None = []
+        time_points: list[list[float]] | None = [[] for _ in resolved_channel_names]
     else:
         time_points = None
 
@@ -625,6 +728,7 @@ def simulate_TCSPC_detailed(
                         transition_series=transition_series,
                         excitation_series=excitation_series,
                         transition_set=transition_set,
+                        channel_names=resolved_channel_names,
                     )
 
                     return return_values
@@ -677,23 +781,30 @@ def simulate_TCSPC_detailed(
             transition_series.append(int(next_transition))
             excitation_series.append(-1)
             time_series.append(time)
-            if next_transition in emitting_transition_ids:
-                if (
-                    random_numbers[k - (m - 1) * size, 2]
-                    < emitting_transition_ids[next_transition]
-                ):
-                    if next_transition in et_transition_ids:
-                        lifetimes_DA.append(time - last_pulse_time)
-                    else:
-                        lifetimes_D.append(time - last_pulse_time)
-                    lifetimes_all.append(time - last_pulse_time)
-                    frame = int(np.ceil(time / seconds_per_frame))
-                    try:
-                        photon_collector[frame] += 1
-                        if time_points is not None:
-                            time_points.append(time)
-                    except IndexError:
-                        pass
+            cumulative_probabilities = cumulative_detection_probabilities[
+                next_transition
+            ]
+            if cumulative_probabilities[-1] == 0:
+                continue
+            channel_index = np.searchsorted(
+                cumulative_probabilities,
+                random_numbers[k - (m - 1) * size, 2],
+                side="right",
+            )
+            if channel_index < len(resolved_channel_names):
+                lifetime = time - last_pulse_time
+                if next_transition in et_transition_ids:
+                    lifetimes_DA[channel_index].append(lifetime)
+                else:
+                    lifetimes_D[channel_index].append(lifetime)
+                lifetimes_all[channel_index].append(lifetime)
+                frame = int(np.ceil(time / seconds_per_frame))
+                try:
+                    photon_collector[frame, channel_index] += 1
+                    if time_points is not None:
+                        time_points[channel_index].append(time)
+                except IndexError:
+                    pass
 
     # if checked, the last simulated pulse is past the last existing pulse
     if checked:
@@ -710,6 +821,7 @@ def simulate_TCSPC_detailed(
         transition_series=transition_series,
         excitation_series=excitation_series,
         transition_set=transition_set,
+        channel_names=resolved_channel_names,
     )
 
     return return_values
@@ -906,22 +1018,23 @@ def get_state_series(
 
 
 def prepare_return_values(
-    photon_collector: npt.ArrayLike,
-    time_stamps: npt.ArrayLike,
-    time_points: npt.ArrayLike | None,
-    lifetimes_DA: npt.ArrayLike,
-    lifetimes_D: npt.ArrayLike,
-    lifetimes_all: npt.ArrayLike,
+    photon_collector: npt.NDArray[np.int64],
+    time_stamps: npt.NDArray[np.float64],
+    time_points: list[list[float]] | None,
+    lifetimes_DA: list[list[float]],
+    lifetimes_D: list[list[float]],
+    lifetimes_all: list[list[float]],
     time_series: npt.ArrayLike,
     transition_series: npt.ArrayLike,
     excitation_series: npt.ArrayLike,
     transition_set: TransitionSet,
+    channel_names: tuple[str, ...],
 ) -> tuple[
-    pd.Series,
-    npt.NDArray[np.float64] | None,
-    npt.NDArray[np.float64],
-    npt.NDArray[np.float64],
-    npt.NDArray[np.float64],
+    pd.DataFrame,
+    dict[str, npt.NDArray[np.float64]] | None,
+    dict[str, npt.NDArray[np.float64]],
+    dict[str, npt.NDArray[np.float64]],
+    dict[str, npt.NDArray[np.float64]],
     Simulation,
 ]:
     """
@@ -957,35 +1070,42 @@ def prepare_return_values(
         Contains the index of a fluorophore if excitation, -1 if other transition.
     transition_set
         Collection of all relevant transitions and related attributes.
+    channel_names
+        Names of the detection channels.
 
     Returns
     -------
-    event_time_series : pd.Series
+    event_time_series : pd.DataFrame
         Contains the time points (increasing by a defined time interval) as index and
-        the number of events (i.e., detected emissions) as values.
-    event_time_points : npt.NDArray[np.float64] | None
-        The time points at which emissions are detected.
-    lifetimes_DA : npt.NDArray[np.float64]
+        the number of detected emissions in each channel as columns.
+    event_time_points : dict[str, npt.NDArray[np.float64]] or None
+        The time points at which emissions are detected, grouped by channel.
+    lifetimes_DA : dict[str, npt.NDArray[np.float64]]
         Contains the S1 durations of detected emissions when energy transfer
-        available.
-    lifetimes_D : npt.NDArray[np.float64]
+        available, grouped by channel.
+    lifetimes_D : dict[str, npt.NDArray[np.float64]]
         Contains the S1 durations of detected emissions when energy transfer
-        not available.
-    lifetimes_all : npt.NDArray[np.float64]
-        Contains the S1 durations of all detected emissions.
+        not available, grouped by channel.
+    lifetimes_all : dict[str, npt.NDArray[np.float64]]
+        Contains the S1 durations of all detected emissions, grouped by channel.
     simulation_object : fluopy.simulation.Simulation
         Container for simulation-associated attributes and methods.
     """
-    photon_counts = np.asarray(photon_collector, dtype=np.int64)
-    timestamps = np.asarray(time_stamps, dtype=np.float64)
-    event_time_series = pd.Series(photon_counts, index=timestamps, dtype=np.int64)
-    if time_points is not None:
-        event_time_points = np.asarray(time_points, dtype=np.float64)
-    else:
-        event_time_points = None
-    lifetimes_DA_array = np.asarray(lifetimes_DA, dtype=np.float64)
-    lifetimes_D_array = np.asarray(lifetimes_D, dtype=np.float64)
-    lifetimes_all_array = np.asarray(lifetimes_all, dtype=np.float64)
+    (
+        event_time_series,
+        event_time_points,
+        lifetimes_DA_output,
+        lifetimes_D_output,
+        lifetimes_all_output,
+    ) = _prepare_photon_outputs(
+        photon_collector=photon_collector,
+        time_stamps=time_stamps,
+        time_points=time_points,
+        lifetimes_DA=lifetimes_DA,
+        lifetimes_D=lifetimes_D,
+        lifetimes_all=lifetimes_all,
+        channel_names=channel_names,
+    )
     time_series_array = np.asarray(time_series, dtype=np.float64)
     transition_series_array = np.asarray(transition_series, dtype=np.uint32)
     excitation_series_array = np.asarray(excitation_series, dtype=np.int16)
@@ -1007,8 +1127,8 @@ def prepare_return_values(
     return (
         event_time_series,
         event_time_points,
-        lifetimes_DA_array,
-        lifetimes_D_array,
-        lifetimes_all_array,
+        lifetimes_DA_output,
+        lifetimes_D_output,
+        lifetimes_all_output,
         simulation_object,
     )
