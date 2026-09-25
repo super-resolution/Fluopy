@@ -30,7 +30,6 @@ from .photophysics import *
 from .kappa_squared import *
 from .miscellaneous import *
 from .prediction import *
-from .routines import *
 from .simulation import *
 from .tcspc import *
 from .transitions import *
@@ -49,7 +48,6 @@ submodules: list[str] = [
     "kappa_squared",
     "miscellaneous",
     "prediction",
-    "routines",
     "simulation",
     "tcspc",
     "transitions",

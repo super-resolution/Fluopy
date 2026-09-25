@@ -35,7 +35,6 @@ def test_logging():
         # 'kappa_squared',
         # 'miscellaneous',
         "prediction",
-        # 'routines',
         "simulation",
         "tcspc",
         # 'transitions'

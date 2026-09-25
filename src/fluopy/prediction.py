@@ -14,7 +14,7 @@ import numpy as np
 import numpy.typing as npt
 from scipy.stats import expon
 
-from . import plotting as fi
+from . import plotting
 from .miscellaneous import format_electronic_state, format_transition
 
 if TYPE_CHECKING:
@@ -513,7 +513,7 @@ class Prediction:
         Parameters
         ----------
         kwargs
-            kwargs for fluopy.plotting.universal_figure
+            kwargs for fluopy.plotting.plot_data
 
         Returns
         -------
@@ -554,7 +554,7 @@ class Prediction:
                 for i, name in enumerate(df.index.get_level_values(0).unique())
             ],
         )
-        ax = fi.universal_figure(data=data, **kwargs)
+        ax = plotting.plot_data(data=data, **kwargs)
 
         return ax
 
@@ -565,7 +565,7 @@ class Prediction:
         Parameters
         ----------
         kwargs
-            kwargs for fluopy.plotting.universal_figure
+            kwargs for fluopy.plotting.plot_data
 
         Returns
         -------
@@ -610,7 +610,7 @@ class Prediction:
         kwargs.setdefault("color", colors)
         kwargs.setdefault("legend", True)
         kwargs.setdefault("legendhandles", patches)
-        ax = fi.universal_figure(data=data, **kwargs)
+        ax = plotting.plot_data(data=data, **kwargs)
 
         return ax
 
@@ -621,7 +621,7 @@ class Prediction:
         Parameters
         ----------
         kwargs
-            kwargs for fluopy.plotting.universal_figure
+            kwargs for fluopy.plotting.plot_data
 
         Returns
         -------
@@ -669,7 +669,7 @@ class Prediction:
                 for i, name in enumerate(df.index.get_level_values(0).unique())
             ],
         )
-        ax = fi.universal_figure(data=data, **kwargs)
+        ax = plotting.plot_data(data=data, **kwargs)
 
         return ax
 
@@ -680,7 +680,7 @@ class Prediction:
         Parameters
         ----------
         kwargs
-            kwargs for fluopy.plotting.universal_figure
+            kwargs for fluopy.plotting.plot_data
 
         Returns
         -------
@@ -733,7 +733,7 @@ class Prediction:
         kwargs.setdefault("legend", True)
         kwargs.setdefault("legendhandles", patches)
         kwargs.setdefault("ylabel", r"$\tau$ (s)")
-        ax = fi.universal_figure(data=data, **kwargs)
+        ax = plotting.plot_data(data=data, **kwargs)
 
         return ax
 
@@ -744,7 +744,7 @@ class Prediction:
         Parameters
         ----------
         kwargs
-            kwargs for fluopy.plotting.universal_figure
+            kwargs for fluopy.plotting.plot_data
 
         Returns
         -------
@@ -796,7 +796,7 @@ class Prediction:
         kwargs.setdefault("color", colors)
         kwargs.setdefault("legend", True)
         kwargs.setdefault("legendhandles", patches)
-        ax = fi.universal_figure(data=data, **kwargs)
+        ax = plotting.plot_data(data=data, **kwargs)
 
         return ax
 
@@ -819,7 +819,7 @@ class Prediction:
         x
             The x values for which the distribution is to be shown.
         kwargs
-            kwargs for fluopy.plotting.universal_figure
+            kwargs for fluopy.plotting.plot_data
 
         Returns
         -------
@@ -853,7 +853,7 @@ class Prediction:
         if x is None:
             x = np.linspace(0, mean_lifetimes[fluorophore][index] * 10, 1000)
         data = [x, distribution.pdf(x)]
-        ax = fi.universal_figure(data=data, **kwargs)
+        ax = plotting.plot_data(data=data, **kwargs)
 
         return ax
 
@@ -876,7 +876,7 @@ class Prediction:
         x
             The x values for which the distribution is to be shown.
         kwargs
-            kwargs for fluopy.plotting.universal_figure
+            kwargs for fluopy.plotting.plot_data
 
         Returns
         -------
@@ -906,7 +906,7 @@ class Prediction:
             x = np.linspace(0, mean_transition_times[transition_id] * 10, 1000)
         data = [x, transition_distributions[transition_id].pdf(x)]
 
-        ax = fi.universal_figure(data=data, **kwargs)
+        ax = plotting.plot_data(data=data, **kwargs)
 
         return ax
 

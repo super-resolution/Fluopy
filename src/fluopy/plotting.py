@@ -1,8 +1,4 @@
-"""
-A universal figure to plot simulation results.
-
-A universal figure is defined for plotting simulation results with matplotlib.
-"""
+"""Plot simulation results with consistent Matplotlib formatting."""
 
 from __future__ import annotations
 
@@ -22,10 +18,10 @@ if TYPE_CHECKING:
     from scipy.stats.distributions import rv_frozen
 
 
-__all__: list[str] = ["universal_figure"]
+__all__: list[str] = ["plot_data"]
 
 
-def universal_figure(
+def plot_data(
     fig_width: float = 6,
     fig_height: float = 3,
     scale: float = 1,

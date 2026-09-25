@@ -10,7 +10,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-from . import plotting as fi
+from . import plotting
 from . import transitions as tr
 
 if TYPE_CHECKING:
@@ -100,7 +100,7 @@ class Blinking:
             One of 'on_histogram', 'off_histogram', 'on_frame_series',
             'off_frame_series', 'on_boxplot', 'off_boxplot'.
         kwargs
-            fluopy.plotting.universal_figure arguments
+            fluopy.plotting.plot_data arguments
 
         Returns
         -------
@@ -315,7 +315,7 @@ def plot_off_statistics(
         Values that correspond to all_times. 0 if time is associated with OFF, 1
         otherwise.
     kwargs
-        kwargs for fluopy.plotting.universal_figure arguments
+        kwargs for fluopy.plotting.plot_data arguments
 
     Returns
     -------
@@ -328,7 +328,7 @@ def plot_off_statistics(
     kwargs.setdefault("yticklabels", {"labels": ["OFF", "ON"]})
     kwargs.setdefault("yticks", [0, 1])
     kwargs.setdefault("ylabel", "")
-    ax = fi.universal_figure(data=[on_off_times, on_off_values], **kwargs)
+    ax = plotting.plot_data(data=[on_off_times, on_off_values], **kwargs)
 
     return ax
 
@@ -361,7 +361,7 @@ def plot_histogram(
     sec_per_frame
         Duration of a frame in seconds.
     kwargs
-        kwargs for fluopy.plotting.universal_figure arguments
+        kwargs for fluopy.plotting.plot_data arguments
 
     Returns
     -------
@@ -389,7 +389,7 @@ def plot_histogram(
     else:
         kwargs.setdefault("xlabel", "Consecutive frames")
 
-    ax = fi.universal_figure(data=data_array, **kwargs)
+    ax = plotting.plot_data(data=data_array, **kwargs)
 
     mean_color = kwargs.get("ylabelcolor", "black")
     fontsize = kwargs.get("fontsize", 16)
@@ -428,7 +428,7 @@ def plot_boxplot(
     sec_per_frame
         Duration of a frame in seconds.
     kwargs
-        kwargs for fluopy.plotting.universal_figure arguments
+        kwargs for fluopy.plotting.plot_data arguments
 
     Returns
     -------
@@ -451,7 +451,7 @@ def plot_boxplot(
     else:
         kwargs.setdefault("ylabel", "consecutive frames")
 
-    ax = fi.universal_figure(data=data_array, **kwargs)
+    ax = plotting.plot_data(data=data_array, **kwargs)
 
     return ax
 
@@ -469,7 +469,7 @@ def plot_frame_series(
     mode
         One of 'ON' or 'OFF'.
     kwargs
-        kwargs for fluopy.plotting.universal_figure arguments
+        kwargs for fluopy.plotting.plot_data arguments
 
     Returns
     -------
@@ -480,6 +480,6 @@ def plot_frame_series(
     kwargs.setdefault("xlabel", "identity")
     kwargs.setdefault("ylabel", f"consecutive {mode} frames")
 
-    ax = fi.universal_figure(data=data, **kwargs)
+    ax = plotting.plot_data(data=data, **kwargs)
 
     return ax
