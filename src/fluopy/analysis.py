@@ -15,7 +15,7 @@ import numpy.typing as npt
 import pandas as pd
 
 from . import plotting
-from .miscellaneous import format_electronic_state, format_transition
+from .plotting import format_electronic_state, format_transition
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes as mplAxes

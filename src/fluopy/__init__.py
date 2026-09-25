@@ -28,7 +28,6 @@ from .fluo_data import *
 from .fluorophores import *
 from .photophysics import *
 from .kappa_squared import *
-from .miscellaneous import *
 from .prediction import *
 from .simulation import *
 from .tcspc import *
@@ -46,7 +45,6 @@ submodules: list[str] = [
     "fluorophores",
     "photophysics",
     "kappa_squared",
-    "miscellaneous",
     "prediction",
     "simulation",
     "tcspc",

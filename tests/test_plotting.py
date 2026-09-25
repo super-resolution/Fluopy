@@ -1,11 +1,24 @@
+from types import SimpleNamespace
+
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
+import pandas as pd
 import pytest
 from matplotlib.patches import Patch
 from scipy.stats import norm, poisson
 
-from fluopy.plotting import plot_data
+from fluopy.plotting import (
+    add_table,
+    compute_tight_bbox,
+    create_row_subtitles,
+    delete_subplots,
+    format_axis_labels,
+    format_electronic_state,
+    format_transition,
+    get_figure,
+    plot_data,
+)
 
 
 def test_plot_data():
@@ -270,6 +283,123 @@ def test_plot_data_uses_custom_legend_handles():
 def test_plot_data_rejects_unknown_plot_type():
     with pytest.raises(ValueError, match="Invalid type_ argument"):
         plot_data(type_="unknown")
+
+
+def test_delete_subplots():
+    fig, axes = plt.subplots(2, 3)
+    assert delete_subplots(axes=axes.ravel(), keep_number=1, del_positions=None) is None
+    assert fig.axes == [axes[0, 0]]
+    plt.close(fig)
+
+
+def test_delete_subplots_by_position():
+    fig, axes = plt.subplots(2, 2)
+
+    delete_subplots(axes=axes, del_positions=[[0, 1], [1, 0]])
+
+    assert fig.axes == [axes[0, 0], axes[1, 1]]
+
+
+def test_delete_subplots_requires_one_selection_method():
+    _, axes = plt.subplots(1, 2)
+
+    with pytest.raises(ValueError, match="Only one"):
+        delete_subplots(axes=axes, keep_number=1, del_positions=[[0, 1]])
+    with pytest.raises(ValueError, match="Either keep_number"):
+        delete_subplots(axes=axes)
+
+
+def test_create_row_subtitles():
+    fig, axes = plt.subplots(2, 3)
+    create_row_subtitles(axes=axes.ravel(), nrows=2, ncols=3, titles=["one", "two"])
+
+    assert [ax.get_title() for ax in fig.axes[-2:]] == ["one", "two"]
+    assert all(not ax.axison for ax in fig.axes[-2:])
+
+
+def test_create_row_subtitles_uses_default_titles():
+    fig, axes = plt.subplots(2, 1)
+
+    create_row_subtitles(axes=axes, nrows=2, titles=None)
+
+    assert [ax.get_title() for ax in fig.axes[-2:]] == ["default_title"] * 2
+    plt.close(fig)
+
+
+def test_add_table():
+    fig, ax = plt.subplots(2, 1)
+    return_value = add_table(
+        axes=ax,
+        data=pd.Series([1, 2, 3], index=["one", "two", "three"]),
+        grid=212,
+    )
+    assert return_value is ax
+    assert len(fig.axes[-1].tables) == 1
+
+
+def test_add_table_accepts_array_data_and_current_axes():
+    fig, ax = plt.subplots()
+    plt.sca(ax)
+
+    result = add_table(
+        axes=None,
+        data=np.array([[1], [2]]),
+        labels=["one", "two"],
+    )
+
+    assert result is ax
+    assert len(fig.axes[-1].tables) == 1
+    plt.close(fig)
+
+
+def test_get_figures():
+    fig, axes = plt.subplots(2, 3)
+    return_value = get_figure()
+    assert return_value is fig
+    return_value = get_figure(axes=axes.ravel())
+    assert return_value is fig
+    return_value = get_figure(axes=axes.ravel()[4])
+    assert return_value is fig
+    plt.close(fig)
+
+
+def test_get_figure_rejects_detached_axes():
+    axes = SimpleNamespace(get_figure=lambda: None)
+
+    with pytest.raises(ValueError, match="not attached to a figure"):
+        get_figure(axes=axes)
+
+
+def test_format_electronic_state():
+    assert format_electronic_state(label="S1") == r"S$_{1}$"
+    assert format_electronic_state(label="___S1_T1__") == "___S1_T1__"
+
+
+def test_format_transition():
+    assert format_transition(label="123_456") == "123$_{456}$"
+    assert format_transition(label="S1") == "S1"
+
+
+def test_format_axis_labels():
+    assert format_axis_labels(label="___(1)___", offset="e12") == (
+        "___($10^{12} \\times$ 1)___"
+    )
+    assert format_axis_labels(label="value [s]", offset="e-3") == (
+        "value [$10^{-3} \\times$ s]"
+    )
+    assert format_axis_labels(label="value", offset="e3") == (
+        "value ($ \\times 10^{3}$)"
+    )
+
+
+def test_compute_tight_bbox_preserves_figure_width():
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.set_title("title")
+
+    bbox = compute_tight_bbox(fig, pad_inches=0.1)
+
+    assert bbox.width == pytest.approx(4)
+    assert bbox.height > 0
 
 
 @pytest.mark.visual

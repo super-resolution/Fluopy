@@ -33,7 +33,6 @@ def test_logging():
         "fluorophores",
         # 'photophysics',
         # 'kappa_squared',
-        # 'miscellaneous',
         "prediction",
         "simulation",
         "tcspc",
