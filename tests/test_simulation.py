@@ -1,4 +1,5 @@
 import logging
+import warnings
 from pathlib import Path
 
 import networkx as nx
@@ -562,7 +563,6 @@ def test_simulation_run(
     exp_state_series,
     tr_set_1f,
     tmp_path,
-    caplog,
 ):
     rng = np.random.default_rng(42)
     if use_memmap is not None:
@@ -587,7 +587,10 @@ def test_simulation_run(
             )
         return
 
-    with caplog.at_level(logging.WARNING):
+    with pytest.warns(
+        si.FloatingPointPrecisionWarning,
+        match="Floating point precision error warning",
+    ):
         simulation.run(
             start_at=(0,),
             size=size,
@@ -596,8 +599,6 @@ def test_simulation_run(
             seed=rng,
             use_memmap=memmap_path,
         )
-        assert "Floating point precision error warning" in caplog.text
-    caplog.clear()
 
     np.testing.assert_allclose(simulation.time_series, exp_time_series, rtol=1e-7)
     np.testing.assert_array_equal(simulation.transition_series, exp_transition_series)
@@ -672,6 +673,22 @@ def test_simulation_run_rejects_invalid_boundaries(tr_set_1f):
         simulation.run(start_at=(99,), size=10, seed=42)
 
 
+def test_floating_point_precision_warning_is_emitted_once_per_call_site(tr_set_1f):
+    simulation = si.Simulation(transition_set=tr_set_1f)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("default")
+        for seed in (1, 2):
+            simulation.run(size=2, seed=seed)
+
+    precision_warnings = [
+        warning
+        for warning in caught
+        if warning.category is si.FloatingPointPrecisionWarning
+    ]
+    assert len(precision_warnings) == 1
+
+
 def test_simulation_run_requires_transition_output(tr_set_1f, monkeypatch):
     monkeypatch.setattr(
         si,
@@ -716,7 +733,7 @@ def test_delete_memmaps_validates_all_arrays(tr_set_1f, tmp_path):
         ["tr_set_2f_diff", "ValueError2"],
     ],
 )
-def test_simulation_approximate(dirname, request, expected, caplog):
+def test_simulation_approximate(dirname, request, expected):
     rng = np.random.default_rng(42)
     tr_set = request.getfixturevalue(dirname)
     pred = pr.Prediction(transition_set=tr_set)
@@ -739,10 +756,11 @@ def test_simulation_approximate(dirname, request, expected, caplog):
             ):
                 simulation.approximate(prediction=pred, size=size, seed=rng)
         else:
-            with caplog.at_level(logging.WARNING):
+            with pytest.warns(
+                si.FloatingPointPrecisionWarning,
+                match="Floating point precision error warning",
+            ):
                 simulation.approximate(prediction=pred, size=size, seed=rng)
-                assert "Floating point precision error warning" in caplog.text
-            caplog.clear()
 
             assert simulation.time_series[0] == 0
             assert np.all(np.diff(simulation.time_series) > 0)

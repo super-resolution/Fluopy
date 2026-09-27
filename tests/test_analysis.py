@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from fluopy import analysis as an
+from fluopy import simulation as si
 from fluopy import transitions as tr
 
 # test_analysis_# includes testing of...
@@ -54,10 +55,11 @@ def test_analysis_1(request, caplog):
         ) in caplog.text
     caplog.clear()
 
-    with caplog.at_level(logging.WARNING):
+    with pytest.warns(
+        si.FloatingPointPrecisionWarning,
+        match="Floating point precision error warning",
+    ):
         sim_tr_set_1f_bl = request.getfixturevalue("sim_tr_set_1f_bl")
-        assert "Floating point precision error warning" in caplog.text
-    caplog.clear()
 
     analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
     assert analysis.simulation == sim_tr_set_1f_bl
@@ -467,11 +469,12 @@ def test_analysis_transition_plots_can_collapse_transfer_distances():
 
 
 # test with 2 fluorophores, with energy transfer
-def test_analysis_2(request, caplog):
-    with caplog.at_level(logging.WARNING):
+def test_analysis_2(request):
+    with pytest.warns(
+        si.FloatingPointPrecisionWarning,
+        match="Floating point precision error",
+    ):
         sim_tr_set_et_2f_diff = request.getfixturevalue("sim_tr_set_et_2f_diff")
-        assert "Floating point precision error" in caplog.text
-    caplog.clear()
 
     analysis = an.Analysis(simulation=sim_tr_set_et_2f_diff)
     assert analysis.simulation == sim_tr_set_et_2f_diff
@@ -547,11 +550,12 @@ def test_analysis_2(request, caplog):
 
 
 # test with 2 fluorophores, without energy transfer
-def test_analysis_3(request, caplog):
-    with caplog.at_level(logging.WARNING):
+def test_analysis_3(request):
+    with pytest.warns(
+        si.FloatingPointPrecisionWarning,
+        match="Floating point precision error",
+    ):
         sim_tr_set_2f_diff = request.getfixturevalue("sim_tr_set_2f_diff")
-        assert "Floating point precision error" in caplog.text
-    caplog.clear()
 
     analysis = an.Analysis(simulation=sim_tr_set_2f_diff)
     assert analysis.simulation == sim_tr_set_2f_diff
@@ -622,11 +626,13 @@ def test_analysis_3(request, caplog):
         np.testing.assert_allclose(state_occ, exp_state_occ[fluorophore], rtol=1e-6)
 
 
-def test_get_fluorescence_lifetimes(request, caplog):
-    with caplog.at_level(logging.WARNING):
+def test_get_fluorescence_lifetimes(request):
+    with pytest.warns(
+        si.FloatingPointPrecisionWarning,
+        match="Floating point precision error",
+    ):
         sim_tr_set_1f_bl = request.getfixturevalue("sim_tr_set_1f_bl")
         sim_tr_set_2f_diff = request.getfixturevalue("sim_tr_set_2f_diff")
-        assert "Floating point precision error" in caplog.text
 
     assert tr.SingleState.S1.value == 1  # if it fails, check
     # analysis.get_fluorescence_lifetimes
