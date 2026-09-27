@@ -149,11 +149,11 @@ exclude_lines = [
 
 [tool.ruff]
 line-length = 88
+force-exclude = true
 # automatically exclude files that are ignored by .gitignore
 exclude = [
     ".*",
     "dist",
-    "docs",
     "docker",
     "src/fluopy/_version.py",
 ]
