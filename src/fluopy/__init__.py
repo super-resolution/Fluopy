@@ -19,11 +19,9 @@ except ImportError:
 
 from .analysis import *
 from .blinking import *
-from .distributions import *
 from .emissions import *
 from .fcs import *
 from .plotting import *
-from .fitting import *
 from .fluo_data import *
 from .fluorophores import *
 from .photophysics import *
@@ -36,11 +34,9 @@ from .transitions import *
 submodules: list[str] = [
     "analysis",
     "blinking",
-    "distributions",
     "emissions",
     "fcs",
     "plotting",
-    "fitting",
     "fluo_data",
     "fluorophores",
     "photophysics",

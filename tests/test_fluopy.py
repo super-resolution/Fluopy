@@ -24,11 +24,9 @@ def test_logging():
     for module_name in [
         "analysis",
         # 'blinking',
-        # 'distributions',
         "emissions",
         # 'fcs',
         # 'plotting',
-        # 'fitting',
         # 'fluo_data',
         "fluorophores",
         # 'photophysics',
