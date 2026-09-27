@@ -4,7 +4,7 @@ from copy import deepcopy
 import numpy as np
 import pytest
 
-from fluopy import simulation_tcspc as si
+from fluopy import tcspc as si
 from fluopy import transitions as tr
 
 

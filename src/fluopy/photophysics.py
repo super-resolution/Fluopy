@@ -1,5 +1,5 @@
 """
-Mathematical formulas for optical and spectral properties.
+Photophysical calculations for optical and spectral properties.
 """
 
 from __future__ import annotations

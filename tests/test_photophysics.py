@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from fluopy import formulas as fo
+from fluopy import photophysics as fo
 
 
 @pytest.mark.parametrize(

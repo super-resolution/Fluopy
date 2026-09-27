@@ -14,8 +14,7 @@
 [![Documentation Status](https://readthedocs.org/projects/Fluopy/badge/?version=latest)](https://fluopy.readthedocs.io/en/latest/?badge=latest)
 
 
-Fluopy is a python-based library with code for simulating photophysical processes
-of organic dyes.
+Fluopy is a framework for constructing and simulating photophysical state transitions of fluorophores, including excitation, radiative and nonradiative decay, and photobleaching. It supports systems of multiple interacting fluorophores with coupled transitions, such as energy transfers.
 
 For details on usage and development please read the [documentation](https://fluopy.readthedocs.io/)
 

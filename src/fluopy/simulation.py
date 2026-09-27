@@ -15,7 +15,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-from . import network as net
+from . import _graphs as net
 from .kappa_squared import (
     kappa_squared,
     random_unit_vector,

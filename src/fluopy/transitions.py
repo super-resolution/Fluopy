@@ -17,8 +17,8 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-from . import formulas as fo
-from . import network as net
+from . import _graphs as net
+from . import photophysics as fo
 from .fluo_data import FluorophoreData, Spectrum
 
 if TYPE_CHECKING:
@@ -1843,7 +1843,7 @@ def derive_transitions(
         Whether to incorporate bleaching as a possible transition.
     dstorm
         Whether to incorporate dstorm photoswitching as possible transitions.
-    dstorm_parameters : fo.calculate_pet_rate arguments (except k_pet)
+    dstorm_parameters : fluopy.photophysics.calculate_pet_rate arguments (except k_pet)
 
     Returns
     -------

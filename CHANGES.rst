@@ -17,6 +17,13 @@ API Changes
 -----------
 - store emission and absorption spectra directly in FluorophoreData
 - replace fixed state and transition-type enums with extensible value objects
+- replace the single Emissions bandpass with named DetectionChannel objects containing 
+bandpass, fluorophore selection and detection efficiency
+- return frame-based emission data as a DataFrame and photon arrival times and TCSPC 
+lifetimes as channel-keyed dictionaries
+- replace post-simulation photon-collection, transmittance and quantum-efficiency 
+thinning with DetectionChannel.detection_efficiency
+- remove Emissions.save() and Emissions.load()
 
 Bug Fixes
 ---------

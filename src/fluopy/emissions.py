@@ -14,14 +14,14 @@ import numpy.typing as npt
 import pandas as pd
 from scipy.stats import gamma, norm, poisson
 
-from . import figure as fi
+from . import plotting
 from .fluo_data import Spectrum
 from .simulation import (
     Simulation,
     eval_floating_point_precision_error,
     simulate_experiment,
 )
-from .simulation_tcspc import simulate_TCSPC, simulate_TCSPC_detailed
+from .tcspc import simulate_TCSPC, simulate_TCSPC_detailed
 from .transitions import TransitionSet
 
 if TYPE_CHECKING:
@@ -672,7 +672,7 @@ class Emissions:
         channel
             Detection channel to plot. If None, the only configured channel is used.
         kwargs
-            fluopy.figure.universal_figure arguments
+            fluopy.plotting.plot_data arguments
 
         Returns
         -------
@@ -693,7 +693,7 @@ class Emissions:
         kwargs.setdefault("ylabel", "Cumulative prob.")
         kwargs.setdefault("ylim", [0, 1])
 
-        ax = fi.universal_figure(data=data, **kwargs)
+        ax = plotting.plot_data(data=data, **kwargs)
 
         return ax
 
@@ -721,7 +721,7 @@ class Emissions:
         channel
             Detection channel to plot. If None, the only configured channel is used.
         kwargs
-            fluopy.figure.universal_figure arguments
+            fluopy.plotting.plot_data arguments
 
         Returns
         -------
@@ -743,7 +743,7 @@ class Emissions:
             kwargs.setdefault("ylabel", "Probability")
             kwargs.setdefault("weights", np.ones_like(data) / data.size)
 
-        ax = fi.universal_figure(data=data, **kwargs)
+        ax = plotting.plot_data(data=data, **kwargs)
 
         mean_color = kwargs.get("ylabelcolor", "black")
         fontsize = kwargs.get("fontsize", 16)
@@ -769,7 +769,7 @@ class Emissions:
         channel
             Detection channel to plot. If None, the only configured channel is used.
         kwargs
-            fluopy.figure.universal_figure arguments
+            fluopy.plotting.plot_data arguments
 
         Returns
         -------
@@ -782,7 +782,7 @@ class Emissions:
         kwargs.setdefault("xlabel", "Time (s)")
         kwargs.setdefault("ylabel", r"$\frac{photons}{frame}$")
 
-        ax = fi.universal_figure(data=data, **kwargs)
+        ax = plotting.plot_data(data=data, **kwargs)
 
         return ax
 

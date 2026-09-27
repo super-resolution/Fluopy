@@ -2,13 +2,25 @@ import fluopy
 
 
 def test_import_fluopy():
-    # print(dir(fluopy))
-    # print(fluopy.__all__)
-    assert "fluorophores" not in fluopy.__all__
-    assert "Fluorophore" in fluopy.__all__
+    assert fluopy.__all__ == [
+        "analysis",
+        "blinking",
+        "emissions",
+        "fcs",
+        "fluo_data",
+        "fluorophores",
+        "kappa_squared",
+        "photophysics",
+        "plotting",
+        "prediction",
+        "simulation",
+        "tcspc",
+        "transitions",
+    ]
 
 
-def test_fluorophore_root_api():
-    assert "Fluorophore" in fluopy.__all__
-    assert "FluorophoreSystem" in fluopy.__all__
-    assert "get_distances" not in fluopy.__all__
+def test_root_api_exposes_modules_only():
+    assert fluopy.fluorophores.Fluorophore is not None
+    assert fluopy.fluorophores.FluorophoreSystem is not None
+    assert not hasattr(fluopy, "Fluorophore")
+    assert not hasattr(fluopy, "FluorophoreSystem")

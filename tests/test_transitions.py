@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from fluopy import fluo_data as fd
-from fluopy import formulas as fo
+from fluopy import photophysics as fo
 from fluopy import transitions as tr
 
 

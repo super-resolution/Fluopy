@@ -63,7 +63,6 @@ dependencies = [
     "numba>=0.60.0",
     "numpy>=2.0.0",
     "pandas>=2.2.2",
-    "pillow>=10.1.0",
     "scipy>=1.13.0",
 ]
 
@@ -150,11 +149,11 @@ exclude_lines = [
 
 [tool.ruff]
 line-length = 88
+force-exclude = true
 # automatically exclude files that are ignored by .gitignore
 exclude = [
     ".*",
     "dist",
-    "docs",
     "docker",
     "src/fluopy/_version.py",
 ]

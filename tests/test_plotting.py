@@ -1,34 +1,47 @@
+from types import SimpleNamespace
+
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
+import pandas as pd
 import pytest
 from matplotlib.patches import Patch
 from scipy.stats import norm, poisson
 
-from fluopy.figure import universal_figure
+from fluopy.plotting import (
+    add_table,
+    compute_tight_bbox,
+    create_row_subtitles,
+    delete_subplots,
+    format_axis_labels,
+    format_electronic_state,
+    format_transition,
+    get_figure,
+    plot_data,
+)
 
 
-def test_universal_figure():
-    ax = universal_figure()
+def test_plot_data():
+    ax = plot_data()
     assert ax.figure is not None
     assert ax.figure.dpi == plt.rcParamsDefault["figure.dpi"]
     assert ax.figure.get_facecolor() == (1.0, 1.0, 1.0, 1.0)
     assert all(spine.get_linewidth() == 2 for spine in ax.spines.values())
 
 
-def test_universal_figure_modifies_supplied_axis():
+def test_plot_data_modifies_supplied_axis():
     _, expected = plt.subplots()
 
-    ax = universal_figure(ax=expected, data=([0, 1], [1, 2]))
+    ax = plot_data(ax=expected, data=([0, 1], [1, 2]))
 
     assert ax is expected
     assert len(ax.lines) == 1
 
 
-def test_universal_figure_multiple_line_defaults():
+def test_plot_data_multiple_line_defaults():
     data = [([0, 1], [1, 2]), ([0, 1], [2, 3])]
 
-    ax = universal_figure(type_="multiple_line", data=data)
+    ax = plot_data(type_="multiple_line", data=data)
 
     lines = ax.lines
     assert len(lines) == 2
@@ -36,10 +49,10 @@ def test_universal_figure_multiple_line_defaults():
     assert ax.get_legend_handles_labels() == ([], [])
 
 
-def test_universal_figure_multiple_line_scalar_label_and_color():
+def test_plot_data_multiple_line_scalar_label_and_color():
     data = [([0, 1], [1, 2]), ([0, 1], [2, 3])]
 
-    ax = universal_figure(type_="multiple_line", data=data, label="data", color="red")
+    ax = plot_data(type_="multiple_line", data=data, label="data", color="red")
 
     lines = ax.lines
     assert [line.get_color() for line in lines] == ["red", "red"]
@@ -61,16 +74,14 @@ def test_universal_figure_multiple_line_scalar_label_and_color():
         ("boxplot", [1, 2, 3], {"label": "data"}, "lines", 7),
     ],
 )
-def test_universal_figure_plot_types(
-    type_, data, kwargs, artist_attribute, expected_count
-):
-    ax = universal_figure(type_=type_, data=data, **kwargs)
+def test_plot_data_plot_types(type_, data, kwargs, artist_attribute, expected_count):
+    ax = plot_data(type_=type_, data=data, **kwargs)
 
     assert len(getattr(ax, artist_attribute)) == expected_count
 
 
-def test_universal_figure_grouped_bars():
-    ax = universal_figure(
+def test_plot_data_grouped_bars():
+    ax = plot_data(
         type_="bar",
         data=([0, 1], [[1, 2], [3, 4]]),
         color=["red", "blue"],
@@ -83,8 +94,8 @@ def test_universal_figure_grouped_bars():
     assert [patch.get_x() for patch in ax.patches[2:]] == pytest.approx([0.2, 1.2])
 
 
-def test_universal_figure_grouped_bars_without_width():
-    ax = universal_figure(
+def test_plot_data_grouped_bars_without_width():
+    ax = plot_data(
         type_="bar",
         data=([0, 1], [[1, 2], [3, 4]]),
         color=["red", "blue"],
@@ -94,8 +105,8 @@ def test_universal_figure_grouped_bars_without_width():
     assert [patch.get_x() for patch in ax.patches[2:]] == pytest.approx([-0.4, 0.6])
 
 
-def test_universal_figure_histogram_dot_and_distribution_overlays():
-    dot_ax = universal_figure(
+def test_plot_data_histogram_dot_and_distribution_overlays():
+    dot_ax = plot_data(
         type_="hist",
         data=[-1, 0, 1, 2],
         histtype="dot",
@@ -103,13 +114,13 @@ def test_universal_figure_histogram_dot_and_distribution_overlays():
         plot_distribution=poisson(1),
         plot_distribution_label="Poisson",
     )
-    discrete_ax = universal_figure(
+    discrete_ax = plot_data(
         type_="hist",
         data=[0, 1, 2],
         bins=3,
         plot_distribution=poisson(1),
     )
-    continuous_ax = universal_figure(
+    continuous_ax = plot_data(
         type_="hist",
         data=[-1, 0, 1],
         bins=3,
@@ -123,8 +134,8 @@ def test_universal_figure_histogram_dot_and_distribution_overlays():
     assert continuous_ax.lines[0].get_xdata().size == 100
 
 
-def test_universal_figure_multiple_histogram_options():
-    weighted_ax = universal_figure(
+def test_plot_data_multiple_histogram_options():
+    weighted_ax = plot_data(
         type_="multiple_hist",
         data=[[-1, 0, 1], [0, 1, 2], [-1, 0, 1]],
         color=lambda index: ["red", "blue", "green"][index],
@@ -133,7 +144,7 @@ def test_universal_figure_multiple_histogram_options():
         weights=True,
         plot_distribution=[poisson(1), poisson(1), norm()],
     )
-    listed_ax = universal_figure(
+    listed_ax = plot_data(
         type_="multiple_hist",
         data=[[0, 1], [1, 2]],
         color=["red", "blue"],
@@ -146,16 +157,16 @@ def test_universal_figure_multiple_histogram_options():
     assert listed_ax.get_legend_handles_labels()[1] == ["first", "second"]
 
 
-def test_universal_figure_multiple_line_callable_and_list_options():
+def test_plot_data_multiple_line_callable_and_list_options():
     data = [([0, 1], [1, 2]), ([0, 1], [2, 3])]
 
-    callable_ax = universal_figure(
+    callable_ax = plot_data(
         type_="multiple_line",
         data=data,
         color=lambda index: ["red", "blue"][index],
         label=["first", "second"],
     )
-    listed_ax = universal_figure(
+    listed_ax = plot_data(
         type_="multiple_line",
         data=data,
         color=["green", "orange"],
@@ -166,8 +177,8 @@ def test_universal_figure_multiple_line_callable_and_list_options():
     assert [line.get_color() for line in listed_ax.lines] == ["green", "orange"]
 
 
-def test_universal_figure_applies_axis_and_legend_options():
-    ax = universal_figure(
+def test_plot_data_applies_axis_and_legend_options():
+    ax = plot_data(
         data=([1, 2], [3, 4]),
         title="title",
         xlabel="time",
@@ -193,8 +204,8 @@ def test_universal_figure_applies_axis_and_legend_options():
     assert len(ax.child_axes) == 2
 
 
-def test_universal_figure_applies_tick_options():
-    ax = universal_figure(
+def test_plot_data_applies_tick_options():
+    ax = plot_data(
         data=([1, 2], [10, 100]),
         adjust_x=2,
         adjust_y=0.5,
@@ -219,15 +230,15 @@ def test_universal_figure_applies_tick_options():
     )
 
 
-def test_universal_figure_log_minor_ticks():
-    both_minor = universal_figure(
+def test_plot_data_log_minor_ticks():
+    both_minor = plot_data(
         data=([1, 10], [1, 10]),
         xscale="log",
         yscale="log",
         xminor=True,
         yminor=True,
     )
-    minor_disabled = universal_figure(
+    minor_disabled = plot_data(
         data=([1, 10], [1, 10]),
         xscale="log",
         yscale="log",
@@ -243,8 +254,8 @@ def test_universal_figure_log_minor_ticks():
     assert len(minor_disabled.yaxis.get_minorticklocs()) == 0
 
 
-def test_universal_figure_scientific_tick_labels():
-    ax = universal_figure(
+def test_plot_data_scientific_tick_labels():
+    ax = plot_data(
         data=([1e6, 2e6], [1e-6, 2e-6]),
         xlabel="time",
         ylabel="signal",
@@ -256,10 +267,10 @@ def test_universal_figure_scientific_tick_labels():
     assert "10" in ax.get_ylabel()
 
 
-def test_universal_figure_uses_custom_legend_handles():
+def test_plot_data_uses_custom_legend_handles():
     handle = Patch(color="red", label="custom")
 
-    ax = universal_figure(
+    ax = plot_data(
         data=([0, 1], [1, 2]),
         legend=True,
         legendhandles=[handle],
@@ -269,13 +280,130 @@ def test_universal_figure_uses_custom_legend_handles():
     assert ax.get_legend().get_texts()[0].get_text() == "custom"
 
 
-def test_universal_figure_rejects_unknown_plot_type():
+def test_plot_data_rejects_unknown_plot_type():
     with pytest.raises(ValueError, match="Invalid type_ argument"):
-        universal_figure(type_="unknown")
+        plot_data(type_="unknown")
+
+
+def test_delete_subplots():
+    fig, axes = plt.subplots(2, 3)
+    assert delete_subplots(axes=axes.ravel(), keep_number=1, del_positions=None) is None
+    assert fig.axes == [axes[0, 0]]
+    plt.close(fig)
+
+
+def test_delete_subplots_by_position():
+    fig, axes = plt.subplots(2, 2)
+
+    delete_subplots(axes=axes, del_positions=[[0, 1], [1, 0]])
+
+    assert fig.axes == [axes[0, 0], axes[1, 1]]
+
+
+def test_delete_subplots_requires_one_selection_method():
+    _, axes = plt.subplots(1, 2)
+
+    with pytest.raises(ValueError, match="Only one"):
+        delete_subplots(axes=axes, keep_number=1, del_positions=[[0, 1]])
+    with pytest.raises(ValueError, match="Either keep_number"):
+        delete_subplots(axes=axes)
+
+
+def test_create_row_subtitles():
+    fig, axes = plt.subplots(2, 3)
+    create_row_subtitles(axes=axes.ravel(), nrows=2, ncols=3, titles=["one", "two"])
+
+    assert [ax.get_title() for ax in fig.axes[-2:]] == ["one", "two"]
+    assert all(not ax.axison for ax in fig.axes[-2:])
+
+
+def test_create_row_subtitles_uses_default_titles():
+    fig, axes = plt.subplots(2, 1)
+
+    create_row_subtitles(axes=axes, nrows=2, titles=None)
+
+    assert [ax.get_title() for ax in fig.axes[-2:]] == ["default_title"] * 2
+    plt.close(fig)
+
+
+def test_add_table():
+    fig, ax = plt.subplots(2, 1)
+    return_value = add_table(
+        axes=ax,
+        data=pd.Series([1, 2, 3], index=["one", "two", "three"]),
+        grid=212,
+    )
+    assert return_value is ax
+    assert len(fig.axes[-1].tables) == 1
+
+
+def test_add_table_accepts_array_data_and_current_axes():
+    fig, ax = plt.subplots()
+    plt.sca(ax)
+
+    result = add_table(
+        axes=None,
+        data=np.array([[1], [2]]),
+        labels=["one", "two"],
+    )
+
+    assert result is ax
+    assert len(fig.axes[-1].tables) == 1
+    plt.close(fig)
+
+
+def test_get_figures():
+    fig, axes = plt.subplots(2, 3)
+    return_value = get_figure()
+    assert return_value is fig
+    return_value = get_figure(axes=axes.ravel())
+    assert return_value is fig
+    return_value = get_figure(axes=axes.ravel()[4])
+    assert return_value is fig
+    plt.close(fig)
+
+
+def test_get_figure_rejects_detached_axes():
+    axes = SimpleNamespace(get_figure=lambda: None)
+
+    with pytest.raises(ValueError, match="not attached to a figure"):
+        get_figure(axes=axes)
+
+
+def test_format_electronic_state():
+    assert format_electronic_state(label="S1") == r"S$_{1}$"
+    assert format_electronic_state(label="___S1_T1__") == "___S1_T1__"
+
+
+def test_format_transition():
+    assert format_transition(label="123_456") == "123$_{456}$"
+    assert format_transition(label="S1") == "S1"
+
+
+def test_format_axis_labels():
+    assert format_axis_labels(label="___(1)___", offset="e12") == (
+        "___($10^{12} \\times$ 1)___"
+    )
+    assert format_axis_labels(label="value [s]", offset="e-3") == (
+        "value [$10^{-3} \\times$ s]"
+    )
+    assert format_axis_labels(label="value", offset="e3") == (
+        "value ($ \\times 10^{3}$)"
+    )
+
+
+def test_compute_tight_bbox_preserves_figure_width():
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.set_title("title")
+
+    bbox = compute_tight_bbox(fig, pad_inches=0.1)
+
+    assert bbox.width == pytest.approx(4)
+    assert bbox.height > 0
 
 
 @pytest.mark.visual
-def test_universal_figure_visual():
-    ax = universal_figure()
+def test_plot_data_visual():
+    ax = plot_data()
     assert ax.figure is not None
     plt.show()

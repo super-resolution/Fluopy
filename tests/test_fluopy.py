@@ -24,21 +24,16 @@ def test_logging():
     for module_name in [
         "analysis",
         # 'blinking',
-        # 'distributions',
         "emissions",
         # 'fcs',
-        # 'figure',
-        # 'fitting',
+        # 'plotting',
         # 'fluo_data',
         "fluorophores",
-        # 'formulas',
+        # 'photophysics',
         # 'kappa_squared',
-        # 'miscellaneous',
-        # 'network',
         "prediction",
-        # 'routines',
         "simulation",
-        "simulation_tcspc",
+        "tcspc",
         # 'transitions'
     ]:
         module = getattr(fluopy, module_name)
