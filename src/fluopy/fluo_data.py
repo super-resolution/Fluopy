@@ -191,6 +191,16 @@ class Spectrum:
         wavelengths: npt.ArrayLike,
         values: npt.ArrayLike,
     ) -> None:
+        """
+        Initialize a spectrum from wavelength and value arrays.
+
+        Parameters
+        ----------
+        wavelengths
+            Strictly increasing wavelengths in nm.
+        values
+            Non-negative spectrum values corresponding to wavelengths.
+        """
         wavelength_array = np.asarray(wavelengths, dtype=float).copy()
         value_array = np.asarray(values, dtype=float).copy()
 
@@ -223,6 +233,21 @@ class Spectrum:
 def _load_bundled_spectra(
     directory_name: str,
 ) -> tuple[Spectrum, dict[str, Spectrum]]:
+    """
+    Load bundled emission and absorption spectra.
+
+    Parameters
+    ----------
+    directory_name
+        Directory within fluorophore_spectra containing the spectrum files.
+
+    Returns
+    -------
+    emission_spectrum : Spectrum
+        Emission spectrum loaded from emission.csv.
+    absorption_spectra : dict[str, Spectrum]
+        Absorption spectra indexed by the state name in each filename.
+    """
     directory = Path(__file__).parent / "fluorophore_spectra" / directory_name
 
     emission_spectrum = Spectrum.from_csv(directory / "emission.csv")
@@ -346,6 +371,7 @@ class FluorophoreData:
     BACK_REACTION: float = 0
 
     def __post_init__(self) -> None:
+        """Validate photophysical constants and freeze the spectra mapping."""
         if self.emission_spectrum is not None and not isinstance(
             self.emission_spectrum, Spectrum
         ):
@@ -412,6 +438,7 @@ class FluorophoreData:
         )
 
     def __deepcopy__(self, memo: dict[int, object]) -> Self:
+        """Return this immutable fluorophore data without copying it."""
         memo[id(self)] = self
         return self
 

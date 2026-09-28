@@ -173,6 +173,7 @@ class Prediction:
             ) = (None, None, None, None, None)
 
     def _get_terminal_state_combinations(self) -> list[tuple[int, ...]]:
+        """Return terminal state combinations in deterministic order."""
         return sorted(self.transition_set.terminal_state_combinations)
 
     def predict_transition_occurrences(self) -> npt.NDArray[np.float64]:

@@ -39,6 +39,7 @@ class FloatingPointPrecisionWarning(RuntimeWarning):
 
 
 def _flush_memmap(array: npt.NDArray[Any]) -> None:
+    """Flush an array if it is backed by a memory-mapped file."""
     if isinstance(array, np.memmap):
         array.flush()
 
