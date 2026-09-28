@@ -24,18 +24,6 @@ def test_prediction_1(tr_set_bl_et_3f):
         pr.Prediction(transition_set=tr_set_bl_et_3f)
 
 
-def test_prediction_accepts_integer_valued_float_matrix_power(tr_set_1f):
-    prediction = pr.Prediction(transition_set=tr_set_1f, matrix_power=1e3)
-
-    assert prediction.frequency_transitions.shape == (7,)
-
-
-@pytest.mark.parametrize("matrix_power", [0, -1, 1.5, np.inf, np.nan])
-def test_prediction_rejects_invalid_matrix_power(tr_set_1f, matrix_power):
-    with pytest.raises(ValueError, match="matrix_power must be"):
-        pr.Prediction(transition_set=tr_set_1f, matrix_power=matrix_power)
-
-
 @pytest.mark.parametrize("initial_state_index", [-1, 1000, 1.5])
 def test_prediction_rejects_invalid_initial_state_index(tr_set_1f, initial_state_index):
     with pytest.raises(ValueError, match="initial_state_index must"):
@@ -45,18 +33,15 @@ def test_prediction_rejects_invalid_initial_state_index(tr_set_1f, initial_state
         )
 
 
-def test_non_absorbing_prediction_uses_initial_state_index(tr_set_1f):
-    prediction = pr.Prediction.__new__(pr.Prediction)
-    prediction.transition_set = tr_set_1f
+def test_non_absorbing_prediction_ignores_initial_state_index(tr_set_1f):
+    frequencies_0 = pr.Prediction(
+        transition_set=tr_set_1f, initial_state_index=0
+    ).frequency_transitions
+    frequencies_1 = pr.Prediction(
+        transition_set=tr_set_1f, initial_state_index=1
+    ).frequency_transitions
 
-    frequencies_0 = prediction.predict_transition_occurrences(
-        matrix_power=1, initial_state_index=0
-    )
-    frequencies_1 = prediction.predict_transition_occurrences(
-        matrix_power=1, initial_state_index=1
-    )
-
-    assert not np.array_equal(frequencies_0, frequencies_1)
+    np.testing.assert_array_equal(frequencies_0, frequencies_1)
 
 
 def test_absorbing_prediction_uses_initial_state_index(tr_set_1f_bl):
@@ -152,7 +137,7 @@ def test_predicted_frequencies_remain_zero_without_expected_visits(tr_set_1f):
     prediction = pr.Prediction.__new__(pr.Prediction)
     prediction.transition_set = transition_set
 
-    frequency_transitions = prediction.predict_transition_occurrences(matrix_power=1)
+    frequency_transitions = prediction.predict_transition_occurrences()
     prediction.frequency_transitions = frequency_transitions
     frequency_states = prediction.predict_state_occurrences()
 
@@ -220,12 +205,8 @@ def test_prediction_2(tr_set_bl_et_2f_diff, caplog):
     with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_bl_et_2f_diff)
         assert (
-            "prediction accuracy of energy transfers more difficult to tune."
-            in caplog.text
-        )
-        assert (
-            "Only frequencies available, lifetimes and occupations not available."
-            in caplog.text
+            "Only frequencies are available for systems with energy transfer; "
+            "lifetimes and occupations are not available." in caplog.text
         )
         assert (
             "absorbing states have a lifetime of inf and a frequency / occupation of 0. Absorbing transitions have a frequency of 0."
@@ -280,12 +261,8 @@ def test_prediction_3(tr_set_bl_et_2f_same, caplog):
     with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_bl_et_2f_same)
         assert (
-            "prediction accuracy of energy transfers more difficult to tune."
-            in caplog.text
-        )
-        assert (
-            "Only frequencies available, lifetimes and occupations not available."
-            in caplog.text
+            "Only frequencies are available for systems with energy transfer; "
+            "lifetimes and occupations are not available." in caplog.text
         )
         assert (
             "absorbing states have a lifetime of inf and a frequency / occupation of 0. Absorbing transitions have a frequency of 0."
@@ -332,12 +309,8 @@ def test_prediction_4(tr_set_et_2f_diff, caplog):
     with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_et_2f_diff)
         assert (
-            "prediction accuracy of energy transfers more difficult to tune."
-            in caplog.text
-        )
-        assert (
-            "Only frequencies available, lifetimes and occupations not available."
-            in caplog.text
+            "Only frequencies are available for systems with energy transfer; "
+            "lifetimes and occupations are not available." in caplog.text
         )
         caplog.clear()
 

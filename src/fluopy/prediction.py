@@ -46,7 +46,8 @@ class Prediction:
         Collection of all relevant transitions and related attributes.
     initial_state_index : int
         Row of transition_set.combined_state_transitions_df whose final state defines
-        the initial combined state used for the prediction.
+        the initial combined state used for absorbing predictions. This has no effect
+        on non-absorbing predictions.
     frequency_transitions : npt.NDArray[np.float64]
         Relative number of expected transition occurrences, normalized separately for
         each fluorophore. Energy-transfer occurrences are assigned to the donor's
@@ -77,9 +78,9 @@ class Prediction:
     -----
     Predictions are available for systems containing at most two fluorophores.
 
-    For non-absorbing systems, transition frequencies are approximated from a large
-    power of the transition matrix. This requires an irreducible, aperiodic Markov
-    chain for convergence to a unique limiting distribution.
+    For non-absorbing systems, transition frequencies are calculated from the
+    stationary distribution of the transition matrix. The transition matrix must have
+    a unique stationary distribution.
 
     Systems containing absorbing transitions are treated separately as absorbing
     Markov chains. Predicted lifetimes and state occupations are not available for
@@ -89,7 +90,6 @@ class Prediction:
     def __init__(
         self,
         transition_set: TransitionSet,
-        matrix_power: float = 1e9,
         initial_state_index: int = 0,
     ) -> None:
         """
@@ -97,21 +97,11 @@ class Prediction:
         ----------
         transition_set
             Collection of all relevant transitions and related attributes.
-        matrix_power
-            Exponent used to approximate the limiting distribution of a non-absorbing
-            transition matrix. Must be a positive integer-valued number. Larger values
-            allow more steps toward convergence but do not directly specify numerical
-            accuracy.
         initial_state_index
             Row of transition_set.combined_state_transitions_df whose final state
-            defines the initial combined state. This row is used in both absorbing and
-            non-absorbing predictions.
+            defines the initial combined state for absorbing predictions. This has no
+            effect on non-absorbing predictions.
         """
-        if not np.isfinite(matrix_power) or matrix_power <= 0:
-            raise ValueError("matrix_power must be a positive, finite integer.")
-        if not float(matrix_power).is_integer():
-            raise ValueError("matrix_power must be an integer-valued number.")
-
         self.energy_transfer = False
         self.absorbing_chain = False
         if transition_set.fluorophore_system.count > 2:
@@ -125,7 +115,6 @@ class Prediction:
             )
         self.initial_state_index = int(initial_state_index)
         self._absorbing_state_combinations = self._get_absorbing_state_combinations()
-        # too large matrix in np.linalg.matrix_power
         if any(
             parse_energy_transfer_label(fluorophore_comb) is not None
             for fluorophore_comb in transition_set.transition_df.index.get_level_values(
@@ -133,8 +122,8 @@ class Prediction:
             )
         ):
             logger.warning(
-                "prediction accuracy of energy transfers more difficult to tune. Only "
-                "frequencies available, lifetimes and occupations not available.",
+                "Only frequencies are available for systems with energy transfer; "
+                "lifetimes and occupations are not available.",
                 stacklevel=2,
             )
             self.energy_transfer = True
@@ -167,10 +156,7 @@ class Prediction:
                 initial_state_index=self.initial_state_index
             )
         else:
-            self.frequency_transitions = self.predict_transition_occurrences(
-                matrix_power=int(matrix_power),
-                initial_state_index=self.initial_state_index,
-            )
+            self.frequency_transitions = self.predict_transition_occurrences()
         self.frequency_states = self.predict_state_occurrences()
         if not self.energy_transfer:
             (
@@ -212,9 +198,7 @@ class Prediction:
             for state_combination in product(*absorbing_states_by_fluorophore)
         ]
 
-    def predict_transition_occurrences(
-        self, matrix_power: int, initial_state_index: int = 0
-    ) -> npt.NDArray[np.float64]:
+    def predict_transition_occurrences(self) -> npt.NDArray[np.float64]:
         """
         Predict the relative frequencies of transitions. Each different type of
         fluorophore's transitions frequencies sum up to 1.
@@ -224,14 +208,6 @@ class Prediction:
         energy-transfer occurrence is assigned only to the donor's transition group;
         ordinary transitions are assigned to their respective fluorophore groups.
 
-        Parameters
-        ----------
-        matrix_power
-            Exponent used to approximate the limiting distribution of the transition
-            matrix.
-        initial_state_index
-            Row of the transition matrix used as the initial combined state.
-
         Returns
         -------
         npt.NDArray[np.float64]
@@ -240,17 +216,26 @@ class Prediction:
 
         Notes
         -----
-        The transition matrix must describe an irreducible, aperiodic Markov chain for
-        its powers to converge to a unique limiting distribution.
+        The stationary distribution is calculated by solving pi P = pi together with
+        the constraint that the entries of pi sum to 1. The transition matrix must
+        have a unique stationary distribution. An all-zero transition matrix returns
+        zero frequencies.
         """
-        powered_transition_matrix = np.linalg.matrix_power(
-            self.transition_set.transition_matrix, n=matrix_power
-        )
-        stationary_distribution_combined_state_transitions = powered_transition_matrix[
-            initial_state_index
-        ]
-        # https://brilliant.org/wiki/stationary-distributions/
+        transition_matrix = self.transition_set.transition_matrix
         frequency_transitions = np.zeros(self.transition_set.transition_df.shape[0])
+        if not np.any(transition_matrix):
+            return frequency_transitions
+
+        stationary_system = transition_matrix.T - np.identity(
+            transition_matrix.shape[0]
+        )
+        stationary_system[-1] = 1
+        normalization = np.zeros(transition_matrix.shape[0])
+        normalization[-1] = 1
+        stationary_distribution_combined_state_transitions = np.linalg.solve(
+            stationary_system, normalization
+        )
+
         df = self.transition_set.combined_state_transitions_df
         for _, i in self.transition_set.transition_df.index:
             indices = df.index[df["transition_id"] == i].tolist()
