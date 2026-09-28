@@ -1278,7 +1278,7 @@ def construct_transition_rate_list(
     state_combinations: Collection[StateCombination],
 ) -> list[TransitionRateRecord]:
     """
-    Construct realizable combined-state transitions directly.
+    Construct realizable combined-state transitions.
 
     Parameters
     ----------
