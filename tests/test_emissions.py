@@ -133,19 +133,17 @@ def test_emissions_extract(dirname, request, frame_time, channel, expected):
             # fmt: off
                 np.array(
                     [
-                        0, 12, 5, 4, 8, 7, 3, 12, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        12, 5, 4, 8, 7, 3, 12, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 3, 5, 4,
                         7,
                 ],
                 dtype=np.int64,
             ),
             # fmt: on
-            index=np.linspace(0, 0.00045, 46),
+            index=np.linspace(0.00001, 0.00045, 45),
         )
     else:
-        exp_event_time_series = pd.Series(
-            np.array([0, 2], dtype=np.int64), index=[0.0, 0.005]
-        )
+        exp_event_time_series = pd.Series(np.array([2], dtype=np.int64), index=[0.005])
     assert emis.event_time_series is not None
     pd.testing.assert_series_equal(
         emis.event_time_series["detector"],
@@ -215,9 +213,8 @@ def test_emissions_extract_assigns_each_photon_at_most_once(sim_tr_set_2f_diff):
     assert emis.event_time_series["red"].sum() == red.size
 
 
-def test_generated_event_time_series_starts_with_boundary(em_tr_set_1f_bl):
-    assert em_tr_set_1f_bl.event_time_series.index[0] == 0
-    assert (em_tr_set_1f_bl.event_time_series.iloc[0] == 0).all()
+def test_generated_event_time_series_starts_with_first_frame_end(em_tr_set_1f_bl):
+    assert em_tr_set_1f_bl.event_time_series.index[0] == pytest.approx(0.005)
 
 
 def test_construct_event_time_series_requires_completed_simulation():
@@ -236,7 +233,7 @@ def test_construct_event_time_series_drops_bin_after_simulation_end():
     emis.construct_event_time_series(simulation=simulation, resample="5ms")
 
     assert emis.event_time_series.index[-1] == pytest.approx(0.01)
-    np.testing.assert_array_equal(emis.event_time_series["all"], [0, 1, 0])
+    np.testing.assert_array_equal(emis.event_time_series["all"], [1, 0])
 
 
 def test_emissions_simulate(tr_set_1f_bl):
@@ -256,8 +253,8 @@ def test_emissions_simulate(tr_set_1f_bl):
     assert emis.event_time_points is not None
     assert emis.event_time_points["red"].size == 204
     exp_event_time_series = pd.Series(
-        np.array([0, 80, 0, 0, 0, 0, 0, 16, 51, 7, 50], dtype=np.int64),
-        index=np.linspace(0, 0.001, 11),
+        np.array([80, 0, 0, 0, 0, 0, 16, 51, 7, 50], dtype=np.int64),
+        index=np.linspace(0.0001, 0.001, 10),
     )
     assert emis.event_time_series is not None
     pd.testing.assert_series_equal(
@@ -387,7 +384,7 @@ def test_emissions_tcspc_parameters(tr_set_bl_et_2f_diff):
 
 def test_emissions_tcspc_details_infers_excitation_rates(tr_set_1f_bl, caplog):
     emis = em.Emissions(seed=1)
-    event_time_series = pd.DataFrame({"all": [0, 1]}, index=[0.0, 0.005])
+    event_time_series = pd.DataFrame({"all": [1]}, index=[0.005])
     event_time_points = {"all": np.array([0.001])}
     lifetimes_da = {"all": np.array([1.0])}
     lifetimes_d = {"all": np.array([2.0])}
@@ -538,11 +535,11 @@ def test_emissions_add_gaussian_noise(em_large):
     # fmt: off
     exp_values = np.array(
         [
-            49135, 11, 14, 11, 3, 14, 12, 7, 12, 11, 11, 10, 12, 6, 9, 7, 12, 10, 8, 6,
-            8, 10, 49700, 7474, 15, 0, 0, 9, 7, 11, 66630, 75962, 35875, 8, 20, 13, 13,
-            7, 1, 10, 10, 3, 6, 9, 5, 9, 10, 10, 7, 12, 14, 11, 5, 13, 7, 14, 4, 14, 9,
-            3, 8, 10, 11, 5, 4, 10, 7, 11, 13, 1, 11, 16, 8, 5, 13, 11, 14, 8, 2, 9, 7,
-            13, 10, 1, 4, 14, 13, 6, 9, 12, 12, 14, 11, 9, 8, 15, 0, 9, 10, 2
+            49146, 14, 11, 3, 14, 12, 7, 12, 11, 11, 10, 12, 6, 9, 7, 12, 10, 8, 6, 8,
+            10, 8, 49708, 7473, 0, 0, 9, 7, 11, 11, 66639, 75946, 35879, 20, 13, 13, 7,
+            1, 10, 10, 3, 6, 9, 5, 9, 10, 10, 7, 12, 14, 11, 5, 13, 7, 14, 4, 14, 9, 3,
+            8, 10, 11, 5, 4, 10, 7, 11, 13, 1, 11, 16, 8, 5, 13, 11, 14, 8, 2, 9, 7, 13,
+            10, 1, 4, 14, 13, 6, 9, 12, 12, 14, 11, 9, 8, 15, 0, 9, 10, 2, 11
         ],
         dtype=np.int64,
     )
@@ -565,7 +562,7 @@ def test_emissions_adds_channel_specific_gaussian_noise():
         seed=1,
     )
 
-    expected = pd.DataFrame({"green": [0, 3, 3], "red": [0, 6, 6]}, dtype=np.int64)
+    expected = pd.DataFrame({"green": [2, 3, 3], "red": [5, 6, 6]}, dtype=np.int64)
     pd.testing.assert_frame_equal(emis.event_time_series, expected)
 
 
@@ -589,11 +586,11 @@ def test_emissions_add_poisson_noise(em_large):
     # fmt: off
     exp_values = np.array(
         [
-            49135, 8, 13, 10, 13, 8, 8, 6, 7, 12, 10, 10, 11, 10, 11, 11, 14, 10, 7, 7,
-            14, 8, 49703, 7472, 7, 6, 15, 11, 12, 13, 66633, 75955, 35880, 12, 9, 8, 5,
-            9, 11, 14, 13, 10, 7, 7, 12, 9, 12, 11, 12, 9, 5, 8, 8, 12, 4, 7, 10, 8, 10,
-            18, 8, 6, 7, 11, 10, 13, 11, 9, 20, 12, 14, 13, 9, 9, 6, 11, 13, 11, 13, 10,
-            10, 12, 6, 6, 8, 3, 7, 17, 16, 5, 5, 7, 8, 12, 11, 9, 6, 7, 10, 8
+            49143, 13, 10, 13, 8, 8, 6, 7, 12, 10, 10, 11, 10, 11, 11, 14, 10, 7, 7, 14,
+            8, 11, 49706, 7465, 6, 15, 11, 12, 13, 14, 66632, 75951, 35883, 9, 8, 5, 9,
+            11, 14, 13, 10, 7, 7, 12, 9, 12, 11, 12, 9, 5, 8, 8, 12, 4, 7, 10, 8, 10, 18,
+            8, 6, 7, 11, 10, 13, 11, 9, 20, 12, 14, 13, 9, 9, 6, 11, 13, 11, 13, 10, 10,
+            12, 6, 6, 8, 3, 7, 17, 16, 5, 5, 7, 8, 12, 11, 9, 6, 7, 10, 8, 13
         ],
         np.int64)
     # fmt: on
@@ -611,7 +608,7 @@ def test_emissions_adds_channel_specific_poisson_noise():
 
     emis.add_poisson_noise({"green": 0, "red": 4}, seed=1)
 
-    expected = pd.DataFrame({"green": [0, 1, 1], "red": [0, 6, 4]}, dtype=np.int64)
+    expected = pd.DataFrame({"green": [0, 1, 1], "red": [5, 4, 6]}, dtype=np.int64)
     pd.testing.assert_frame_equal(emis.event_time_series, expected)
 
 
@@ -635,7 +632,7 @@ def test_emissions_add_poisson_noise_is_frame_only_for_multiple_channels():
 
     emis.add_poisson_noise(rate=0.6, seed=1)
 
-    expected = pd.DataFrame({"green": [0, 1, 4], "red": [0, 3, 4]}, dtype=np.int64)
+    expected = pd.DataFrame({"green": [0, 2, 4], "red": [1, 2, 5]}, dtype=np.int64)
     pd.testing.assert_frame_equal(emis.event_time_series, expected)
     assert emis.event_time_points is not None
     for name, time_points in original_time_points.items():
@@ -665,7 +662,7 @@ def test_plot_histogram_without_included_counts():
 )
 def test_emissions_plot_methods(plot_method):
     emis = em.Emissions()
-    emis.event_time_series = pd.DataFrame({"all": [0, 1, 2]}, index=[0.0, 0.005, 0.01])
+    emis.event_time_series = pd.DataFrame({"all": [1, 2]}, index=[0.005, 0.01])
 
     ax = getattr(emis, plot_method)()
 
@@ -680,11 +677,12 @@ def test_emissions_plot_selects_channel():
         }
     )
     emis.event_time_series = pd.DataFrame(
-        {"green": [0, 1, 0], "red": [0, 2, 3]}, index=[0.0, 0.005, 0.01]
+        {"green": [1, 0], "red": [2, 3]}, index=[0.005, 0.01]
     )
 
     ax = emis.plot_time_series(channel="red")
 
+    np.testing.assert_array_equal(ax.lines[0].get_xdata(), [0, 0.005, 0.01])
     np.testing.assert_array_equal(ax.lines[0].get_ydata(), [0, 2, 3])
     with pytest.raises(ValueError, match="channel must be specified"):
         emis.plot_time_series()

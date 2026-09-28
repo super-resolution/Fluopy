@@ -115,7 +115,7 @@ def test_compare_simulate_TCSPC_and_simulate_TCSPC_detailed(tr_set_1f):
         simulation,
     ) = _unwrap_single_channel(detailed_result)
 
-    assert len(event_time_series) == 3
+    assert len(event_time_series) == 2
     assert event_time_series.equals(event_time_series_)
     assert np.array_equal(event_time_points, event_time_points_)
     assert np.array_equal(lifetimes_DA, lifetimes_DA_)
@@ -534,8 +534,8 @@ def test_simulate_TCSPC(
         )
         assert (
             event_time_series.size
-            == 3
-            == int(np.ceil(number_pulses * time_between_pulses / 1e-3)) + 1
+            == 2
+            == int(np.ceil(number_pulses * time_between_pulses / 1e-3))
         )
         assert lifetimes_DA.size == 0
         np.testing.assert_allclose(lifetimes_D.mean(), 1.0405e-09, rtol=1e-2)
@@ -560,7 +560,7 @@ def test_simulate_TCSPC(
         caplog.clear()
 
         assert event_time_series.size == int(
-            np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
+            np.ceil(number_pulses * time_between_pulses / 1e-3)
         )
         assert event_time_series.values.sum() == lifetimes_D.size
         assert event_time_points is None
@@ -590,7 +590,7 @@ def test_simulate_TCSPC(
         caplog.clear()
 
         assert event_time_series.size == int(
-            np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
+            np.ceil(number_pulses * time_between_pulses / 1e-3)
         )
         assert (
             event_time_series.values.sum()
@@ -619,7 +619,7 @@ def test_simulate_TCSPC(
         caplog.clear()
 
         assert event_time_series.size == int(
-            np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
+            np.ceil(number_pulses * time_between_pulses / 1e-3)
         )
         assert (
             event_time_series.values.sum()
@@ -659,7 +659,7 @@ def test_simulate_TCSPC(
         caplog.clear()
 
         assert event_time_series.size == int(
-            np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
+            np.ceil(number_pulses * time_between_pulses / 1e-3)
         )
         assert (
             event_time_series.values.sum()
@@ -689,7 +689,7 @@ def test_simulate_TCSPC(
         caplog.clear()
 
         assert event_time_series.size == int(
-            np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
+            np.ceil(number_pulses * time_between_pulses / 1e-3)
         )
         assert (
             event_time_series.values.sum()
@@ -727,7 +727,7 @@ def test_simulate_TCSPC(
         caplog.clear()
 
         assert event_time_series.size == int(
-            np.ceil(number_pulses * time_between_pulses / 1e-3) + 1
+            np.ceil(number_pulses * time_between_pulses / 1e-3)
         )
         assert (
             event_time_series.values.sum()

@@ -951,8 +951,8 @@ def simulate_experiment(
         The time points at which emissions are detected, grouped by channel.
         If store_time_points is False, None is returned.
     event_time_series : pd.DataFrame
-        Contains the time points (increasing by a defined time interval) as index and
-        the number of detected emissions in each channel as columns.
+        Contains measured frames indexed by their end time and the number of detected
+        emissions in each channel as columns.
     """
 
     matrix = np.asarray(transition_matrix, dtype=np.float64)
@@ -991,7 +991,7 @@ def simulate_experiment(
     current_state_index = start_index
 
     seconds_per_frame = float(pd.Timedelta(frame_time) / np.timedelta64(1, "s"))
-    time_stamps = np.linspace(0, seconds_per_frame * frames, frames + 1)
+    time_stamps = np.linspace(seconds_per_frame, seconds_per_frame * frames, frames)
     time_stamps = np.round(time_stamps, decimals=12)
     photon_collector = np.zeros((time_stamps.size, len(channel_names)), dtype=np.int64)
     time = 0
@@ -1063,7 +1063,7 @@ def simulate_experiment(
                     side="right",
                 )
                 if channel_index < len(channel_names):
-                    photon_collector[frame, channel_index] += 1
+                    photon_collector[frame - 1, channel_index] += 1
                     if store_time_points:
                         time_points[channel_index].append(
                             (frame - 1) * seconds_per_frame + time
