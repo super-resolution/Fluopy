@@ -42,7 +42,6 @@ logger = logging.getLogger(__name__)
 
 
 StateCombination = tuple[int, ...]
-CombinedStateTransition = tuple[StateCombination, StateCombination]
 TransitionRateRecord = list[object]
 
 
@@ -1040,7 +1039,7 @@ class TransitionSet:
             single_states=self.single_states,
             fluorophores=self.fluorophore_system.fluorophores,
         )
-        combined_state_transitions_with_rates = construct_transition_rate_list_direct(
+        combined_state_transitions_with_rates = construct_transition_rate_list(
             transition_df=self.transition_df,
             state_combinations=state_combinations,
         )
@@ -1274,210 +1273,7 @@ def get_state_combinations(
     return list(product(*single_states_fluorophores))
 
 
-def get_combined_state_transitions(
-    state_combinations: Collection[StateCombination],
-) -> list[CombinedStateTransition]:
-    """
-    Combines all given state_combinations with themselves 2 times. Cartesian product,
-    see itertools.product(). Each combination resembles a combined_state_transition.
-
-    Parameters
-    ----------
-    state_combinations
-        state_combinations to be combined.
-
-    Returns
-    -------
-    list
-        Contains combinations of state_combinations of type tuple.
-    """
-    cartesian_product = [
-        (current_state, future_state)
-        for current_state in state_combinations
-        for future_state in state_combinations
-    ]
-    return cartesian_product
-
-
-def rate_assignment_standard(
-    transition: pd.Series,
-    transition_id: int,
-    transition_rate_list: list[TransitionRateRecord],
-    combined_state_transitions: Collection[CombinedStateTransition],
-) -> list[TransitionRateRecord]:
-    """
-    Adds a realizable combined_state_transition that is no energy transfer as a list to
-    the transition_rate_list. Here, a combined_state_transition is realizable, if its
-    first state_combination (i.e., current_state) and its second state_combination
-    (i.e., future_state) have and only have a change in the state of one fluorophore
-    that can also be found in the photophysical transition.
-
-    Parameters
-    ----------
-    transition
-        The transition to be assigned to combined_state_transitions.
-    transition_id
-        The identity of Transition.
-    transition_rate_list
-        Destination of realizable combined_state_transitions.
-    combined_state_transitions
-        Contains combinations of state_combinations of type tuple.
-
-    Returns
-    -------
-    list[TransitionRateRecord]
-        The altered input parameter.
-    """
-    source = transition["initial_state"].value
-    destination = transition["final_state"].value
-
-    for current_state, future_state in combined_state_transitions:
-        for index in transition["fluorophore_ids"]:
-            if source == current_state[index]:
-                if destination == future_state[index]:
-                    future_state_part = future_state[:index] + future_state[index + 1 :]
-                    current_state_part = (
-                        current_state[:index] + current_state[index + 1 :]
-                    )
-                    if not future_state_part == current_state_part:
-                        break
-                    else:
-                        transition_rate_list.append(
-                            [
-                                current_state,
-                                future_state,
-                                [index],
-                                transition["abbreviation"],
-                                transition_id,
-                                transition["rate"],
-                                transition["photon"],
-                            ]
-                        )
-
-    return transition_rate_list
-
-
-def rate_assignment_energy_transfer(
-    transition: pd.Series,
-    transition_id: int,
-    transition_rate_list: list[TransitionRateRecord],
-    combined_state_transitions: Collection[CombinedStateTransition],
-) -> list[TransitionRateRecord]:
-    """
-    Adds a realizable combined_state_transition that is also an energy transfer as a
-    list to the transition_rate_list. Here, a combined_state_transition is realizable,
-    if its first state_combination (i.e., current_state) and its second
-    state_combination (i.e., future_state) have and only have a change in the state of
-    two fluorophores that can also be found in the photophysical transition of the
-    corresponding distance.
-
-    Parameters
-    ----------
-    transition
-        The transition to be assigned to combined_state_transitions.
-    transition_id
-        The identity of Transition.
-    transition_rate_list
-        Destination of realizable combined_state_transitions.
-    combined_state_transitions
-        Contains combinations of state_combinations of type tuple.
-
-    Returns
-    -------
-    list[TransitionRateRecord]
-        The altered input parameter.
-    """
-    source_donor, source_acceptor = transition["initial_state"].single_state_values
-    destination_donor, destination_acceptor = transition[
-        "final_state"
-    ].single_state_values
-
-    for current_state, future_state in combined_state_transitions:
-        for donor, acceptor in transition["fluorophore_ids"]:
-            if (
-                source_donor == current_state[donor]
-                and source_acceptor == current_state[acceptor]
-                and destination_donor == future_state[donor]
-                and destination_acceptor == future_state[acceptor]
-            ):
-                i, j = min(donor, acceptor), max(donor, acceptor)
-                future_state_part = (
-                    future_state[:i] + future_state[i + 1 : j] + future_state[j + 1 :]
-                )
-                current_state_part = (
-                    current_state[:i]
-                    + current_state[i + 1 : j]
-                    + current_state[j + 1 :]
-                )
-                if not future_state_part == current_state_part:
-                    break
-                else:
-                    transition_rate_list.append(
-                        [
-                            current_state,
-                            future_state,
-                            [donor, acceptor],
-                            transition["abbreviation"],
-                            transition_id,
-                            transition["rate"],
-                            transition["photon"],
-                        ]
-                    )
-
-    return transition_rate_list
-
-
 def construct_transition_rate_list(
-    transition_df: pd.DataFrame,
-    combined_state_transitions: Collection[CombinedStateTransition],
-) -> list[TransitionRateRecord]:
-    """
-    Constructs a list that contains lists of each realizable combined_state_transition.
-    The inner lists contain initial state_combination, final state_combination,
-    the index of involved fluorophores, abbreviation, transition id, rate and whether a
-    photon is emitted.
-
-    Parameters
-    ----------
-    transition_df
-        Dataframe of all given transitions with non-zero rate containing their id as
-        second level index and their other attributes as columns. Name of fluorophores
-        as first level index.
-    combined_state_transitions
-        Contains combinations of state_combinations of type tuple.
-
-    Returns
-    -------
-    list[TransitionRateRecord]
-        Contains lists of each realizable combined_state_transition.
-    """
-    transition_rate_list: list[TransitionRateRecord] = []
-    for index, transition in transition_df.iterrows():
-        if not isinstance(index, tuple) or len(index) != 2:
-            raise TypeError("transition DataFrame must have a two-level index.")
-
-        identity = index[1]
-        if not isinstance(identity, int):
-            raise TypeError("transition identity must be an integer.")
-        if isinstance(transition["initial_state"], SingleState):
-            transition_rate_list = rate_assignment_standard(
-                transition=transition,
-                transition_id=identity,
-                transition_rate_list=transition_rate_list,
-                combined_state_transitions=combined_state_transitions,
-            )
-        else:
-            transition_rate_list = rate_assignment_energy_transfer(
-                transition=transition,
-                transition_id=identity,
-                transition_rate_list=transition_rate_list,
-                combined_state_transitions=combined_state_transitions,
-            )
-
-    return transition_rate_list
-
-
-def construct_transition_rate_list_direct(
     transition_df: pd.DataFrame,
     state_combinations: Collection[StateCombination],
 ) -> list[TransitionRateRecord]:

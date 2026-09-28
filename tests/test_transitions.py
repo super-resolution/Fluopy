@@ -992,23 +992,6 @@ def test_get_state_combinations(single_states, dirnames, request, expected):
     assert state_combinations == expected
 
 
-def test_get_combined_state_transitions():
-    combined_state_transitions = tr.get_combined_state_transitions(
-        state_combinations=[(0, 0), (0, 1), (1, 2)]
-    )
-    assert combined_state_transitions == [
-        ((0, 0), (0, 0)),
-        ((0, 0), (0, 1)),
-        ((0, 0), (1, 2)),
-        ((0, 1), (0, 0)),
-        ((0, 1), (0, 1)),
-        ((0, 1), (1, 2)),
-        ((1, 2), (0, 0)),
-        ((1, 2), (0, 1)),
-        ((1, 2), (1, 2)),
-    ]
-
-
 def test_get_single_states_skips_empty_transition_collection(flu_sys_cy5):
     transition_df = pd.DataFrame(
         index=pd.MultiIndex.from_tuples([], names=["Fluorophore", "identity"])
@@ -1085,68 +1068,6 @@ def test_get_single_states_rejects_invalid_paired_final_state(flu_sys_2xcy5):
         tr.get_single_states(transitions, transition_df, flu_sys_2xcy5)
 
 
-def test_rate_assignment_standard():
-    combined_state_transitions = [
-        ((0, 0, 0), (1, 1, 1)),
-        ((0, 0, 0), (0, 0, 1)),
-        ((0, 0, 0), (1, 1, 0)),
-        ((0, 0, 0), (0, 1, 0)),
-        ((0, 1, 0), (1, 1, 0)),
-        ((0, 1, 0), (1, 0, 0)),
-        ((0, 4, 5), (1, 4, 5)),
-    ]
-    transition = pd.Series(
-        tr.Transition(
-            transition_type=tr.TransitionType.EXCITATION,
-            rate=1,
-            fluorophore_ids=[0, 1],
-        ).to_dict()
-    )
-    transition_rate_list = tr.rate_assignment_standard(
-        transition=transition,
-        transition_id=0,
-        transition_rate_list=[],
-        combined_state_transitions=combined_state_transitions,
-    )
-    expected = [
-        [(0, 0, 0), (0, 1, 0), [1], "EXC", 0, 1, False],
-        [(0, 1, 0), (1, 1, 0), [0], "EXC", 0, 1, False],
-        [(0, 4, 5), (1, 4, 5), [0], "EXC", 0, 1, False],
-    ]
-    assert transition_rate_list == expected
-
-
-def test_rate_assignment_energy_transfer():
-    combined_state_transitions = [
-        ((0, 0, 0), (1, 1, 1)),
-        ((0, 1, 0), (0, 0, 1)),
-        ((0, 1, 0), (1, 0, 0)),
-        ((1, 0, 0), (0, 1, 0)),
-        ((0, 1, 0), (1, 1, 0)),
-        ((0, 1, 0), (1, 0, 1)),
-        ((0, 1, 5), (1, 0, 5)),
-    ]
-    transition = pd.Series(
-        tr.Transition(
-            transition_type=tr.TransitionType.FRET,
-            rate=1,
-            fluorophore_ids=[(0, 1), (1, 0)],
-        ).to_dict()
-    )
-    transition_rate_list = tr.rate_assignment_energy_transfer(
-        transition=transition,
-        transition_id=0,
-        transition_rate_list=[],
-        combined_state_transitions=combined_state_transitions,
-    )
-    expected = [
-        [(0, 1, 0), (1, 0, 0), [1, 0], "FRET", 0, 1, False],
-        [(1, 0, 0), (0, 1, 0), [0, 1], "FRET", 0, 1, False],
-        [(0, 1, 5), (1, 0, 5), [1, 0], "FRET", 0, 1, False],
-    ]
-    assert transition_rate_list == expected
-
-
 def test_construct_transition_rate_list():
     transition_1 = pd.Series(
         tr.Transition(
@@ -1166,51 +1087,20 @@ def test_construct_transition_rate_list():
     transition_df.index = pd.MultiIndex.from_tuples(
         [("testfluo_1", 0), ("D: testfluo_1, A: testfluo_1, dist: 1.0", 1)]
     )
-    combined_state_transitions = [
-        ((0, 0, 0), (1, 1, 1)),
-        ((0, 1, 0), (0, 0, 1)),
-        ((0, 1, 0), (1, 0, 0)),
-        ((1, 0, 0), (0, 1, 0)),
-        ((0, 1, 0), (1, 1, 0)),
-        ((0, 1, 0), (1, 0, 1)),
-        ((0, 1, 5), (1, 0, 5)),
-        ((0, 0, 0), (0, 0, 1)),
-        ((0, 0, 0), (1, 1, 0)),
-        ((0, 0, 0), (0, 1, 0)),
-        ((0, 4, 5), (1, 4, 5)),
-    ]
+    state_combinations = [(0, 0, 5), (0, 1, 5), (1, 0, 5), (1, 1, 5)]
     transition_rate_list = tr.construct_transition_rate_list(
         transition_df=transition_df,
-        combined_state_transitions=combined_state_transitions,
-    )
-    expected = [
-        [(0, 1, 0), (1, 1, 0), [0], "EXC", 0, 1, False],
-        [(0, 0, 0), (0, 1, 0), [1], "EXC", 0, 1, False],
-        [(0, 4, 5), (1, 4, 5), [0], "EXC", 0, 1, False],
-        [(0, 1, 0), (1, 0, 0), [1, 0], "FRET", 1, 1, False],
-        [(1, 0, 0), (0, 1, 0), [0, 1], "FRET", 1, 1, False],
-        [(0, 1, 5), (1, 0, 5), [1, 0], "FRET", 1, 1, False],
-    ]
-    assert transition_rate_list == expected
-
-
-def test_direct_transition_rate_list_matches_cartesian_product(tr_set_bl_et_3f):
-    state_combinations = tr.get_state_combinations(
-        single_states=tr_set_bl_et_3f.single_states,
-        fluorophores=tr_set_bl_et_3f.fluorophore_system.fluorophores,
-    )
-    combined_state_transitions = tr.get_combined_state_transitions(state_combinations)
-
-    expected = tr.construct_transition_rate_list(
-        transition_df=tr_set_bl_et_3f.transition_df,
-        combined_state_transitions=combined_state_transitions,
-    )
-    actual = tr.construct_transition_rate_list_direct(
-        transition_df=tr_set_bl_et_3f.transition_df,
         state_combinations=state_combinations,
     )
-
-    assert actual == expected
+    expected = [
+        [(0, 0, 5), (0, 1, 5), [1], "EXC", 0, 1, False],
+        [(0, 0, 5), (1, 0, 5), [0], "EXC", 0, 1, False],
+        [(0, 1, 5), (1, 1, 5), [0], "EXC", 0, 1, False],
+        [(1, 0, 5), (1, 1, 5), [1], "EXC", 0, 1, False],
+        [(0, 1, 5), (1, 0, 5), [1, 0], "FRET", 1, 1, False],
+        [(1, 0, 5), (0, 1, 5), [0, 1], "FRET", 1, 1, False],
+    ]
+    assert transition_rate_list == expected
 
 
 def test_construct_transition_matrix():
