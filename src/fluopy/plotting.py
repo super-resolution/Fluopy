@@ -6,6 +6,7 @@ import re
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, Literal, cast
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
@@ -19,6 +20,8 @@ from matplotlib.transforms import Bbox
 
 if TYPE_CHECKING:
     from scipy.stats.distributions import rv_frozen
+
+    from .transitions import TransitionSet
 
 
 __all__: list[str] = ["plot_data"]
@@ -223,6 +226,113 @@ def format_transition(label: str) -> str:
         parts = label.split(sep="_", maxsplit=1)
         return parts[0] + r"$_{" + parts[1] + r"}$"
     return label
+
+
+def _flatten_state_values(
+    transition_set: TransitionSet,
+    values_by_fluorophore: dict[str, npt.NDArray[np.float64]],
+) -> npt.NDArray[np.float64]:
+    return np.concatenate(
+        [
+            values_by_fluorophore[fluorophore]
+            for fluorophore in transition_set.single_states
+        ]
+    )
+
+
+def _plot_transition_bars(
+    transition_df: pd.DataFrame,
+    values: npt.NDArray[np.float64],
+    default_ylabel: str,
+    draw_marker: list[npt.NDArray[np.float64]] | None = None,
+    legend_labels: Sequence[str] | None = None,
+    **kwargs: Any,
+) -> Axes:
+    data = [np.arange(transition_df.shape[0]), values]
+    kwargs.setdefault("type_", "bar")
+    kwargs.setdefault("xlabel", None)
+    kwargs.setdefault("yscale", "log")
+    kwargs.setdefault("edgecolor", "black")
+    kwargs.setdefault("xticks", range(transition_df.shape[0]))
+    kwargs.setdefault(
+        "xticklabels",
+        dict(
+            labels=transition_df["abbreviation"].apply(format_transition),
+            rotation=70,
+        ),
+    )
+    group_labels = transition_df.index.get_level_values(0)
+    unique_group_labels = group_labels.unique()
+    colormap = mpl.colors.ListedColormap(
+        [
+            mpl.colormaps["Spectral"](value)
+            for value in np.linspace(0, 1, unique_group_labels.size)
+        ]
+    )
+    kwargs.setdefault(
+        "color",
+        [
+            colormap(i)
+            for i, size in enumerate(transition_df.groupby(level=0, sort=False).size())
+            for _ in range(size)
+        ],
+    )
+    kwargs.setdefault("ylabel", default_ylabel)
+    kwargs.setdefault("legend", True)
+    labels = unique_group_labels if legend_labels is None else legend_labels
+    kwargs.setdefault(
+        "legendhandles",
+        [
+            mpl.patches.Patch(color=colormap(i), label=label)
+            for i, label in enumerate(labels)
+        ],
+    )
+    return plot_data(data=data, draw_marker=draw_marker, **kwargs)
+
+
+def _plot_state_bars(
+    transition_set: TransitionSet,
+    values: npt.NDArray[np.float64],
+    default_ylabel: str,
+    draw_marker: list[npt.NDArray[np.float64]] | None = None,
+    full_xlim: bool = False,
+    **kwargs: Any,
+) -> Axes:
+    single_states = transition_set.single_states
+    colormap = mpl.colors.ListedColormap(
+        [
+            mpl.colormaps["Spectral"](value)
+            for value in np.linspace(0, 1, len(single_states))
+        ]
+    )
+    colors: list[Any] = []
+    patches: list[Any] = []
+    labels: list[str] = []
+    for i, (fluorophore, states) in enumerate(single_states.items()):
+        colors.extend([colormap(i) for _ in range(states.size)])
+        patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
+        labels.extend(
+            [
+                format_electronic_state(transition_set.states_by_value[identity].name)
+                for identity in states
+            ]
+        )
+
+    positions = np.arange(values.size)
+    data = [positions, values]
+    kwargs.setdefault("type_", "bar")
+    kwargs.setdefault("xlabel", None)
+    kwargs.setdefault("yscale", "log")
+    kwargs.setdefault("edgecolor", "black")
+    kwargs.setdefault("xticks", range(values.size))
+    if full_xlim:
+        kwargs.setdefault("xlim", [-1, values.size])
+    kwargs.setdefault("xticklabels", dict(labels=labels, rotation=70))
+    kwargs.setdefault("ylabel", default_ylabel)
+    kwargs.setdefault("color", colors)
+    kwargs.setdefault("legend", True)
+    kwargs.setdefault("legendhandles", patches)
+    return plot_data(data=data, draw_marker=draw_marker, **kwargs)
 
 
 def format_axis_labels(label: str, offset: str) -> str:

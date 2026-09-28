@@ -4,7 +4,6 @@ Represent states and transitions as graph.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Generator, Sequence
 from typing import TYPE_CHECKING, Any, cast
 
@@ -12,6 +11,8 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from matplotlib import rcParamsDefault
+
+from ._statistics import parse_energy_transfer_label
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -26,10 +27,6 @@ __all__: list[str] = [
     "plot_graph",
     "draw_networkx_curved_edge_labels",
 ]
-
-_ENERGY_TRANSFER_LABEL = re.compile(
-    r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*(\d+(?:\.\d+)?)\s*"
-)
 
 
 def construct_state_graphs(transition_df: pd.DataFrame) -> list[nx.MultiDiGraph[Any]]:
@@ -57,8 +54,8 @@ def construct_state_graphs(transition_df: pd.DataFrame) -> list[nx.MultiDiGraph[
         edges: list[tuple[str, str, dict[str, str]]] = []
         for _, transition in f_transitions.iterrows():
             abbr = transition["abbreviation"]
-            match = _ENERGY_TRANSFER_LABEL.fullmatch(fluorophore)
-            if match is None:
+            energy_transfer = parse_energy_transfer_label(fluorophore)
+            if energy_transfer is None:
                 if isinstance(transition["initial_state"].value, tuple):
                     raise ValueError(
                         f"Invalid paired-transition label: {fluorophore!r}."
@@ -72,7 +69,7 @@ def construct_state_graphs(transition_df: pd.DataFrame) -> list[nx.MultiDiGraph[
                 )
                 edges.append(edge)
             else:
-                d, a, dist = match.groups()
+                d, a, dist = energy_transfer
                 source_1 = transition["initial_state"].value[0].name
                 source_2 = transition["initial_state"].value[1].name
                 edge = (

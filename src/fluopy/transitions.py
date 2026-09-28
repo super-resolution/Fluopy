@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import copy
 import logging
-import re
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, fields
 from itertools import product
@@ -19,6 +18,7 @@ import pandas as pd
 
 from . import _graphs as net
 from . import photophysics as fo
+from ._statistics import parse_energy_transfer_label
 from .fluo_data import FluorophoreData, Spectrum
 
 if TYPE_CHECKING:
@@ -684,17 +684,14 @@ class TransitionSet:
             df_constructor = []
             for transition in f_transitions:
                 if isinstance(transition.initial_state, PairedState):
-                    pattern = (
-                        r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*(\d+(?:\.\d+)?)\s*"
-                    )
-                    match = re.fullmatch(pattern=pattern, string=fluorophore_comb)
-                    if match is None:
+                    energy_transfer = parse_energy_transfer_label(fluorophore_comb)
+                    if energy_transfer is None:
                         raise ValueError(
                             "energy transfers have to be defined in transitions with "
                             "the key 'D: {name of donor}, A: {name of acceptor}, dist: "
                             "{distance between them in nm}'."
                         )
-                    d, a, dist = match.groups()
+                    d, a, dist = energy_transfer
                     for d_t, a_t in transition.get_fluorophore_pairs():
                         if self.fluorophore_system.fluorophores[d_t].name != d:
                             raise ValueError(
