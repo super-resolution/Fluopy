@@ -5,7 +5,6 @@ Compute a prediction for a photophysical system.
 from __future__ import annotations
 
 import logging
-from itertools import product
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
@@ -38,7 +37,7 @@ class Prediction:
     energy_transfer : bool
         Whether the prediction was carried out on energy transfer systems.
     absorbing_chain : bool
-        Whether every fluorophore has at least one absorbing state and the prediction
+        Whether the system has at least one terminal combined state and the prediction
         was carried out on an absorbing Markov chain.
         Absorbing states have a lifetime of inf and a frequency / occupation of 0.
         Absorbing transitions have a frequency of 0.
@@ -78,13 +77,15 @@ class Prediction:
     -----
     Predictions are available for systems containing at most two fluorophores.
 
+    Predicted lifetimes and state occupations are not available for systems containing
+    energy transfer.
+
     For non-absorbing systems, transition frequencies are calculated from the
     stationary distribution of the transition matrix. The transition matrix must have
     a unique stationary distribution.
 
-    Systems containing absorbing transitions are treated separately as absorbing
-    Markov chains. Predicted lifetimes and state occupations are not available for
-    systems containing energy transfer.
+    Systems containing terminal state combinations are treated separately as absorbing
+    Markov chains.
     """
 
     def __init__(
@@ -114,7 +115,7 @@ class Prediction:
                 "initial_state_index must identify a row of the transition matrix."
             )
         self.initial_state_index = int(initial_state_index)
-        self._absorbing_state_combinations = self._get_absorbing_state_combinations()
+        self._terminal_state_combinations = self._get_terminal_state_combinations()
         if any(
             parse_energy_transfer_label(fluorophore_comb) is not None
             for fluorophore_comb in transition_set.transition_df.index.get_level_values(
@@ -127,21 +128,16 @@ class Prediction:
                 stacklevel=2,
             )
             self.energy_transfer = True
-        has_absorbing_states = bool(transition_set.transition_df["absorbing"].any())
-        if has_absorbing_states and not self._absorbing_state_combinations:
-            raise ValueError(
-                "absorbing states must be defined for every fluorophore or for none."
-            )
-        if self._absorbing_state_combinations:
+        if self._terminal_state_combinations:
             logger.warning(
                 "absorbing states have a lifetime of inf and a frequency / occupation "
                 "of 0. Absorbing transitions have a frequency of 0.",
                 stacklevel=2,
             )
             self.absorbing_chain = True
-            if len(self._absorbing_state_combinations) > 1:
+            if len(self._terminal_state_combinations) > 1:
                 logger.warning(
-                    "multiple absorbing combined states are available; predicted "
+                    "multiple terminal state combinations are available; predicted "
                     "transition frequencies depend on initial_state_index.",
                     stacklevel=2,
                 )
@@ -176,27 +172,8 @@ class Prediction:
                 self.state_occupations,
             ) = (None, None, None, None, None)
 
-    def _get_absorbing_state_combinations(self) -> list[tuple[int, ...]]:
-        absorbing = self.transition_set.transition_df["absorbing"]
-        absorbing_transition_df = self.transition_set.transition_df[absorbing]
-        absorbing_states_by_fluorophore: list[npt.NDArray[np.int64]] = []
-        for fluorophore in self.transition_set.fluorophore_system.fluorophores:
-            if fluorophore.name not in absorbing_transition_df.index.get_level_values(
-                0
-            ):
-                return []
-            final_states = absorbing_transition_df["final_state"].xs(
-                fluorophore.name, level=0
-            )
-            absorbing_state_values = final_states.map(
-                lambda state: state.value
-            ).to_numpy(dtype=np.int64)
-            absorbing_states_by_fluorophore.append(np.unique(absorbing_state_values))
-
-        return [
-            tuple(int(state) for state in state_combination)
-            for state_combination in product(*absorbing_states_by_fluorophore)
-        ]
+    def _get_terminal_state_combinations(self) -> list[tuple[int, ...]]:
+        return sorted(self.transition_set.terminal_state_combinations)
 
     def predict_transition_occurrences(self) -> npt.NDArray[np.float64]:
         """
@@ -252,8 +229,8 @@ class Prediction:
     ) -> npt.NDArray[np.float64]:
         """
         Predict the relative frequencies of transitions. Absorbing transitions will
-        have the value 0. Every combination of the fluorophores' absorbing states is
-        treated as an absorbing combined state.
+        have the value 0. Combined states without positive-rate outgoing transitions
+        are treated as absorbing.
 
         Each energy-transfer event is counted as one transition occurrence, including
         events that change both the donor and acceptor states. For normalization, an
@@ -275,9 +252,9 @@ class Prediction:
         abs_indices = transition_abs[transition_abs].index.get_level_values(1)
         df = self.transition_set.combined_state_transitions_df
         abs_indices_combined = df[df["transition_id"].isin(abs_indices)].index
-        absorbing_state_combinations = set(self._absorbing_state_combinations)
+        terminal_state_combinations = set(self._terminal_state_combinations)
         drop_transitions = df.index[
-            df["final_state"].map(lambda state: state in absorbing_state_combinations)
+            df["final_state"].map(lambda state: state in terminal_state_combinations)
         ]
         frequency_transitions = np.zeros(transition_abs.size)
         if initial_state_index in drop_transitions:

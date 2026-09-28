@@ -525,6 +525,7 @@ class TestTransitionSet:
             "rate",
             "photon",
             "fluorophore_ids",
+            "absorbing_fluorophore_ids",
             "absorbing",
         ]
         assert (
@@ -946,7 +947,63 @@ def test_transition_set_accepts_paired_only_states(flu_sys_unk_cy5):
     combined_transition = transition_set.combined_state_transitions_df.iloc[0]
     assert combined_transition["initial_state"] == (1, 0)
     assert combined_transition["final_state"] == (10, 11)
-    assert not transition_set.transition_df["absorbing"].any()
+    assert transition_set.transition_df["absorbing"].all()
+    assert transition_set.transition_df["absorbing_fluorophore_ids"].iloc[0] == (0, 1)
+    np.testing.assert_array_equal(transition_set.absorbing_states[0], [10])
+    np.testing.assert_array_equal(transition_set.absorbing_states[1], [11])
+    assert transition_set.terminal_state_combinations == frozenset({(10, 11)})
+
+
+def test_paired_transition_identifies_absorbing_donor_without_terminal_system(
+    flu_sys_unk_cy5,
+):
+    donor_dark = tr.SingleState(name="DONOR_DARK", value=10)
+    paired_transition_type = tr.TransitionType(
+        abbreviation="DONOR_TRAP",
+        initial_state=tr.PairedState.S1_S0,
+        final_state=tr.PairedState(
+            name="DONOR_DARK_S0",
+            donor=donor_dark,
+            acceptor=tr.SingleState.S0,
+        ),
+        photon=False,
+    )
+    donor_id, acceptor_id = 0, 1
+    donor = flu_sys_unk_cy5.fluorophores[donor_id]
+    acceptor = flu_sys_unk_cy5.fluorophores[acceptor_id]
+    distance = flu_sys_unk_cy5.distances[(donor_id, acceptor_id)]
+    transition_set = tr.TransitionSet(
+        {
+            f"D: {donor.name}, A: {acceptor.name}, dist: {distance}": [
+                tr.Transition(
+                    paired_transition_type,
+                    rate=1,
+                    fluorophore_ids=[(donor_id, acceptor_id)],
+                )
+            ],
+            acceptor.name: [
+                tr.Transition(
+                    tr.TransitionType.EXCITATION,
+                    rate=1,
+                    fluorophore_ids=[acceptor_id],
+                ),
+                tr.Transition(
+                    tr.TransitionType.FLUORESCENT_EMISSION,
+                    rate=1,
+                    fluorophore_ids=[acceptor_id],
+                ),
+            ],
+        },
+        flu_sys_unk_cy5,
+    )
+
+    paired_transition = transition_set.transition_df.iloc[0]
+    assert paired_transition["absorbing_fluorophore_ids"] == (donor_id,)
+    np.testing.assert_array_equal(
+        transition_set.absorbing_states[donor_id], [donor_dark.value]
+    )
+    np.testing.assert_array_equal(transition_set.absorbing_states[acceptor_id], [])
+    assert transition_set.terminal_state_combinations == frozenset()
 
 
 def test_transition_set_rejects_duplicate_state_value(flu_sys_cy5):
@@ -993,13 +1050,8 @@ def test_get_state_combinations(single_states, dirnames, request, expected):
 
 
 def test_get_single_states_skips_empty_transition_collection(flu_sys_cy5):
-    transition_df = pd.DataFrame(
-        index=pd.MultiIndex.from_tuples([], names=["Fluorophore", "identity"])
-    )
-
     result = tr.get_single_states(
         transitions={"empty": []},
-        transition_df=transition_df,
         fluorophore_system=flu_sys_cy5,
     )
 
@@ -1036,16 +1088,8 @@ def test_get_single_states_rejects_invalid_nonpaired_states(
     )
     setattr(invalid, invalid_field, invalid_value)
     transitions = {"testfluo_1": [first, invalid]}
-    transition_df = pd.DataFrame(
-        {
-            "initial_state": [first.initial_state, invalid.initial_state],
-            "final_state": [first.final_state, invalid.final_state],
-        },
-        index=pd.MultiIndex.from_tuples([("testfluo_1", 0), ("testfluo_1", 1)]),
-    )
-
     with pytest.raises(TypeError, match=message):
-        tr.get_single_states(transitions, transition_df, flu_sys_cy5)
+        tr.get_single_states(transitions, flu_sys_cy5)
 
 
 def test_get_single_states_rejects_invalid_paired_final_state(flu_sys_2xcy5):
@@ -1056,16 +1100,8 @@ def test_get_single_states_rejects_invalid_paired_final_state(flu_sys_2xcy5):
     )
     transition.final_state = tr.SingleState.S0
     transitions = {"transfer": [transition]}
-    transition_df = pd.DataFrame(
-        {
-            "initial_state": [transition.initial_state],
-            "final_state": [transition.final_state],
-        },
-        index=pd.MultiIndex.from_tuples([("transfer", 0)]),
-    )
-
     with pytest.raises(TypeError, match="paired transition must have a PairedState"):
-        tr.get_single_states(transitions, transition_df, flu_sys_2xcy5)
+        tr.get_single_states(transitions, flu_sys_2xcy5)
 
 
 def test_construct_transition_rate_list():

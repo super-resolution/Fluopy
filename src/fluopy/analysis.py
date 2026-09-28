@@ -127,26 +127,12 @@ class Analysis:
             Whether at least one fluorophore reached one of its individual absorbing
             states.
         """
-        transition_df = self.simulation.transition_set.transition_df
-        absorbing_transition_df = transition_df[transition_df["absorbing"]]
-        absorbing_states: dict[str, npt.NDArray[np.int64]] = {}
-        for fluorophore_raw, transitions in absorbing_transition_df.groupby(level=0):
-            fluorophore = cast(str, fluorophore_raw)
-            absorbing_states[fluorophore] = np.unique(
-                transitions["final_state"]
-                .map(lambda state: state.value)
-                .to_numpy(dtype=np.int64)
-            )
+        absorbing_states = self.simulation.transition_set.absorbing_states
 
         reached_absorbing_state = False
         for i, state_series in enumerate(self.state_series):
-            fluorophore_obj = (
-                self.simulation.transition_set.fluorophore_system.fluorophores[i]
-            )
             last_state = state_series[-1]
-            if last_state in absorbing_states.get(
-                fluorophore_obj.name, np.array([], dtype=np.int64)
-            ):
+            if last_state in absorbing_states.get(i, np.array([], dtype=np.int64)):
                 reached_absorbing_state = True
                 logger.info(
                     "fluorophore %d has reached the Markovian absorbing state %s",
@@ -1040,11 +1026,13 @@ def no_diff_dist(transition_df: pd.DataFrame, fluorophores: Iterable[str]) -> tu
     )
 
 
-def get_bleaching_times(simulation: Simulation) -> npt.NDArray[np.float64]:
+def get_absorbing_state_times(simulation: Simulation) -> npt.NDArray[np.float64]:
     """
-    Get the times where photobleaching occurred - for each fluorophore, one number will
-    be extracted. If no bleaching occurred, the entry will be np.nan. The elements will
-    be sorted, np.nan will be at the end.
+    Get the first time each fluorophore reaches an individually absorbing state.
+
+    If a fluorophore does not reach an absorbing state, its entry is np.nan. The times
+    are sorted, with np.nan entries at the end. Photobleaching is one possible process
+    that can be represented by an absorbing state.
 
     Parameters
     ----------
@@ -1054,62 +1042,51 @@ def get_bleaching_times(simulation: Simulation) -> npt.NDArray[np.float64]:
     Returns
     -------
     npt.NDArray[np.float64]
-        Times where photobleaching occurred of shape (n_times,).
+        First absorbing-state times of shape (n_fluorophores,).
     """
     state_series = simulation.state_series
     time_series = simulation.time_series
     if state_series is None or time_series is None:
-        raise ValueError("bleaching times require a completed simulation.")
-    df = simulation.transition_set.transition_df
-    absorbing_final_states = df[df["absorbing"]]["final_state"]
-    bleached_state_values = np.unique([x.value for x in absorbing_final_states])
-    if len(bleached_state_values) == 1:
-        bleached_state = bleached_state_values[0]
-    elif len(bleached_state_values) == 0:
-        return np.full(state_series.shape[0], fill_value=np.nan)
-    else:
-        raise NotImplementedError(
-            "Multiple bleaching states not yet implemented in this function."
-        )
+        raise ValueError("absorbing-state times require a completed simulation.")
+    absorbing_states = simulation.transition_set.absorbing_states
+    absorbing_state_times: list[float] = []
+    for identity, fluorophore_states in enumerate(state_series):
+        absorbing = absorbing_states.get(identity, np.array([], dtype=np.int64))
+        occurrences = np.flatnonzero(np.isin(fluorophore_states, absorbing))
+        time = time_series[occurrences[0]] if occurrences.size else np.nan
+        absorbing_state_times.append(time)
 
-    bleaching_times: list[float] = []
-    for fluorophore_states in state_series:
-        if fluorophore_states[-1] == bleached_state:
-            first_occurrence = np.where(fluorophore_states == bleached_state)[0][0]
-            time = time_series[first_occurrence]
-        else:
-            time = np.nan
-        bleaching_times.append(time)
-
-    return np.sort(np.asarray(bleaching_times, dtype=np.float64))
+    return np.sort(np.asarray(absorbing_state_times, dtype=np.float64))
 
 
-def get_delta_bleaching_times(
-    bleaching_times: npt.ArrayLike,
+def get_delta_absorbing_state_times(
+    absorbing_state_times: npt.ArrayLike,
 ) -> list[npt.NDArray[np.float64]]:
     """
-    Get the delta times between bleaching events.
+    Get elapsed times between successive entries into absorbing states.
 
     Parameters
     ----------
-    bleaching_times
-        Times where photobleaching occurred. Each run is a row, each fluorophore a
-        column. Each row is sorted, np.nan will be at the end.
+    absorbing_state_times
+        First absorbing-state times. Each run is a row and each fluorophore is a
+        column. Each row is sorted, with np.nan entries at the end.
 
     Returns
     -------
     list[npt.NDArray[np.float64]]
-        The arrival times of photons between bleaching events. The timer starts at the
-        previous bleaching event.
+        Elapsed times from the start to the first absorbing-state entry and between
+        subsequent entries. Each array contains one event order across all runs.
     """
-    bleaching_times_array = np.asarray(bleaching_times, dtype=np.float64)
-    delta_bleaching_times_all: list[npt.NDArray[np.float64]] = []
-    previous_times = np.zeros(bleaching_times_array.shape[0], dtype=np.float64)
-    for fluorophore in range(bleaching_times_array.shape[1]):
-        bleaching_times_fluorophore = bleaching_times_array[:, fluorophore]
-        delta_bleaching_times = bleaching_times_fluorophore - previous_times
-        delta_bleaching_times = delta_bleaching_times[~np.isnan(delta_bleaching_times)]
-        delta_bleaching_times_all.append(delta_bleaching_times)
-        previous_times = bleaching_times_fluorophore
+    absorbing_state_times_array = np.asarray(absorbing_state_times, dtype=np.float64)
+    delta_absorbing_state_times_all: list[npt.NDArray[np.float64]] = []
+    previous_times = np.zeros(absorbing_state_times_array.shape[0], dtype=np.float64)
+    for fluorophore in range(absorbing_state_times_array.shape[1]):
+        times_for_event_order = absorbing_state_times_array[:, fluorophore]
+        delta_absorbing_state_times = times_for_event_order - previous_times
+        delta_absorbing_state_times = delta_absorbing_state_times[
+            ~np.isnan(delta_absorbing_state_times)
+        ]
+        delta_absorbing_state_times_all.append(delta_absorbing_state_times)
+        previous_times = times_for_event_order
 
-    return delta_bleaching_times_all
+    return delta_absorbing_state_times_all

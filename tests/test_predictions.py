@@ -2,7 +2,6 @@ import logging
 from types import SimpleNamespace
 
 import numpy as np
-import pandas as pd
 import pytest
 import scipy.stats as stats
 
@@ -47,8 +46,8 @@ def test_non_absorbing_prediction_ignores_initial_state_index(tr_set_1f):
 def test_absorbing_prediction_uses_initial_state_index(tr_set_1f_bl):
     prediction = pr.Prediction.__new__(pr.Prediction)
     prediction.transition_set = tr_set_1f_bl
-    prediction._absorbing_state_combinations = (
-        prediction._get_absorbing_state_combinations()
+    prediction._terminal_state_combinations = (
+        prediction._get_terminal_state_combinations()
     )
 
     frequencies_0 = prediction.predict_transition_occurrences_absorbing(
@@ -64,13 +63,13 @@ def test_absorbing_prediction_uses_initial_state_index(tr_set_1f_bl):
 def test_absorbing_prediction_started_in_absorbing_state_is_zero(tr_set_1f_bl):
     prediction = pr.Prediction.__new__(pr.Prediction)
     prediction.transition_set = tr_set_1f_bl
-    prediction._absorbing_state_combinations = (
-        prediction._get_absorbing_state_combinations()
+    prediction._terminal_state_combinations = (
+        prediction._get_terminal_state_combinations()
     )
     combined_transitions = tr_set_1f_bl.combined_state_transitions_df
-    absorbing_states = set(prediction._absorbing_state_combinations)
+    terminal_states = set(prediction._terminal_state_combinations)
     absorbing_indices = combined_transitions.index[
-        combined_transitions["final_state"].isin(absorbing_states)
+        combined_transitions["final_state"].isin(terminal_states)
     ]
 
     frequencies = prediction.predict_transition_occurrences_absorbing(
@@ -82,24 +81,13 @@ def test_absorbing_prediction_started_in_absorbing_state_is_zero(tr_set_1f_bl):
     )
 
 
-def test_prediction_rejects_partial_absorption(tr_set_bl_et_2f_diff):
-    fluorophore = tr_set_bl_et_2f_diff.fluorophore_system.fluorophores[1]
-    tr_set_bl_et_2f_diff.transition_df.loc[fluorophore.name, "absorbing"] = False
-
-    with pytest.raises(
-        ValueError,
-        match="absorbing states must be defined for every fluorophore or for none",
-    ):
-        pr.Prediction(transition_set=tr_set_bl_et_2f_diff)
-
-
-def test_prediction_warns_for_multiple_absorbing_combinations(
+def test_prediction_warns_for_multiple_terminal_state_combinations(
     tr_set_bl_et_2f_diff, monkeypatch, caplog
 ):
     combinations = [(4, 3), (5, 3)]
     monkeypatch.setattr(
         pr.Prediction,
-        "_get_absorbing_state_combinations",
+        "_get_terminal_state_combinations",
         lambda self: combinations,
     )
     monkeypatch.setattr(
@@ -122,7 +110,7 @@ def test_prediction_warns_for_multiple_absorbing_combinations(
         pr.Prediction(transition_set=tr_set_bl_et_2f_diff)
 
     assert (
-        "multiple absorbing combined states are available; predicted transition "
+        "multiple terminal state combinations are available; predicted transition "
         "frequencies depend on initial_state_index."
     ) in caplog.text
 
@@ -146,56 +134,30 @@ def test_predicted_frequencies_remain_zero_without_expected_visits(tr_set_1f):
 
 
 @pytest.mark.parametrize(
-    "absorbing, expected_combinations",
+    "terminal_states",
     [
-        ([True, True, True, True], [(4, 6), (4, 7), (5, 6), (5, 7)]),
-        ([True, True, False, False], []),
+        [(4, 6), (4, 7), (5, 6), (5, 7)],
+        [],
     ],
 )
-def test_get_absorbing_state_combinations(absorbing, expected_combinations):
-    transition_df = pd.DataFrame(
-        {
-            "absorbing": absorbing,
-            "final_state": [
-                SimpleNamespace(value=4),
-                SimpleNamespace(value=5),
-                SimpleNamespace(value=6),
-                SimpleNamespace(value=7),
-            ],
-        },
-        index=pd.MultiIndex.from_tuples([("A", 0), ("A", 1), ("B", 2), ("B", 3)]),
-    )
+def test_get_terminal_state_combinations(terminal_states):
     prediction = pr.Prediction.__new__(pr.Prediction)
     prediction.transition_set = SimpleNamespace(
-        transition_df=transition_df,
-        fluorophore_system=SimpleNamespace(
-            fluorophores=[SimpleNamespace(name="A"), SimpleNamespace(name="B")]
-        ),
+        terminal_state_combinations=frozenset(terminal_states),
     )
 
-    combinations = prediction._get_absorbing_state_combinations()
+    combinations = prediction._get_terminal_state_combinations()
 
-    assert combinations == expected_combinations
+    assert combinations == terminal_states
 
 
-def test_get_multiple_absorbing_states_for_one_fluorophore():
-    transition_df = pd.DataFrame(
-        {
-            "absorbing": [True, True],
-            "final_state": [
-                SimpleNamespace(value=4),
-                SimpleNamespace(value=5),
-            ],
-        },
-        index=pd.MultiIndex.from_tuples([("A", 0), ("A", 1)]),
-    )
+def test_get_multiple_terminal_states_for_one_fluorophore():
     prediction = pr.Prediction.__new__(pr.Prediction)
     prediction.transition_set = SimpleNamespace(
-        transition_df=transition_df,
-        fluorophore_system=SimpleNamespace(fluorophores=[SimpleNamespace(name="A")]),
+        terminal_state_combinations=frozenset({(4,), (5,)}),
     )
 
-    combinations = prediction._get_absorbing_state_combinations()
+    combinations = prediction._get_terminal_state_combinations()
 
     assert combinations == [(4,), (5,)]
 
