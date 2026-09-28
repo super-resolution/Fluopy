@@ -438,7 +438,19 @@ class FluorophoreData:
         )
 
     def __deepcopy__(self, memo: dict[int, object]) -> Self:
-        """Return this immutable fluorophore data without copying it."""
+        """
+        Return this immutable fluorophore data without copying it.
+
+        Parameters
+        ----------
+        memo
+            Objects already encountered by the active deep-copy operation.
+
+        Returns
+        -------
+        FluorophoreData
+            This immutable object.
+        """
         memo[id(self)] = self
         return self
 

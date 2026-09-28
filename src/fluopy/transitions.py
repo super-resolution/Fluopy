@@ -483,7 +483,16 @@ class Transition:
     fluorophore_ids: Sequence[int] | Sequence[tuple[int, int]] = field()
 
     def __setattr__(self, name: str, value: object) -> None:
-        """Set an attribute while preventing replacement of fluorophore_ids."""
+        """
+        Set an attribute while preventing replacement of fluorophore_ids.
+
+        Parameters
+        ----------
+        name
+            Attribute name.
+        value
+            Value assigned to the attribute.
+        """
         if name == "fluorophore_ids" and hasattr(self, "fluorophore_ids"):
             raise AttributeError("fluorophore_ids is read-only.")
         object.__setattr__(self, name, value)
@@ -1363,6 +1372,18 @@ def get_absorbing_fluorophore_ids(
     The result describes the retained transition topology regardless of rate. A
     retained zero-rate transition can therefore be labeled structurally absorbing even
     though it cannot occur in the autonomous rate matrix.
+
+    Parameters
+    ----------
+    transition
+        Transition whose component-state changes are inspected.
+    absorbing_states
+        Individually absorbing state values indexed by fluorophore identity.
+
+    Returns
+    -------
+    tuple[int, ...]
+        Identities of fluorophores that change into an individually absorbing state.
     """
     initial_state = transition.initial_state
     final_state = transition.final_state
@@ -1931,7 +1952,9 @@ def derive_transitions(
         Whether to incorporate bleaching as a possible transition.
     dstorm
         Whether to incorporate dstorm photoswitching as possible transitions.
-    dstorm_parameters : fluopy.photophysics.calculate_pet_rate arguments (except k_pet)
+    **dstorm_parameters
+        Additional arguments for fluopy.photophysics.calculate_pet_rate, excluding
+        k_pet.
 
     Returns
     -------
