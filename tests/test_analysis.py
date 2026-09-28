@@ -168,26 +168,10 @@ def test_analysis_1(request, caplog):
 
 
 def test_is_absorbing_is_determined_per_fluorophore(caplog, capsys):
-    transition_df = pd.DataFrame(
-        {
-            "absorbing": [True, False],
-            "final_state": [
-                SimpleNamespace(value=2),
-                SimpleNamespace(value=0),
-            ],
-        },
-        index=pd.MultiIndex.from_tuples([("A", 0), ("B", 1)]),
-    )
     analysis = an.Analysis.__new__(an.Analysis)
     analysis.simulation = SimpleNamespace(
         transition_set=SimpleNamespace(
-            transition_df=transition_df,
-            fluorophore_system=SimpleNamespace(
-                fluorophores=[
-                    SimpleNamespace(name="A"),
-                    SimpleNamespace(name="B"),
-                ]
-            ),
+            absorbing_states={0: np.array([2]), 1: np.array([], dtype=np.int64)},
             states_by_value={2: SimpleNamespace(name="terminal")},
         )
     )
@@ -790,43 +774,39 @@ def test_no_diff_dist_keeps_single_distance_pair():
     np.testing.assert_array_equal(discarded, np.array([], dtype=np.int64))
 
 
-def test_get_bleaching_times(sim_tr_set_1f_bl):
-    bleaching_times = an.get_bleaching_times(simulation=sim_tr_set_1f_bl)
-    assert np.isnan(bleaching_times)
+def test_get_absorbing_state_times(sim_tr_set_1f_bl):
+    absorbing_state_times = an.get_absorbing_state_times(simulation=sim_tr_set_1f_bl)
+    assert np.isnan(absorbing_state_times)
 
 
-def test_get_bleaching_times_2(sim_tr_set_2f_diff):
-    bleaching_times = an.get_bleaching_times(simulation=sim_tr_set_2f_diff)
-    assert np.all(np.isnan(bleaching_times))
+def test_get_absorbing_state_times_2(sim_tr_set_2f_diff):
+    absorbing_state_times = an.get_absorbing_state_times(simulation=sim_tr_set_2f_diff)
+    assert np.all(np.isnan(absorbing_state_times))
 
 
 @pytest.mark.parametrize(
     "state_series, time_series",
     [(None, np.array([0.0])), (np.array([[0]]), None)],
 )
-def test_get_bleaching_times_requires_completed_simulation(state_series, time_series):
+def test_get_absorbing_state_times_requires_completed_simulation(
+    state_series, time_series
+):
     simulation = SimpleNamespace(
         state_series=state_series,
         time_series=time_series,
     )
 
     with pytest.raises(ValueError, match="completed simulation"):
-        an.get_bleaching_times(simulation)
+        an.get_absorbing_state_times(simulation)
 
 
-@pytest.mark.parametrize("bleaching_transitions", [1, 3])
-def test_get_bleaching_times_with_shared_destination(bleaching_transitions):
-    transition_df = pd.DataFrame(
-        {
-            "absorbing": [True] * bleaching_transitions + [False],
-            "final_state": [tr.SingleState.B] * bleaching_transitions
-            + [tr.SingleState.S0],
-        }
-    )
+def test_get_absorbing_state_times_with_shared_destination():
     ground = tr.SingleState.S0.value
     bleached = tr.SingleState.B.value
     simulation = SimpleNamespace(
-        transition_set=SimpleNamespace(transition_df=transition_df),
+        transition_set=SimpleNamespace(
+            absorbing_states={identity: np.array([bleached]) for identity in range(3)}
+        ),
         state_series=np.array(
             [
                 [ground, ground, bleached, bleached],
@@ -838,37 +818,36 @@ def test_get_bleaching_times_with_shared_destination(bleaching_transitions):
         time_series=np.array([0.0, 2.0, 5.0, 8.0]),
     )
 
-    bleaching_times = an.get_bleaching_times(simulation)
+    absorbing_state_times = an.get_absorbing_state_times(simulation)
 
-    np.testing.assert_array_equal(bleaching_times, [2.0, 5.0, np.nan])
+    np.testing.assert_array_equal(absorbing_state_times, [2.0, 5.0, np.nan])
 
 
-def test_get_bleaching_times_with_distinct_destinations():
-    transition_df = pd.DataFrame(
-        {
-            "absorbing": [True, True],
-            "final_state": [tr.SingleState.B, tr.SingleState.OFF],
-        }
-    )
+def test_get_absorbing_state_times_with_distinct_destinations():
     simulation = SimpleNamespace(
-        transition_set=SimpleNamespace(transition_df=transition_df),
+        transition_set=SimpleNamespace(
+            absorbing_states={
+                0: np.array([tr.SingleState.B.value, tr.SingleState.OFF.value])
+            }
+        ),
         state_series=np.array([[tr.SingleState.S0.value, tr.SingleState.B.value]]),
         time_series=np.array([0.0, 1.0]),
     )
 
-    with pytest.raises(NotImplementedError, match="Multiple bleaching states"):
-        an.get_bleaching_times(simulation)
+    np.testing.assert_array_equal(an.get_absorbing_state_times(simulation), [1.0])
 
 
-def test_get_delta_bleaching_times():
-    bleaching_times = np.array(
+def test_get_delta_absorbing_state_times():
+    absorbing_state_times = np.array(
         [
             [1, 2, 3],
             [10, 20, 30],
         ]
     )
 
-    deltas = an.get_delta_bleaching_times(bleaching_times=bleaching_times)
+    deltas = an.get_delta_absorbing_state_times(
+        absorbing_state_times=absorbing_state_times
+    )
 
     expected = np.array(
         [

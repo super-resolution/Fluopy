@@ -10,7 +10,8 @@ from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, fields
 from itertools import product
 from numbers import Real
-from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import numpy as np
 import numpy.typing as npt
@@ -137,6 +138,7 @@ class PairedState:
     S0_R: ClassVar[PairedState]
 
     def __post_init__(self) -> None:
+        """Validate the donor and acceptor component states."""
         if not isinstance(self.donor, SingleState) or not isinstance(
             self.acceptor, SingleState
         ):
@@ -264,6 +266,7 @@ class TransitionType:
     OFF_S0_TRANSITIONS: ClassVar[TransitionType]
 
     def __post_init__(self) -> None:
+        """Validate that the initial and final states have matching kinds."""
         states = (self.initial_state, self.final_state)
         if not all(isinstance(state, SingleState | PairedState) for state in states):
             raise TypeError(
@@ -480,11 +483,22 @@ class Transition:
     fluorophore_ids: Sequence[int] | Sequence[tuple[int, int]] = field()
 
     def __setattr__(self, name: str, value: object) -> None:
+        """
+        Set an attribute while preventing replacement of fluorophore_ids.
+
+        Parameters
+        ----------
+        name
+            Attribute name.
+        value
+            Value assigned to the attribute.
+        """
         if name == "fluorophore_ids" and hasattr(self, "fluorophore_ids"):
             raise AttributeError("fluorophore_ids is read-only.")
         object.__setattr__(self, name, value)
 
     def __post_init__(self) -> None:
+        """Validate and normalize the transition attributes."""
         if not isinstance(self.transition_type, TransitionType):
             raise TypeError("transition_type must be a TransitionType object.")
         if not isinstance(self.rate, Real):
@@ -658,10 +672,10 @@ class TransitionSet:
     Attributes
     ----------
     transitions : dict[str, list[Transition]]
-        Contains lists of transitions of type Transition with non-zero rate as values
-        and fluorophores or fluorophore-combinations as keys. Fluorophore-combination
-        keys require the format 'D: {name of donor}, A: {name of acceptor}, dist:
-        {distance between them in nm}'.
+        Contains lists of retained transitions of type Transition as values and
+        fluorophores or fluorophore-combinations as keys. Fluorophore-combination keys
+        require the format 'D: {name of donor}, A: {name of acceptor}, dist: {distance
+        between them in nm}'.
     fluorophore_system : fluopy.fluorophores.FluorophoreSystem
         Container for attributes of multiple, interrelated fluorophores.
     combined_state_transitions_df : pd.DataFrame
@@ -673,10 +687,17 @@ class TransitionSet:
     single_states : dict[str, npt.NDArray[np.int64]]
         Contains the values of all relevant SingleStates as values. Name of
         fluorophores as keys.
+    absorbing_states : Mapping[int, npt.NDArray[np.int64]]
+        Individually absorbing state values indexed by fluorophore identity. These are
+        derived from the retained transition topology, including transitions retained
+        with rate 0.
+    terminal_state_combinations : frozenset[tuple[int, ...]]
+        Combined states without a positive-rate outgoing transition. Unlike
+        absorbing_states, this collection is derived from the active rates.
     transition_df : pd.DataFrame
-        Dataframe of all given transitions with non-zero rate containing their id as
-        second level index and their other attributes as columns. Name of fluorophores
-        as first level index.
+        Dataframe of all retained transitions containing their id as second level index
+        and their other attributes as columns. Name of fluorophores as first level
+        index. Includes zero-rate transitions when keep_zero_rates is True.
     transition_matrix : np.ndarray
         Contains the normalized rate constants (i.e., point probabilities) for each
         possible combined_state_transition at the corresponding index pair.
@@ -685,6 +706,8 @@ class TransitionSet:
     _combined_state_transitions_df: pd.DataFrame | None
     _row_sums: npt.NDArray[np.float64] | None
     _transition_matrix: npt.NDArray[np.float64] | None
+    _terminal_state_combinations: frozenset[StateCombination] | None
+    _absorbing_states: dict[int, npt.NDArray[np.int64]]
 
     def __init__(
         self,
@@ -703,7 +726,9 @@ class TransitionSet:
         fluorophore_system
             Container for attributes of multiple, interrelated fluorophores.
         keep_zero_rates
-            Whether to keep transitions with rate 0.
+            Whether to retain transitions with rate 0. Retained zero-rate transitions
+            remain part of the state space and structural absorbing-state detection,
+            but do not contribute to the active transition rates.
         """
         transitions = {
             key: [copy.copy(transition) for transition in transition_collection]
@@ -795,14 +820,33 @@ class TransitionSet:
         self.states_by_value = get_states_by_value(self.transitions)
         self.single_states = get_single_states(
             self.transitions,
-            self.transition_df,
             self.fluorophore_system,
         )
-        # also assigns whether a transition leads to a Markovian absorbing state
+        absorbing_states = get_absorbing_states(
+            self.transitions,
+            self.single_states,
+            self.fluorophore_system,
+        )
+        self._absorbing_states = absorbing_states
+        absorbing_fluorophore_ids = {
+            (fluorophore_comb, transition.get_identity()): (
+                get_absorbing_fluorophore_ids(transition, absorbing_states)
+            )
+            for fluorophore_comb, transition_collection in self.transitions.items()
+            for transition in transition_collection
+        }
+        self.transition_df["absorbing_fluorophore_ids"] = pd.Series(
+            absorbing_fluorophore_ids,
+            dtype=object,
+        )
+        self.transition_df["absorbing"] = self.transition_df[
+            "absorbing_fluorophore_ids"
+        ].map(bool)
 
         self._combined_state_transitions_df = None
         self._row_sums = None
         self._transition_matrix = None
+        self._terminal_state_combinations = None
 
     @property
     def combined_state_transitions_df(self) -> pd.DataFrame:
@@ -847,6 +891,30 @@ class TransitionSet:
 
         return result
 
+    @property
+    def absorbing_states(self) -> Mapping[int, npt.NDArray[np.int64]]:
+        """Individually absorbing state values indexed by fluorophore identity."""
+        return MappingProxyType(self._absorbing_states)
+
+    @property
+    def terminal_state_combinations(self) -> frozenset[StateCombination]:
+        """
+        Return combined states without a positive-rate outgoing transition.
+
+        This reflects the autonomous rate matrix. Externally driven transitions, such
+        as pulsed excitation in TCSPC, are not represented by this collection while
+        their retained zero-rate transition definitions may remain in the structural
+        topology.
+        """
+        if self._terminal_state_combinations is None:
+            self.finalize()
+        result = self._terminal_state_combinations
+        if result is None:
+            raise RuntimeError(
+                "transition set finalization did not identify terminal states."
+            )
+        return result
+
     def filter_by_identity(
         self, remove_list: Collection[int] | None = None, keep_zero_rates: bool = False
     ) -> TransitionSet:
@@ -858,7 +926,7 @@ class TransitionSet:
         remove_list
             Contains identities of type int.
         keep_zero_rates
-            Whether to keep transitions with rate 0.
+            Whether to retain transitions with rate 0 in the structural topology.
 
         Returns
         -------
@@ -899,7 +967,7 @@ class TransitionSet:
         change_dict
             Contains identities of transitions as key and rates as values.
         keep_zero_rates
-            Whether to keep transitions with rate 0.
+            Whether to retain transitions with rate 0 in the structural topology.
 
         Returns
         -------
@@ -960,7 +1028,7 @@ class TransitionSet:
         Parameters
         ----------
         keep_zero_rates
-            Whether to keep transitions with rate 0.
+            Whether to retain transitions with rate 0 in the structural topology.
 
         Returns
         -------
@@ -998,7 +1066,7 @@ class TransitionSet:
         Parameters
         ----------
         keep_zero_rates
-            Whether to keep transitions with rate 0.
+            Whether to retain transitions with rate 0 in the structural topology.
 
         Returns
         -------
@@ -1061,6 +1129,10 @@ class TransitionSet:
         self._transition_matrix, self._row_sums = construct_transition_matrix(
             combined_state_transitions_df=self._combined_state_transitions_df
         )
+        terminal_indices = np.flatnonzero(self._row_sums == 0)
+        self._terminal_state_combinations = frozenset(
+            self._combined_state_transitions_df.iloc[terminal_indices]["final_state"]
+        )
 
         return self
 
@@ -1119,23 +1191,19 @@ class TransitionSet:
 
 def get_single_states(
     transitions: Mapping[str, Collection[Transition]],
-    transition_df: pd.DataFrame,
     fluorophore_system: FluorophoreSystem,
 ) -> dict[str, npt.NDArray[np.int64]]:
     """
     Get the values of SingleStates occurring in transitions.
 
     PairedState components are assigned to their corresponding donor and acceptor
-    fluorophore types. Transitions leading to individually Markovian absorbing states
-    are identified using only non-energy-transfer transitions.
+    fluorophore types.
 
     Parameters
     ----------
     transitions
-        Contains transitions of type Transition with non-zero rate.
-    transition_df
-        Dataframe of all given transitions with non-zero rate containing their id as
-        index and their other attributes as columns.
+        Contains retained transitions of type Transition. May include zero-rate
+        transitions that define structural pathways.
     fluorophore_system
         Container for attributes of multiple, interrelated fluorophores.
 
@@ -1145,7 +1213,6 @@ def get_single_states(
         Contains the values of all relevant SingleStates as values. Name of
         fluorophores as keys.
     """
-    transition_df["absorbing"] = False
     single_states: dict[str, list[int]] = {}
 
     for fluorophore_comb, f_transitions in transitions.items():
@@ -1171,42 +1238,6 @@ def get_single_states(
                     single_states_.append(final_state.value)
 
             single_states[fluorophore_comb] = single_states_
-            single_state_df = pd.DataFrame(single_states_, columns=["single_states"])
-            single_state_df["absorbing"] = False
-
-            initial_state_series = cast(
-                "pd.Series[Any]",
-                transition_df.loc[
-                    fluorophore_comb,
-                    "initial_state",
-                ],
-            )
-
-            initial_states = initial_state_series.map(
-                lambda state: state.value
-            ).to_numpy()
-
-            for i, single_state in single_state_df["single_states"].items():
-                if single_state not in initial_states:
-                    single_state_df.at[i, "absorbing"] = True
-
-            final_state_series = cast(
-                "pd.Series[Any]",
-                transition_df.loc[
-                    fluorophore_comb,
-                    "final_state",
-                ],
-            )
-
-            final_states = final_state_series.map(lambda state: state.value).to_numpy()
-            absorbing_states = single_state_df.loc[
-                single_state_df["absorbing"],
-                "single_states",
-            ]
-            if not absorbing_states.empty:
-                indices = np.where(np.isin(final_states, absorbing_states.values))[0]
-                index_values = transition_df.loc[fluorophore_comb].iloc[indices].index
-                transition_df.loc[(fluorophore_comb, index_values), "absorbing"] = True
     for f_transitions in transitions.values():
         for transition in f_transitions:
             initial_state = transition.initial_state
@@ -1246,6 +1277,147 @@ def get_single_states(
     return single_state_arrays
 
 
+def get_absorbing_states(
+    transitions: Mapping[str, Collection[Transition]],
+    single_states: Mapping[str, npt.NDArray[np.int64]],
+    fluorophore_system: FluorophoreSystem,
+) -> dict[int, npt.NDArray[np.int64]]:
+    """
+    Get individually absorbing states for every fluorophore identity.
+
+    A state is individually absorbing if it occurs as a final state and no transition
+    changes that fluorophore from the state. Paired transitions are evaluated
+    separately for their donor and acceptor components. All supplied transitions define
+    this structural topology regardless of rate. TransitionSet omits zero-rate
+    transitions by default, but includes them here when keep_zero_rates is True so that
+    externally driven or temporarily inactive pathways remain represented.
+
+    Parameters
+    ----------
+    transitions
+        Contains retained transitions of type Transition. May include zero-rate
+        transitions that define structural pathways.
+    single_states
+        Contains relevant state values indexed by fluorophore name.
+    fluorophore_system
+        Container for attributes of multiple, interrelated fluorophores.
+
+    Returns
+    -------
+    dict[int, npt.NDArray[np.int64]]
+        Individually absorbing state values indexed by fluorophore identity.
+    """
+    final_states: dict[int, set[int]] = {
+        identity: set() for identity in range(fluorophore_system.count)
+    }
+    changing_initial_states: dict[int, set[int]] = {
+        identity: set() for identity in range(fluorophore_system.count)
+    }
+
+    for transition_collection in transitions.values():
+        for transition in transition_collection:
+            initial_state = transition.initial_state
+            final_state = transition.final_state
+            if isinstance(initial_state, PairedState):
+                if not isinstance(final_state, PairedState):
+                    raise TypeError(
+                        "a paired transition must have a PairedState final state."
+                    )
+                for donor_id, acceptor_id in transition.get_fluorophore_pairs():
+                    components = (
+                        (donor_id, initial_state.donor, final_state.donor),
+                        (acceptor_id, initial_state.acceptor, final_state.acceptor),
+                    )
+                    for identity, initial_component, final_component in components:
+                        final_states[identity].add(final_component.value)
+                        if initial_component != final_component:
+                            changing_initial_states[identity].add(
+                                initial_component.value
+                            )
+            else:
+                if not isinstance(final_state, SingleState):
+                    raise TypeError(
+                        "a non-paired transition must have a SingleState final state."
+                    )
+                for identity in transition.get_single_fluorophore_ids():
+                    final_states[identity].add(final_state.value)
+                    if initial_state != final_state:
+                        changing_initial_states[identity].add(initial_state.value)
+
+    absorbing_states: dict[int, npt.NDArray[np.int64]] = {}
+    for identity, fluorophore in enumerate(fluorophore_system.fluorophores):
+        states = single_states.get(fluorophore.name, np.array([], dtype=np.int64))
+        values = np.asarray(
+            [
+                state
+                for state in states
+                if state in final_states[identity]
+                and state not in changing_initial_states[identity]
+            ],
+            dtype=np.int64,
+        )
+        values.setflags(write=False)
+        absorbing_states[identity] = values
+
+    return absorbing_states
+
+
+def get_absorbing_fluorophore_ids(
+    transition: Transition,
+    absorbing_states: Mapping[int, npt.NDArray[np.int64]],
+) -> tuple[int, ...]:
+    """
+    Return fluorophore identities entering an individually absorbing state.
+
+    The result describes the retained transition topology regardless of rate. A
+    retained zero-rate transition can therefore be labeled structurally absorbing even
+    though it cannot occur in the autonomous rate matrix.
+
+    Parameters
+    ----------
+    transition
+        Transition whose component-state changes are inspected.
+    absorbing_states
+        Individually absorbing state values indexed by fluorophore identity.
+
+    Returns
+    -------
+    tuple[int, ...]
+        Identities of fluorophores that change into an individually absorbing state.
+    """
+    initial_state = transition.initial_state
+    final_state = transition.final_state
+    absorbing_identities: list[int] = []
+    if isinstance(initial_state, PairedState):
+        if not isinstance(final_state, PairedState):
+            raise TypeError("a paired transition must have a PairedState final state.")
+        for donor_id, acceptor_id in transition.get_fluorophore_pairs():
+            components = (
+                (donor_id, initial_state.donor, final_state.donor),
+                (acceptor_id, initial_state.acceptor, final_state.acceptor),
+            )
+            for identity, initial_component, final_component in components:
+                if (
+                    initial_component != final_component
+                    and final_component.value in absorbing_states[identity]
+                    and identity not in absorbing_identities
+                ):
+                    absorbing_identities.append(identity)
+    else:
+        if not isinstance(final_state, SingleState):
+            raise TypeError(
+                "a non-paired transition must have a SingleState final state."
+            )
+        for identity in transition.get_single_fluorophore_ids():
+            if (
+                initial_state != final_state
+                and final_state.value in absorbing_states[identity]
+            ):
+                absorbing_identities.append(identity)
+
+    return tuple(absorbing_identities)
+
+
 def get_state_combinations(
     single_states: Mapping[str, Collection[int]],
     fluorophores: Collection[Fluorophore],
@@ -1283,9 +1455,9 @@ def construct_transition_rate_list(
     Parameters
     ----------
     transition_df
-        Dataframe of all given transitions with non-zero rate containing their id as
-        second level index and their other attributes as columns. Name of fluorophores
-        as first level index.
+        Dataframe of all retained transitions containing their id as second level index
+        and their other attributes as columns. Name of fluorophores as first level
+        index.
     state_combinations
         Contains the possible combined states.
 
@@ -1780,7 +1952,9 @@ def derive_transitions(
         Whether to incorporate bleaching as a possible transition.
     dstorm
         Whether to incorporate dstorm photoswitching as possible transitions.
-    dstorm_parameters : fluopy.photophysics.calculate_pet_rate arguments (except k_pet)
+    **dstorm_parameters
+        Additional arguments for fluopy.photophysics.calculate_pet_rate, excluding
+        k_pet.
 
     Returns
     -------

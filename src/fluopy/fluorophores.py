@@ -51,6 +51,7 @@ class Fluorophore:
     constants: fd.FluorophoreData | None = None
 
     def __post_init__(self) -> None:
+        """Validate the position and resolve default fluorophore data."""
         position = np.asarray(self.position, dtype=float).copy()
 
         if position.ndim != 1:
@@ -100,6 +101,7 @@ class FluorophoreSystem:
     count: int = field(init=False)
 
     def __post_init__(self) -> None:
+        """Validate the fluorophores and derive immutable system attributes."""
         object.__setattr__(self, "fluorophores", tuple(self.fluorophores))
         if not self.fluorophores:
             raise ValueError(
