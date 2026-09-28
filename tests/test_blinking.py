@@ -191,6 +191,25 @@ def test_get_off_statistics_controlled(states, times, expected_times, expected_v
     assert on_off_values.dtype == np.int8
 
 
+def test_get_off_statistics_with_triplet_as_dark_state():
+    simulation = SimpleNamespace(
+        state_series=np.array(
+            [[SingleState.S0.value, SingleState.T1.value, SingleState.S0.value]],
+            dtype=np.int8,
+        ),
+        time_series=np.array([0, 1, 2, 3], dtype=np.float64),
+    )
+
+    on_off_times, on_off_values = bl.get_off_statistics(
+        simulation=simulation,
+        index=0,
+        dark_states=(SingleState.T1,),
+    )
+
+    np.testing.assert_array_equal(on_off_times, [0, 1, 1, 2, 2, 3])
+    np.testing.assert_array_equal(on_off_values, [1, 1, 0, 0, 1, 1])
+
+
 def test_get_blinking_statistics_without_events():
     statistics = bl.get_blinking_statistics(pd.Series([0, 0, 0]))
 
@@ -220,7 +239,7 @@ def test_get_blinking_statistics_without_events():
                 time_series=np.array([0.0, 1.0]),
             ),
             0,
-            "no photophysical OFF states",
+            "none of the selected dark states",
         ),
     ],
 )
