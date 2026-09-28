@@ -29,7 +29,9 @@ def parse_energy_transfer_label(label: str) -> tuple[str, str, str] | None:
         otherwise None.
     """
     match = _ENERGY_TRANSFER_LABEL.fullmatch(label)
-    return None if match is None else match.groups()
+    if match is None:
+        return None
+    return match.group(1), match.group(2), match.group(3)
 
 
 def normalize_transition_frequencies(

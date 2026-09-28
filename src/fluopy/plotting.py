@@ -259,7 +259,7 @@ def _plot_transition_bars(
     transition_df: pd.DataFrame,
     values: npt.NDArray[np.float64],
     default_ylabel: str,
-    draw_marker: list[npt.NDArray[np.float64]] | None = None,
+    draw_marker: Sequence[Any] | None = None,
     legend_labels: Sequence[str] | None = None,
     **kwargs: Any,
 ) -> Axes:
@@ -334,7 +334,7 @@ def _plot_state_bars(
     transition_set: TransitionSet,
     values: npt.NDArray[np.float64],
     default_ylabel: str,
-    draw_marker: list[npt.NDArray[np.float64]] | None = None,
+    draw_marker: Sequence[Any] | None = None,
     full_xlim: bool = False,
     **kwargs: Any,
 ) -> Axes:
