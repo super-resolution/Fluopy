@@ -1093,8 +1093,8 @@ def test_construct_transition_rate_list():
         state_combinations=state_combinations,
     )
     expected = [
-        [(0, 0, 5), (0, 1, 5), [1], "EXC", 0, 1, False],
         [(0, 0, 5), (1, 0, 5), [0], "EXC", 0, 1, False],
+        [(0, 0, 5), (0, 1, 5), [1], "EXC", 0, 1, False],
         [(0, 1, 5), (1, 1, 5), [0], "EXC", 0, 1, False],
         [(1, 0, 5), (1, 1, 5), [1], "EXC", 0, 1, False],
         [(0, 1, 5), (1, 0, 5), [1, 0], "FRET", 1, 1, False],

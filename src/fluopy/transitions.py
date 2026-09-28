@@ -1287,17 +1287,14 @@ def construct_transition_rate_list(
         second level index and their other attributes as columns. Name of fluorophores
         as first level index.
     state_combinations
-        Contains the possible combined states in their desired output order.
+        Contains the possible combined states.
 
     Returns
     -------
     list[TransitionRateRecord]
         Contains lists of each realizable combined-state transition.
     """
-    state_order = {
-        state_combination: order
-        for order, state_combination in enumerate(state_combinations)
-    }
+    valid_states = set(state_combinations)
     transition_rate_list: list[TransitionRateRecord] = []
 
     for index, transition in transition_df.iterrows():
@@ -1308,14 +1305,13 @@ def construct_transition_rate_list(
         if not isinstance(identity, int):
             raise TypeError("transition identity must be an integer.")
 
-        ordered_records: list[tuple[int, int, TransitionRateRecord]] = []
         initial_state = transition["initial_state"]
         final_state = transition["final_state"]
 
         if isinstance(initial_state, SingleState):
             source = initial_state.value
             destination = final_state.value
-            for current_order, current_state in enumerate(state_combinations):
+            for current_state in state_combinations:
                 for fluorophore_id in transition["fluorophore_ids"]:
                     if current_state[fluorophore_id] != source:
                         continue
@@ -1323,24 +1319,24 @@ def construct_transition_rate_list(
                     future_state_values = list(current_state)
                     future_state_values[fluorophore_id] = destination
                     future_state = tuple(future_state_values)
-                    future_order = state_order.get(future_state)
-                    if future_order is None:
+                    if future_state not in valid_states:
                         continue
 
-                    record: TransitionRateRecord = [
-                        current_state,
-                        future_state,
-                        [fluorophore_id],
-                        transition["abbreviation"],
-                        identity,
-                        transition["rate"],
-                        transition["photon"],
-                    ]
-                    ordered_records.append((current_order, future_order, record))
+                    transition_rate_list.append(
+                        [
+                            current_state,
+                            future_state,
+                            [fluorophore_id],
+                            transition["abbreviation"],
+                            identity,
+                            transition["rate"],
+                            transition["photon"],
+                        ]
+                    )
         else:
             source_donor, source_acceptor = initial_state.single_state_values
             destination_donor, destination_acceptor = final_state.single_state_values
-            for current_order, current_state in enumerate(state_combinations):
+            for current_state in state_combinations:
                 for donor, acceptor in transition["fluorophore_ids"]:
                     if (
                         current_state[donor] != source_donor
@@ -1352,23 +1348,20 @@ def construct_transition_rate_list(
                     future_state_values[donor] = destination_donor
                     future_state_values[acceptor] = destination_acceptor
                     future_state = tuple(future_state_values)
-                    future_order = state_order.get(future_state)
-                    if future_order is None:
+                    if future_state not in valid_states:
                         continue
 
-                    record = [
-                        current_state,
-                        future_state,
-                        [donor, acceptor],
-                        transition["abbreviation"],
-                        identity,
-                        transition["rate"],
-                        transition["photon"],
-                    ]
-                    ordered_records.append((current_order, future_order, record))
-
-        ordered_records.sort(key=lambda item: (item[0], item[1]))
-        transition_rate_list.extend(record for _, _, record in ordered_records)
+                    transition_rate_list.append(
+                        [
+                            current_state,
+                            future_state,
+                            [donor, acceptor],
+                            transition["abbreviation"],
+                            identity,
+                            transition["rate"],
+                            transition["photon"],
+                        ]
+                    )
 
     return transition_rate_list
 
