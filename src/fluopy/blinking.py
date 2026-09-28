@@ -4,6 +4,7 @@ Extract fluorescence intermittency (blinking).
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
@@ -200,7 +201,9 @@ def get_blinking_statistics(
 
 
 def get_off_statistics(
-    simulation: Simulation, index: int
+    simulation: Simulation,
+    index: int,
+    dark_states: Collection[tr.SingleState] | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int8]]:
     """
     Determines ON and OFF intervals of a single fluorophore, where the OFF interval is
@@ -215,6 +218,9 @@ def get_off_statistics(
         Container of simulation-associated attributes and methods.
     index
         Determines the fluorophore to be looked at.
+    dark_states
+        States to classify as OFF. If None, SingleState.OFF and SingleState.OFF2
+        are used.
 
     Returns
     -------
@@ -233,12 +239,14 @@ def get_off_statistics(
             f"index assumes {index + 1} fluorophores but "
             f"{state_series.shape[0]} are present."
         )
+    if dark_states is None:
+        dark_states = (tr.SingleState.OFF, tr.SingleState.OFF2)
+
     states = state_series[index]
-    is_off = (states == tr.SingleState.OFF.value) | (
-        states == tr.SingleState.OFF2.value
-    )
+    dark_values = [state.value for state in dark_states]
+    is_off = np.isin(states, dark_values)
     if not np.any(is_off):
-        raise ValueError("no photophysical OFF states found.")
+        raise ValueError("none of the selected dark states were found.")
 
     changes = np.flatnonzero(is_off[1:] != is_off[:-1]) + 1
     starts = np.r_[0, changes]

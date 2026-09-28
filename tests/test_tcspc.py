@@ -865,10 +865,19 @@ def test_insert_excitations(request):
     transition_series_adj = si.insert_excitations(
         transition_series, transition_set, excitation_series
     )
-    transition_series_exp = np.array(
-        [0, 347, 9, 250, 241, 446, 346, 446, 0, 80, 120, 346, 2, 81, 398, 122]
+    excitation_mask = excitation_series != -1
+
+    np.testing.assert_array_equal(
+        transition_series_adj[~excitation_mask], transition_series
     )
-    np.testing.assert_array_equal(transition_series_adj, transition_series_exp)
+    inserted = transition_set.combined_state_transitions_df.iloc[
+        transition_series_adj[excitation_mask]
+    ]
+    assert (inserted["abbreviation"] == "EXC").all()
+    np.testing.assert_array_equal(
+        [fluorophore_ids[0] for fluorophore_ids in inserted["fluorophore_ids"]],
+        excitation_series[excitation_mask],
+    )
 
 
 def test_insert_excitations_without_non_excitation(tr_set_bl_et_2f_diff):
@@ -895,10 +904,6 @@ def test_insert_excitations_without_preceding_excitation(tr_set_1f):
 
 def test_get_state_series(request):
     transition_set = request.getfixturevalue("tr_set_bl_et_3f")
-    transition_series = np.array(
-        [0, 347, 9, 250, 241, 446, 346, 446, 0, 80, 120, 346, 2, 81, 398, 122]
-    )
-    state_series = si.get_state_series(transition_set, transition_series)
     state_series_exp = np.array(
         [
             [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -906,4 +911,16 @@ def test_get_state_series(request):
             [0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 3, 3],
         ]
     )
+    states = [tuple(state) for state in state_series_exp.transpose()]
+    combined_transitions = transition_set.combined_state_transitions_df
+    transition_series = []
+    for initial_state, final_state in zip(states[:-1], states[1:]):
+        matching = combined_transitions[
+            (combined_transitions["initial_state"] == initial_state)
+            & (combined_transitions["final_state"] == final_state)
+        ]
+        transition_series.append(matching.index[0])
+
+    state_series = si.get_state_series(transition_set, transition_series)
+
     np.testing.assert_array_equal(state_series, state_series_exp)

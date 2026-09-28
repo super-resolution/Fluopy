@@ -8,6 +8,7 @@ import pytest
 
 from fluopy import emissions as em
 from fluopy import fluo_data as fd
+from fluopy import simulation as si
 
 
 def assert_all_channel_equal(emis, expected):
@@ -115,13 +116,14 @@ def test_emissions_extract_requires_completed_simulation():
         ["sim_tr_set_et_2f_diff", "5ms", em.DetectionChannel(), 2],
     ],
 )
-def test_emissions_extract(dirname, request, frame_time, channel, expected, caplog):
+def test_emissions_extract(dirname, request, frame_time, channel, expected):
     rng = np.random.default_rng(1)
     emis = em.Emissions(frame_time=frame_time, channels={"detector": channel}, seed=rng)
-    with caplog.at_level(logging.WARNING):
+    with pytest.warns(
+        si.FloatingPointPrecisionWarning,
+        match="Floating point precision error warning",
+    ):
         simulation = request.getfixturevalue(dirname)
-        assert "Floating point precision error warning" in caplog.text
-    caplog.clear()
 
     emis.extract(simulation=simulation)
     assert emis.event_time_points is not None

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import warnings
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -28,9 +29,13 @@ if TYPE_CHECKING:
     from .transitions import TransitionSet
 
 
-__all__: list[str] = ["Simulation"]
+__all__: list[str] = ["FloatingPointPrecisionWarning", "Simulation"]
 
 logger = logging.getLogger(__name__)
+
+
+class FloatingPointPrecisionWarning(RuntimeWarning):
+    """Warn that simulated time increments may exceed floating-point precision."""
 
 
 def _flush_memmap(array: npt.NDArray[Any]) -> None:
@@ -1115,7 +1120,7 @@ def eval_floating_point_precision_error(
 
         probability_smallest_increment = 1 - np.exp(-max_rate * smallest_increment)
 
-        logger.warning(
+        warnings.warn(
             "Floating point precision error warning:\n "
             f"The smallest safe increment is {smallest_increment:.2e}."
             "\n Everything drawn below this number might be rounded to zero\n when "
@@ -1124,7 +1129,8 @@ def eval_floating_point_precision_error(
             f"state combination {states}\n gives a probability of "
             f"{probability_smallest_increment:.2e} for a smaller increment"
             " to be drawn.",
-            stacklevel=2,
+            FloatingPointPrecisionWarning,
+            stacklevel=3,
         )
 
     else:
@@ -1135,7 +1141,7 @@ def eval_floating_point_precision_error(
             if np.nextafter(large_number, np.inf) - large_number < smallest_increment:
                 continue
             else:
-                logger.warning(
+                warnings.warn(
                     "Floating point precision error warning:\n "
                     f"The higher limit of smallest increment with a probability of "
                     f"{probability_to_check:.2e} is {smallest_increment:.2e}."
@@ -1144,6 +1150,7 @@ def eval_floating_point_precision_error(
                     "\n Everything drawn below this number will be rounded "
                     f"to zero starting somewhere between {log_space[i - 1]:.2e}"
                     f" - {large_number:.2e}.",
-                    stacklevel=2,
+                    FloatingPointPrecisionWarning,
+                    stacklevel=3,
                 )
                 break

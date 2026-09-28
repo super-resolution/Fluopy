@@ -5,16 +5,19 @@ Analysis of a photophysical simulation.
 from __future__ import annotations
 
 import logging
-import re
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, cast
 
-import matplotlib as mpl
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
 from . import plotting
+from ._statistics import (
+    calculate_state_occupations,
+    normalize_transition_frequencies,
+    parse_energy_transfer_label,
+)
 from .plotting import format_electronic_state, format_transition
 
 if TYPE_CHECKING:
@@ -27,10 +30,6 @@ if TYPE_CHECKING:
 __all__: list[str] = ["Analysis"]
 
 logger = logging.getLogger(__name__)
-
-_ENERGY_TRANSFER_LABEL = re.compile(
-    r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*(\d+(?:\.\d+)?)\s*"
-)
 
 
 class Analysis:
@@ -181,28 +180,9 @@ class Analysis:
             minlength=self.simulation.transition_set.transition_df.shape[0],
         ).astype(np.float64)
 
-        grouper: dict[str, list[int]] = {}
-        for (
-            fluorophore_comb_raw,
-            group,
-        ) in self.simulation.transition_set.transition_df.groupby(level=0, sort=False):
-            fluorophore_comb = cast(str, fluorophore_comb_raw)
-            match = _ENERGY_TRANSFER_LABEL.fullmatch(fluorophore_comb)
-            if match is not None:
-                d, _, _ = match.group(1), match.group(2), match.group(3)
-            else:
-                d = fluorophore_comb
-            if d in grouper:
-                grouper[d] += group.index.get_level_values(1).tolist()
-            else:
-                grouper[d] = group.index.get_level_values(1).tolist()
-
-        for _, indices in grouper.items():
-            total = np.sum(frequency_transitions[indices])
-            if total > 0:
-                frequency_transitions[indices] /= total
-
-        return frequency_transitions
+        return normalize_transition_frequencies(
+            frequency_transitions, self.simulation.transition_set.transition_df
+        )
 
     def get_state_occurrences(self) -> dict[str, npt.NDArray[np.float64]]:
         """
@@ -336,7 +316,7 @@ class Analysis:
                 transition_id,
             ) in self.simulation.transition_set.transition_df.index:
                 occurrence_mask = transition_ids_at_changes == transition_id
-                if _ENERGY_TRANSFER_LABEL.fullmatch(transition_group) is not None:
+                if parse_energy_transfer_label(transition_group) is not None:
                     occurrence_mask &= initiating_fluorophore_ids == fluorophore_id
 
                 transition_time_parts[transition_id].append(
@@ -374,7 +354,6 @@ class Analysis:
             fluorophore.
         """
         mean_lifetimes: dict[str, npt.NDArray[np.float64]] = {}
-        state_occupations: dict[str, npt.NDArray[np.float64]] = {}
         for fluorophore, distributions in self.lifetime_distributions.items():
             mean_lifetimes[fluorophore] = np.array(
                 [
@@ -382,17 +361,9 @@ class Analysis:
                     for distr in distributions
                 ]
             )
-            state_occupations[fluorophore] = np.multiply(
-                self.frequency_states[fluorophore],
-                mean_lifetimes[fluorophore],
-                where=~np.isnan(mean_lifetimes[fluorophore]),
-                out=np.zeros(self.frequency_states[fluorophore].size),
-            )
-            total_occupation = state_occupations[fluorophore].sum()
-            if total_occupation > 0:
-                state_occupations[fluorophore] /= total_occupation
-
-        return mean_lifetimes, state_occupations
+        return mean_lifetimes, calculate_state_occupations(
+            self.frequency_states, mean_lifetimes
+        )
 
     def get_fluorescence_lifetimes(
         self, fluorophore: str | None = None
@@ -519,56 +490,14 @@ class Analysis:
                     frequencies[discarded_transition_ids]
                 )
             frequencies = collapsed_frequencies
-        data = [np.arange(transition_df.shape[0]), frequencies]
-        kwargs.setdefault("type_", "bar")
-        kwargs.setdefault("xlabel", None)
-        kwargs.setdefault("yscale", "log")
-        kwargs.setdefault("edgecolor", "black")
-        kwargs.setdefault("xticks", range(transition_df.shape[0]))
-        kwargs.setdefault(
-            "xticklabels",
-            dict(
-                labels=transition_df["abbreviation"].apply(format_transition),
-                rotation=70,
-            ),
-        )
-        colormap = mpl.colors.ListedColormap(
-            [
-                mpl.colormaps["Spectral"](value)
-                for value in np.linspace(
-                    0, 1, transition_df.index.get_level_values(0).nunique()
-                )
-            ]
-        )
-        kwargs.setdefault(
-            "color",
-            [
-                colormap(i)
-                for i, size in enumerate(
-                    transition_df.groupby(level=0, sort=False).size()
-                )
-                for _ in range(size)
-            ],
-        )
-        kwargs.setdefault("ylabel", "Prob. occurrence")
-        kwargs.setdefault("legend", True)
-        kwargs.setdefault(
-            "legendhandles",
-            [
-                mpl.patches.Patch(
-                    color=colormap(i),
-                    label=(
-                        name.rsplit(", dist:", maxsplit=1)[0]
-                        if _ENERGY_TRANSFER_LABEL.fullmatch(name) is not None
-                        and not diff_dist
-                        else name
-                    ),
-                )
-                for i, name in enumerate(
-                    transition_df.index.get_level_values(0).unique()
-                )
-            ],
-        )
+        legend_labels = [
+            (
+                name.rsplit(", dist:", maxsplit=1)[0]
+                if parse_energy_transfer_label(name) is not None and not diff_dist
+                else name
+            )
+            for name in transition_df.index.get_level_values(0).unique()
+        ]
 
         draw_marker = None
         if prediction is not None:
@@ -590,9 +519,14 @@ class Analysis:
                 predicted_frequencies,
             ]
 
-        ax = plotting.plot_data(data=data, draw_marker=draw_marker, **kwargs)
-
-        return ax
+        return plotting._plot_transition_bars(
+            transition_df=transition_df,
+            values=frequencies,
+            default_ylabel="Prob. occurrence",
+            draw_marker=draw_marker,
+            legend_labels=legend_labels,
+            **kwargs,
+        )
 
     def plot_frequency_states(
         self, prediction: Prediction | None = None, **kwargs: Any
@@ -613,43 +547,10 @@ class Analysis:
             The modified axis.
         """
 
-        single_states = self.simulation.transition_set.single_states
-        colormap = mpl.colors.ListedColormap(
-            [
-                mpl.colormaps["Spectral"](value)
-                for value in np.linspace(0, 1, len(single_states))
-            ]
+        transition_set = self.simulation.transition_set
+        data_merged = plotting._flatten_state_values(
+            transition_set, self.frequency_states
         )
-        colors: list[Any] = []
-        patches: list[Any] = []
-        xticks = 0
-        data_parts: list[npt.NDArray[np.float64]] = []
-        labels: list[str] = []
-        for i, (fluorophore, states) in enumerate(single_states.items()):
-            colors.extend([colormap(i) for _ in range(states.size)])
-            patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
-            xticks += states.size
-            data_parts.append(self.frequency_states[fluorophore])
-            labels.extend(
-                [
-                    format_electronic_state(
-                        self.simulation.transition_set.states_by_value[identity].name
-                    )
-                    for identity in states
-                ]
-            )
-        data_merged = np.concatenate(data_parts)
-        data = [np.arange(xticks), data_merged]
-        kwargs.setdefault("type_", "bar")
-        kwargs.setdefault("xlabel", None)
-        kwargs.setdefault("yscale", "log")
-        kwargs.setdefault("edgecolor", "black")
-        kwargs.setdefault("xticks", range(xticks))
-        kwargs.setdefault("xticklabels", dict(labels=labels, rotation=70))
-        kwargs.setdefault("ylabel", "Prob. occurrence")
-        kwargs.setdefault("color", colors)
-        kwargs.setdefault("legend", True)
-        kwargs.setdefault("legendhandles", patches)
 
         draw_marker = None
         if prediction is not None:
@@ -659,24 +560,25 @@ class Analysis:
                     "states and transition ordering are compatible.",
                     stacklevel=2,
                 )
-            predicted_frequencies = np.concatenate(
-                [
-                    prediction.frequency_states[fluorophore]
-                    for fluorophore in single_states
-                ]
+            predicted_frequencies = plotting._flatten_state_values(
+                transition_set, prediction.frequency_states
             )
             if predicted_frequencies.shape != data_merged.shape:
                 raise ValueError(
                     "prediction and simulation have incompatible state dimensions."
                 )
             draw_marker = [
-                np.arange(xticks),
+                np.arange(data_merged.size),
                 predicted_frequencies,
             ]
 
-        ax = plotting.plot_data(data=data, draw_marker=draw_marker, **kwargs)
-
-        return ax
+        return plotting._plot_state_bars(
+            transition_set=transition_set,
+            values=data_merged,
+            default_ylabel="Prob. occurrence",
+            draw_marker=draw_marker,
+            **kwargs,
+        )
 
     def plot_mean_transition_times(
         self,
@@ -732,56 +634,14 @@ class Analysis:
                     for distribution in collapsed_distributions
                 ]
             )
-        data = [np.arange(transition_df.shape[0]), mean_transition_times]
-        kwargs.setdefault("type_", "bar")
-        kwargs.setdefault("xlabel", None)
-        kwargs.setdefault("yscale", "log")
-        kwargs.setdefault("edgecolor", "black")
-        kwargs.setdefault("xticks", range(transition_df.shape[0]))
-        kwargs.setdefault(
-            "xticklabels",
-            dict(
-                labels=transition_df["abbreviation"].apply(format_transition),
-                rotation=70,
-            ),
-        )
-        colormap = mpl.colors.ListedColormap(
-            [
-                mpl.colormaps["Spectral"](value)
-                for value in np.linspace(
-                    0, 1, transition_df.index.get_level_values(0).nunique()
-                )
-            ]
-        )
-        kwargs.setdefault(
-            "color",
-            [
-                colormap(i)
-                for i, size in enumerate(
-                    transition_df.groupby(level=0, sort=False).size()
-                )
-                for _ in range(size)
-            ],
-        )
-        kwargs.setdefault("ylabel", r"$\tau$ (s)")
-        kwargs.setdefault("legend", True)
-        kwargs.setdefault(
-            "legendhandles",
-            [
-                mpl.patches.Patch(
-                    color=colormap(i),
-                    label=(
-                        name.rsplit(", dist:", maxsplit=1)[0]
-                        if _ENERGY_TRANSFER_LABEL.fullmatch(name) is not None
-                        and not diff_dist
-                        else name
-                    ),
-                )
-                for i, name in enumerate(
-                    transition_df.index.get_level_values(0).unique()
-                )
-            ],
-        )
+        legend_labels = [
+            (
+                name.rsplit(", dist:", maxsplit=1)[0]
+                if parse_energy_transfer_label(name) is not None and not diff_dist
+                else name
+            )
+            for name in transition_df.index.get_level_values(0).unique()
+        ]
 
         draw_marker = None
         if prediction is not None:
@@ -807,9 +667,14 @@ class Analysis:
                 )
             draw_marker = [np.arange(transition_df.shape[0]), predicted_means]
 
-        ax = plotting.plot_data(data=data, draw_marker=draw_marker, **kwargs)
-
-        return ax
+        return plotting._plot_transition_bars(
+            transition_df=transition_df,
+            values=mean_transition_times,
+            default_ylabel=r"$\tau$ (s)",
+            draw_marker=draw_marker,
+            legend_labels=legend_labels,
+            **kwargs,
+        )
 
     def plot_mean_lifetimes(
         self, prediction: Prediction | None = None, **kwargs: Any
@@ -830,44 +695,10 @@ class Analysis:
             The modified axis.
         """
 
-        single_states = self.simulation.transition_set.single_states
-        colormap = mpl.colors.ListedColormap(
-            [
-                mpl.colormaps["Spectral"](value)
-                for value in np.linspace(0, 1, len(single_states))
-            ]
+        transition_set = self.simulation.transition_set
+        data_merged = plotting._flatten_state_values(
+            transition_set, self.mean_lifetimes
         )
-        colors: list[Any] = []
-        patches: list[Any] = []
-        xticks = 0
-        data_parts: list[npt.NDArray[np.float64]] = []
-        labels: list[str] = []
-        for i, (fluorophore, states) in enumerate(single_states.items()):
-            colors.extend([colormap(i) for _ in range(states.size)])
-            patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
-            xticks += states.size
-            data_parts.append(self.mean_lifetimes[fluorophore])
-            labels.extend(
-                [
-                    format_electronic_state(
-                        self.simulation.transition_set.states_by_value[identity].name
-                    )
-                    for identity in states
-                ]
-            )
-        data_merged = np.concatenate(data_parts)
-        data = [np.arange(xticks), data_merged]
-        kwargs.setdefault("type_", "bar")
-        kwargs.setdefault("xlabel", None)
-        kwargs.setdefault("yscale", "log")
-        kwargs.setdefault("edgecolor", "black")
-        kwargs.setdefault("xticks", range(xticks))
-        kwargs.setdefault("xlim", [-1, xticks])
-        kwargs.setdefault("xticklabels", dict(labels=labels, rotation=70))
-        kwargs.setdefault("color", colors)
-        kwargs.setdefault("legend", True)
-        kwargs.setdefault("legendhandles", patches)
-        kwargs.setdefault("ylabel", r"$\tau$ (s)")
 
         draw_marker = None
         if prediction is not None:
@@ -885,21 +716,26 @@ class Analysis:
             predicted_lifetimes = prediction.mean_lifetimes
             if predicted_lifetimes is None:
                 raise ValueError("predicted mean lifetimes are unavailable.")
-            predicted_lifetimes_merged = np.concatenate(
-                [predicted_lifetimes[fluorophore] for fluorophore in single_states]
+            predicted_lifetimes_merged = plotting._flatten_state_values(
+                transition_set, predicted_lifetimes
             )
             if predicted_lifetimes_merged.shape != data_merged.shape:
                 raise ValueError(
                     "prediction and simulation have incompatible state dimensions."
                 )
             draw_marker = [
-                np.arange(xticks),
+                np.arange(data_merged.size),
                 predicted_lifetimes_merged,
             ]
 
-        ax = plotting.plot_data(data=data, draw_marker=draw_marker, **kwargs)
-
-        return ax
+        return plotting._plot_state_bars(
+            transition_set=transition_set,
+            values=data_merged,
+            default_ylabel=r"$\tau$ (s)",
+            draw_marker=draw_marker,
+            full_xlim=True,
+            **kwargs,
+        )
 
     def plot_state_occupations(
         self, prediction: Prediction | None = None, **kwargs: Any
@@ -920,43 +756,10 @@ class Analysis:
             The modified axis.
         """
 
-        single_states = self.simulation.transition_set.single_states
-        colormap = mpl.colors.ListedColormap(
-            [
-                mpl.colormaps["Spectral"](value)
-                for value in np.linspace(0, 1, len(single_states))
-            ]
+        transition_set = self.simulation.transition_set
+        data_merged = plotting._flatten_state_values(
+            transition_set, self.state_occupations
         )
-        colors: list[Any] = []
-        patches: list[Any] = []
-        xticks = 0
-        data_parts: list[npt.NDArray[np.float64]] = []
-        labels: list[str] = []
-        for i, (fluorophore, states) in enumerate(single_states.items()):
-            colors.extend([colormap(i) for _ in range(states.size)])
-            patches.append(mpl.patches.Patch(color=colormap(i), label=fluorophore))
-            xticks += states.size
-            data_parts.append(self.state_occupations[fluorophore])
-            labels.extend(
-                [
-                    format_electronic_state(
-                        self.simulation.transition_set.states_by_value[identity].name
-                    )
-                    for identity in states
-                ]
-            )
-        data_merged = np.concatenate(data_parts)
-        data = [np.arange(xticks), data_merged]
-        kwargs.setdefault("type_", "bar")
-        kwargs.setdefault("xlabel", None)
-        kwargs.setdefault("yscale", "log")
-        kwargs.setdefault("edgecolor", "black")
-        kwargs.setdefault("xticks", range(xticks))
-        kwargs.setdefault("xticklabels", dict(labels=labels, rotation=70))
-        kwargs.setdefault("ylabel", "Prob. occupation")
-        kwargs.setdefault("color", colors)
-        kwargs.setdefault("legend", True)
-        kwargs.setdefault("legendhandles", patches)
 
         draw_marker = None
         if prediction is not None:
@@ -974,21 +777,25 @@ class Analysis:
             predicted_occupations = prediction.state_occupations
             if predicted_occupations is None:
                 raise ValueError("predicted state occupations are unavailable.")
-            predicted_occupations_merged = np.concatenate(
-                [predicted_occupations[fluorophore] for fluorophore in single_states]
+            predicted_occupations_merged = plotting._flatten_state_values(
+                transition_set, predicted_occupations
             )
             if predicted_occupations_merged.shape != data_merged.shape:
                 raise ValueError(
                     "prediction and simulation have incompatible state dimensions."
                 )
             draw_marker = [
-                np.arange(xticks),
+                np.arange(data_merged.size),
                 predicted_occupations_merged,
             ]
 
-        ax = plotting.plot_data(data=data, draw_marker=draw_marker, **kwargs)
-
-        return ax
+        return plotting._plot_state_bars(
+            transition_set=transition_set,
+            values=data_merged,
+            default_ylabel="Prob. occupation",
+            draw_marker=draw_marker,
+            **kwargs,
+        )
 
     def plot_lifetime_distributions(
         self,
@@ -1175,10 +982,10 @@ def no_diff_dist(transition_df: pd.DataFrame, fluorophores: Iterable[str]) -> tu
     fluorophore_names = set(fluorophores)
     labels_by_pair: dict[tuple[str, str], list[str]] = {}
     for group_label in unique_group_labels:
-        match = _ENERGY_TRANSFER_LABEL.fullmatch(group_label)
-        if match is None:
+        energy_transfer = parse_energy_transfer_label(group_label)
+        if energy_transfer is None:
             continue
-        donor, acceptor, _ = match.groups()
+        donor, acceptor, _ = energy_transfer
         if donor in fluorophore_names:
             labels_by_pair.setdefault((donor, acceptor), []).append(group_label)
 

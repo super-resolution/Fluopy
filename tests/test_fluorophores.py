@@ -1,4 +1,5 @@
 import logging
+from dataclasses import FrozenInstanceError
 
 import numpy as np
 import pytest
@@ -10,23 +11,20 @@ from fluopy.fluo_data import FluorophoreData, Spectrum, testfluo_1, testfluo_2
 
 
 @pytest.mark.parametrize(
-    "name, position, exp_identity, exp_name, exp_position, exp_constants",
+    "name, position, exp_name, exp_position, exp_constants",
     [
-        ["testfluo_1", [0, 0], None, "testfluo_1", np.array([0, 0]), testfluo_1],
+        ["testfluo_1", [0, 0], "testfluo_1", np.array([0, 0]), testfluo_1],
         [
             "testfluo_2",
             [1.5, 0.34],
-            None,
             "testfluo_2",
             np.array([1.5, 0.34]),
             testfluo_2,
         ],
-        ["aa", [0, -5], None, "aa", np.array([0, -5]), None],
+        ["aa", [0, -5], "aa", np.array([0, -5]), None],
     ],
 )
-def test_fluorophore(
-    name, position, exp_identity, exp_name, exp_position, exp_constants, caplog
-):
+def test_fluorophore(name, position, exp_name, exp_position, exp_constants, caplog):
     if name == "aa":
         with caplog.at_level(logging.WARNING):
             fluorophore = fl.Fluorophore(name=name, position=position)
@@ -37,7 +35,7 @@ def test_fluorophore(
         caplog.clear()
     else:
         fluorophore = fl.Fluorophore(name=name, position=position)
-    assert fluorophore.identity == exp_identity
+    assert not hasattr(fluorophore, "identity")
     assert fluorophore.name == exp_name
     np.testing.assert_array_equal(fluorophore.position, exp_position)
     if exp_constants is not None:
@@ -71,6 +69,8 @@ def test_fluorophore_position_is_read_only():
 
     with pytest.raises(ValueError, match="read-only"):
         fluorophore.position[0] = 10
+    with pytest.raises(ValueError, match="cannot set WRITEABLE flag"):
+        fluorophore.position.setflags(write=True)
 
 
 @pytest.mark.parametrize(
@@ -86,11 +86,13 @@ def test_fluorophore_rejects_invalid_position(position, message):
         fl.Fluorophore("testfluo_1", position)
 
 
-def test_fluorophore_identity_requires_system():
+def test_fluorophore_attributes_are_read_only():
     fluorophore = fl.Fluorophore("testfluo_1", [0, 0])
 
-    with pytest.raises(RuntimeError, match="only available after adding it"):
-        fluorophore.get_identity()
+    with pytest.raises(FrozenInstanceError):
+        fluorophore.name = "testfluo_2"
+    with pytest.raises(FrozenInstanceError):
+        fluorophore.position = np.array([1.0, 0.0])
 
 
 @pytest.mark.parametrize(
@@ -137,11 +139,10 @@ def test_fluorophore_system(
             fluorophore_system = fl.FluorophoreSystem(fluorophores=fluorophores)
     else:
         fluorophore_system = fl.FluorophoreSystem(fluorophores=fluorophores)
-        for i, (fluorophore_sys, fluorophore) in enumerate(
-            zip(fluorophore_system.fluorophores, fluorophores)
+        for fluorophore_sys, fluorophore in zip(
+            fluorophore_system.fluorophores, fluorophores
         ):
-            assert fluorophore_sys.identity == i
-            assert fluorophore_sys == fluorophore
+            assert fluorophore_sys is fluorophore
         assert fluorophore_system.distances == exp_distances
         assert fluorophore_system.count == exp_count
         assert fluorophore_system.multi_type == multi_type
@@ -159,6 +160,59 @@ def test_fluorophore_system_copies_input_sequence():
     assert isinstance(system.fluorophores, tuple)
     assert len(system.fluorophores) == 2
     assert system.count == 2
+
+
+def test_fluorophore_system_is_read_only():
+    system = fl.FluorophoreSystem(
+        [
+            fl.Fluorophore("testfluo_1", [0, 0]),
+            fl.Fluorophore("testfluo_1", [1, 0]),
+        ]
+    )
+
+    with pytest.raises(TypeError):
+        system.distances[(0, 1)] = np.float64(2.0)
+    with pytest.raises(FrozenInstanceError):
+        system.count = 3
+
+
+def test_fluorophore_can_belong_to_multiple_systems():
+    shared = fl.Fluorophore("testfluo_1", [0, 0])
+    first = fl.FluorophoreSystem([shared])
+    second = fl.FluorophoreSystem([fl.Fluorophore("testfluo_1", [1, 0]), shared])
+
+    assert first.fluorophores[0] is shared
+    assert second.fluorophores[1] is shared
+    assert first.get_identity(shared) == 0
+    assert second.get_identity(shared) == 1
+
+
+def test_fluorophore_system_rejects_identity_lookup_for_nonmember():
+    system = fl.FluorophoreSystem([fl.Fluorophore("testfluo_1", [0, 0])])
+    other = fl.Fluorophore("testfluo_1", [1, 0])
+
+    with pytest.raises(ValueError, match="not part of this system"):
+        system.get_identity(other)
+
+
+def test_fluorophore_system_gets_identities_by_name():
+    system = fl.FluorophoreSystem(
+        [
+            fl.Fluorophore("testfluo_1", [0, 0]),
+            fl.Fluorophore("testfluo_2", [1, 0]),
+            fl.Fluorophore("testfluo_1", [2, 0]),
+        ]
+    )
+
+    assert system.get_identities("testfluo_1") == (0, 2)
+    assert system.get_identities("testfluo_2") == (1,)
+
+
+def test_fluorophore_system_rejects_identity_lookup_for_unknown_name():
+    system = fl.FluorophoreSystem([fl.Fluorophore("testfluo_1", [0, 0])])
+
+    with pytest.raises(ValueError, match="name unknown is not part of this system"):
+        system.get_identities("unknown")
 
 
 def test_fluorophore_system_rejects_positions_below_distance_resolution():
@@ -360,8 +414,8 @@ def test_fluorophore_system_plot(flu_sys_cy5):
     assert ax.get_ylabel() == "y [nm]"
     assert ax.get_aspect() == 1.0
     assert [text.get_text() for text in ax.texts] == [
-        f"{fluorophore.name} ({fluorophore.identity})"
-        for fluorophore in flu_sys_cy5.fluorophores
+        f"{fluorophore.name} ({fluorophore_id})"
+        for fluorophore_id, fluorophore in enumerate(flu_sys_cy5.fluorophores)
     ]
 
 

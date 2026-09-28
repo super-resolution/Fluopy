@@ -215,9 +215,11 @@ def simulate_TCSPC(
     excitation_probabilities = np.zeros(number_fluorophores)
     for fluorophore in excitation_rates:
         fluorophore_ids = [
-            f.identity
-            for f in transition_set.fluorophore_system.fluorophores
-            if f.name == fluorophore and f.identity is not None
+            fluorophore_id
+            for fluorophore_id, f in enumerate(
+                transition_set.fluorophore_system.fluorophores
+            )
+            if f.name == fluorophore
         ]
         excitation_rate = excitation_rates[fluorophore]
         excitation_probability = 1 - np.exp(
@@ -560,9 +562,11 @@ def simulate_TCSPC_detailed(
     excitation_probabilities = np.zeros(number_fluorophores)
     for fluorophore in excitation_rates:
         fluorophore_ids = [
-            f.identity
-            for f in transition_set.fluorophore_system.fluorophores
-            if f.name == fluorophore and f.identity is not None
+            fluorophore_id
+            for fluorophore_id, f in enumerate(
+                transition_set.fluorophore_system.fluorophores
+            )
+            if f.name == fluorophore
         ]
         excitation_rate = excitation_rates[fluorophore]
         excitation_probability = 1 - np.exp(
