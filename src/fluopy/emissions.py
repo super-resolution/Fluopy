@@ -99,9 +99,8 @@ class Emissions:
         Contains the time points (increasing by a defined time interval) as index and
         one event-count column per detection channel. Gain, noise, and thresholding are
         frame-based operations and do not modify event_time_points. Internally generated
-        series start with a zero-valued boundary entry at time zero; measured frames
-        start at the second entry. None until extract(), simulate() or tcspc() has been
-        called.
+        series are indexed by the end time of each measured frame. None until extract(),
+        simulate() or tcspc() has been called.
     """
 
     def __init__(
@@ -471,7 +470,7 @@ class Emissions:
         self, simulation: Simulation, resample: str = "5ms"
     ) -> None:
         """
-        Counts events within a time interval (resample).
+        Count events within right-closed time intervals labeled by their end time.
 
         Parameters
         ----------
@@ -513,6 +512,7 @@ class Emissions:
                 event_time_series_r = event_time_series_r.drop(
                     event_time_series_r.index[-1]
                 )
+            event_time_series_r = event_time_series_r.iloc[1:]
             resampled_index = event_time_series_r.index
             in_seconds = np.asarray(
                 resampled_index.to_numpy() / np.timedelta64(1, "s"),
@@ -569,8 +569,7 @@ class Emissions:
         """
         Add normally distributed noise to the frame-based detector signal.
 
-        This can represent readout noise, which is insignificant for an EMCCD. The
-        leading boundary entry is not a measured frame and remains unchanged. This
+        This can represent readout noise, which is insignificant for an EMCCD. This
         method modifies event_time_series but does not create photon arrival times in
         event_time_points.
 
@@ -591,19 +590,18 @@ class Emissions:
         """
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
-        frame_counts = event_time_series.iloc[1:]
-        means = _resolve_channel_parameter(mean, frame_counts.columns, "mean")
+        means = _resolve_channel_parameter(mean, event_time_series.columns, "mean")
         standard_deviations = _resolve_channel_parameter(
             std,
-            frame_counts.columns,
+            event_time_series.columns,
             "std",
         )
-        values = frame_counts.to_numpy(dtype=np.int64)
+        values = event_time_series.to_numpy(dtype=np.int64)
         variates = norm(loc=means, scale=standard_deviations).rvs(
-            size=frame_counts.shape, random_state=rng
+            size=event_time_series.shape, random_state=rng
         )
         variates = variates.astype(np.int64)
-        event_time_series.iloc[1:] = values + variates
+        event_time_series.iloc[:] = values + variates
         event_time_series[event_time_series < 0] = 0
 
     def add_poisson_noise(
@@ -614,8 +612,7 @@ class Emissions:
         """
         Add Poisson noise to the frame-based detector signal.
 
-        This can represent dark current noise. The leading boundary entry is not a
-        measured frame and remains unchanged. This method modifies event_time_series
+        This can represent dark current noise. This method modifies event_time_series
         but does not create photon arrival times in event_time_points.
 
         Parameters
@@ -630,12 +627,11 @@ class Emissions:
         """
         rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
-        frame_counts = event_time_series.iloc[1:]
-        rates = _resolve_channel_parameter(rate, frame_counts.columns, "rate")
-        values = frame_counts.to_numpy(dtype=np.int64)
-        variates = poisson(rates).rvs(size=frame_counts.shape, random_state=rng)
+        rates = _resolve_channel_parameter(rate, event_time_series.columns, "rate")
+        values = event_time_series.to_numpy(dtype=np.int64)
+        variates = poisson(rates).rvs(size=event_time_series.shape, random_state=rng)
         variates = variates.astype(np.int64)
-        event_time_series.iloc[1:] = values + variates
+        event_time_series.iloc[:] = values + variates
 
     def apply_threshold(self, threshold: int | Mapping[str, int]) -> None:
         """
@@ -777,7 +773,9 @@ class Emissions:
             The modified axis.
         """
         event_time_series = self.select_event_time_series(channel)
-        data = [event_time_series.index, event_time_series.to_numpy()]
+        times = np.insert(event_time_series.index.to_numpy(), 0, 0)
+        counts = np.insert(event_time_series.to_numpy(), 0, 0)
+        data = [times, counts]
         kwargs.setdefault("type_", "line")
         kwargs.setdefault("xlabel", "Time (s)")
         kwargs.setdefault("ylabel", r"$\frac{photons}{frame}$")

@@ -377,11 +377,10 @@ def test_simulate_experiment(
         assert event_time_points is None
         exp_event_time_series = pd.Series(
             np.array(
-                [0, 768, 511, 666, 249, 206, 323, 207, 468, 356, 456], dtype=np.int64
+                [768, 511, 666, 249, 206, 323, 207, 468, 356, 456], dtype=np.int64
             ),
             index=np.array(
                 [
-                    0.0,
                     0.001,
                     0.002,
                     0.003,
@@ -402,11 +401,10 @@ def test_simulate_experiment(
     else:
         exp_event_time_series = pd.Series(
             np.array(
-                [0, 705, 461, 596, 224, 189, 298, 190, 419, 325, 412], dtype=np.int64
+                [705, 461, 596, 224, 189, 298, 190, 419, 325, 412], dtype=np.int64
             ),
             index=np.array(
                 [
-                    0.0,
                     0.001,
                     0.002,
                     0.003,
@@ -423,7 +421,7 @@ def test_simulate_experiment(
         assert event_time_points is not None
         detector_time_points = event_time_points["detector"]
         assert detector_time_points.size == event_time_series.values.sum()
-        frame_indices = np.ceil(detector_time_points / 1e-3).astype(int)
+        frame_indices = np.ceil(detector_time_points / 1e-3).astype(int) - 1
         counts_from_time_points = np.bincount(
             frame_indices, minlength=event_time_series.shape[0]
         )
@@ -850,5 +848,5 @@ def test_simulate_experiment_stops_at_absorbing_state(caplog):
 
     assert event_time_points is not None
     np.testing.assert_array_equal(event_time_points["detector"], [])
-    np.testing.assert_array_equal(event_time_series["detector"], [0, 0, 0])
+    np.testing.assert_array_equal(event_time_series["detector"], [0, 0])
     assert "absorbing state" in caplog.text

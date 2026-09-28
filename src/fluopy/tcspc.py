@@ -171,8 +171,8 @@ def simulate_TCSPC(
     Returns
     -------
     event_time_series : pd.DataFrame
-        Contains the time points (increasing by a defined time interval) as index and
-        the number of detected emissions in each channel as columns.
+        Contains measured frames indexed by their end time and the number of detected
+        emissions in each channel as columns.
     event_time_points : dict[str, npt.NDArray[np.float64]] or None
         The time points at which emissions are detected, grouped by channel.
         If store_time_points is False, this will be None.
@@ -230,9 +230,9 @@ def simulate_TCSPC(
     rng = np.random.default_rng(seed)
     seconds_per_frame = float(pd.Timedelta(frame_time) / np.timedelta64(1, "s"))
     frames = number_pulses * time_between_pulses / seconds_per_frame
-    time_stamps = np.linspace(
-        0, np.ceil(frames) * seconds_per_frame, int(np.ceil(frames)) + 1
-    )
+    number_frames = int(np.ceil(frames))
+    last_frame_end = round(number_frames * seconds_per_frame, 12)
+    time_stamps = np.linspace(seconds_per_frame, last_frame_end, number_frames)
     time_stamps = np.round(time_stamps, decimals=12)
     if frames < 1:
         logger.warning(
@@ -241,7 +241,7 @@ def simulate_TCSPC(
             stacklevel=2,
         )
     logger.warning(
-        f"the last frame (of index {time_stamps[-1]}) has {frames - int(frames):.2e} "
+        f"the last frame (of index {last_frame_end}) has {frames - int(frames):.2e} "
         "times the pulses of other frames.",
         stacklevel=2,
     )
@@ -434,7 +434,7 @@ def simulate_TCSPC(
                 lifetimes_all[channel_index].append(lifetime)
                 frame = int(np.ceil(time / seconds_per_frame))
                 try:
-                    photon_collector[frame, channel_index] += 1
+                    photon_collector[frame - 1, channel_index] += 1
                     if time_points is not None:
                         time_points[channel_index].append(time)
                 except IndexError:
@@ -516,8 +516,8 @@ def simulate_TCSPC_detailed(
     Returns
     -------
     event_time_series : pd.DataFrame
-        Contains the time points (increasing by a defined time interval) as index and
-        the number of detected emissions in each channel as columns.
+        Contains measured frames indexed by their end time and the number of detected
+        emissions in each channel as columns.
     event_time_points : dict[str, npt.NDArray[np.float64]] or None
         The time points at which emissions are detected, grouped by channel.
         If store_time_points is False, this will be None.
@@ -577,9 +577,9 @@ def simulate_TCSPC_detailed(
     rng = np.random.default_rng(seed)
     seconds_per_frame = float(pd.Timedelta(frame_time) / np.timedelta64(1, "s"))
     frames = number_pulses * time_between_pulses / seconds_per_frame
-    time_stamps = np.linspace(
-        0, np.ceil(frames) * seconds_per_frame, int(np.ceil(frames)) + 1
-    )
+    number_frames = int(np.ceil(frames))
+    last_frame_end = round(number_frames * seconds_per_frame, 12)
+    time_stamps = np.linspace(seconds_per_frame, last_frame_end, number_frames)
     time_stamps = np.round(time_stamps, decimals=12)
     if frames < 1:
         logger.warning(
@@ -588,7 +588,7 @@ def simulate_TCSPC_detailed(
             stacklevel=2,
         )
     logger.warning(
-        f"the last frame (of index {time_stamps[-1]}) has {frames - int(frames):.2e} "
+        f"the last frame (of index {last_frame_end}) has {frames - int(frames):.2e} "
         "times the pulses of other frames.",
         stacklevel=2,
     )
@@ -804,7 +804,7 @@ def simulate_TCSPC_detailed(
                 lifetimes_all[channel_index].append(lifetime)
                 frame = int(np.ceil(time / seconds_per_frame))
                 try:
-                    photon_collector[frame, channel_index] += 1
+                    photon_collector[frame - 1, channel_index] += 1
                     if time_points is not None:
                         time_points[channel_index].append(time)
                 except IndexError:
@@ -1080,8 +1080,8 @@ def prepare_return_values(
     Returns
     -------
     event_time_series : pd.DataFrame
-        Contains the time points (increasing by a defined time interval) as index and
-        the number of detected emissions in each channel as columns.
+        Contains measured frames indexed by their end time and the number of detected
+        emissions in each channel as columns.
     event_time_points : dict[str, npt.NDArray[np.float64]] or None
         The time points at which emissions are detected, grouped by channel.
     lifetimes_DA : dict[str, npt.NDArray[np.float64]]
