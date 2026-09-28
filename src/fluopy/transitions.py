@@ -137,6 +137,12 @@ class PairedState:
     S1_R: ClassVar[PairedState]
     S0_R: ClassVar[PairedState]
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.donor, SingleState) or not isinstance(
+            self.acceptor, SingleState
+        ):
+            raise TypeError("donor and acceptor must both be SingleState objects.")
+
     @property
     def value(self) -> tuple[SingleState, SingleState]:
         """
@@ -257,6 +263,20 @@ class TransitionType:
     CIS_S0_TRANSITIONS: ClassVar[TransitionType]
     T1_S0_TRANSITIONS: ClassVar[TransitionType]
     OFF_S0_TRANSITIONS: ClassVar[TransitionType]
+
+    def __post_init__(self) -> None:
+        states = (self.initial_state, self.final_state)
+        if not all(isinstance(state, SingleState | PairedState) for state in states):
+            raise TypeError(
+                "initial_state and final_state must be SingleState or PairedState."
+            )
+        if isinstance(self.initial_state, SingleState) != isinstance(
+            self.final_state, SingleState
+        ):
+            raise TypeError(
+                "initial_state and final_state must both be SingleState or both be "
+                "PairedState."
+            )
 
 
 # general
@@ -466,6 +486,8 @@ class Transition:
         object.__setattr__(self, name, value)
 
     def __post_init__(self) -> None:
+        if not isinstance(self.transition_type, TransitionType):
+            raise TypeError("transition_type must be a TransitionType object.")
         if not isinstance(self.rate, Real):
             raise ValueError("rate must be a finite, non-negative scalar.")
 
@@ -475,13 +497,19 @@ class Transition:
 
         self.rate = rate
         object.__setattr__(self, "fluorophore_ids", tuple(self.fluorophore_ids))
+        if not self.fluorophore_ids:
+            raise ValueError("fluorophore_ids must not be empty.")
         self.abbreviation = self.transition_type.abbreviation
         self.initial_state = self.transition_type.initial_state
         self.final_state = self.transition_type.final_state
         self.photon = self.transition_type.photon
         for fluorophore_id in self.fluorophore_ids:
             if isinstance(self.initial_state, PairedState):
-                if not isinstance(fluorophore_id, tuple) or len(fluorophore_id) != 2:
+                if (
+                    not isinstance(fluorophore_id, tuple)
+                    or len(fluorophore_id) != 2
+                    or not all(isinstance(value, int) for value in fluorophore_id)
+                ):
                     raise ValueError(
                         f"{self.abbreviation} is energy transfer, "
                         "fluorophore_ids has to be a sequence of fluorophore "
@@ -493,6 +521,8 @@ class Transition:
                         f"{self.abbreviation} is not an energy transfer, "
                         "fluorophore_ids has to be a sequence of ints."
                     )
+        if len(set(self.fluorophore_ids)) != len(self.fluorophore_ids):
+            raise ValueError("fluorophore_ids must not contain duplicates.")
 
     def to_dict(self) -> dict[str, object]:
         """
@@ -699,6 +729,19 @@ class TransitionSet:
                         )
                     d, a, dist = energy_transfer
                     for d_t, a_t in transition.get_fluorophore_pairs():
+                        if not 0 <= d_t < self.fluorophore_system.count:
+                            raise ValueError(
+                                f"fluorophore identity {d_t} is outside the system."
+                            )
+                        if not 0 <= a_t < self.fluorophore_system.count:
+                            raise ValueError(
+                                f"fluorophore identity {a_t} is outside the system."
+                            )
+                        if d_t == a_t:
+                            raise ValueError(
+                                "paired transitions require two distinct fluorophore "
+                                "identities."
+                            )
                         if self.fluorophore_system.fluorophores[d_t].name != d:
                             raise ValueError(
                                 f"{d} indicated to be at identity {d_t}, "
@@ -718,6 +761,11 @@ class TransitionSet:
                             )
                 else:
                     for fluorophore_id in transition.get_single_fluorophore_ids():
+                        if not 0 <= fluorophore_id < self.fluorophore_system.count:
+                            raise ValueError(
+                                f"fluorophore identity {fluorophore_id} is outside "
+                                "the system."
+                            )
                         if (
                             self.fluorophore_system.fluorophores[fluorophore_id].name
                             != fluorophore_comb
@@ -992,12 +1040,9 @@ class TransitionSet:
             single_states=self.single_states,
             fluorophores=self.fluorophore_system.fluorophores,
         )
-        combined_state_transitions = get_combined_state_transitions(
-            state_combinations=state_combinations
-        )
-        combined_state_transitions_with_rates = construct_transition_rate_list(
+        combined_state_transitions_with_rates = construct_transition_rate_list_direct(
             transition_df=self.transition_df,
-            combined_state_transitions=combined_state_transitions,
+            state_combinations=state_combinations,
         )
 
         self._combined_state_transitions_df = pd.DataFrame(
@@ -1428,6 +1473,106 @@ def construct_transition_rate_list(
                 transition_rate_list=transition_rate_list,
                 combined_state_transitions=combined_state_transitions,
             )
+
+    return transition_rate_list
+
+
+def construct_transition_rate_list_direct(
+    transition_df: pd.DataFrame,
+    state_combinations: Collection[StateCombination],
+) -> list[TransitionRateRecord]:
+    """
+    Construct realizable combined-state transitions directly.
+
+    Parameters
+    ----------
+    transition_df
+        Dataframe of all given transitions with non-zero rate containing their id as
+        second level index and their other attributes as columns. Name of fluorophores
+        as first level index.
+    state_combinations
+        Contains the possible combined states in their desired output order.
+
+    Returns
+    -------
+    list[TransitionRateRecord]
+        Contains lists of each realizable combined-state transition.
+    """
+    state_order = {
+        state_combination: order
+        for order, state_combination in enumerate(state_combinations)
+    }
+    transition_rate_list: list[TransitionRateRecord] = []
+
+    for index, transition in transition_df.iterrows():
+        if not isinstance(index, tuple) or len(index) != 2:
+            raise TypeError("transition DataFrame must have a two-level index.")
+
+        identity = index[1]
+        if not isinstance(identity, int):
+            raise TypeError("transition identity must be an integer.")
+
+        ordered_records: list[tuple[int, int, TransitionRateRecord]] = []
+        initial_state = transition["initial_state"]
+        final_state = transition["final_state"]
+
+        if isinstance(initial_state, SingleState):
+            source = initial_state.value
+            destination = final_state.value
+            for current_order, current_state in enumerate(state_combinations):
+                for fluorophore_id in transition["fluorophore_ids"]:
+                    if current_state[fluorophore_id] != source:
+                        continue
+
+                    future_state_values = list(current_state)
+                    future_state_values[fluorophore_id] = destination
+                    future_state = tuple(future_state_values)
+                    future_order = state_order.get(future_state)
+                    if future_order is None:
+                        continue
+
+                    record: TransitionRateRecord = [
+                        current_state,
+                        future_state,
+                        [fluorophore_id],
+                        transition["abbreviation"],
+                        identity,
+                        transition["rate"],
+                        transition["photon"],
+                    ]
+                    ordered_records.append((current_order, future_order, record))
+        else:
+            source_donor, source_acceptor = initial_state.single_state_values
+            destination_donor, destination_acceptor = final_state.single_state_values
+            for current_order, current_state in enumerate(state_combinations):
+                for donor, acceptor in transition["fluorophore_ids"]:
+                    if (
+                        current_state[donor] != source_donor
+                        or current_state[acceptor] != source_acceptor
+                    ):
+                        continue
+
+                    future_state_values = list(current_state)
+                    future_state_values[donor] = destination_donor
+                    future_state_values[acceptor] = destination_acceptor
+                    future_state = tuple(future_state_values)
+                    future_order = state_order.get(future_state)
+                    if future_order is None:
+                        continue
+
+                    record = [
+                        current_state,
+                        future_state,
+                        [donor, acceptor],
+                        transition["abbreviation"],
+                        identity,
+                        transition["rate"],
+                        transition["photon"],
+                    ]
+                    ordered_records.append((current_order, future_order, record))
+
+        ordered_records.sort(key=lambda item: (item[0], item[1]))
+        transition_rate_list.extend(record for _, _, record in ordered_records)
 
     return transition_rate_list
 

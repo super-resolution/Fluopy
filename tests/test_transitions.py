@@ -62,6 +62,11 @@ def test_custom_paired_state():
     assert paired_state not in tr.BUILTIN_PAIRED_STATES
 
 
+def test_paired_state_requires_single_states():
+    with pytest.raises(TypeError, match="must both be SingleState"):
+        tr.PairedState("invalid", tr.SingleState.S0, "invalid")
+
+
 def test_transitiontype():
     transition_type = tr.TransitionType.EXCITATION
 
@@ -94,6 +99,29 @@ def test_custom_transitiontype():
     assert transition.final_state is tr.SingleState.S0
     assert transition.photon is False
     assert recovery not in tr.BUILTIN_TRANSITION_TYPES
+
+
+def test_transition_type_allows_self_transition():
+    self_transition = tr.TransitionType(
+        abbreviation="SELF",
+        initial_state=tr.SingleState.S0,
+        final_state=tr.SingleState.S0,
+        photon=False,
+    )
+
+    assert self_transition.initial_state is self_transition.final_state
+
+
+@pytest.mark.parametrize(
+    "initial_state, final_state",
+    [
+        (tr.SingleState.S0, tr.PairedState.S0_S1),
+        (tr.PairedState.S1_S0, tr.SingleState.S0),
+    ],
+)
+def test_transition_type_requires_matching_state_types(initial_state, final_state):
+    with pytest.raises(TypeError, match="must both be SingleState or both be"):
+        tr.TransitionType("invalid", initial_state, final_state, False)
 
 
 @pytest.mark.parametrize(
@@ -214,6 +242,27 @@ def test_transition_copies_fluorophore_ids():
     fluorophore_ids.append(1)
 
     assert transition.fluorophore_ids == (0,)
+
+
+@pytest.mark.parametrize(
+    "transition_type, fluorophore_ids, message",
+    [
+        (tr.TransitionType.EXCITATION, [], "must not be empty"),
+        (tr.TransitionType.EXCITATION, [0, 0], "must not contain duplicates"),
+        (tr.TransitionType.FRET, [(0, 1), (0, 1)], "must not contain duplicates"),
+        (tr.TransitionType.FRET, [(0, "1")], "identity pairs"),
+    ],
+)
+def test_transition_rejects_invalid_fluorophore_ids(
+    transition_type, fluorophore_ids, message
+):
+    with pytest.raises(ValueError, match=message):
+        tr.Transition(transition_type, rate=1, fluorophore_ids=fluorophore_ids)
+
+
+def test_transition_requires_transition_type():
+    with pytest.raises(TypeError, match="must be a TransitionType"):
+        tr.Transition("invalid", rate=1, fluorophore_ids=[0])
 
 
 class TestTransitionSet:
@@ -792,6 +841,66 @@ def test_transition_set_accepts_custom_state(flu_sys_cy5):
     assert transition_set.combined_state_transitions_df.loc[0, "final_state"] == (0,)
 
 
+def test_transition_set_allows_self_transition(flu_sys_cy5):
+    self_transition = tr.TransitionType(
+        "SELF", tr.SingleState.S0, tr.SingleState.S0, False
+    )
+    transition_set = tr.TransitionSet(
+        {"testfluo_1": [tr.Transition(self_transition, rate=1, fluorophore_ids=[0])]},
+        flu_sys_cy5,
+    )
+
+    combined_transition = transition_set.combined_state_transitions_df.iloc[0]
+    assert combined_transition["initial_state"] == (tr.SingleState.S0.value,)
+    assert combined_transition["final_state"] == (tr.SingleState.S0.value,)
+
+
+@pytest.mark.parametrize("fluorophore_id", [-1, 1])
+def test_transition_set_rejects_out_of_bounds_identity(flu_sys_cy5, fluorophore_id):
+    transition = tr.Transition(
+        tr.TransitionType.EXCITATION,
+        rate=1,
+        fluorophore_ids=[fluorophore_id],
+    )
+
+    with pytest.raises(ValueError, match=f"identity {fluorophore_id} is outside"):
+        tr.TransitionSet({"testfluo_1": [transition]}, flu_sys_cy5)
+
+
+def test_transition_set_rejects_same_identity_pair(flu_sys_cy5):
+    transition = tr.Transition(
+        tr.TransitionType.S_S_ANNIHILATION,
+        rate=1,
+        fluorophore_ids=[(0, 0)],
+    )
+
+    with pytest.raises(ValueError, match="two distinct fluorophore identities"):
+        tr.TransitionSet(
+            {"D: testfluo_1, A: testfluo_1, dist: 0.0": [transition]},
+            flu_sys_cy5,
+        )
+
+
+def test_transition_set_allows_equal_states_for_distinct_identities(flu_sys_2xcy5):
+    transition = tr.Transition(
+        tr.TransitionType.S_S_ANNIHILATION,
+        rate=1,
+        fluorophore_ids=[(0, 1)],
+    )
+    distance = flu_sys_2xcy5.distances[(0, 1)]
+    transition_set = tr.TransitionSet(
+        {f"D: testfluo_1, A: testfluo_1, dist: {distance}": [transition]},
+        flu_sys_2xcy5,
+    )
+
+    combined_transition = transition_set.combined_state_transitions_df.iloc[0]
+    assert combined_transition["initial_state"] == (
+        tr.SingleState.S1.value,
+        tr.SingleState.S1.value,
+    )
+    assert combined_transition["fluorophore_ids"] == [0, 1]
+
+
 def test_transition_set_accepts_paired_only_states(flu_sys_unk_cy5):
     donor_dark = tr.SingleState(name="DONOR_DARK", value=10)
     acceptor_dark = tr.SingleState(name="ACCEPTOR_DARK", value=11)
@@ -1083,6 +1192,25 @@ def test_construct_transition_rate_list():
         [(0, 1, 5), (1, 0, 5), [1, 0], "FRET", 1, 1, False],
     ]
     assert transition_rate_list == expected
+
+
+def test_direct_transition_rate_list_matches_cartesian_product(tr_set_bl_et_3f):
+    state_combinations = tr.get_state_combinations(
+        single_states=tr_set_bl_et_3f.single_states,
+        fluorophores=tr_set_bl_et_3f.fluorophore_system.fluorophores,
+    )
+    combined_state_transitions = tr.get_combined_state_transitions(state_combinations)
+
+    expected = tr.construct_transition_rate_list(
+        transition_df=tr_set_bl_et_3f.transition_df,
+        combined_state_transitions=combined_state_transitions,
+    )
+    actual = tr.construct_transition_rate_list_direct(
+        transition_df=tr_set_bl_et_3f.transition_df,
+        state_combinations=state_combinations,
+    )
+
+    assert actual == expected
 
 
 def test_construct_transition_matrix():
