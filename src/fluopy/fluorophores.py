@@ -5,8 +5,9 @@ Define and work with fluorophores.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
@@ -29,16 +30,13 @@ __all__: list[str] = ["Fluorophore", "FluorophoreSystem"]
 logger = logging.getLogger(__name__)
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True, eq=False, slots=True)
 class Fluorophore:
     """
     Contains attributes of a fluorophore.
 
     Attributes
     ----------
-    identity
-        The id of the fluorophore. Not None if fluorophore is part of a
-        FluorophoreSystem.
     name
         Name of the fluorophore.
     position
@@ -48,7 +46,6 @@ class Fluorophore:
         if available in fluopy.fluo_data.
     """
 
-    identity: int | None = field(init=False, default=None)
     name: str = field()
     position: npt.NDArray[np.float64] = field()
     constants: fd.FluorophoreData | None = None
@@ -63,14 +60,14 @@ class Fluorophore:
         if not np.all(np.isfinite(position)):
             raise ValueError("fluorophore position must be finite.")
 
-        position.setflags(write=False)
-        self.position = position
+        position = np.frombuffer(position.tobytes(), dtype=position.dtype)
+        object.__setattr__(self, "position", position)
 
         if self.constants is None:
             if self.name in dir(fd) and isinstance(
                 getattr(fd, self.name), fd.FluorophoreData
             ):
-                self.constants = getattr(fd, self.name)
+                object.__setattr__(self, "constants", getattr(fd, self.name))
             else:
                 logger.warning(
                     f"There is no FluorophoreData for Fluorophore {self.name} in fluopy.fluo_data. "
@@ -78,24 +75,8 @@ class Fluorophore:
                     stacklevel=2,
                 )
 
-    def get_identity(self) -> int:
-        """
-        Return the identity assigned by the containing FluorophoreSystem.
 
-        Returns
-        -------
-        int
-            Fluorophore identity.
-        """
-        if self.identity is None:
-            raise RuntimeError(
-                "fluorophore identity is only available after adding it "
-                "to a FluorophoreSystem."
-            )
-        return self.identity
-
-
-@dataclass
+@dataclass(frozen=True, slots=True)
 class FluorophoreSystem:
     """
     Container for attributes of multiple, interrelated fluorophores.
@@ -115,11 +96,11 @@ class FluorophoreSystem:
 
     fluorophores: Sequence[Fluorophore] = field()
     multi_type: bool = field(init=False)
-    distances: dict[tuple[int, int], np.float64] = field(init=False)
+    _distances: dict[tuple[int, int], np.float64] = field(init=False, repr=False)
     count: int = field(init=False)
 
     def __post_init__(self) -> None:
-        self.fluorophores = tuple(self.fluorophores)
+        object.__setattr__(self, "fluorophores", tuple(self.fluorophores))
         if not self.fluorophores:
             raise ValueError(
                 "a fluorophore system must contain at least one fluorophore."
@@ -146,8 +127,6 @@ class FluorophoreSystem:
             else:
                 constants_by_name[fluorophore.name] = fluorophore.constants
 
-        for i, fluorophore in enumerate(self.fluorophores):
-            fluorophore.identity = i
         if all(
             fluorophore.name == self.fluorophores[0].name
             for fluorophore in self.fluorophores
@@ -157,7 +136,7 @@ class FluorophoreSystem:
             object.__setattr__(self, "multi_type", True)
         object.__setattr__(
             self,
-            "distances",
+            "_distances",
             get_distances(positions=[fluo.position for fluo in self.fluorophores]),
         )
         if 0 in self.distances.values():
@@ -166,6 +145,53 @@ class FluorophoreSystem:
                 "distance resolution. Also check for duplicates."
             )
         object.__setattr__(self, "count", len(self.fluorophores))
+
+    @property
+    def distances(self) -> Mapping[tuple[int, int], np.float64]:
+        """Distances between fluorophores, indexed by their system-local identities."""
+        return MappingProxyType(self._distances)
+
+    def get_identity(self, fluorophore: Fluorophore) -> int:
+        """
+        Return the system-local identity of a fluorophore.
+
+        Parameters
+        ----------
+        fluorophore
+            Fluorophore contained in this system.
+
+        Returns
+        -------
+        int
+            Position of fluorophore in fluorophores.
+        """
+        for fluorophore_id, system_fluorophore in enumerate(self.fluorophores):
+            if system_fluorophore is fluorophore:
+                return fluorophore_id
+        raise ValueError("fluorophore is not part of this system.")
+
+    def get_identities(self, name: str) -> tuple[int, ...]:
+        """
+        Return the system-local identities of fluorophores with a given name.
+
+        Parameters
+        ----------
+        name
+            Fluorophore name contained in this system.
+
+        Returns
+        -------
+        tuple[int, ...]
+            Positions of matching fluorophores in fluorophores.
+        """
+        identities = tuple(
+            fluorophore_id
+            for fluorophore_id, fluorophore in enumerate(self.fluorophores)
+            if fluorophore.name == name
+        )
+        if not identities:
+            raise ValueError(f"fluorophore name {name} is not part of this system.")
+        return identities
 
     def load_transitions(
         self,
@@ -306,12 +332,14 @@ class FluorophoreSystem:
         dstorm_parameters.setdefault("concentration", 143)
         dstorm_parameters.setdefault("ph", 7.5)
 
-        for fluorophore in self.fluorophores:
-            fluorophore_ids: list[int] = [
-                f.get_identity()
-                for f in self.fluorophores
-                if f.name == fluorophore.name
-            ]
+        fluorophore_ids_by_name: dict[str, list[int]] = {}
+        for fluorophore_id, fluorophore in enumerate(self.fluorophores):
+            fluorophore_ids_by_name.setdefault(fluorophore.name, []).append(
+                fluorophore_id
+            )
+
+        for donor_id, fluorophore in enumerate(self.fluorophores):
+            fluorophore_ids = fluorophore_ids_by_name[fluorophore.name]
             donor_data = fluorophore.constants
             if donor_data is None:
                 if fluorophore.name not in warned_names:
@@ -336,7 +364,9 @@ class FluorophoreSystem:
                     )
                 if energy_transfer:
                     donor_fluorophore = fluorophore
-                    for acceptor_fluorophore in self.fluorophores:
+                    for acceptor_id, acceptor_fluorophore in enumerate(
+                        self.fluorophores
+                    ):
                         if acceptor_fluorophore.constants is None:
                             if acceptor_fluorophore.name not in warned_names:
                                 warned_names.add(acceptor_fluorophore.name)
@@ -346,10 +376,7 @@ class FluorophoreSystem:
                                     stacklevel=2,
                                 )
                             continue
-                        pair = (
-                            donor_fluorophore.get_identity(),
-                            acceptor_fluorophore.get_identity(),
-                        )
+                        pair = (donor_id, acceptor_id)
                         if pair in self.distances:
                             distance = self.distances[pair]
                             energy_transfer_ids = et_pairs[
@@ -390,7 +417,7 @@ class FluorophoreSystem:
         labels: list[str] = []
         for i, fluorophore in enumerate(self.fluorophores):
             positions[:, i] = fluorophore.position
-            labels.append(fluorophore.name + f" ({fluorophore.identity})")
+            labels.append(fluorophore.name + f" ({i})")
         kwargs.setdefault("type_", "scatter")
         kwargs.setdefault("xlabel", "x [nm]")
         kwargs.setdefault("ylabel", "y [nm]")

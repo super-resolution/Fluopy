@@ -446,7 +446,7 @@ class Transition:
     photon
         Whether the transition emits a photon.
     fluorophore_ids
-        Contains the identities of relevant fluorophores.
+        Immutable sequence containing the identities of relevant fluorophores.
         If energy transfer, tuples of fluorophore pairs, where the first is the donor
         and the second is the acceptor.
     """
@@ -458,7 +458,12 @@ class Transition:
     final_state: SingleState | PairedState = field(init=False)
     rate: float = field()
     photon: bool = field(init=False)
-    fluorophore_ids: list[int] | list[tuple[int, int]] = field()
+    fluorophore_ids: Sequence[int] | Sequence[tuple[int, int]] = field()
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if name == "fluorophore_ids" and hasattr(self, "fluorophore_ids"):
+            raise AttributeError("fluorophore_ids is read-only.")
+        object.__setattr__(self, name, value)
 
     def __post_init__(self) -> None:
         if not isinstance(self.rate, Real):
@@ -469,6 +474,7 @@ class Transition:
             raise ValueError("rate must be a finite, non-negative scalar.")
 
         self.rate = rate
+        object.__setattr__(self, "fluorophore_ids", tuple(self.fluorophore_ids))
         self.abbreviation = self.transition_type.abbreviation
         self.initial_state = self.transition_type.initial_state
         self.final_state = self.transition_type.final_state
@@ -478,14 +484,14 @@ class Transition:
                 if not isinstance(fluorophore_id, tuple) or len(fluorophore_id) != 2:
                     raise ValueError(
                         f"{self.abbreviation} is energy transfer, "
-                        "fluorophore_ids have to be tuples of fluorophore "
-                        "pairs."
+                        "fluorophore_ids has to be a sequence of fluorophore "
+                        "identity pairs."
                     )
             else:
                 if not isinstance(fluorophore_id, int):
                     raise ValueError(
                         f"{self.abbreviation} is not an energy transfer, "
-                        "fluorophore_ids has to be a list of ints."
+                        "fluorophore_ids has to be a sequence of ints."
                     )
 
     def to_dict(self) -> dict[str, object]:

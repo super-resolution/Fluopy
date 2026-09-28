@@ -109,8 +109,10 @@ def test_transition(transition_type, fluorophore_ids, expected):
     if expected == "ValueError1":
         with pytest.raises(
             ValueError,
-            match="EXC is not an energy transfer, fluorophore_ids has to be a list of "
-            "ints.",
+            match=(
+                "EXC is not an energy transfer, fluorophore_ids has to be a sequence "
+                "of ints."
+            ),
         ):
             transition = tr.Transition(
                 transition_type=transition_type, rate=1, fluorophore_ids=fluorophore_ids
@@ -118,8 +120,10 @@ def test_transition(transition_type, fluorophore_ids, expected):
     elif expected == "ValueError2":
         with pytest.raises(
             ValueError,
-            match="FRET is energy transfer, fluorophore_ids have to be tuples of "
-            "fluorophore pairs.",
+            match=(
+                "FRET is energy transfer, fluorophore_ids has to be a sequence of "
+                "fluorophore identity pairs."
+            ),
         ):
             transition = tr.Transition(
                 transition_type=transition_type, rate=1, fluorophore_ids=fluorophore_ids
@@ -135,7 +139,7 @@ def test_transition(transition_type, fluorophore_ids, expected):
         assert transition.final_state == transition_type.final_state
         assert transition.rate == 1
         assert transition.photon == transition_type.photon
-        assert transition.fluorophore_ids == fluorophore_ids
+        assert transition.fluorophore_ids == tuple(fluorophore_ids)
 
 
 @pytest.mark.parametrize("rate", [-1, np.nan, np.inf, -np.inf, [1], np.array([1])])
@@ -188,24 +192,28 @@ def test_transition_identity_requires_transition_set():
         transition.get_identity()
 
 
-def test_transition_identity_accessors_reject_wrong_id_container():
+def test_transition_fluorophore_ids_are_read_only():
     transition = tr.Transition(
         transition_type=tr.TransitionType.EXCITATION,
         rate=1,
         fluorophore_ids=[0],
     )
-    transition.fluorophore_ids = [(0, 1)]
-    with pytest.raises(RuntimeError, match="must contain integer"):
-        transition.get_single_fluorophore_ids()
 
-    transfer = tr.Transition(
-        transition_type=tr.TransitionType.FRET,
+    with pytest.raises(AttributeError, match="read-only"):
+        transition.fluorophore_ids = (1,)
+
+
+def test_transition_copies_fluorophore_ids():
+    fluorophore_ids = [0]
+    transition = tr.Transition(
+        transition_type=tr.TransitionType.EXCITATION,
         rate=1,
-        fluorophore_ids=[(0, 1)],
+        fluorophore_ids=fluorophore_ids,
     )
-    transfer.fluorophore_ids = [0]
-    with pytest.raises(RuntimeError, match="must contain fluorophore identity pairs"):
-        transfer.get_fluorophore_pairs()
+
+    fluorophore_ids.append(1)
+
+    assert transition.fluorophore_ids == (0,)
 
 
 class TestTransitionSet:
