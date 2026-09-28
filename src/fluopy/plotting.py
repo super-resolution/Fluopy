@@ -232,6 +232,21 @@ def _flatten_state_values(
     transition_set: TransitionSet,
     values_by_fluorophore: dict[str, npt.NDArray[np.float64]],
 ) -> npt.NDArray[np.float64]:
+    """
+    Merge state values in the fluorophore order of a transition set.
+
+    Parameters
+    ----------
+    transition_set
+        Collection of all relevant transitions and related attributes.
+    values_by_fluorophore
+        State values grouped by fluorophore name.
+
+    Returns
+    -------
+    npt.NDArray[np.float64]
+        Merged state values.
+    """
     return np.concatenate(
         [
             values_by_fluorophore[fluorophore]
@@ -248,6 +263,31 @@ def _plot_transition_bars(
     legend_labels: Sequence[str] | None = None,
     **kwargs: Any,
 ) -> Axes:
+    """
+    Plot values associated with transitions as bars.
+
+    Parameters
+    ----------
+    transition_df
+        Dataframe of transitions with transition-group labels and transition identities
+        as its index.
+    values
+        Values ordered by transition identity.
+    default_ylabel
+        Y-axis label used unless ylabel is supplied in kwargs.
+    draw_marker
+        Marker coordinates to draw over the bars.
+    legend_labels
+        Transition-group labels to display in the legend. By default, the labels from
+        transition_df are used.
+    kwargs
+        kwargs for fluopy.plotting.plot_data.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        The modified axis.
+    """
     data = [np.arange(transition_df.shape[0]), values]
     kwargs.setdefault("type_", "bar")
     kwargs.setdefault("xlabel", None)
@@ -298,6 +338,29 @@ def _plot_state_bars(
     full_xlim: bool = False,
     **kwargs: Any,
 ) -> Axes:
+    """
+    Plot values associated with fluorophore states as bars.
+
+    Parameters
+    ----------
+    transition_set
+        Collection of all relevant transitions and related attributes.
+    values
+        State values ordered by fluorophore and state identity.
+    default_ylabel
+        Y-axis label used unless ylabel is supplied in kwargs.
+    draw_marker
+        Marker coordinates to draw over the bars.
+    full_xlim
+        Whether to extend the x-axis limits beyond the first and last bars.
+    kwargs
+        kwargs for fluopy.plotting.plot_data.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        The modified axis.
+    """
     single_states = transition_set.single_states
     colormap = mpl.colors.ListedColormap(
         [
