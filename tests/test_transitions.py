@@ -78,7 +78,28 @@ def test_transitiontype():
     assert transition_type in tr.BUILTIN_TRANSITION_TYPES
     assert len(tr.BUILTIN_TRANSITION_TYPES) == 34
 
-    assert tr.TransitionType.FRET.mechanism == "FRET"
+    assert tr.TransitionType.FRET.mechanism == tr.TransitionMechanism.FRET
+
+
+@pytest.mark.parametrize(
+    "mechanism, expected",
+    [
+        (tr.TransitionMechanism.FRET, "FRET"),
+        (" fret ", "FRET"),
+        ("radiative reabsorption", "RADIATIVE_REABSORPTION"),
+        ("custom-mechanism", "CUSTOM_MECHANISM"),
+    ],
+)
+def test_paired_transition_type_normalizes_mechanism(mechanism, expected):
+    transition_type = tr.TransitionType(
+        "PAIR",
+        tr.PairedState.S1_S0,
+        tr.PairedState.S0_S1,
+        False,
+        mechanism,
+    )
+
+    assert transition_type.mechanism == expected
 
 
 def test_custom_transitiontype():
@@ -122,6 +143,15 @@ def test_paired_transition_type_requires_mechanism():
             tr.PairedState.S1_S0,
             tr.PairedState.S0_S1,
             False,
+        )
+
+    with pytest.raises(ValueError, match="must specify a non-empty mechanism"):
+        tr.TransitionType(
+            "PAIR",
+            tr.PairedState.S1_S0,
+            tr.PairedState.S0_S1,
+            False,
+            "   ",
         )
 
 
@@ -1085,7 +1115,7 @@ def test_transition_set_accepts_paired_only_states(flu_sys_unk_cy5):
     combined_transition = transition_set.combined_state_transitions_df.iloc[0]
     assert combined_transition["initial_state"] == (1, 0)
     assert combined_transition["final_state"] == (10, 11)
-    assert combined_transition["mechanism"] == "custom"
+    assert combined_transition["mechanism"] == "CUSTOM"
     assert transition_set.transition_df["absorbing"].all()
     assert transition_set.transition_df["absorbing_fluorophore_ids"].iloc[0] == (0, 1)
     np.testing.assert_array_equal(transition_set.absorbing_states[0], [10])

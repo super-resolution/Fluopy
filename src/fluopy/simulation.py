@@ -22,6 +22,7 @@ from .kappa_squared import (
     random_unit_vector,
     sample_kappa_squared_distribution,
 )
+from .transitions import TransitionMechanism
 
 if TYPE_CHECKING:
     from .fluopy_types import RandomGeneratorSeed
@@ -713,9 +714,9 @@ def first_reaction_method(
     time_step_series[0] = 0
 
     if "mechanism" in combined_state_transitions_df:
-        mask = (combined_state_transitions_df["mechanism"] == "FRET") & (
-            combined_state_transitions_df["rate"] > minimum_rate
-        )
+        mask = (
+            combined_state_transitions_df["mechanism"] == TransitionMechanism.FRET
+        ) & (combined_state_transitions_df["rate"] > minimum_rate)
         fret_indices = combined_state_transitions_df.index[mask]
     else:
         fret_indices = combined_state_transitions_df.index[:0]

@@ -9,6 +9,7 @@ import pytest
 
 from fluopy import prediction as pr
 from fluopy import simulation as si
+from fluopy import transitions as tr
 
 
 class TestSimulation:
@@ -254,7 +255,11 @@ def test_first_reaction_method_applies_kappa_squared_only_to_fret(monkeypatch):
     transitions = pd.DataFrame(
         {
             "rate": [0.0, 1.0, 1.0],
-            "mechanism": [None, "FRET", "PET"],
+            "mechanism": [
+                None,
+                tr.TransitionMechanism.FRET,
+                tr.TransitionMechanism.PET,
+            ],
         }
     )
     monkeypatch.setattr(

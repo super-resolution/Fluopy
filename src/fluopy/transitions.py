@@ -8,6 +8,7 @@ import copy
 import logging
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, fields
+from enum import StrEnum
 from itertools import product
 from numbers import Real
 from types import MappingProxyType
@@ -33,6 +34,7 @@ __all__: list[str] = [
     "BUILTIN_SINGLE_STATES",
     "PairedState",
     "BUILTIN_PAIRED_STATES",
+    "TransitionMechanism",
     "TransitionType",
     "BUILTIN_TRANSITION_TYPES",
     "Transition",
@@ -204,6 +206,19 @@ BUILTIN_PAIRED_STATES = (
 )
 
 
+class TransitionMechanism(StrEnum):
+    """
+    Contains canonical names of common paired-transition mechanisms.
+
+    Custom mechanisms can still be specified directly as strings.
+    """
+
+    FRET = "FRET"
+    PET = "PET"
+    DEXTER = "DEXTER"
+    RADIATIVE_REABSORPTION = "RADIATIVE_REABSORPTION"
+
+
 @dataclass(frozen=True, slots=True)
 class TransitionType:
     """
@@ -225,7 +240,9 @@ class TransitionType:
         Whether the transition emits a photon.
     mechanism
         Non-empty name of the interaction or rate mechanism for a paired transition.
-        Single-state transitions use None.
+        Names are stripped, converted to uppercase, and use underscores between words.
+        Common names are available from TransitionMechanism. Single-state transitions
+        use None.
     """
 
     abbreviation: str
@@ -288,10 +305,18 @@ class TransitionType:
                 "PairedState."
             )
         if isinstance(self.initial_state, PairedState):
-            if not isinstance(self.mechanism, str) or not self.mechanism:
+            if not isinstance(self.mechanism, str):
                 raise ValueError(
                     "a paired transition type must specify a non-empty mechanism."
                 )
+            mechanism = "_".join(
+                self.mechanism.strip().replace("-", " ").upper().split()
+            )
+            if not mechanism:
+                raise ValueError(
+                    "a paired transition type must specify a non-empty mechanism."
+                )
+            object.__setattr__(self, "mechanism", mechanism)
         elif self.mechanism is not None:
             raise ValueError("a single-state transition type must use mechanism=None.")
 
@@ -360,53 +385,81 @@ TransitionType.THERM_BISO = TransitionType(
 
 # paired transitions
 TransitionType.FRET = TransitionType(
-    "FRET", PairedState.S1_S0, PairedState.S0_S1, False, mechanism="FRET"
+    "FRET",
+    PairedState.S1_S0,
+    PairedState.S0_S1,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.CIS_FRET_1 = TransitionType(
-    "CET_1", PairedState.S1_Cis, PairedState.S0_Cis, False, mechanism="FRET"
+    "CET_1",
+    PairedState.S1_Cis,
+    PairedState.S0_Cis,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.CIS_FRET_2 = TransitionType(
-    "CET_2", PairedState.S1_Cis, PairedState.S0_S0, False, mechanism="FRET"
+    "CET_2",
+    PairedState.S1_Cis,
+    PairedState.S0_S0,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.OFF_FRET_1 = TransitionType(
-    "OET_1", PairedState.S1_OFF, PairedState.S0_OFF, False, mechanism="FRET"
+    "OET_1",
+    PairedState.S1_OFF,
+    PairedState.S0_OFF,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.OFF_FRET_2 = TransitionType(
-    "OET_2", PairedState.S1_OFF, PairedState.S0_S0, False, mechanism="FRET"
+    "OET_2",
+    PairedState.S1_OFF,
+    PairedState.S0_S0,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.S_S_ANNIHILATION = TransitionType(
     "SSA",
     PairedState.S1_S1,
     PairedState.S0_S1,
     False,
-    mechanism="FRET",
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.S_T_ANNIHILATION = TransitionType(
     "STA",
     PairedState.S1_T1,
     PairedState.S0_T1,
     False,
-    mechanism="FRET",
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.S_T_ANNI_RISC = TransitionType(
     "STA_2",
     PairedState.S1_T1,
     PairedState.S0_S1,
     False,
-    mechanism="FRET",
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.S_T_ANNI_BLEACH = TransitionType(
     "STA_B",
     PairedState.S1_T1,
     PairedState.S0_B,
     False,
-    mechanism="FRET",
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.R_FRET_1 = TransitionType(
-    "RET_1", PairedState.S1_R, PairedState.S0_R, False, mechanism="FRET"
+    "RET_1",
+    PairedState.S1_R,
+    PairedState.S0_R,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.R_FRET_2 = TransitionType(
-    "RET_2", PairedState.S1_R, PairedState.S0_S0, False, mechanism="FRET"
+    "RET_2",
+    PairedState.S1_R,
+    PairedState.S0_S0,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 
 # rhodamines
