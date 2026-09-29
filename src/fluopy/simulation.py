@@ -653,7 +653,7 @@ def first_reaction_method(
         other attributes as columns.
     include_kap_sq
         If True, the dipole orientation factor kappa_squared is sampled from the static
-        regime and used to scale the FRET transition rates.
+        regime and used to scale rates whose transition mechanism is FRET.
     minimum_rate
         Minimum rate for a FRET transition to be considered following the static regime.
     start_index
@@ -712,12 +712,15 @@ def first_reaction_method(
 
     time_step_series[0] = 0
 
-    mask = (combined_state_transitions_df["fluorophore_ids"].apply(len) > 1) & (
-        combined_state_transitions_df["rate"] > minimum_rate
-    )
-    fret_indices = combined_state_transitions_df.index[mask]
+    if "mechanism" in combined_state_transitions_df:
+        mask = (combined_state_transitions_df["mechanism"] == "FRET") & (
+            combined_state_transitions_df["rate"] > minimum_rate
+        )
+        fret_indices = combined_state_transitions_df.index[mask]
+    else:
+        fret_indices = combined_state_transitions_df.index[:0]
 
-    if include_kap_sq:
+    if include_kap_sq and fret_indices.size:
         # static orientation regime
         N = 100000
         d = random_unit_vector(size=N, seed=rng)

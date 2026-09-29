@@ -637,10 +637,10 @@ class Analysis:
                     "states and transition ordering are compatible.",
                     stacklevel=2,
                 )
-            if prediction.energy_transfer:
+            if prediction.paired_transitions:
                 raise ValueError(
-                    "predicted mean_transition_times not available if energy transfer "
-                    "possible."
+                    "predicted mean_transition_times not available if paired transitions "
+                    "are possible."
                 )
             predicted_means = prediction.mean_transition_times
             if predicted_means is None:
@@ -694,10 +694,10 @@ class Analysis:
                     "states and transition ordering are compatible.",
                     stacklevel=2,
                 )
-            if prediction.energy_transfer:
+            if prediction.paired_transitions:
                 raise ValueError(
-                    "predicted lifetime_distributions not available if energy "
-                    "transfers possible."
+                    "predicted lifetime_distributions not available if paired transitions "
+                    "are possible."
                 )
             predicted_lifetimes = prediction.mean_lifetimes
             if predicted_lifetimes is None:
@@ -755,10 +755,10 @@ class Analysis:
                     "states and transition ordering are compatible.",
                     stacklevel=2,
                 )
-            if prediction.energy_transfer:
+            if prediction.paired_transitions:
                 raise ValueError(
-                    "predicted state_occupations not available if energy transfers "
-                    "possible."
+                    "predicted state_occupations not available if paired transitions "
+                    "are possible."
                 )
             predicted_occupations = prediction.state_occupations
             if predicted_occupations is None:
@@ -833,10 +833,10 @@ class Analysis:
                     "states and transition ordering are compatible.",
                     stacklevel=2,
                 )
-            if prediction.energy_transfer:
+            if prediction.paired_transitions:
                 raise ValueError(
-                    "predicted lifetime_distributions not available if energy transfer "
-                    "possible."
+                    "predicted lifetime_distributions not available if paired transitions "
+                    "are possible."
                 )
             predicted_distributions = prediction.lifetime_distributions
             if predicted_distributions is None:
@@ -909,10 +909,10 @@ class Analysis:
                     "states and transition ordering are compatible.",
                     stacklevel=2,
                 )
-            if prediction.energy_transfer:
+            if prediction.paired_transitions:
                 raise ValueError(
-                    "predicted transition_time_distributions not available if energy "
-                    "transfer possible."
+                    "predicted transition_time_distributions not available if paired "
+                    "transitions are possible."
                 )
             predicted_distributions = prediction.transition_time_distributions
             if predicted_distributions is None:

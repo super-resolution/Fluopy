@@ -74,8 +74,11 @@ def test_transitiontype():
     assert transition_type.initial_state is tr.SingleState.S0
     assert transition_type.final_state is tr.SingleState.S1
     assert transition_type.photon is False
+    assert transition_type.mechanism is None
     assert transition_type in tr.BUILTIN_TRANSITION_TYPES
     assert len(tr.BUILTIN_TRANSITION_TYPES) == 38
+
+    assert tr.TransitionType.FRET.mechanism == "FRET"
 
 
 def test_custom_transitiontype():
@@ -112,6 +115,27 @@ def test_transition_type_allows_self_transition():
     assert self_transition.initial_state is self_transition.final_state
 
 
+def test_paired_transition_type_requires_mechanism():
+    with pytest.raises(ValueError, match="must specify a non-empty mechanism"):
+        tr.TransitionType(
+            "PAIR",
+            tr.PairedState.S1_S0,
+            tr.PairedState.S0_S1,
+            False,
+        )
+
+
+def test_single_state_transition_type_rejects_mechanism():
+    with pytest.raises(ValueError, match="must use mechanism=None"):
+        tr.TransitionType(
+            "SINGLE",
+            tr.SingleState.S0,
+            tr.SingleState.S1,
+            False,
+            "custom",
+        )
+
+
 @pytest.mark.parametrize(
     "initial_state, final_state",
     [
@@ -138,8 +162,8 @@ def test_transition(transition_type, fluorophore_ids, expected):
         with pytest.raises(
             ValueError,
             match=(
-                "EXC is not an energy transfer, fluorophore_ids has to be a sequence "
-                "of ints."
+                "EXC is a single-state transition, fluorophore_ids has to be a "
+                "sequence of ints."
             ),
         ):
             transition = tr.Transition(
@@ -149,8 +173,8 @@ def test_transition(transition_type, fluorophore_ids, expected):
         with pytest.raises(
             ValueError,
             match=(
-                "FRET is energy transfer, fluorophore_ids has to be a sequence of "
-                "fluorophore identity pairs."
+                "FRET is a paired transition, fluorophore_ids has to be a sequence "
+                "of fluorophore identity pairs."
             ),
         ):
             transition = tr.Transition(
@@ -398,7 +422,7 @@ class TestTransitionSet:
         if expected == "ValueError1":
             with pytest.raises(
                 ValueError,
-                match="energy transfers have to be defined in transitions with the "
+                match="paired transitions have to be defined with the "
                 "key 'D: {name of donor}, A: {name of acceptor}, dist: "
                 "{distance between them in nm}'",
             ):
@@ -691,10 +715,10 @@ class TestTransitionSet:
         assert adjusted.transitions == {}
         assert adjusted.transition_df.empty
 
-    def test_remove_energy_transfers_skips_empty_collection(self, tr_set_1f):
+    def test_remove_paired_transitions_skips_empty_collection(self, tr_set_1f):
         tr_set_1f.transitions["empty"] = []
 
-        without_transfers = tr_set_1f.remove_energy_transfers()
+        without_transfers = tr_set_1f.remove_paired_transitions()
 
         assert "empty" not in without_transfers.transitions
 
@@ -795,7 +819,7 @@ class TestTransitionSet:
         dark = tr.SingleState("DARK_CUSTOM", 10)
         paired_dark = tr.PairedState("DARK_S0", donor=dark, acceptor=tr.SingleState.S0)
         enter_dark = tr.TransitionType(
-            "ENTER_DARK", tr.PairedState.S1_S0, paired_dark, False
+            "ENTER_DARK", tr.PairedState.S1_S0, paired_dark, False, "custom"
         )
         leave_dark = tr.TransitionType("LEAVE_DARK", dark, tr.SingleState.S0, False)
         distance = flu_sys_2xcy5.distances[(0, 1)]
@@ -830,12 +854,12 @@ class TestTransitionSet:
         )
         assert paired_transition.fluorophore_ids == ((1, 0),)
 
-    def test_transition_set_remove_energy_transfers(self, tr_set_bl_et_3f):
+    def test_transition_set_remove_paired_transitions(self, tr_set_bl_et_3f):
         assert any(
             "dist" in s
             for s in tr_set_bl_et_3f.transition_df.index.get_level_values(0).tolist()
         )
-        tr_set_bl = tr_set_bl_et_3f.remove_energy_transfers()
+        tr_set_bl = tr_set_bl_et_3f.remove_paired_transitions()
         assert not any(
             "dist" in s
             for s in tr_set_bl.transition_df.index.get_level_values(0).tolist()
@@ -1029,6 +1053,7 @@ def test_transition_set_accepts_paired_only_states(flu_sys_unk_cy5):
         initial_state=tr.PairedState.S1_S0,
         final_state=final_state,
         photon=False,
+        mechanism="custom",
     )
 
     donor_id, acceptor_id = 0, 1
@@ -1060,6 +1085,7 @@ def test_transition_set_accepts_paired_only_states(flu_sys_unk_cy5):
     combined_transition = transition_set.combined_state_transitions_df.iloc[0]
     assert combined_transition["initial_state"] == (1, 0)
     assert combined_transition["final_state"] == (10, 11)
+    assert combined_transition["mechanism"] == "custom"
     assert transition_set.transition_df["absorbing"].all()
     assert transition_set.transition_df["absorbing_fluorophore_ids"].iloc[0] == (0, 1)
     np.testing.assert_array_equal(transition_set.absorbing_states[0], [10])
@@ -1080,6 +1106,7 @@ def test_paired_transition_identifies_absorbing_donor_without_terminal_system(
             acceptor=tr.SingleState.S0,
         ),
         photon=False,
+        mechanism="custom",
     )
     donor_id, acceptor_id = 0, 1
     donor = flu_sys_unk_cy5.fluorophores[donor_id]
@@ -1242,12 +1269,12 @@ def test_construct_transition_rate_list():
         state_combinations=state_combinations,
     )
     expected = [
-        [(0, 0, 5), (1, 0, 5), [0], "EXC", 0, 1, False],
-        [(0, 0, 5), (0, 1, 5), [1], "EXC", 0, 1, False],
-        [(0, 1, 5), (1, 1, 5), [0], "EXC", 0, 1, False],
-        [(1, 0, 5), (1, 1, 5), [1], "EXC", 0, 1, False],
-        [(0, 1, 5), (1, 0, 5), [1, 0], "FRET", 1, 1, False],
-        [(1, 0, 5), (0, 1, 5), [0, 1], "FRET", 1, 1, False],
+        [(0, 0, 5), (1, 0, 5), [0], "EXC", 0, 1, False, None],
+        [(0, 0, 5), (0, 1, 5), [1], "EXC", 0, 1, False, None],
+        [(0, 1, 5), (1, 1, 5), [0], "EXC", 0, 1, False, None],
+        [(1, 0, 5), (1, 1, 5), [1], "EXC", 0, 1, False, None],
+        [(0, 1, 5), (1, 0, 5), [1, 0], "FRET", 1, 1, False, "FRET"],
+        [(1, 0, 5), (0, 1, 5), [0, 1], "FRET", 1, 1, False, "FRET"],
     ]
     assert transition_rate_list == expected
 
@@ -1327,8 +1354,9 @@ def test_transition_set_finalize(tr_set_bl_et_3f):
         "transition_id",
         "rate",
         "photon",
+        "mechanism",
     ]
-    assert tr_set_bl_et_3f.combined_state_transitions_df.shape == (516, 7)
+    assert tr_set_bl_et_3f.combined_state_transitions_df.shape == (516, 8)
     assert tr_set_bl_et_3f.transition_matrix.shape == (516, 516)
     assert tr_set_bl_et_3f.row_sums.shape == (516,)
 

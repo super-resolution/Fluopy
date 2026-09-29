@@ -309,7 +309,7 @@ def test_analysis_plots_reject_energy_transfer_prediction(
 ):
     prediction = SimpleNamespace(
         transition_set=analysis_1f.simulation.transition_set,
-        energy_transfer=True,
+        paired_transitions=True,
     )
 
     with pytest.raises(ValueError, match=message):
@@ -356,7 +356,7 @@ def test_analysis_plots_reject_unavailable_prediction_statistics(
 ):
     prediction = SimpleNamespace(
         transition_set=analysis_1f.simulation.transition_set,
-        energy_transfer=False,
+        paired_transitions=False,
     )
     setattr(prediction, attribute, None)
 
@@ -374,13 +374,13 @@ def test_analysis_plots_reject_unavailable_prediction_statistics(
         ),
         (
             "plot_mean_transition_times",
-            {"energy_transfer": False, "mean_transition_times": np.array([1.0])},
+            {"paired_transitions": False, "mean_transition_times": np.array([1.0])},
             "incompatible transition dimensions",
         ),
         (
             "plot_mean_lifetimes",
             {
-                "energy_transfer": False,
+                "paired_transitions": False,
                 "mean_lifetimes": {"testfluo_1": np.array([1.0])},
             },
             "incompatible state dimensions",
@@ -388,7 +388,7 @@ def test_analysis_plots_reject_unavailable_prediction_statistics(
         (
             "plot_state_occupations",
             {
-                "energy_transfer": False,
+                "paired_transitions": False,
                 "state_occupations": {"testfluo_1": np.array([1.0])},
             },
             "incompatible state dimensions",

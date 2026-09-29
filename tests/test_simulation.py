@@ -250,6 +250,32 @@ def test_first_reaction_method(tr_set_bl_et_2f_diff):
     np.testing.assert_array_equal(transition_series, exp_transition_series)
 
 
+def test_first_reaction_method_applies_kappa_squared_only_to_fret(monkeypatch):
+    transitions = pd.DataFrame(
+        {
+            "rate": [0.0, 1.0, 1.0],
+            "mechanism": [None, "FRET", "PET"],
+        }
+    )
+    monkeypatch.setattr(
+        si,
+        "sample_kappa_squared_distribution",
+        lambda k2_values, size, seed: np.zeros(size),
+    )
+
+    _, transition_series = si.first_reaction_method(
+        transition_matrix=[[0, 0.5, 0.5], [0, 0, 0], [0, 0, 0]],
+        row_sums=[2, 0, 0],
+        combined_state_transitions_df=transitions,
+        include_kap_sq=True,
+        start_index=0,
+        size=1,
+        seed=42,
+    )
+
+    np.testing.assert_array_equal(transition_series, [2])
+
+
 def test_first_reaction_method_with_memmap(tr_set_bl_et_2f_diff, tmp_path):
     rng = np.random.default_rng(42)
     time_series, transition_series = si.first_reaction_method(
