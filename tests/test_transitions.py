@@ -1451,6 +1451,10 @@ def test_derive_fret_transitions(
         exclude=exclude,
         include=include,
     )
+    assert all(
+        transition.transition_type.mechanism == tr.TransitionMechanism.FRET
+        for transition in transitions
+    )
     if expected == 0:
         assert len(transitions) == 3
         assert transitions[0].rate == pytest.approx(248130286338181.22, rel=1e-12)
@@ -1523,6 +1527,27 @@ def test_derive_fret_rejects_invalid_include(
             distance=5,
             refractive_index=1.33,
             include=include,
+        )
+
+
+def test_derive_fret_rejects_non_fret_included_transition(flu_obj_cy5_1):
+    pet_transition = tr.TransitionType(
+        "PET",
+        tr.PairedState.S1_T1,
+        tr.PairedState.S0_T1,
+        False,
+        tr.TransitionMechanism.PET,
+    )
+
+    with pytest.raises(ValueError, match="must use the FRET mechanism"):
+        tr.derive_fret_transitions(
+            donor_data=flu_obj_cy5_1.constants,
+            acceptor_data=flu_obj_cy5_1.constants,
+            fluorophore_ids=[(0, 1)],
+            dipole_orientation_factor=2 / 3,
+            distance=5,
+            refractive_index=1.33,
+            include={"t1": [(pet_transition, 0.5)]},
         )
 
 

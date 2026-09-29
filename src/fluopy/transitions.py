@@ -1857,9 +1857,9 @@ def derive_fret_transitions(
         Contains the type of acceptor state (lowercase) to be excluded.
     include
         Contains the type of acceptor state as key and a list of tuples as values. The
-        tuples contain the transition type and an efficiency. If the summed efficiencies
-        is e.g., 0.5, all other energy transfers affecting the acceptor state are
-        multiplied by 1-0.5.
+        tuples contain a transition type using the FRET mechanism and an efficiency.
+        If the summed efficiencies is e.g., 0.5, all other FRET transitions affecting
+        the acceptor state are multiplied by 1-0.5.
 
     Returns
     -------
@@ -1911,6 +1911,16 @@ def derive_fret_transitions(
                     f"include contains unsupported acceptor state "
                     f"{acceptor_state!r}."
                 )
+
+            for transition_type, _ in included_transitions:
+                if not isinstance(transition_type, TransitionType):
+                    raise TypeError(
+                        "include transition types must be TransitionType objects."
+                    )
+                if transition_type.mechanism != TransitionMechanism.FRET:
+                    raise ValueError(
+                        "include transition types must use the FRET mechanism."
+                    )
 
             factors = np.asarray(
                 [factor for _, factor in included_transitions],
