@@ -734,10 +734,10 @@ class TransitionSet:
             key: [copy.copy(transition) for transition in transition_collection]
             for key, transition_collection in transitions.items()
         }
-        self.transitions = transitions
         self.fluorophore_system = fluorophore_system
 
         self.transition_df = pd.DataFrame()
+        retained_transitions: dict[str, list[Transition]] = {}
         i = 0
         for fluorophore_comb, f_transitions in transitions.items():
             keep_transitions = []
@@ -810,13 +810,21 @@ class TransitionSet:
                     keep_transitions.append(transition)
                     df_constructor.append(transition.to_dict())
             if keep_transitions:
-                transitions[fluorophore_comb] = keep_transitions
+                retained_transitions[fluorophore_comb] = keep_transitions
                 transition_df = pd.DataFrame(df_constructor)
                 transition_df = transition_df.set_index("identity")
                 transition_df = pd.concat(
                     {fluorophore_comb: transition_df}, names=["Fluorophore"]
                 )
                 self.transition_df = pd.concat([self.transition_df, transition_df])
+        self.transitions = retained_transitions
+        if self.transition_df.empty:
+            self.transition_df = pd.DataFrame(
+                columns=[
+                    item.name for item in fields(Transition) if item.name != "identity"
+                ],
+                index=pd.MultiIndex.from_tuples([], names=["Fluorophore", "identity"]),
+            )
         self.states_by_value = get_states_by_value(self.transitions)
         self.single_states = get_single_states(
             self.transitions,

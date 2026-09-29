@@ -643,6 +643,54 @@ class TestTransitionSet:
 
         assert without_zero_rates.transition_df["rate"].tolist() == [1.0]
 
+    def test_transition_set_removes_all_zero_rate_group(self, flu_sys_cy5):
+        transition_set = tr.TransitionSet(
+            transitions={
+                "testfluo_1": [
+                    tr.Transition(
+                        tr.TransitionType.EXCITATION,
+                        rate=0,
+                        fluorophore_ids=[0],
+                    )
+                ]
+            },
+            fluorophore_system=flu_sys_cy5,
+        )
+
+        assert transition_set.transitions == {}
+        assert transition_set.transition_df.empty
+        assert list(transition_set.transition_df.columns) == [
+            "transition_type",
+            "abbreviation",
+            "initial_state",
+            "final_state",
+            "rate",
+            "photon",
+            "fluorophore_ids",
+            "absorbing_fluorophore_ids",
+            "absorbing",
+        ]
+        np.testing.assert_array_equal(transition_set.absorbing_states[0], [])
+
+    def test_adjust_rates_can_remove_last_transition(self, flu_sys_cy5):
+        transition_set = tr.TransitionSet(
+            transitions={
+                "testfluo_1": [
+                    tr.Transition(
+                        tr.TransitionType.EXCITATION,
+                        rate=1,
+                        fluorophore_ids=[0],
+                    )
+                ]
+            },
+            fluorophore_system=flu_sys_cy5,
+        )
+
+        adjusted = transition_set.adjust_rates({0: 0})
+
+        assert adjusted.transitions == {}
+        assert adjusted.transition_df.empty
+
     def test_remove_energy_transfers_skips_empty_collection(self, tr_set_1f):
         tr_set_1f.transitions["empty"] = []
 
