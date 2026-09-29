@@ -1043,20 +1043,53 @@ class TransitionSet:
         TransitionSet
             Re-initialization of the object with the modified transition collection.
         """
-        transitions = copy.deepcopy(self.transitions)  # transitions are objects
-        # if no deep copy, the transition objects of the new TransitionSet are the
-        # very same objects as in the old one
         keep_transitions: dict[str, list[Transition]] = {}
-        for fluorophore, f_transitions in transitions.items():
+        absorbing_states = self.absorbing_states
+        for fluorophore, f_transitions in self.transitions.items():
             for transition in f_transitions:
-                identity = transition.get_identity()
-                is_absorbing = self.transition_df.loc[
-                    (fluorophore, identity),
-                    "absorbing",
-                ]
+                initial_state = transition.initial_state
+                final_state = transition.final_state
+                if isinstance(initial_state, PairedState):
+                    if not isinstance(final_state, PairedState):
+                        raise TypeError(
+                            "a paired transition must have a PairedState final state."
+                        )
+                    fluorophore_ids: Sequence[int] | Sequence[tuple[int, int]] = [
+                        (donor_id, acceptor_id)
+                        for donor_id, acceptor_id in transition.get_fluorophore_pairs()
+                        if not (
+                            initial_state.donor != final_state.donor
+                            and final_state.donor.value in absorbing_states[donor_id]
+                        )
+                        and not (
+                            initial_state.acceptor != final_state.acceptor
+                            and final_state.acceptor.value
+                            in absorbing_states[acceptor_id]
+                        )
+                    ]
+                else:
+                    if not isinstance(final_state, SingleState):
+                        raise TypeError(
+                            "a non-paired transition must have a SingleState final "
+                            "state."
+                        )
+                    fluorophore_ids = [
+                        identity
+                        for identity in transition.get_single_fluorophore_ids()
+                        if not (
+                            initial_state != final_state
+                            and final_state.value in absorbing_states[identity]
+                        )
+                    ]
 
-                if not bool(is_absorbing):
-                    keep_transitions.setdefault(fluorophore, []).append(transition)
+                if fluorophore_ids:
+                    keep_transitions.setdefault(fluorophore, []).append(
+                        Transition(
+                            transition_type=transition.transition_type,
+                            rate=transition.rate,
+                            fluorophore_ids=fluorophore_ids,
+                        )
+                    )
 
         no_abs = TransitionSet(
             transitions=keep_transitions,

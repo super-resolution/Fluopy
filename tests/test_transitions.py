@@ -765,6 +765,71 @@ class TestTransitionSet:
         tr_set_et = tr_set_bl_et_3f.remove_absorbing_states()
         assert not tr_set_et.transition_df["absorbing"].any()
 
+    def test_remove_absorbing_states_keeps_nonabsorbing_fluorophore_ids(
+        self, flu_sys_2xcy5
+    ):
+        dark = tr.SingleState("DARK_CUSTOM", 10)
+        enter_dark = tr.TransitionType("ENTER_DARK", tr.SingleState.S0, dark, False)
+        leave_dark = tr.TransitionType("LEAVE_DARK", dark, tr.SingleState.S0, False)
+        transition_set = tr.TransitionSet(
+            {
+                "testfluo_1": [
+                    tr.Transition(enter_dark, rate=1, fluorophore_ids=[0, 1]),
+                    tr.Transition(leave_dark, rate=1, fluorophore_ids=[1]),
+                ]
+            },
+            flu_sys_2xcy5,
+        )
+
+        without_absorbing = transition_set.remove_absorbing_states()
+
+        assert transition_set.transition_df.loc[
+            ("testfluo_1", 0), "absorbing_fluorophore_ids"
+        ] == (0,)
+        assert without_absorbing.transitions["testfluo_1"][0].fluorophore_ids == (1,)
+        assert without_absorbing.terminal_state_combinations == frozenset()
+
+    def test_remove_absorbing_states_keeps_nonabsorbing_fluorophore_pairs(
+        self, flu_sys_2xcy5
+    ):
+        dark = tr.SingleState("DARK_CUSTOM", 10)
+        paired_dark = tr.PairedState("DARK_S0", donor=dark, acceptor=tr.SingleState.S0)
+        enter_dark = tr.TransitionType(
+            "ENTER_DARK", tr.PairedState.S1_S0, paired_dark, False
+        )
+        leave_dark = tr.TransitionType("LEAVE_DARK", dark, tr.SingleState.S0, False)
+        distance = flu_sys_2xcy5.distances[(0, 1)]
+        transition_set = tr.TransitionSet(
+            {
+                f"D: testfluo_1, A: testfluo_1, dist: {distance}": [
+                    tr.Transition(
+                        enter_dark,
+                        rate=1,
+                        fluorophore_ids=[(0, 1), (1, 0)],
+                    )
+                ],
+                "testfluo_1": [
+                    tr.Transition(
+                        tr.TransitionType.EXCITATION,
+                        rate=1,
+                        fluorophore_ids=[1],
+                    ),
+                    tr.Transition(leave_dark, rate=1, fluorophore_ids=[1]),
+                ],
+            },
+            flu_sys_2xcy5,
+        )
+
+        without_absorbing = transition_set.remove_absorbing_states()
+
+        paired_transition = next(
+            transition
+            for transitions in without_absorbing.transitions.values()
+            for transition in transitions
+            if isinstance(transition.initial_state, tr.PairedState)
+        )
+        assert paired_transition.fluorophore_ids == ((1, 0),)
+
     def test_transition_set_remove_energy_transfers(self, tr_set_bl_et_3f):
         assert any(
             "dist" in s
