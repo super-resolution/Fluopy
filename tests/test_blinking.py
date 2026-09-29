@@ -363,6 +363,26 @@ def test_blinking_plot_requires_current_emission_data(em_large):
         blink.plot()
 
 
+@pytest.mark.parametrize("mode", ["on_frame_series", "off_frame_series"])
+def test_blinking_frame_series_accepts_one_frame(mode):
+    emissions = em.Emissions()
+    emissions.event_time_series = pd.DataFrame({"all": [1]}, index=[0.005])
+    blink = bl.Blinking(emissions)
+
+    ax = blink.plot(mode)
+
+    assert len(ax.lines) == 1
+
+
+def test_blinking_period_plot_requires_two_frames():
+    emissions = em.Emissions()
+    emissions.event_time_series = pd.DataFrame({"all": [1]}, index=[0.005])
+    blink = bl.Blinking(emissions)
+
+    with pytest.raises(ValueError, match="at least two measured frames"):
+        blink.plot("on_histogram")
+
+
 def test_plot_off_statistics():
     ax = bl.plot_off_statistics(
         on_off_times=[0.0, 1.0, 1.0, 2.0],
