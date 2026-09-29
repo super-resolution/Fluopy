@@ -273,11 +273,6 @@ class TransitionType:
     H2O_ATTACK_T: ClassVar[TransitionType]
     BACK_REACTION: ClassVar[TransitionType]
 
-    S1_S0_TRANSITIONS: ClassVar[TransitionType]
-    CIS_S0_TRANSITIONS: ClassVar[TransitionType]
-    T1_S0_TRANSITIONS: ClassVar[TransitionType]
-    OFF_S0_TRANSITIONS: ClassVar[TransitionType]
-
     def __post_init__(self) -> None:
         """Validate the state kinds and paired-transition mechanism."""
         states = (self.initial_state, self.final_state)
@@ -425,21 +420,6 @@ TransitionType.BACK_REACTION = TransitionType(
     "BR", SingleState.OFF, SingleState.S0, False
 )
 
-# summarize
-TransitionType.S1_S0_TRANSITIONS = TransitionType(
-    "S1S0SUM", SingleState.S1, SingleState.S0, False
-)
-TransitionType.CIS_S0_TRANSITIONS = TransitionType(
-    "cisS0SUM", SingleState.cis, SingleState.S0, False
-)
-TransitionType.T1_S0_TRANSITIONS = TransitionType(
-    "T1S0SUM", SingleState.T1, SingleState.S0, False
-)
-TransitionType.OFF_S0_TRANSITIONS = TransitionType(
-    "OFFS0SUM", SingleState.OFF, SingleState.S0, False
-)
-
-
 BUILTIN_TRANSITION_TYPES = (
     TransitionType.EXCITATION,
     TransitionType.FLUORESCENT_EMISSION,
@@ -475,10 +455,6 @@ BUILTIN_TRANSITION_TYPES = (
     TransitionType.H2O_ATTACK_S,
     TransitionType.H2O_ATTACK_T,
     TransitionType.BACK_REACTION,
-    TransitionType.S1_S0_TRANSITIONS,
-    TransitionType.CIS_S0_TRANSITIONS,
-    TransitionType.T1_S0_TRANSITIONS,
-    TransitionType.OFF_S0_TRANSITIONS,
 )
 
 
@@ -1788,7 +1764,7 @@ def derive_energy_transfer_rate(
     return rate
 
 
-def derive_energy_transfer_transitions(
+def derive_fret_transitions(
     donor_data: FluorophoreData,
     acceptor_data: FluorophoreData,
     fluorophore_ids: list[tuple[int, int]],
@@ -1800,9 +1776,11 @@ def derive_energy_transfer_transitions(
     include: dict[str, list[tuple[TransitionType, float]]] | None = None,
 ) -> list[Transition]:
     """
-    Derive energy transfer transitions based on the experimental conditions and the
-    fluorophore-combinations to be mimicked. The type of energy transfer is determined
-    by the state names in acceptor_data.absorption_spectra.
+    Derive FRET transitions based on the experimental conditions and fluorophore
+    combinations to be mimicked.
+
+    The resulting transition type is determined by the state names in
+    acceptor_data.absorption_spectra.
 
     Parameters
     ----------
@@ -1833,13 +1811,12 @@ def derive_energy_transfer_transitions(
     Returns
     -------
     list[Transition]
-        Contains energy transfer transitions of type Transition.
+        Contains FRET transitions of type Transition.
     """
     acceptor_absorptions = acceptor_data.absorption_spectra
     if not acceptor_absorptions:
         raise ValueError(
-            "cannot derive energy-transfer transitions without acceptor "
-            "absorption spectra."
+            "cannot derive FRET transitions without acceptor absorption spectra."
         )
 
     supported_acceptor_states = {"s0", "t1", "s1", "cis", "off"}
@@ -1981,8 +1958,7 @@ def derive_energy_transfer_transitions(
 
         if acceptor_state not in which_et_new:
             raise ValueError(
-                f"energy transfer to acceptor state {acceptor_state!r} "
-                "is not supported."
+                f"FRET to acceptor state {acceptor_state!r} is not supported."
             )
 
         if exclude is not None and acceptor_state in exclude:
@@ -2023,7 +1999,8 @@ def derive_transitions(
     fluorophore_ids
         All identities of a fluorophore within a FluorophoreSystem.
     summarize
-        Whether to summarize some transitions into fewer.
+        Whether to combine two or more non-photon transitions with identical initial
+        and final states into one transition with their summed rate.
     irradiance
         Irradiance in kW/cm².
     wavelength
@@ -2237,32 +2214,60 @@ def derive_transitions(
         + bleach
     )
 
-    summarized_transitions = [
-        TransitionType.S1_S0_TRANSITIONS,
-        TransitionType.T1_S0_TRANSITIONS,
-        TransitionType.CIS_S0_TRANSITIONS,
-        TransitionType.OFF_S0_TRANSITIONS,
-    ]
-
-    transitions_copy = transitions[:]
     if summarize:
-        for summarized_transition in summarized_transitions:
-            rate = 0.0
-            for transition in transitions_copy:
-                if not transition.transition_type.photon:
-                    if (
-                        transition.transition_type.initial_state
-                        == summarized_transition.initial_state
-                        and transition.transition_type.final_state
-                        == summarized_transition.final_state
-                    ):
-                        rate += transition.rate
-                        transitions.remove(transition)
-            sum_transition = Transition(
-                rate=rate,
-                transition_type=summarized_transition,
-                fluorophore_ids=fluorophore_ids,
+        transition_groups: dict[
+            tuple[SingleState | PairedState, SingleState | PairedState, str | None],
+            list[Transition],
+        ] = {}
+        for transition in transitions:
+            if transition.photon:
+                continue
+            key = (
+                transition.initial_state,
+                transition.final_state,
+                transition.transition_type.mechanism,
             )
-            transitions.append(sum_transition)
+            transition_groups.setdefault(key, []).append(transition)
+
+        summarized_groups = {
+            key: group for key, group in transition_groups.items() if len(group) >= 2
+        }
+        summarized_transitions: list[Transition] = []
+        added_groups: set[
+            tuple[SingleState | PairedState, SingleState | PairedState, str | None]
+        ] = set()
+        for transition in transitions:
+            if transition.photon:
+                summarized_transitions.append(transition)
+                continue
+            key = (
+                transition.initial_state,
+                transition.final_state,
+                transition.transition_type.mechanism,
+            )
+            if key not in summarized_groups:
+                summarized_transitions.append(transition)
+                continue
+            if key in added_groups:
+                continue
+
+            group = summarized_groups[key]
+            summary_type = TransitionType(
+                abbreviation=f"{transition.initial_state.name}"
+                f"{transition.final_state.name}SUM",
+                initial_state=transition.initial_state,
+                final_state=transition.final_state,
+                photon=False,
+                mechanism=transition.transition_type.mechanism,
+            )
+            summarized_transitions.append(
+                Transition(
+                    rate=sum(item.rate for item in group),
+                    transition_type=summary_type,
+                    fluorophore_ids=fluorophore_ids,
+                )
+            )
+            added_groups.add(key)
+        transitions = summarized_transitions
 
     return transitions

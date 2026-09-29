@@ -76,7 +76,7 @@ def test_transitiontype():
     assert transition_type.photon is False
     assert transition_type.mechanism is None
     assert transition_type in tr.BUILTIN_TRANSITION_TYPES
-    assert len(tr.BUILTIN_TRANSITION_TYPES) == 38
+    assert len(tr.BUILTIN_TRANSITION_TYPES) == 34
 
     assert tr.TransitionType.FRET.mechanism == "FRET"
 
@@ -1405,12 +1405,12 @@ def test_derive_energy_transfer_rate_requires_positive_donor_lifetime():
         ],
     ],
 )
-def test_derive_energy_transfer_transitions(
+def test_derive_fret_transitions(
     dirnames, request, distance, overwrite, exclude, include, expected
 ):
     donor_data = request.getfixturevalue(dirnames[0]).constants
     acceptor_data = request.getfixturevalue(dirnames[1]).constants
-    transitions = tr.derive_energy_transfer_transitions(
+    transitions = tr.derive_fret_transitions(
         donor_data=donor_data,
         acceptor_data=acceptor_data,
         fluorophore_ids=[(1, 2)],
@@ -1451,12 +1451,12 @@ def test_derive_energy_transfer_transitions(
         {"t1": [1]},
     ],
 )
-def test_derive_energy_transfer_rejects_invalid_overwrite(
+def test_derive_fret_rejects_invalid_overwrite(
     overwrite,
     flu_obj_cy5_1,
 ):
     with pytest.raises(ValueError):
-        tr.derive_energy_transfer_transitions(
+        tr.derive_fret_transitions(
             donor_data=flu_obj_cy5_1.constants,
             acceptor_data=flu_obj_cy5_1.constants,
             fluorophore_ids=[(0, 1)],
@@ -1480,12 +1480,12 @@ def test_derive_energy_transfer_rejects_invalid_overwrite(
         },
     ],
 )
-def test_derive_energy_transfer_rejects_invalid_include(
+def test_derive_fret_rejects_invalid_include(
     include,
     flu_obj_cy5_1,
 ):
     with pytest.raises(ValueError):
-        tr.derive_energy_transfer_transitions(
+        tr.derive_fret_transitions(
             donor_data=flu_obj_cy5_1.constants,
             acceptor_data=flu_obj_cy5_1.constants,
             fluorophore_ids=[(0, 1)],
@@ -1496,7 +1496,7 @@ def test_derive_energy_transfer_rejects_invalid_include(
         )
 
 
-def test_derive_energy_transfer_with_in_memory_spectra():
+def test_derive_fret_with_in_memory_spectra():
     donor_emission = fd.Spectrum(
         wavelengths=[500, 510, 520],
         values=[0, 1, 0],
@@ -1515,7 +1515,7 @@ def test_derive_energy_transfer_with_in_memory_spectra():
         absorption_spectra={"s0": acceptor_absorption},
     )
 
-    transitions = tr.derive_energy_transfer_transitions(
+    transitions = tr.derive_fret_transitions(
         donor_data=donor_data,
         acceptor_data=acceptor_data,
         fluorophore_ids=[(0, 1)],
@@ -1551,7 +1551,7 @@ def test_derive_energy_transfer_with_in_memory_spectra():
     assert transitions[0].rate == pytest.approx(expected_rate)
 
 
-def test_derive_energy_transfer_without_spectral_overlap():
+def test_derive_fret_without_spectral_overlap():
     donor_data = fd.FluorophoreData(
         QUANTUM_YIELD=0.5,
         FLUORESCENCE_LIFETIME=2e-9,
@@ -1569,7 +1569,7 @@ def test_derive_energy_transfer_without_spectral_overlap():
         },
     )
 
-    transitions = tr.derive_energy_transfer_transitions(
+    transitions = tr.derive_fret_transitions(
         donor_data=donor_data,
         acceptor_data=acceptor_data,
         fluorophore_ids=[(0, 1)],
@@ -1582,14 +1582,14 @@ def test_derive_energy_transfer_without_spectral_overlap():
     assert transitions[0].rate == 0
 
 
-def test_derive_energy_transfer_without_donor_emission():
+def test_derive_fret_without_donor_emission():
     with pytest.raises(
         ValueError,
         match=(
             "cannot derive an energy-transfer rate without a donor emission spectrum."
         ),
     ):
-        tr.derive_energy_transfer_transitions(
+        tr.derive_fret_transitions(
             donor_data=fd.FluorophoreData(
                 QUANTUM_YIELD=0.5,
                 FLUORESCENCE_LIFETIME=2e-9,
@@ -1655,15 +1655,65 @@ def test_derive_transitions(irradiance, bleaching, dstorm, summarize, request):
         for transition in transitions:
             if transition.abbreviation == "EXC":
                 assert transition.rate != 0
-    summarize_checker = ["S1S0SUM", "cisS0SUM", "T1S0SUM"]
     if summarize:
-        for transition in transitions:
-            if transition.abbreviation in summarize_checker:
-                summarize_checker.remove(transition.abbreviation)
-        assert len(summarize_checker) == 0
+        assert {
+            transition.abbreviation
+            for transition in transitions
+            if transition.abbreviation.endswith("SUM")
+        } == {"cisS0SUM"}
+        assert any(transition.abbreviation == "IC" for transition in transitions)
+        assert any(transition.abbreviation == "ISC_TS" for transition in transitions)
     else:
-        for transition in transitions:
-            assert transition.abbreviation not in summarize_checker
+        assert not any(
+            transition.abbreviation.endswith("SUM") for transition in transitions
+        )
+
+
+def test_derive_transitions_summarizes_matching_non_photon_transitions(request):
+    fluorophore_data = request.getfixturevalue("flu_obj_cy5_1").constants
+    original_transitions = tr.derive_transitions(
+        summarize=False,
+        fluorophore_data=fluorophore_data,
+        fluorophore_ids=[1],
+        irradiance=1,
+        wavelength=640,
+        dstorm=True,
+    )
+    transitions = tr.derive_transitions(
+        summarize=True,
+        fluorophore_data=fluorophore_data,
+        fluorophore_ids=[1],
+        irradiance=1,
+        wavelength=640,
+        dstorm=True,
+    )
+
+    summaries = {
+        transition.abbreviation: transition
+        for transition in transitions
+        if transition.abbreviation.endswith("SUM")
+    }
+
+    assert set(summaries) == {
+        "S1S0SUM",
+        "T1S0SUM",
+        "cisS0SUM",
+        "OFFS0SUM",
+    }
+    assert all(
+        transition.transition_type not in tr.BUILTIN_TRANSITION_TYPES
+        for transition in summaries.values()
+    )
+    for transition in summaries.values():
+        expected_rate = sum(
+            original.rate
+            for original in original_transitions
+            if not original.photon
+            and original.initial_state == transition.initial_state
+            and original.final_state == transition.final_state
+        )
+        assert transition.rate == pytest.approx(expected_rate)
+    assert any(transition.abbreviation == "FLU" for transition in transitions)
 
 
 def test_derive_transitions_requires_positive_lifetime():
@@ -1768,9 +1818,9 @@ def test_derive_energy_transfer_rate_requires_positive_donor_area():
         )
 
 
-def test_derive_energy_transfer_requires_acceptor_absorption(flu_obj_cy5_1):
+def test_derive_fret_requires_acceptor_absorption(flu_obj_cy5_1):
     with pytest.raises(ValueError, match="without acceptor absorption spectra"):
-        tr.derive_energy_transfer_transitions(
+        tr.derive_fret_transitions(
             donor_data=flu_obj_cy5_1.constants,
             acceptor_data=fd.FluorophoreData(),
             fluorophore_ids=[(0, 1)],
@@ -1788,11 +1838,11 @@ def test_derive_energy_transfer_requires_acceptor_absorption(flu_obj_cy5_1):
         ("include", {"invalid": []}, "unsupported acceptor state"),
     ],
 )
-def test_derive_energy_transfer_rejects_unsupported_configuration(
+def test_derive_fret_rejects_unsupported_configuration(
     flu_obj_cy5_1, option, value, message
 ):
     with pytest.raises(ValueError, match=message):
-        tr.derive_energy_transfer_transitions(
+        tr.derive_fret_transitions(
             donor_data=flu_obj_cy5_1.constants,
             acceptor_data=flu_obj_cy5_1.constants,
             fluorophore_ids=[(0, 1)],
@@ -1803,7 +1853,7 @@ def test_derive_energy_transfer_rejects_unsupported_configuration(
         )
 
 
-def test_derive_energy_transfer_rejects_unsupported_absorption_state(
+def test_derive_fret_rejects_unsupported_absorption_state(
     flu_obj_cy5_1,
 ):
     acceptor_data = fd.FluorophoreData(
@@ -1815,8 +1865,8 @@ def test_derive_energy_transfer_rejects_unsupported_absorption_state(
         }
     )
 
-    with pytest.raises(ValueError, match="energy transfer to acceptor state 'invalid'"):
-        tr.derive_energy_transfer_transitions(
+    with pytest.raises(ValueError, match="FRET to acceptor state 'invalid'"):
+        tr.derive_fret_transitions(
             donor_data=flu_obj_cy5_1.constants,
             acceptor_data=acceptor_data,
             fluorophore_ids=[(0, 1)],
