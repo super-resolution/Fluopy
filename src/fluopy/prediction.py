@@ -37,16 +37,17 @@ class Prediction:
     energy_transfer : bool
         Whether the prediction was carried out on energy transfer systems.
     absorbing_chain : bool
-        Whether the system has at least one terminal combined state and the prediction
-        was carried out on an absorbing Markov chain.
+        Whether the subchain reachable from initial_state_index contains a terminal
+        combined state and the prediction was carried out on an absorbing Markov chain.
         Absorbing states have a lifetime of inf and a frequency / occupation of 0.
         Absorbing transitions have a frequency of 0.
     transition_set : fluopy.transitions.TransitionSet
         Collection of all relevant transitions and related attributes.
     initial_state_index : int
         Row of transition_set.combined_state_transitions_df whose final state defines
-        the initial combined state used for absorbing predictions. This has no effect
-        on non-absorbing predictions.
+        the initial combined state. The row determines the reachable subchain used for
+        both absorbing and non-absorbing predictions. In an absorbing prediction, the
+        row itself is also counted as the initial visit.
     frequency_transitions : npt.NDArray[np.float64]
         Relative number of expected transition occurrences, normalized separately for
         each fluorophore. Energy-transfer occurrences are assigned to the donor's
@@ -81,11 +82,22 @@ class Prediction:
     energy transfer.
 
     For non-absorbing systems, transition frequencies are calculated from the
-    stationary distribution of the transition matrix. The transition matrix must have
-    a unique stationary distribution.
+    stationary distribution of the subchain reachable from initial_state_index. The
+    reachable transition matrix must have a unique stationary distribution. The
+    initial index therefore selects the relevant component of a disconnected system,
+    but indices with the same reachable subchain produce the same stationary
+    distribution.
 
-    Systems containing terminal state combinations are treated separately as absorbing
-    Markov chains.
+    A reachable subchain is treated as an absorbing Markov chain if it contains a
+    terminal combined state and every reachable transition row can reach a terminal
+    row. If a terminal row is reachable but absorption is not certain, prediction is
+    rejected.
+
+    The Markov-chain nodes are rows of
+    transition_set.combined_state_transitions_df rather than combined states. For an
+    absorbing prediction, selecting different rows may therefore produce different
+    transition frequencies even when those rows have the same final state, because
+    the selected row is counted as the initial visit.
     """
 
     def __init__(
@@ -100,8 +112,10 @@ class Prediction:
             Collection of all relevant transitions and related attributes.
         initial_state_index
             Row of transition_set.combined_state_transitions_df whose final state
-            defines the initial combined state for absorbing predictions. This has no
-            effect on non-absorbing predictions.
+            defines the initial combined state. The row determines which part of the
+            transition matrix is reachable. For an absorbing prediction, it is also
+            counted as the initial visit, so different rows may produce different
+            results even when they have the same final state.
         """
         self.energy_transfer = False
         self.absorbing_chain = False
@@ -206,8 +220,11 @@ class Prediction:
 
     def predict_transition_occurrences(self) -> npt.NDArray[np.float64]:
         """
-        Predict the relative frequencies of transitions. Each different type of
-        fluorophore's transitions frequencies sum up to 1.
+        Predict transition frequencies in the reachable non-absorbing subchain.
+
+        The calculation is restricted to transition rows reachable from
+        initial_state_index. Each different type of fluorophore's transition
+        frequencies sum to 1.
 
         Each energy-transfer event is counted as one transition occurrence, including
         events that change both the donor and acceptor states. For normalization, an
@@ -223,9 +240,11 @@ class Prediction:
         Notes
         -----
         The stationary distribution is calculated by solving pi P = pi together with
-        the constraint that the entries of pi sum to 1. The transition matrix must
-        have a unique stationary distribution. An all-zero transition matrix returns
-        zero frequencies.
+        the constraint that the entries of pi sum to 1. The reachable transition
+        matrix must have a unique stationary distribution. initial_state_index selects
+        the relevant component of a disconnected transition matrix. Starting rows with
+        the same reachable subchain produce the same stationary distribution. An
+        all-zero transition matrix returns zero frequencies.
         """
         full_transition_matrix = self.transition_set.transition_matrix
         frequency_transitions = np.zeros(self.transition_set.transition_df.shape[0])
@@ -277,9 +296,12 @@ class Prediction:
         self, initial_state_index: int = 0
     ) -> npt.NDArray[np.float64]:
         """
-        Predict the relative frequencies of transitions. Absorbing transitions will
-        have the value 0. Combined states without positive-rate outgoing transitions
-        are treated as absorbing.
+        Predict transition frequencies before absorption from a selected row.
+
+        The calculation includes only transition rows reachable from
+        initial_state_index. A reachable row without positive-rate outgoing
+        transitions is terminal. Every reachable row must be able to reach a terminal
+        row, so that absorption is certain. Absorbing transitions have the value 0.
 
         Each energy-transfer event is counted as one transition occurrence, including
         events that change both the donor and acceptor states. For normalization, an
@@ -289,7 +311,10 @@ class Prediction:
         Parameters
         ----------
         initial_state_index
-            Row of the transition matrix used as the initial combined state.
+            Row of combined_state_transitions_df used as the initial visit. Its final
+            state represents the initial combined state. Different rows may produce
+            different results even when they have the same final state, because the
+            selected transition row itself is included in the expected visit counts.
 
         Returns
         -------
@@ -733,14 +758,19 @@ def _get_reachable_indices(
     start_indices: int | npt.ArrayLike,
 ) -> npt.NDArray[np.int64]:
     """
-    Return transition rows reachable through positive-probability edges.
+    Return rows reachable through positive-probability matrix entries.
+
+    A positive entry at row i and column j defines a directed edge from i to j. The
+    search includes every supplied starting row and repeatedly follows these edges
+    until no unvisited rows remain. Passing a transposed transition matrix therefore
+    finds rows that can reach the supplied starting rows in the original matrix.
 
     Parameters
     ----------
     transition_matrix
-        Transition probabilities between combined-state transition rows.
+        Square matrix whose positive entries define directed edges between rows.
     start_indices
-        Rows from which to determine reachability.
+        Row or rows from which to start the search.
 
     Returns
     -------
