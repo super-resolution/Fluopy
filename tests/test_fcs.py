@@ -66,6 +66,15 @@ def test_fcs_autocorrelation_requires_emission_data(small_emissions, attribute, 
         getattr(fcs_obj, method)()
 
 
+def test_fcs_time_series_autocorrelation_requires_two_frames():
+    emissions = em.Emissions()
+    emissions.event_time_series = pd.DataFrame({"all": [1]}, index=[0.005])
+    fcs_obj = fcs_p.FCS(emissions)
+
+    with pytest.raises(ValueError, match="at least two measured frames"):
+        fcs_obj.autocorrelate_time_series()
+
+
 def test_fcs_autocorrelate_time_points_small_fixture(
     small_emissions, caplog, monkeypatch
 ):

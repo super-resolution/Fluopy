@@ -111,7 +111,18 @@ class Blinking:
         if self.emissions.event_time_series is None:
             raise ValueError("plotting requires extracted emissions.")
         event_time_series = self.emissions.select_event_time_series(self.channel)
-        sec_per_frame = float(event_time_series.index[1] - event_time_series.index[0])
+        period_modes = {
+            "on_histogram",
+            "off_histogram",
+            "on_boxplot",
+            "off_boxplot",
+        }
+        if mode in period_modes:
+            if event_time_series.size < 2:
+                raise ValueError("period plots require at least two measured frames.")
+            sec_per_frame = float(
+                event_time_series.index[1] - event_time_series.index[0]
+            )
         if mode == "on_histogram":
             data = self.on_periods
             ax = plot_histogram(

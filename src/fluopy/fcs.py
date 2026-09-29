@@ -169,6 +169,10 @@ class FCS:
         event_time_series = self.emissions.select_event_time_series(
             self.channel
         ).astype(float)
+        if event_time_series.size < 2:
+            raise ValueError(
+                "time-series autocorrelation requires at least two measured frames."
+            )
         event_values = event_time_series.to_numpy(dtype=np.float64)
         deltat = float(event_time_series.index[1] - event_time_series.index[0])
         if normalize and log:

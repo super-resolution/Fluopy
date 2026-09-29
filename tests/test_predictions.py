@@ -6,6 +6,7 @@ import pytest
 import scipy.stats as stats
 
 from fluopy import prediction as pr
+from fluopy import transitions as tr
 
 # test_prediction_# includes testing of...
 # ...predict_transition_occurrences()
@@ -32,7 +33,9 @@ def test_prediction_rejects_invalid_initial_state_index(tr_set_1f, initial_state
         )
 
 
-def test_non_absorbing_prediction_ignores_initial_state_index(tr_set_1f):
+def test_connected_non_absorbing_prediction_is_independent_of_initial_index(
+    tr_set_1f,
+):
     frequencies_0 = pr.Prediction(
         transition_set=tr_set_1f, initial_state_index=0
     ).frequency_transitions
@@ -41,6 +44,97 @@ def test_non_absorbing_prediction_ignores_initial_state_index(tr_set_1f):
     ).frequency_transitions
 
     np.testing.assert_array_equal(frequencies_0, frequencies_1)
+
+
+def test_prediction_uses_only_the_reachable_subchain(flu_sys_cy5):
+    intermediate = tr.SingleState("INTERMEDIATE_CUSTOM", 10)
+    terminal = tr.SingleState("TERMINAL_CUSTOM", 11)
+    path_transition = tr.TransitionType("PATH", tr.SingleState.T1, intermediate, False)
+    terminal_transition = tr.TransitionType("TERMINAL", intermediate, terminal, False)
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(
+                    tr.TransitionType.EXCITATION,
+                    rate=1,
+                    fluorophore_ids=[0],
+                ),
+                tr.Transition(
+                    tr.TransitionType.FLUORESCENT_EMISSION,
+                    rate=1,
+                    fluorophore_ids=[0],
+                ),
+                tr.Transition(path_transition, rate=1, fluorophore_ids=[0]),
+                tr.Transition(terminal_transition, rate=1, fluorophore_ids=[0]),
+            ]
+        },
+        flu_sys_cy5,
+    )
+
+    cycle_prediction = pr.Prediction(transition_set, initial_state_index=0)
+    terminal_prediction = pr.Prediction(transition_set, initial_state_index=2)
+
+    assert not cycle_prediction.absorbing_chain
+    np.testing.assert_array_equal(
+        cycle_prediction.frequency_transitions, [0.5, 0.5, 0, 0]
+    )
+    assert terminal_prediction.absorbing_chain
+    np.testing.assert_array_equal(
+        terminal_prediction.frequency_transitions, [0, 0, 1, 0]
+    )
+
+
+def test_prediction_rejects_reachable_terminal_and_closed_class(flu_sys_cy5):
+    source = tr.SingleState("SOURCE_CUSTOM", 10)
+    branch = tr.SingleState("BRANCH_CUSTOM", 11)
+    cycle_1 = tr.SingleState("CYCLE_1_CUSTOM", 12)
+    cycle_2 = tr.SingleState("CYCLE_2_CUSTOM", 13)
+    terminal = tr.SingleState("TERMINAL_CUSTOM", 14)
+    transition_types = [
+        tr.TransitionType("START", source, branch, False),
+        tr.TransitionType("TO_CYCLE", branch, cycle_1, False),
+        tr.TransitionType("TO_TERMINAL", branch, terminal, False),
+        tr.TransitionType("CYCLE_FORWARD", cycle_1, cycle_2, False),
+        tr.TransitionType("CYCLE_BACK", cycle_2, cycle_1, False),
+    ]
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(transition_type, rate=1, fluorophore_ids=[0])
+                for transition_type in transition_types
+            ]
+        },
+        flu_sys_cy5,
+    )
+
+    with pytest.raises(ValueError, match="closed nonterminal class"):
+        pr.Prediction(transition_set, initial_state_index=0)
+
+
+def test_prediction_rejects_multiple_recurrent_classes(flu_sys_cy5):
+    source = tr.SingleState("SOURCE_CUSTOM", 10)
+    branch = tr.SingleState("BRANCH_CUSTOM", 11)
+    recurrent_1 = tr.SingleState("RECURRENT_1_CUSTOM", 12)
+    recurrent_2 = tr.SingleState("RECURRENT_2_CUSTOM", 13)
+    transition_types = [
+        tr.TransitionType("START", source, branch, False),
+        tr.TransitionType("TO_FIRST", branch, recurrent_1, False),
+        tr.TransitionType("TO_SECOND", branch, recurrent_2, False),
+        tr.TransitionType("FIRST_SELF", recurrent_1, recurrent_1, False),
+        tr.TransitionType("SECOND_SELF", recurrent_2, recurrent_2, False),
+    ]
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(transition_type, rate=1, fluorophore_ids=[0])
+                for transition_type in transition_types
+            ]
+        },
+        flu_sys_cy5,
+    )
+
+    with pytest.raises(ValueError, match="unique stationary distribution"):
+        pr.Prediction(transition_set, initial_state_index=0)
 
 
 def test_absorbing_prediction_uses_initial_state_index(tr_set_1f_bl):
