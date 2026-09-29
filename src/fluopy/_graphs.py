@@ -12,7 +12,7 @@ import networkx as nx
 import numpy as np
 from matplotlib import rcParamsDefault
 
-from ._statistics import parse_energy_transfer_label
+from ._statistics import parse_paired_transition_label
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -54,8 +54,8 @@ def construct_state_graphs(transition_df: pd.DataFrame) -> list[nx.MultiDiGraph[
         edges: list[tuple[str, str, dict[str, str]]] = []
         for _, transition in f_transitions.iterrows():
             abbr = transition["abbreviation"]
-            energy_transfer = parse_energy_transfer_label(fluorophore)
-            if energy_transfer is None:
+            paired_transition = parse_paired_transition_label(fluorophore)
+            if paired_transition is None:
                 if isinstance(transition["initial_state"].value, tuple):
                     raise ValueError(
                         f"Invalid paired-transition label: {fluorophore!r}."
@@ -69,7 +69,7 @@ def construct_state_graphs(transition_df: pd.DataFrame) -> list[nx.MultiDiGraph[
                 )
                 edges.append(edge)
             else:
-                d, a, dist = energy_transfer
+                d, a, dist = paired_transition
                 source_1 = transition["initial_state"].value[0].name
                 source_2 = transition["initial_state"].value[1].name
                 edge = (

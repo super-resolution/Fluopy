@@ -19,7 +19,7 @@ import pandas as pd
 
 from . import _graphs as net
 from . import photophysics as fo
-from ._statistics import parse_energy_transfer_label
+from ._statistics import parse_paired_transition_label
 from .fluo_data import FluorophoreData, Spectrum
 
 if TYPE_CHECKING:
@@ -107,10 +107,10 @@ class PairedState:
     Built-in paired states are available as class attributes and in
     BUILTIN_PAIRED_STATES. Additional paired states can be constructed directly.
 
-    PairedState describes the structure of a transition and does not determine its
-    physical mechanism. The donor and acceptor names identify the ordered components
-    for compatibility with existing transition definitions; whether a transition is
-    FRET, PET, annihilation, or another process is specified by
+    PairedState describes the structure of a transition and does not require the two
+    components to form a physical donor-acceptor pair. The donor and acceptor names
+    identify their order because most supported pair mechanisms naturally use these
+    roles. The interaction or rate mechanism, such as FRET or PET, is specified by
     TransitionType.mechanism.
 
     Attributes
@@ -118,9 +118,12 @@ class PairedState:
     name
         Name of the paired state.
     donor
-        State of the first component, conventionally the donor.
+        State of the first component, conventionally the donor or active component.
+        Paired-transition frequencies are assigned to this component's transition
+        group during analysis and prediction.
     acceptor
-        State of the second component, conventionally the acceptor.
+        State of the second component, conventionally the acceptor or passive
+        component.
     """
 
     name: str
@@ -221,8 +224,8 @@ class TransitionType:
     photon
         Whether the transition emits a photon.
     mechanism
-        Non-empty name of the physical mechanism for a paired transition. Single-state
-        transitions use None.
+        Non-empty name of the interaction or rate mechanism for a paired transition.
+        Single-state transitions use None.
     """
 
     abbreviation: str
@@ -777,7 +780,7 @@ class TransitionSet:
             df_constructor = []
             for transition in f_transitions:
                 if isinstance(transition.initial_state, PairedState):
-                    paired_label = parse_energy_transfer_label(fluorophore_comb)
+                    paired_label = parse_paired_transition_label(fluorophore_comb)
                     if paired_label is None:
                         raise ValueError(
                             "paired transitions have to be defined with "

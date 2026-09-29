@@ -15,7 +15,7 @@ from . import plotting
 from ._statistics import (
     calculate_state_occupations,
     normalize_transition_frequencies,
-    parse_energy_transfer_label,
+    parse_paired_transition_label,
 )
 
 if TYPE_CHECKING:
@@ -35,8 +35,7 @@ class Prediction:
     Attributes
     ----------
     paired_transitions : bool
-        Whether the prediction includes transitions with a specified paired-transition
-        mechanism.
+        Whether the prediction includes paired transitions.
     absorbing_chain : bool
         Whether the subchain reachable from initial_state_index contains a terminal
         combined state and the prediction was carried out on an absorbing Markov chain.
@@ -51,7 +50,7 @@ class Prediction:
         row itself is also counted as the initial visit.
     frequency_transitions : npt.NDArray[np.float64]
         Relative number of expected transition occurrences, normalized separately for
-        each fluorophore. Energy-transfer occurrences are assigned to the donor's
+        each fluorophore. Paired-transition occurrences are assigned to the donor's
         transition group.
     frequency_states : dict[str, npt.NDArray[np.float64]]
         Relative expected number of visits to each state, normalized separately for each
@@ -59,21 +58,21 @@ class Prediction:
     transition_time_distributions : npt.NDArray[object] | None
         Expected distributions of time until transition.
         Contains objects of type scipy.stats.*.rv_frozen for each transition.
-        None if paired transitions is True.
+        None if paired_transitions is True.
     lifetime_distributions : dict[str, npt.NDArray[object]] | None
         Name of fluorophores as keys and their state's expected lifetime distributions
         (objects of type scipy.stats.*.rv_frozen) (array) as values.
-        None if paired transitions is True.
+        None if paired_transitions is True.
     mean_transition_times : npt.NDArray[np.float64] | None
         Expected means of time until transition.
-        None if paired transitions is True.
+        None if paired_transitions is True.
     mean_lifetimes : dict[str, npt.NDArray[np.float64]] | None
         Name of fluorophores as keys and their state's expected lifetime means (array)
         as values.
-        None if paired transitions is True.
+        None if paired_transitions is True.
     state_occupations : dict[str, npt.NDArray[np.float64]] | None
         Relative time spent in each state, normalized separately for each fluorophore.
-        None if paired transitions is True.
+        None if paired_transitions is True.
 
     Notes
     -----
@@ -377,8 +376,8 @@ class Prediction:
         Predict the relative frequencies of states. Each different type of fluorophore's
         states frequencies sum up to 1.
 
-        State visits are counted separately for each physical fluorophore. An
-        energy-transfer event therefore contributes a visit for both donor and
+        State visits are counted separately for each physical fluorophore. A
+        paired transition event therefore contributes a visit for both donor and
         acceptor if both states change, while still representing one transition
         occurrence.
 
@@ -396,9 +395,9 @@ class Prediction:
         grouped = self.transition_set.transition_df.groupby(level=0)
         for fluorophore_comb_raw, f_transitions in grouped:
             fluorophore_comb = cast(str, fluorophore_comb_raw)
-            energy_transfer = parse_energy_transfer_label(fluorophore_comb)
-            if energy_transfer is not None:
-                d, a, _ = energy_transfer
+            paired_transition = parse_paired_transition_label(fluorophore_comb)
+            if paired_transition is not None:
+                d, a, _ = paired_transition
                 single_states_a = single_states[a]
                 single_states_d = single_states[d]
                 factor = 1.0

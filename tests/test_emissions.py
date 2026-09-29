@@ -372,7 +372,7 @@ def test_emissions_tcspc_parameters(tr_set_bl_et_2f_diff):
         )
         args, kwargs = mock_tcspc.call_args
         np.testing.assert_array_equal(
-            kwargs["et_transition_ids"], np.array([4, 38, 40])
+            kwargs["paired_transition_ids"], np.array([4, 38, 40])
         )
         expected = np.zeros_like(kwargs["detection_probabilities"])
         expected[[4, 5, 6, 7], 0] = 0.6820037131347214

@@ -16,7 +16,7 @@ from . import plotting
 from ._statistics import (
     calculate_state_occupations,
     normalize_transition_frequencies,
-    parse_energy_transfer_label,
+    parse_paired_transition_label,
 )
 from .plotting import format_electronic_state, format_transition
 
@@ -42,7 +42,7 @@ class Analysis:
         Container for simulation-associated attributes.
     frequency_transitions : npt.NDArray[np.float64]
         Relative number of simulated transition occurrences, normalized separately for
-        each fluorophore. Energy-transfer occurrences are assigned to the donor's
+        each fluorophore. Paired-transition occurrences are assigned to the donor's
         transition group.
     frequency_states : dict[str, npt.NDArray[np.float64]]
         Relative simulated number of visits to each state, normalized separately for
@@ -146,9 +146,9 @@ class Analysis:
         """
         Get the relative frequencies of simulated transition occurrences.
 
-        Each energy-transfer event is counted as one transition occurrence, including
-        events that change both the donor and acceptor states. For normalization, an
-        energy-transfer occurrence is assigned only to the donor's transition group;
+        Each paired-transition event is counted as one transition occurrence, including
+        events that change both the donor and acceptor states. For normalization, a
+        paired-transition occurrence is assigned only to the donor's transition group;
         ordinary transitions are assigned to their respective fluorophore groups.
 
         Returns
@@ -174,8 +174,8 @@ class Analysis:
         """
         Get the relative frequencies of simulated state visits.
 
-        State visits are counted separately for each physical fluorophore. An
-        energy-transfer event therefore contributes a visit for both donor and
+        State visits are counted separately for each physical fluorophore. A
+        paired-transition event therefore contributes a visit for both donor and
         acceptor if both states change, while still representing one transition
         occurrence.
 
@@ -231,11 +231,11 @@ class Analysis:
         Get the lifetime distributions of states and the time until occurrence
         distributions of transitions.
 
-        An energy-transfer event that does not change the acceptor state does not
-        interrupt the acceptor's state lifetime. For energy-transfer transitions, time
-        to transition is collected only from the donor's point of view. State lifetime
+        A paired-transition event that does not change the acceptor state does not
+        interrupt the acceptor's state lifetime. For paired transitions, time to
+        transition is collected only from the donor's point of view. State lifetime
         distributions, including those of S1, do not distinguish intervals in which
-        energy transfer was possible from intervals in which it was not.
+        a paired transition was possible from intervals in which it was not.
 
         Only completed residence intervals are included; the final right-censored
         interval is excluded. A fluorophore without state changes therefore contributes
@@ -302,7 +302,7 @@ class Analysis:
                 transition_id,
             ) in self.simulation.transition_set.transition_df.index:
                 occurrence_mask = transition_ids_at_changes == transition_id
-                if parse_energy_transfer_label(transition_group) is not None:
+                if parse_paired_transition_label(transition_group) is not None:
                     occurrence_mask &= initiating_fluorophore_ids == fluorophore_id
 
                 transition_time_parts[transition_id].append(
@@ -449,7 +449,7 @@ class Analysis:
         prediction
             Container of mathematically derived statistical attributes and methods.
         diff_dist
-            Whether to plot energy transfers distance-specific or not.
+            Whether to plot paired transitions distance-specific or not.
         kwargs
             kwargs for fluopy.plotting.plot_data
 
@@ -479,7 +479,7 @@ class Analysis:
         legend_labels = [
             (
                 name.rsplit(", dist:", maxsplit=1)[0]
-                if parse_energy_transfer_label(name) is not None and not diff_dist
+                if parse_paired_transition_label(name) is not None and not diff_dist
                 else name
             )
             for name in transition_df.index.get_level_values(0).unique()
@@ -580,7 +580,7 @@ class Analysis:
         prediction
             Container of mathematically derived statistical attributes and methods.
         diff_dist
-            Whether to plot energy transfers distance-specific or not.
+            Whether to plot paired transitions distance-specific or not.
         kwargs
             kwargs to fluopy.plotting.plot_data
 
@@ -623,7 +623,7 @@ class Analysis:
         legend_labels = [
             (
                 name.rsplit(", dist:", maxsplit=1)[0]
-                if parse_energy_transfer_label(name) is not None and not diff_dist
+                if parse_paired_transition_label(name) is not None and not diff_dist
                 else name
             )
             for name in transition_df.index.get_level_values(0).unique()
@@ -939,8 +939,7 @@ def no_diff_dist(transition_df: pd.DataFrame, fluorophores: Iterable[str]) -> tu
     npt.NDArray[np.int64],
 ]:
     """
-    Get a transition_df which only contains one distance for each type of energy
-    transfer.
+    Get a transition_df containing one distance for each paired-transition type.
 
     Parameters
     ----------
@@ -954,7 +953,7 @@ def no_diff_dist(transition_df: pd.DataFrame, fluorophores: Iterable[str]) -> tu
     Returns
     -------
     collapsed_transition_df : pd.DataFrame
-        Transition dataframe containing one distance for each energy-transfer pair.
+        Transition dataframe containing one distance for each paired-transition group.
     discarded_ids_by_retained_position : dict[int, pd.Index[Any]]
         Positions of retained transitions as keys and the corresponding discarded
         distance-specific transition IDs as values.
@@ -968,10 +967,10 @@ def no_diff_dist(transition_df: pd.DataFrame, fluorophores: Iterable[str]) -> tu
     fluorophore_names = set(fluorophores)
     labels_by_pair: dict[tuple[str, str], list[str]] = {}
     for group_label in unique_group_labels:
-        energy_transfer = parse_energy_transfer_label(group_label)
-        if energy_transfer is None:
+        paired_transition = parse_paired_transition_label(group_label)
+        if paired_transition is None:
             continue
-        donor, acceptor, _ = energy_transfer
+        donor, acceptor, _ = paired_transition
         if donor in fluorophore_names:
             labels_by_pair.setdefault((donor, acceptor), []).append(group_label)
 
