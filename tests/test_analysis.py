@@ -409,7 +409,13 @@ def test_analysis_plots_reject_incompatible_prediction_dimensions(
 
 def test_analysis_transition_plots_can_collapse_transfer_distances():
     transition_df = pd.DataFrame(
-        {"abbreviation": ["A", "ET1", "ET2", "ET1", "ET2", "B"]},
+        {
+            "abbreviation": ["A", "ET1", "ET2", "ET1", "ET2", "B"],
+            "initial_state": ["S0", "S1_S0", "S1_S0", "S1_S0", "S1_S0", "S1"],
+            "final_state": ["S1", "S0_S1", "S0_S1", "S0_S1", "S0_S1", "S0"],
+            "photon": [False, False, False, False, False, True],
+            "mechanism": [None, "FRET", "PET", "FRET", "PET", None],
+        },
         index=pd.MultiIndex.from_tuples(
             [
                 ("A", 0),
@@ -730,9 +736,31 @@ def test_no_diff_dist():
     rng = np.random.default_rng(42)
     data = rng.standard_normal((16, 3))
     df = pd.DataFrame(data, index=index, columns=["X", "Y", "Z"])
+    df["abbreviation"] = [
+        "A",
+        "B",
+        "C",
+        "ET1",
+        "ET2",
+        "ET1",
+        "ET2",
+        "ET1",
+        "ET2",
+        "D",
+        "E",
+        "F",
+        "ET1",
+        "ET2",
+        "ET1",
+        "ET2",
+    ]
+    df["initial_state"] = "initial"
+    df["final_state"] = "final"
+    df["photon"] = False
+    df["mechanism"] = [None] * 3 + ["FRET"] * 6 + [None] * 3 + ["FRET"] * 4
 
     df2, dict2, dict2_vals = an.no_diff_dist(df, ["Cy5", "H"])
-    assert df2.shape == (10, 3)
+    assert df2.shape[0] == 10
     assert df2.index.get_level_values(0).unique().tolist() == [
         "Cy5",
         "D: Cy5, A: H, dist: 1",
@@ -757,7 +785,17 @@ def test_no_diff_dist_keeps_single_distance_pair():
         [("Cy5", 0), ("D: Cy5, A: H, dist: 1", 1)],
         names=["Group", "Number"],
     )
-    transition_df = pd.DataFrame({"rate": [1.0, 2.0]}, index=index)
+    transition_df = pd.DataFrame(
+        {
+            "rate": [1.0, 2.0],
+            "abbreviation": ["EXC", "FRET"],
+            "initial_state": ["S0", "S1_S0"],
+            "final_state": ["S1", "S0_S1"],
+            "photon": [False, False],
+            "mechanism": [None, "FRET"],
+        },
+        index=index,
+    )
 
     collapsed, discarded_by_position, discarded = an.no_diff_dist(
         transition_df, ["Cy5", "H"]
@@ -772,6 +810,46 @@ def test_no_diff_dist_keeps_single_distance_pair():
     )
     assert discarded_by_position == {}
     np.testing.assert_array_equal(discarded, np.array([], dtype=np.int64))
+
+
+def test_no_diff_dist_matches_transition_signature_across_distances():
+    index = pd.MultiIndex.from_tuples(
+        [
+            ("D: A, A: B, dist: 1", 0),
+            ("D: A, A: B, dist: 1", 1),
+            ("D: A, A: B, dist: 2", 2),
+            ("D: A, A: B, dist: 2", 3),
+            ("D: A, A: B, dist: 3", 4),
+        ],
+        names=["Group", "Number"],
+    )
+    transition_df = pd.DataFrame(
+        {
+            "abbreviation": ["PAIR"] * 5,
+            "initial_state": ["S1_S0"] * 5,
+            "final_state": ["S0_S1"] * 5,
+            "photon": [False] * 5,
+            "mechanism": ["FRET", "PET", "PET", "FRET", "FRET"],
+        },
+        index=index,
+    )
+
+    collapsed, discarded_by_position, discarded = an.no_diff_dist(
+        transition_df, ["A", "B"]
+    )
+
+    assert collapsed["mechanism"].tolist() == ["FRET", "PET"]
+    assert collapsed.index.get_level_values(0).tolist() == [
+        "D: A, A: B, dist: 1",
+        "D: A, A: B, dist: 1",
+    ]
+    pd.testing.assert_index_equal(
+        discarded_by_position[0], pd.Index([3, 4], name="Number")
+    )
+    pd.testing.assert_index_equal(
+        discarded_by_position[1], pd.Index([2], name="Number")
+    )
+    np.testing.assert_array_equal(discarded, np.array([2, 3, 4]))
 
 
 def test_get_absorbing_state_times(sim_tr_set_1f_bl):

@@ -941,6 +941,9 @@ def no_diff_dist(transition_df: pd.DataFrame, fluorophores: Iterable[str]) -> tu
     """
     Get a transition_df containing one distance for each paired-transition type.
 
+    Distance-specific transitions are matched by donor, acceptor, abbreviation, state
+    change, photon emission and mechanism.
+
     Parameters
     ----------
     transition_df
@@ -960,63 +963,82 @@ def no_diff_dist(transition_df: pd.DataFrame, fluorophores: Iterable[str]) -> tu
     discarded_ids : npt.NDArray[np.int64]
         Flattened array of discarded distance-specific transition IDs.
     """
-    collapsed_transition_df = transition_df.copy()
-    group_labels = collapsed_transition_df.index.get_level_values(0)
-    transition_ids = collapsed_transition_df.index.get_level_values(1)
-    unique_group_labels = group_labels.unique()
+    transition_ids = transition_df.index.get_level_values(1)
     fluorophore_names = set(fluorophores)
-    labels_by_pair: dict[tuple[str, str], list[str]] = {}
-    for group_label in unique_group_labels:
+    retained_label_by_pair: dict[tuple[str, str], str] = {}
+    retained_id_by_transition: dict[tuple[object, ...], int] = {}
+    retained_label_by_id: dict[int, str] = {}
+    discarded_ids_by_retained_id: dict[int, list[int]] = {}
+
+    for index, transition in transition_df.iterrows():
+        if not isinstance(index, tuple) or len(index) != 2:
+            raise TypeError("transition DataFrame must have a two-level index.")
+        group_label_raw, transition_id_raw = index
+        if not isinstance(transition_id_raw, int):
+            raise TypeError("transition identity must be an integer.")
+        group_label = str(group_label_raw)
+        transition_id = transition_id_raw
         paired_transition = parse_paired_transition_label(group_label)
         if paired_transition is None:
+            retained_label_by_id[transition_id] = group_label
             continue
         donor, acceptor, _ = paired_transition
-        if donor in fluorophore_names:
-            labels_by_pair.setdefault((donor, acceptor), []).append(group_label)
-
-    discarded_ids_by_retained_label: dict[str, pd.Index[Any]] = {}
-    discarded_group_labels: list[str] = []
-    for distance_labels in labels_by_pair.values():
-        retained_label = distance_labels[0]
-        discarded_labels = distance_labels[1:]
-        if not discarded_labels:
+        if donor not in fluorophore_names:
+            retained_label_by_id[transition_id] = group_label
             continue
-        corresponding_transition_ids = transition_ids[
-            group_labels.isin(discarded_labels)
-        ]
-        discarded_ids_by_retained_label[retained_label] = corresponding_transition_ids
-        discarded_group_labels.extend(discarded_labels)
 
-    collapsed_transition_df = collapsed_transition_df[
-        ~collapsed_transition_df.index.get_level_values(0).isin(discarded_group_labels)
+        pair = donor, acceptor
+        retained_label = retained_label_by_pair.setdefault(pair, group_label)
+        transition_key = (
+            donor,
+            acceptor,
+            transition["abbreviation"],
+            transition["initial_state"],
+            transition["final_state"],
+            transition["photon"],
+            transition["mechanism"],
+        )
+        if transition_key not in retained_id_by_transition:
+            retained_id_by_transition[transition_key] = transition_id
+            retained_label_by_id[transition_id] = retained_label
+            continue
+
+        retained_id = retained_id_by_transition[transition_key]
+        discarded_ids_by_retained_id.setdefault(retained_id, []).append(transition_id)
+
+    discarded_ids = np.asarray(
+        [
+            transition_id
+            for ids in discarded_ids_by_retained_id.values()
+            for transition_id in ids
+        ],
+        dtype=np.int64,
+    )
+    retained_mask = ~transition_ids.isin(discarded_ids)
+    collapsed_transition_df = transition_df[retained_mask].copy()
+    retained_transition_ids = collapsed_transition_df.index.get_level_values(1)
+    retained_group_labels = [
+        retained_label_by_id[cast(int, transition_id)]
+        for transition_id in retained_transition_ids
     ]
     collapsed_transition_df.index = pd.MultiIndex.from_arrays(
         [
-            collapsed_transition_df.index.get_level_values(0),
+            retained_group_labels,
             range(len(collapsed_transition_df)),
         ]
     )
+    retained_position_by_id = {
+        cast(int, transition_id): position
+        for position, transition_id in enumerate(retained_transition_ids)
+    }
     discarded_ids_by_retained_position: dict[int, pd.Index[Any]] = {}
-    for (
-        retained_label,
-        discarded_transition_ids,
-    ) in discarded_ids_by_retained_label.items():
-        retained_group = collapsed_transition_df.loc[retained_label]
-        transitions_per_distance = retained_group.shape[0]
-        for i in range(transitions_per_distance):
-            retained_position = cast(int, retained_group.index[i])
-            discarded_ids_by_retained_position[retained_position] = (
-                discarded_transition_ids[i::transitions_per_distance]
-            )
-    if discarded_ids_by_retained_position:
-        discarded_ids = np.concatenate(
-            [
-                values.to_numpy(dtype=np.int64)
-                for values in discarded_ids_by_retained_position.values()
-            ]
+    for retained_id, discarded_transition_ids in discarded_ids_by_retained_id.items():
+        retained_position = retained_position_by_id[retained_id]
+        discarded_ids_by_retained_position[retained_position] = pd.Index(
+            discarded_transition_ids,
+            dtype="int64",
+            name=transition_ids.name,
         )
-    else:
-        discarded_ids = np.array([], dtype=np.int64)
 
     return (
         collapsed_transition_df,
