@@ -372,7 +372,7 @@ def test_emissions_tcspc_parameters(tr_set_bl_et_2f_diff):
         )
         args, kwargs = mock_tcspc.call_args
         np.testing.assert_array_equal(
-            kwargs["et_transition_ids"], np.array([4, 38, 40])
+            kwargs["paired_emission_ids"], np.array([4, 38, 40])
         )
         expected = np.zeros_like(kwargs["detection_probabilities"])
         expected[[4, 5, 6, 7], 0] = 0.6820037131347214
@@ -380,6 +380,38 @@ def test_emissions_tcspc_parameters(tr_set_bl_et_2f_diff):
         np.testing.assert_allclose(kwargs["detection_probabilities"], expected)
         assert kwargs["channel_names"] == ("donor", "acceptor")
         assert list(emis.event_time_series.columns) == ["donor", "acceptor"]
+
+
+def test_get_paired_emission_ids_ignores_zero_rate_transition():
+    transitions = pd.DataFrame(
+        {
+            "initial_state": [(1, 0), (1, 0)],
+            "fluorophore_ids": [[0], [0, 1]],
+            "rate": [1.0, 0.0],
+        }
+    )
+
+    paired_emission_ids = em._get_paired_emission_ids(
+        transitions, np.array([0], dtype=np.intp)
+    )
+
+    assert paired_emission_ids == []
+
+
+def test_get_paired_emission_ids_requires_emitter_as_active_component():
+    transitions = pd.DataFrame(
+        {
+            "initial_state": [(1, 0, 1), (1, 0, 1), (1, 0, 1)],
+            "fluorophore_ids": [[0], [2], [0, 1]],
+            "rate": [1.0, 1.0, 1.0],
+        }
+    )
+
+    paired_emission_ids = em._get_paired_emission_ids(
+        transitions, np.array([0, 1], dtype=np.intp)
+    )
+
+    assert paired_emission_ids == [0]
 
 
 def test_emissions_tcspc_details_infers_excitation_rates(tr_set_1f_bl, caplog):
@@ -840,3 +872,41 @@ def test_get_detection_probabilities_requires_spectral_data_for_bandpass():
             transition_set=transition_set,
             channels={"detector": em.DetectionChannel((500, 600))},
         )
+
+
+def test_get_detection_probabilities_rejects_paired_emission():
+    transition_set = SimpleNamespace(
+        combined_state_transitions_df=pd.DataFrame(
+            {"photon": [True], "fluorophore_ids": [[0, 1]]}
+        ),
+        fluorophore_system=SimpleNamespace(fluorophores=[]),
+    )
+
+    with pytest.raises(ValueError, match="must belong to one fluorophore"):
+        em.get_detection_probabilities(
+            transition_set,
+            {"detector": em.DetectionChannel()},
+        )
+
+
+def test_get_detection_probabilities_rejects_unfiltered_shared_channels(
+    tr_set_1f,
+):
+    channels = {
+        "first": em.DetectionChannel(),
+        "second": em.DetectionChannel((600, 650)),
+    }
+
+    with pytest.raises(ValueError, match="must not overlap"):
+        em.get_detection_probabilities(tr_set_1f, channels)
+
+
+def test_get_detection_probabilities_rejects_sum_above_one(tr_set_1f, monkeypatch):
+    monkeypatch.setattr(em, "get_p_filter", lambda **_: 0.6)
+    channels = {
+        "first": em.DetectionChannel((500, 550)),
+        "second": em.DetectionChannel((600, 650)),
+    }
+
+    with pytest.raises(ValueError, match="sum to at most 1"):
+        em.get_detection_probabilities(tr_set_1f, channels)

@@ -110,6 +110,19 @@ def test_prediction_rejects_reachable_terminal_and_closed_class(flu_sys_cy5):
     with pytest.raises(ValueError, match="closed nonterminal class"):
         pr.Prediction(transition_set, initial_state_index=0)
 
+    prediction = pr.Prediction.__new__(pr.Prediction)
+    prediction.transition_set = transition_set
+    with pytest.raises(ValueError, match="closed nonterminal class"):
+        prediction.predict_transition_occurrences_absorbing(initial_state_index=0)
+
+
+def test_absorbing_prediction_requires_reachable_terminal_state(tr_set_1f):
+    prediction = pr.Prediction.__new__(pr.Prediction)
+    prediction.transition_set = tr_set_1f
+
+    with pytest.raises(ValueError, match="no terminal state is reachable"):
+        prediction.predict_transition_occurrences_absorbing(initial_state_index=0)
+
 
 def test_prediction_rejects_multiple_recurrent_classes(flu_sys_cy5):
     source = tr.SingleState("SOURCE_CUSTOM", 10)
@@ -261,7 +274,7 @@ def test_prediction_2(tr_set_bl_et_2f_diff, caplog):
     with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_bl_et_2f_diff)
         assert (
-            "Only frequencies are available for systems with energy transfer; "
+            "Only frequencies are available for systems with paired transitions; "
             "lifetimes and occupations are not available." in caplog.text
         )
         assert (
@@ -270,7 +283,7 @@ def test_prediction_2(tr_set_bl_et_2f_diff, caplog):
         )
     caplog.clear()
 
-    assert prediction.energy_transfer
+    assert prediction.paired_transitions
     assert prediction.absorbing_chain
     assert prediction.transition_set == tr_set_bl_et_2f_diff
     exp_freq_trans = np.array(
@@ -317,7 +330,7 @@ def test_prediction_3(tr_set_bl_et_2f_same, caplog):
     with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_bl_et_2f_same)
         assert (
-            "Only frequencies are available for systems with energy transfer; "
+            "Only frequencies are available for systems with paired transitions; "
             "lifetimes and occupations are not available." in caplog.text
         )
         assert (
@@ -326,7 +339,7 @@ def test_prediction_3(tr_set_bl_et_2f_same, caplog):
         )
     caplog.clear()
 
-    assert prediction.energy_transfer
+    assert prediction.paired_transitions
     assert prediction.absorbing_chain
     assert prediction.transition_set == tr_set_bl_et_2f_same
     exp_freq_trans = np.array(
@@ -365,12 +378,12 @@ def test_prediction_4(tr_set_et_2f_diff, caplog):
     with caplog.at_level(logging.WARNING):
         prediction = pr.Prediction(transition_set=tr_set_et_2f_diff)
         assert (
-            "Only frequencies are available for systems with energy transfer; "
+            "Only frequencies are available for systems with paired transitions; "
             "lifetimes and occupations are not available." in caplog.text
         )
         caplog.clear()
 
-    assert prediction.energy_transfer
+    assert prediction.paired_transitions
     assert not prediction.absorbing_chain
     assert prediction.transition_set == tr_set_et_2f_diff
     exp_freq_trans = np.array(
@@ -413,7 +426,7 @@ def test_prediction_4(tr_set_et_2f_diff, caplog):
 # test with 2 different fluorophores, no energy transfer, no bleaching
 def test_prediction_5(tr_set_2f_diff):
     prediction = pr.Prediction(transition_set=tr_set_2f_diff)
-    assert not prediction.energy_transfer
+    assert not prediction.paired_transitions
     assert not prediction.absorbing_chain
     assert prediction.transition_set == tr_set_2f_diff
     exp_freq_trans = np.array(
@@ -494,7 +507,7 @@ def test_prediction_6(tr_set_1f_bl, caplog):
         )
         caplog.clear()
 
-    assert not prediction.energy_transfer
+    assert not prediction.paired_transitions
     assert prediction.absorbing_chain
     assert prediction.transition_set == tr_set_1f_bl
     exp_freq_trans = np.array(
@@ -565,7 +578,7 @@ def test_prediction_6(tr_set_1f_bl, caplog):
 # test with 1 fluorophore, no bleaching
 def test_prediction_7(tr_set_1f):
     prediction = pr.Prediction(transition_set=tr_set_1f)
-    assert not prediction.energy_transfer
+    assert not prediction.paired_transitions
     assert not prediction.absorbing_chain
     assert prediction.transition_set == tr_set_1f
     exp_freq_trans = np.array(
@@ -626,7 +639,7 @@ def test_infer_stats_rejects_unavailable_lifetimes():
     prediction = pr.Prediction.__new__(pr.Prediction)
     prediction.lifetime_distributions = None
 
-    with pytest.raises(ValueError, match="unavailable for energy transfer"):
+    with pytest.raises(ValueError, match="unavailable for paired transitions"):
         prediction.infer_stats()
 
 
@@ -746,7 +759,7 @@ def test_prediction_rejects_constant_lifetime_plot(pred_tr_set_1f_bl):
 )
 def test_prediction_plots_reject_energy_transfer(method, arguments, message):
     prediction = pr.Prediction.__new__(pr.Prediction)
-    prediction.energy_transfer = True
+    prediction.paired_transitions = True
 
     with pytest.raises(ValueError, match=message):
         getattr(prediction, method)(**arguments)
@@ -791,7 +804,7 @@ def test_prediction_plots_reject_missing_statistics(
     method, attribute, arguments, message
 ):
     prediction = pr.Prediction.__new__(pr.Prediction)
-    prediction.energy_transfer = False
+    prediction.paired_transitions = False
     setattr(prediction, attribute, None)
     if method == "plot_lifetime_distributions":
         prediction.mean_lifetimes = {"testfluo_1": np.array([1.0])}

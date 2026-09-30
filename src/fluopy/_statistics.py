@@ -8,14 +8,14 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-_ENERGY_TRANSFER_LABEL = re.compile(
+_PAIRED_TRANSITION_LABEL = re.compile(
     r"D:\s*([^,]+),\s*A:\s*([^,]+),\s*dist:\s*(\d+(?:\.\d+)?)\s*"
 )
 
 
-def parse_energy_transfer_label(label: str) -> tuple[str, str, str] | None:
+def parse_paired_transition_label(label: str) -> tuple[str, str, str] | None:
     """
-    Parse an energy-transfer transition-group label.
+    Parse a paired-transition group label.
 
     Parameters
     ----------
@@ -25,10 +25,10 @@ def parse_energy_transfer_label(label: str) -> tuple[str, str, str] | None:
     Returns
     -------
     tuple[str, str, str] | None
-        Donor name, acceptor name, and distance if label describes an energy transfer;
+        Donor name, acceptor name, and distance if label describes a paired transition;
         otherwise None.
     """
-    match = _ENERGY_TRANSFER_LABEL.fullmatch(label)
+    match = _PAIRED_TRANSITION_LABEL.fullmatch(label)
     if match is None:
         return None
     return match.group(1), match.group(2), match.group(3)
@@ -38,9 +38,10 @@ def normalize_transition_frequencies(
     frequencies: npt.ArrayLike, transition_df: pd.DataFrame
 ) -> npt.NDArray[np.float64]:
     """
-    Normalize transition frequencies separately for each donor fluorophore.
+    Normalize transition frequencies separately for each fluorophore.
 
-    Energy-transfer transitions are assigned to the donor's transition group.
+    Paired transitions are assigned to the donor's transition group. The donor is the
+    first component of the ordered fluorophore pair.
 
     Parameters
     ----------
@@ -60,8 +61,8 @@ def normalize_transition_frequencies(
     transition_ids_by_donor: dict[str, list[int]] = {}
     for group_label_raw, group in transition_df.groupby(level=0, sort=False):
         group_label = str(group_label_raw)
-        energy_transfer = parse_energy_transfer_label(group_label)
-        donor = group_label if energy_transfer is None else energy_transfer[0]
+        paired_transition = parse_paired_transition_label(group_label)
+        donor = group_label if paired_transition is None else paired_transition[0]
         transition_ids_by_donor.setdefault(donor, []).extend(
             group.index.get_level_values(1).tolist()
         )

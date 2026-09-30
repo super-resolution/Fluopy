@@ -16,7 +16,7 @@ import numpy.typing as npt
 from . import fluo_data as fd
 from . import plotting
 from .transitions import (
-    derive_energy_transfer_transitions,
+    derive_fret_transitions,
     derive_transitions,
 )
 
@@ -222,15 +222,14 @@ class FluorophoreSystem:
         Derives transitions based on fluorophore and the experimental conditions to be
         mimicked.
 
-        This method derives only the transition types implemented by Fluopy.
-        User-defined SingleState, PairedState, and TransitionType objects are not
-        discovered automatically. Transitions using them must be added manually to
-        the returned dictionary before creating a TransitionSet.
+        This method derives the predefined subset of transitions described below. It
+        does not derive every transition type in BUILTIN_TRANSITION_TYPES.
 
         Parameters
         ----------
         summarize
-            Whether to summarize some transitions into fewer.
+            Whether to combine two or more non-photon transitions with identical
+            initial and final states into one transition with their summed rate.
         irradiance
             Irradiance in kW/cm².
         wavelength
@@ -238,7 +237,7 @@ class FluorophoreSystem:
         bleaching
             Whether to incorporate bleaching as a possible transition.
         energy_transfer
-            Whether to incorporate energy transfers as possible transitions.
+            Whether to derive FRET transitions from acceptor absorption spectra.
         dstorm
             Whether to incorporate dstorm photoswitching as possible transitions.
         energy_transfer_parameters
@@ -253,9 +252,9 @@ class FluorophoreSystem:
                 Contains the type of acceptor state (lowercase) to be excluded.
             - include : dict
                 Contains the type of acceptor state as key and a list of tuples as
-                values. The tuples contain the transition type and an efficiency. If the
-                summed efficiencies is e.g., 0.5, all other energy transfers affecting
-                the acceptor state are multiplied by 1-0.5.
+                values. The tuples contain a transition type using the FRET mechanism
+                and an efficiency. If the summed efficiencies is e.g., 0.5, all other
+                FRET transitions affecting the acceptor state are multiplied by 1-0.5.
         dstorm_parameters
             May contain the following keys: reducing_agent, concentration, k_pet, ph.
             Only used if dstorm is True.
@@ -268,22 +267,25 @@ class FluorophoreSystem:
         and radical-state transitions. Setting bleaching to True adds triplet-state
         photobleaching.
 
-        Energy-transfer transitions are derived from acceptor absorption spectra with
-        the supported state keys s0, s1, t1, cis, and off. These produce standard FRET,
+        FRET transitions are derived from acceptor absorption spectra with the
+        supported state keys s0, s1, t1, cis, and off. These produce standard FRET,
         singlet-singlet annihilation, singlet-triplet annihilation, cis-state transfer,
         and off-state transfer, respectively.
+
+        Built-in transition types not described above are not added automatically.
+        Paired transitions using a mechanism other than FRET are never derived
+        automatically. These transitions, and transitions using user-defined
+        SingleState, PairedState, or TransitionType objects, must be constructed
+        manually and added to the returned dictionary before creating a TransitionSet.
 
         A transition can be returned with rate zero when its corresponding
         FluorophoreData value is zero or its spectra do not overlap. TransitionSet
         removes zero-rate transitions by default.
 
-        User-defined transition types are not discovered automatically and must be
-        added manually to the returned dictionary.
-
         See Also
         --------
         fluopy.transitions.derive_transitions
-        fluopy.transitions.derive_energy_transfer_transitions
+        fluopy.transitions.derive_fret_transitions
 
         Returns
         -------
@@ -387,7 +389,7 @@ class FluorophoreSystem:
 
                             transitions[
                                 f"D: {donor_fluorophore.name}, A: {acceptor_fluorophore.name}, dist: {distance}"
-                            ] = derive_energy_transfer_transitions(
+                            ] = derive_fret_transitions(
                                 donor_data=donor_data,
                                 acceptor_data=acceptor_fluorophore.constants,
                                 fluorophore_ids=energy_transfer_ids,

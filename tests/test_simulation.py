@@ -9,6 +9,7 @@ import pytest
 
 from fluopy import prediction as pr
 from fluopy import simulation as si
+from fluopy import transitions as tr
 
 
 class TestSimulation:
@@ -248,6 +249,36 @@ def test_first_reaction_method(tr_set_bl_et_2f_diff):
     exp_transition_series = np.array([32, 63, 32, 63])
     np.testing.assert_allclose(time_series, exp_time_series, rtol=1e-7)
     np.testing.assert_array_equal(transition_series, exp_transition_series)
+
+
+def test_first_reaction_method_applies_kappa_squared_only_to_fret(monkeypatch):
+    transitions = pd.DataFrame(
+        {
+            "rate": [0.0, 1.0, 1.0],
+            "mechanism": [
+                None,
+                tr.TransitionMechanism.FRET,
+                tr.TransitionMechanism.PET,
+            ],
+        }
+    )
+    monkeypatch.setattr(
+        si,
+        "sample_kappa_squared_distribution",
+        lambda k2_values, size, seed: np.zeros(size),
+    )
+
+    _, transition_series = si.first_reaction_method(
+        transition_matrix=[[0, 0.5, 0.5], [0, 0, 0], [0, 0, 0]],
+        row_sums=[2, 0, 0],
+        combined_state_transitions_df=transitions,
+        include_kap_sq=True,
+        start_index=0,
+        size=1,
+        seed=42,
+    )
+
+    np.testing.assert_array_equal(transition_series, [2])
 
 
 def test_first_reaction_method_with_memmap(tr_set_bl_et_2f_diff, tmp_path):
@@ -528,19 +559,19 @@ def test_simulation(tr_set_1f):
             np.array(
                 [
                     0.00000000000e0,
-                    1.11581833551e-7,
-                    1.12361178140e-7,
-                    1.66769968502e-7,
-                    1.66845595444e-7,
-                    3.13505893572e-7,
-                    3.14175598141e-7,
-                    3.36006188810e-7,
-                    3.40509502976e-7,
-                    4.17729425876e-7,
-                    4.18007488477e-7,
+                    4.13399675381e-7,
+                    4.13521560688e-7,
+                    6.63304105558e-7,
+                    6.64779860077e-7,
+                    6.76891265289e-7,
+                    6.78627923106e-7,
+                    7.05068978674e-7,
+                    7.05408153751e-7,
+                    9.19894090318e-7,
+                    9.20722150938e-7,
                 ]
             ),
-            np.array([0, 6, 0, 6, 0, 6, 0, 1, 0, 6]),
+            np.array([0, 6, 0, 6, 0, 6, 0, 1, 0, 1]),
             np.array([[0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]]),
         ],
         [

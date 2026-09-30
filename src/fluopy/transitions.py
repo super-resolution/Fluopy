@@ -8,6 +8,7 @@ import copy
 import logging
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, fields
+from enum import StrEnum
 from itertools import product
 from numbers import Real
 from types import MappingProxyType
@@ -19,7 +20,7 @@ import pandas as pd
 
 from . import _graphs as net
 from . import photophysics as fo
-from ._statistics import parse_energy_transfer_label
+from ._statistics import parse_paired_transition_label
 from .fluo_data import FluorophoreData, Spectrum
 
 if TYPE_CHECKING:
@@ -33,6 +34,7 @@ __all__: list[str] = [
     "BUILTIN_SINGLE_STATES",
     "PairedState",
     "BUILTIN_PAIRED_STATES",
+    "TransitionMechanism",
     "TransitionType",
     "BUILTIN_TRANSITION_TYPES",
     "Transition",
@@ -102,19 +104,28 @@ BUILTIN_SINGLE_STATES = (
 @dataclass(frozen=True, slots=True)
 class PairedState:
     """
-    Contains the donor and acceptor states of a paired transition.
+    Contains the two component states of a paired transition.
 
     Built-in paired states are available as class attributes and in
     BUILTIN_PAIRED_STATES. Additional paired states can be constructed directly.
+
+    PairedState describes the structure of a transition and does not require the two
+    components to form a physical donor-acceptor pair. The donor and acceptor names
+    identify their order because most supported pair mechanisms naturally use these
+    roles. The interaction or rate mechanism, such as FRET or PET, is specified by
+    TransitionType.mechanism.
 
     Attributes
     ----------
     name
         Name of the paired state.
     donor
-        State of the donor.
+        State of the first component, conventionally the donor or active component.
+        Paired-transition frequencies are assigned to this component's transition
+        group during analysis and prediction.
     acceptor
-        State of the acceptor.
+        State of the second component, conventionally the acceptor or passive
+        component.
     """
 
     name: str
@@ -138,7 +149,7 @@ class PairedState:
     S0_R: ClassVar[PairedState]
 
     def __post_init__(self) -> None:
-        """Validate the donor and acceptor component states."""
+        """Validate the first and second component states."""
         if not isinstance(self.donor, SingleState) or not isinstance(
             self.acceptor, SingleState
         ):
@@ -195,6 +206,19 @@ BUILTIN_PAIRED_STATES = (
 )
 
 
+class TransitionMechanism(StrEnum):
+    """
+    Contains canonical names of common paired-transition mechanisms.
+
+    Custom mechanisms can still be specified directly as strings.
+    """
+
+    FRET = "FRET"
+    PET = "PET"
+    DEXTER = "DEXTER"
+    RADIATIVE_REABSORPTION = "RADIATIVE_REABSORPTION"
+
+
 @dataclass(frozen=True, slots=True)
 class TransitionType:
     """
@@ -214,12 +238,18 @@ class TransitionType:
         Final state of the transition.
     photon
         Whether the transition emits a photon.
+    mechanism
+        Non-empty name of the interaction or rate mechanism for a paired transition.
+        Names are stripped, converted to uppercase, and use underscores between words.
+        Common names are available from TransitionMechanism. Single-state transitions
+        use None.
     """
 
     abbreviation: str
     initial_state: SingleState | PairedState
     final_state: SingleState | PairedState
     photon: bool
+    mechanism: str | None = None
 
     EXCITATION: ClassVar[TransitionType]
     FLUORESCENT_EMISSION: ClassVar[TransitionType]
@@ -260,13 +290,8 @@ class TransitionType:
     H2O_ATTACK_T: ClassVar[TransitionType]
     BACK_REACTION: ClassVar[TransitionType]
 
-    S1_S0_TRANSITIONS: ClassVar[TransitionType]
-    CIS_S0_TRANSITIONS: ClassVar[TransitionType]
-    T1_S0_TRANSITIONS: ClassVar[TransitionType]
-    OFF_S0_TRANSITIONS: ClassVar[TransitionType]
-
     def __post_init__(self) -> None:
-        """Validate that the initial and final states have matching kinds."""
+        """Validate the state kinds and paired-transition mechanism."""
         states = (self.initial_state, self.final_state)
         if not all(isinstance(state, SingleState | PairedState) for state in states):
             raise TypeError(
@@ -279,6 +304,21 @@ class TransitionType:
                 "initial_state and final_state must both be SingleState or both be "
                 "PairedState."
             )
+        if isinstance(self.initial_state, PairedState):
+            if not isinstance(self.mechanism, str):
+                raise ValueError(
+                    "a paired transition type must specify a non-empty mechanism."
+                )
+            mechanism = "_".join(
+                self.mechanism.strip().replace("-", " ").upper().split()
+            )
+            if not mechanism:
+                raise ValueError(
+                    "a paired transition type must specify a non-empty mechanism."
+                )
+            object.__setattr__(self, "mechanism", mechanism)
+        elif self.mechanism is not None:
+            raise ValueError("a single-state transition type must use mechanism=None.")
 
 
 # general
@@ -343,39 +383,83 @@ TransitionType.THERM_BISO = TransitionType(
     "TBISO", SingleState.cis, SingleState.S0, False
 )
 
-# energy transfers
+# paired transitions
 TransitionType.FRET = TransitionType(
-    "FRET", PairedState.S1_S0, PairedState.S0_S1, False
+    "FRET",
+    PairedState.S1_S0,
+    PairedState.S0_S1,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.CIS_FRET_1 = TransitionType(
-    "CET_1", PairedState.S1_Cis, PairedState.S0_Cis, False
+    "CET_1",
+    PairedState.S1_Cis,
+    PairedState.S0_Cis,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.CIS_FRET_2 = TransitionType(
-    "CET_2", PairedState.S1_Cis, PairedState.S0_S0, False
+    "CET_2",
+    PairedState.S1_Cis,
+    PairedState.S0_S0,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.OFF_FRET_1 = TransitionType(
-    "OET_1", PairedState.S1_OFF, PairedState.S0_OFF, False
+    "OET_1",
+    PairedState.S1_OFF,
+    PairedState.S0_OFF,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.OFF_FRET_2 = TransitionType(
-    "OET_2", PairedState.S1_OFF, PairedState.S0_S0, False
+    "OET_2",
+    PairedState.S1_OFF,
+    PairedState.S0_S0,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.S_S_ANNIHILATION = TransitionType(
-    "SSA", PairedState.S1_S1, PairedState.S0_S1, False
+    "SSA",
+    PairedState.S1_S1,
+    PairedState.S0_S1,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.S_T_ANNIHILATION = TransitionType(
-    "STA", PairedState.S1_T1, PairedState.S0_T1, False
+    "STA",
+    PairedState.S1_T1,
+    PairedState.S0_T1,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.S_T_ANNI_RISC = TransitionType(
-    "STA_2", PairedState.S1_T1, PairedState.S0_S1, False
+    "STA_2",
+    PairedState.S1_T1,
+    PairedState.S0_S1,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.S_T_ANNI_BLEACH = TransitionType(
-    "STA_B", PairedState.S1_T1, PairedState.S0_B, False
+    "STA_B",
+    PairedState.S1_T1,
+    PairedState.S0_B,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.R_FRET_1 = TransitionType(
-    "RET_1", PairedState.S1_R, PairedState.S0_R, False
+    "RET_1",
+    PairedState.S1_R,
+    PairedState.S0_R,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 TransitionType.R_FRET_2 = TransitionType(
-    "RET_2", PairedState.S1_R, PairedState.S0_S0, False
+    "RET_2",
+    PairedState.S1_R,
+    PairedState.S0_S0,
+    False,
+    mechanism=TransitionMechanism.FRET,
 )
 
 # rhodamines
@@ -388,21 +472,6 @@ TransitionType.H2O_ATTACK_T = TransitionType(
 TransitionType.BACK_REACTION = TransitionType(
     "BR", SingleState.OFF, SingleState.S0, False
 )
-
-# summarize
-TransitionType.S1_S0_TRANSITIONS = TransitionType(
-    "S1S0SUM", SingleState.S1, SingleState.S0, False
-)
-TransitionType.CIS_S0_TRANSITIONS = TransitionType(
-    "cisS0SUM", SingleState.cis, SingleState.S0, False
-)
-TransitionType.T1_S0_TRANSITIONS = TransitionType(
-    "T1S0SUM", SingleState.T1, SingleState.S0, False
-)
-TransitionType.OFF_S0_TRANSITIONS = TransitionType(
-    "OFFS0SUM", SingleState.OFF, SingleState.S0, False
-)
-
 
 BUILTIN_TRANSITION_TYPES = (
     TransitionType.EXCITATION,
@@ -439,10 +508,6 @@ BUILTIN_TRANSITION_TYPES = (
     TransitionType.H2O_ATTACK_S,
     TransitionType.H2O_ATTACK_T,
     TransitionType.BACK_REACTION,
-    TransitionType.S1_S0_TRANSITIONS,
-    TransitionType.CIS_S0_TRANSITIONS,
-    TransitionType.T1_S0_TRANSITIONS,
-    TransitionType.OFF_S0_TRANSITIONS,
 )
 
 
@@ -469,8 +534,8 @@ class Transition:
         Whether the transition emits a photon.
     fluorophore_ids
         Immutable sequence containing the identities of relevant fluorophores.
-        If energy transfer, tuples of fluorophore pairs, where the first is the donor
-        and the second is the acceptor.
+        For a paired transition, tuples of fluorophore pairs corresponding to the
+        ordered components of its PairedState.
     """
 
     identity: int | None = field(init=False, default=None)
@@ -524,14 +589,14 @@ class Transition:
                     or not all(isinstance(value, int) for value in fluorophore_id)
                 ):
                     raise ValueError(
-                        f"{self.abbreviation} is energy transfer, "
+                        f"{self.abbreviation} is a paired transition, "
                         "fluorophore_ids has to be a sequence of fluorophore "
                         "identity pairs."
                     )
             else:
                 if not isinstance(fluorophore_id, int):
                     raise ValueError(
-                        f"{self.abbreviation} is not an energy transfer, "
+                        f"{self.abbreviation} is a single-state transition, "
                         "fluorophore_ids has to be a sequence of ints."
                     )
         if len(set(self.fluorophore_ids)) != len(self.fluorophore_ids):
@@ -587,7 +652,7 @@ class Transition:
         Returns
         -------
         list[tuple[int, int]]
-            Donor and acceptor identity pairs.
+            Ordered first- and second-component identity pairs.
         """
         fluorophore_pairs: list[tuple[int, int]] = []
 
@@ -744,14 +809,14 @@ class TransitionSet:
             df_constructor = []
             for transition in f_transitions:
                 if isinstance(transition.initial_state, PairedState):
-                    energy_transfer = parse_energy_transfer_label(fluorophore_comb)
-                    if energy_transfer is None:
+                    paired_label = parse_paired_transition_label(fluorophore_comb)
+                    if paired_label is None:
                         raise ValueError(
-                            "energy transfers have to be defined in transitions with "
+                            "paired transitions have to be defined with "
                             "the key 'D: {name of donor}, A: {name of acceptor}, dist: "
                             "{distance between them in nm}'."
                         )
-                    d, a, dist = energy_transfer
+                    d, a, dist = paired_label
                     for d_t, a_t in transition.get_fluorophore_pairs():
                         if not 0 <= d_t < self.fluorophore_system.count:
                             raise ValueError(
@@ -1099,10 +1164,9 @@ class TransitionSet:
 
         return no_abs
 
-    def remove_energy_transfers(self, keep_zero_rates: bool = False) -> TransitionSet:
+    def remove_paired_transitions(self, keep_zero_rates: bool = False) -> TransitionSet:
         """
-        Return another TransitionSet that contains no transitions that are energy
-        transfers.
+        Return a TransitionSet without transitions that specify a paired mechanism.
 
         Parameters
         ----------
@@ -1118,12 +1182,13 @@ class TransitionSet:
 
         keep_transitions: dict[str, list[Transition]] = {}
         for fluorophore, f_transitions in transitions.items():
-            first_transition = next(iter(f_transitions), None)
-            if first_transition is None:
-                continue
-
-            if not isinstance(first_transition.initial_state, PairedState):
-                keep_transitions[fluorophore] = f_transitions
+            retained = [
+                transition
+                for transition in f_transitions
+                if transition.transition_type.mechanism is None
+            ]
+            if retained:
+                keep_transitions[fluorophore] = retained
 
         no_ets = TransitionSet(
             transitions=keep_transitions,
@@ -1163,6 +1228,7 @@ class TransitionSet:
                 "transition_id",
                 "rate",
                 "photon",
+                "mechanism",
             ],
         )
         self._combined_state_transitions_df.index.name = "id"
@@ -1544,6 +1610,7 @@ def construct_transition_rate_list(
                             identity,
                             transition["rate"],
                             transition["photon"],
+                            transition["transition_type"].mechanism,
                         ]
                     )
         else:
@@ -1573,6 +1640,7 @@ def construct_transition_rate_list(
                             identity,
                             transition["rate"],
                             transition["photon"],
+                            transition["transition_type"].mechanism,
                         ]
                     )
 
@@ -1749,7 +1817,7 @@ def derive_energy_transfer_rate(
     return rate
 
 
-def derive_energy_transfer_transitions(
+def derive_fret_transitions(
     donor_data: FluorophoreData,
     acceptor_data: FluorophoreData,
     fluorophore_ids: list[tuple[int, int]],
@@ -1761,9 +1829,11 @@ def derive_energy_transfer_transitions(
     include: dict[str, list[tuple[TransitionType, float]]] | None = None,
 ) -> list[Transition]:
     """
-    Derive energy transfer transitions based on the experimental conditions and the
-    fluorophore-combinations to be mimicked. The type of energy transfer is determined
-    by the state names in acceptor_data.absorption_spectra.
+    Derive FRET transitions based on the experimental conditions and fluorophore
+    combinations to be mimicked.
+
+    The resulting transition type is determined by the state names in
+    acceptor_data.absorption_spectra.
 
     Parameters
     ----------
@@ -1787,20 +1857,19 @@ def derive_energy_transfer_transitions(
         Contains the type of acceptor state (lowercase) to be excluded.
     include
         Contains the type of acceptor state as key and a list of tuples as values. The
-        tuples contain the transition type and an efficiency. If the summed efficiencies
-        is e.g., 0.5, all other energy transfers affecting the acceptor state are
-        multiplied by 1-0.5.
+        tuples contain a transition type using the FRET mechanism and an efficiency.
+        If the summed efficiencies is e.g., 0.5, all other FRET transitions affecting
+        the acceptor state are multiplied by 1-0.5.
 
     Returns
     -------
     list[Transition]
-        Contains energy transfer transitions of type Transition.
+        Contains FRET transitions of type Transition.
     """
     acceptor_absorptions = acceptor_data.absorption_spectra
     if not acceptor_absorptions:
         raise ValueError(
-            "cannot derive energy-transfer transitions without acceptor "
-            "absorption spectra."
+            "cannot derive FRET transitions without acceptor absorption spectra."
         )
 
     supported_acceptor_states = {"s0", "t1", "s1", "cis", "off"}
@@ -1842,6 +1911,16 @@ def derive_energy_transfer_transitions(
                     f"include contains unsupported acceptor state "
                     f"{acceptor_state!r}."
                 )
+
+            for transition_type, _ in included_transitions:
+                if not isinstance(transition_type, TransitionType):
+                    raise TypeError(
+                        "include transition types must be TransitionType objects."
+                    )
+                if transition_type.mechanism != TransitionMechanism.FRET:
+                    raise ValueError(
+                        "include transition types must use the FRET mechanism."
+                    )
 
             factors = np.asarray(
                 [factor for _, factor in included_transitions],
@@ -1942,8 +2021,7 @@ def derive_energy_transfer_transitions(
 
         if acceptor_state not in which_et_new:
             raise ValueError(
-                f"energy transfer to acceptor state {acceptor_state!r} "
-                "is not supported."
+                f"FRET to acceptor state {acceptor_state!r} is not supported."
             )
 
         if exclude is not None and acceptor_state in exclude:
@@ -1984,7 +2062,8 @@ def derive_transitions(
     fluorophore_ids
         All identities of a fluorophore within a FluorophoreSystem.
     summarize
-        Whether to summarize some transitions into fewer.
+        Whether to combine two or more non-photon transitions with identical initial
+        and final states into one transition with their summed rate.
     irradiance
         Irradiance in kW/cm².
     wavelength
@@ -2198,32 +2277,60 @@ def derive_transitions(
         + bleach
     )
 
-    summarized_transitions = [
-        TransitionType.S1_S0_TRANSITIONS,
-        TransitionType.T1_S0_TRANSITIONS,
-        TransitionType.CIS_S0_TRANSITIONS,
-        TransitionType.OFF_S0_TRANSITIONS,
-    ]
-
-    transitions_copy = transitions[:]
     if summarize:
-        for summarized_transition in summarized_transitions:
-            rate = 0.0
-            for transition in transitions_copy:
-                if not transition.transition_type.photon:
-                    if (
-                        transition.transition_type.initial_state
-                        == summarized_transition.initial_state
-                        and transition.transition_type.final_state
-                        == summarized_transition.final_state
-                    ):
-                        rate += transition.rate
-                        transitions.remove(transition)
-            sum_transition = Transition(
-                rate=rate,
-                transition_type=summarized_transition,
-                fluorophore_ids=fluorophore_ids,
+        transition_groups: dict[
+            tuple[SingleState | PairedState, SingleState | PairedState, str | None],
+            list[Transition],
+        ] = {}
+        for transition in transitions:
+            if transition.photon:
+                continue
+            key = (
+                transition.initial_state,
+                transition.final_state,
+                transition.transition_type.mechanism,
             )
-            transitions.append(sum_transition)
+            transition_groups.setdefault(key, []).append(transition)
+
+        summarized_groups = {
+            key: group for key, group in transition_groups.items() if len(group) >= 2
+        }
+        summarized_transitions: list[Transition] = []
+        added_groups: set[
+            tuple[SingleState | PairedState, SingleState | PairedState, str | None]
+        ] = set()
+        for transition in transitions:
+            if transition.photon:
+                summarized_transitions.append(transition)
+                continue
+            key = (
+                transition.initial_state,
+                transition.final_state,
+                transition.transition_type.mechanism,
+            )
+            if key not in summarized_groups:
+                summarized_transitions.append(transition)
+                continue
+            if key in added_groups:
+                continue
+
+            group = summarized_groups[key]
+            summary_type = TransitionType(
+                abbreviation=f"{transition.initial_state.name}"
+                f"{transition.final_state.name}SUM",
+                initial_state=transition.initial_state,
+                final_state=transition.final_state,
+                photon=False,
+                mechanism=transition.transition_type.mechanism,
+            )
+            summarized_transitions.append(
+                Transition(
+                    rate=sum(item.rate for item in group),
+                    transition_type=summary_type,
+                    fluorophore_ids=fluorophore_ids,
+                )
+            )
+            added_groups.add(key)
+        transitions = summarized_transitions
 
     return transitions

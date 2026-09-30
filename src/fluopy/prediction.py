@@ -15,7 +15,7 @@ from . import plotting
 from ._statistics import (
     calculate_state_occupations,
     normalize_transition_frequencies,
-    parse_energy_transfer_label,
+    parse_paired_transition_label,
 )
 
 if TYPE_CHECKING:
@@ -34,8 +34,8 @@ class Prediction:
 
     Attributes
     ----------
-    energy_transfer : bool
-        Whether the prediction was carried out on energy transfer systems.
+    paired_transitions : bool
+        Whether the prediction includes paired transitions.
     absorbing_chain : bool
         Whether the subchain reachable from initial_state_index contains a terminal
         combined state and the prediction was carried out on an absorbing Markov chain.
@@ -50,7 +50,7 @@ class Prediction:
         row itself is also counted as the initial visit.
     frequency_transitions : npt.NDArray[np.float64]
         Relative number of expected transition occurrences, normalized separately for
-        each fluorophore. Energy-transfer occurrences are assigned to the donor's
+        each fluorophore. Paired-transition occurrences are assigned to the donor's
         transition group.
     frequency_states : dict[str, npt.NDArray[np.float64]]
         Relative expected number of visits to each state, normalized separately for each
@@ -58,28 +58,28 @@ class Prediction:
     transition_time_distributions : npt.NDArray[object] | None
         Expected distributions of time until transition.
         Contains objects of type scipy.stats.*.rv_frozen for each transition.
-        None if energy transfer is True.
+        None if paired_transitions is True.
     lifetime_distributions : dict[str, npt.NDArray[object]] | None
         Name of fluorophores as keys and their state's expected lifetime distributions
         (objects of type scipy.stats.*.rv_frozen) (array) as values.
-        None if energy transfer is True.
+        None if paired_transitions is True.
     mean_transition_times : npt.NDArray[np.float64] | None
         Expected means of time until transition.
-        None if energy transfer is True.
+        None if paired_transitions is True.
     mean_lifetimes : dict[str, npt.NDArray[np.float64]] | None
         Name of fluorophores as keys and their state's expected lifetime means (array)
         as values.
-        None if energy transfer is True.
+        None if paired_transitions is True.
     state_occupations : dict[str, npt.NDArray[np.float64]] | None
         Relative time spent in each state, normalized separately for each fluorophore.
-        None if energy transfer is True.
+        None if paired_transitions is True.
 
     Notes
     -----
     Predictions are available for systems containing at most two fluorophores.
 
     Predicted lifetimes and state occupations are not available for systems containing
-    energy transfer.
+    paired transitions.
 
     For non-absorbing systems, transition frequencies are calculated from the
     stationary distribution of the subchain reachable from initial_state_index. The
@@ -117,7 +117,7 @@ class Prediction:
             counted as the initial visit, so different rows may produce different
             results even when they have the same final state.
         """
-        self.energy_transfer = False
+        self.paired_transitions = False
         self.absorbing_chain = False
         if transition_set.fluorophore_system.count > 2:
             raise ValueError("prediction not available for more than 2 fluorophores.")
@@ -153,17 +153,15 @@ class Prediction:
                 )
             self.absorbing_chain = True
         if any(
-            parse_energy_transfer_label(fluorophore_comb) is not None
-            for fluorophore_comb in transition_set.transition_df.index.get_level_values(
-                0
-            )
+            transition_type.mechanism is not None
+            for transition_type in transition_set.transition_df["transition_type"]
         ):
             logger.warning(
-                "Only frequencies are available for systems with energy transfer; "
+                "Only frequencies are available for systems with paired transitions; "
                 "lifetimes and occupations are not available.",
                 stacklevel=2,
             )
-            self.energy_transfer = True
+            self.paired_transitions = True
         if self.absorbing_chain:
             logger.warning(
                 "absorbing states have a lifetime of inf and a frequency / occupation "
@@ -189,7 +187,7 @@ class Prediction:
         else:
             self.frequency_transitions = self.predict_transition_occurrences()
         self.frequency_states = self.predict_state_occurrences()
-        if not self.energy_transfer:
+        if not self.paired_transitions:
             (
                 self.transition_time_distributions,
                 self.lifetime_distributions,
@@ -226,9 +224,9 @@ class Prediction:
         initial_state_index. Each different type of fluorophore's transition
         frequencies sum to 1.
 
-        Each energy-transfer event is counted as one transition occurrence, including
-        events that change both the donor and acceptor states. For normalization, an
-        energy-transfer occurrence is assigned only to the donor's transition group;
+        Each paired transition event is counted as one transition occurrence, including
+        events that change both the donor and acceptor states. For normalization, a
+        paired transition occurrence is assigned only to the donor's transition group;
         ordinary transitions are assigned to their respective fluorophore groups.
 
         Returns
@@ -303,9 +301,9 @@ class Prediction:
         transitions is terminal. Every reachable row must be able to reach a terminal
         row, so that absorption is certain. Absorbing transitions have the value 0.
 
-        Each energy-transfer event is counted as one transition occurrence, including
-        events that change both the donor and acceptor states. For normalization, an
-        energy-transfer occurrence is assigned only to the donor's transition group;
+        Each paired transition event is counted as one transition occurrence, including
+        events that change both the donor and acceptor states. For normalization, a
+        paired transition occurrence is assigned only to the donor's transition group;
         ordinary transitions are assigned to their respective fluorophore groups.
 
         Parameters
@@ -378,8 +376,8 @@ class Prediction:
         Predict the relative frequencies of states. Each different type of fluorophore's
         states frequencies sum up to 1.
 
-        State visits are counted separately for each physical fluorophore. An
-        energy-transfer event therefore contributes a visit for both donor and
+        State visits are counted separately for each physical fluorophore. A
+        paired transition event therefore contributes a visit for both donor and
         acceptor if both states change, while still representing one transition
         occurrence.
 
@@ -397,9 +395,9 @@ class Prediction:
         grouped = self.transition_set.transition_df.groupby(level=0)
         for fluorophore_comb_raw, f_transitions in grouped:
             fluorophore_comb = cast(str, fluorophore_comb_raw)
-            energy_transfer = parse_energy_transfer_label(fluorophore_comb)
-            if energy_transfer is not None:
-                d, a, _ = energy_transfer
+            paired_transition = parse_paired_transition_label(fluorophore_comb)
+            if paired_transition is not None:
+                d, a, _ = paired_transition
                 single_states_a = single_states[a]
                 single_states_d = single_states[d]
                 factor = 1.0
@@ -497,7 +495,9 @@ class Prediction:
         """
         lifetime_distributions = self.lifetime_distributions
         if lifetime_distributions is None:
-            raise ValueError("lifetime statistics are unavailable for energy transfer.")
+            raise ValueError(
+                "lifetime statistics are unavailable for paired transitions."
+            )
         mean_lifetimes: dict[str, npt.NDArray[np.float64]] = {}
         for fluorophore, distributions in lifetime_distributions.items():
             mean_lifetimes[fluorophore] = np.array(
@@ -567,9 +567,9 @@ class Prediction:
         matplotlib.axes.Axes
             The modified axis.
         """
-        if self.energy_transfer:
+        if self.paired_transitions:
             raise ValueError(
-                "mean_transition_times not available if energy transfers possible."
+                "mean_transition_times not available if paired transitions possible."
             )
         mean_transition_times = self.mean_transition_times
         if mean_transition_times is None:
@@ -595,9 +595,9 @@ class Prediction:
         matplotlib.axes.Axes
             The modified axis.
         """
-        if self.energy_transfer:
+        if self.paired_transitions:
             raise ValueError(
-                "mean_lifetimes not available if energy transfers possible."
+                "mean_lifetimes not available if paired transitions possible."
             )
         mean_lifetimes = self.mean_lifetimes
         if mean_lifetimes is None:
@@ -626,9 +626,9 @@ class Prediction:
         matplotlib.axes.Axes
             The modified axis.
         """
-        if self.energy_transfer:
+        if self.paired_transitions:
             raise ValueError(
-                "state_occupations not available if energy transfers possible."
+                "state_occupations not available if paired transitions possible."
             )
         state_occupations = self.state_occupations
         if state_occupations is None:
@@ -668,9 +668,9 @@ class Prediction:
         matplotlib.axes.Axes
             The modified axis.
         """
-        if self.energy_transfer:
+        if self.paired_transitions:
             raise ValueError(
-                "lifetime_distributions not available if energy transfers possible."
+                "lifetime_distributions not available if paired transitions possible."
             )
         lifetime_distributions = self.lifetime_distributions
         mean_lifetimes = self.mean_lifetimes
@@ -725,9 +725,9 @@ class Prediction:
         matplotlib.axes.Axes
             The modified axis.
         """
-        if self.energy_transfer:
+        if self.paired_transitions:
             raise ValueError(
-                "transition_time_distributions not available if energy transfers "
+                "transition_time_distributions not available if paired transitions "
                 "possible."
             )
         transition_distributions = self.transition_time_distributions
