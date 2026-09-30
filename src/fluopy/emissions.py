@@ -80,6 +80,45 @@ class DetectionChannel:
             raise ValueError("detection_efficiency must be finite and between 0 and 1.")
 
 
+def _get_paired_emission_ids(
+    combined_transitions: pd.DataFrame,
+    emission_ids: npt.NDArray[np.intp],
+) -> list[int]:
+    """
+    Return emissions with an available paired transition for their active component.
+
+    Parameters
+    ----------
+    combined_transitions
+        Combined-state transitions containing initial states, rates, and fluorophore
+        identities.
+    emission_ids
+        Positional indices of detectable emission transitions.
+
+    Returns
+    -------
+    list[int]
+        Combined-state emission indices whose emitting fluorophore is the first,
+        active component of a positive-rate paired transition available from the same
+        initial state.
+    """
+    active_paired_states = {
+        (row["initial_state"], row["fluorophore_ids"][0])
+        for _, row in combined_transitions.iterrows()
+        if row["rate"] > 0 and len(row["fluorophore_ids"]) > 1
+    }
+    paired_emission_ids: list[int] = []
+    for emission_id in emission_ids:
+        identity = int(emission_id)
+        emission = combined_transitions.iloc[identity]
+        if (
+            emission["initial_state"],
+            emission["fluorophore_ids"][0],
+        ) in active_paired_states:
+            paired_emission_ids.append(identity)
+    return paired_emission_ids
+
+
 class Emissions:
     """
     Container for emission-associated attributes.
@@ -330,13 +369,12 @@ class Emissions:
         """
         Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence
         lifetime measurements). The return value lifetimes_DA contains the S1 durations
-        of detected emissions by channel when a paired transition is available. This
-        does not discriminate between the number or mechanism of paired transitions.
-        The emitting fluorophore is not necessarily the donor of the available paired
-        transition. For example, in S1|S1|S0 both S1 fluorophores could serve as donors.
-        A paired transition may also become available during the S1 duration of the
-        emitting fluorophore. The S1 durations are the time differences between photon
-        emission and the last laser pulse.
+        of detected emissions by channel when a positive-rate paired transition is
+        available immediately before emission and the emitting fluorophore is its first,
+        active component. This does not discriminate between the number or mechanism of
+        paired transitions. A paired transition may become available during the S1
+        duration of the emitting fluorophore. The S1 durations are the time differences
+        between photon emission and the last laser pulse.
         For processes other than S0 excitation that are also dependent on the
         irradiance, the given rates should correspond to the mean irradiance. They will
         not be adjusted to pulsed excitation.
@@ -367,8 +405,9 @@ class Emissions:
         Returns
         -------
         lifetimes_DA : dict[str, npt.NDArray[np.float64]]
-            S1 durations of detected emissions when a paired transition was available,
-            grouped by detection channel.
+            S1 durations of detected emissions when a positive-rate paired transition
+            involving the emitter as its active component was available immediately
+            before emission, grouped by detection channel.
         lifetimes_D : dict[str, npt.NDArray[np.float64]]
             S1 durations of detected emissions when no paired transition was available,
             grouped by detection channel.
@@ -407,12 +446,7 @@ class Emissions:
         )
         emit_ids_list = np.flatnonzero(detection_probabilities.sum(axis=1) > 0)
         df = transition_set.combined_state_transitions_df
-        paired_initial_states = (
-            df["initial_state"][df["fluorophore_ids"].apply(len) > 1]
-        ).values
-        paired_transition_ids = df.iloc[emit_ids_list][
-            df.iloc[emit_ids_list]["initial_state"].isin(paired_initial_states)
-        ].index.to_list()
+        paired_emission_ids = _get_paired_emission_ids(df, emit_ids_list)
         if details:
             eval_floating_point_precision_error(
                 transition_set=transition_set,
@@ -422,7 +456,7 @@ class Emissions:
                 transition_set=transition_set,
                 detection_probabilities=detection_probabilities,
                 channel_names=tuple(self.channels),
-                paired_transition_ids=paired_transition_ids,
+                paired_emission_ids=paired_emission_ids,
                 number_pulses=number_pulses,
                 pulse_duration=pulse_duration,
                 time_between_pulses=time_between_pulses,
@@ -444,7 +478,7 @@ class Emissions:
                 transition_set=transition_set,
                 detection_probabilities=detection_probabilities,
                 channel_names=tuple(self.channels),
-                paired_transition_ids=paired_transition_ids,
+                paired_emission_ids=paired_emission_ids,
                 number_pulses=number_pulses,
                 pulse_duration=pulse_duration,
                 time_between_pulses=time_between_pulses,

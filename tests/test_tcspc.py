@@ -72,7 +72,7 @@ def test_compare_simulate_TCSPC_and_simulate_TCSPC_detailed(tr_set_1f):
         transition_set=tr_set,
         detection_probabilities=_single_channel_probabilities(tr_set, {1: 1}),
         channel_names=("all",),
-        paired_transition_ids=[],
+        paired_emission_ids=[],
         number_pulses=41000,
         pulse_duration=5e-11,
         time_between_pulses=25e-9,
@@ -97,7 +97,7 @@ def test_compare_simulate_TCSPC_and_simulate_TCSPC_detailed(tr_set_1f):
         transition_set=tr_set,
         detection_probabilities=_single_channel_probabilities(tr_set, {1: 1}),
         channel_names=("all",),
-        paired_transition_ids=[],
+        paired_emission_ids=[],
         number_pulses=41000,
         pulse_duration=5e-11,
         time_between_pulses=25e-9,
@@ -225,7 +225,7 @@ def test_tcspc_defaults_and_random_number_replenishment(call, tr_set_1f, caplog)
                     transition_set, {1: 1}
                 ),
                 channel_names=("all",),
-                paired_transition_ids=None,
+                paired_emission_ids=None,
                 number_pulses=3,
                 pulse_duration=1,
                 time_between_pulses=1e-6,
@@ -318,7 +318,7 @@ def test_tcspc_resumes_remembered_transition(
                 transition_set, {identity: 1 for identity in transition_ids}
             ),
             channel_names=("all",),
-            paired_transition_ids=transition_ids,
+            paired_emission_ids=transition_ids,
             number_pulses=2,
             pulse_duration=1,
             time_between_pulses=interval,
@@ -363,7 +363,7 @@ def test_tcspc_detailed_removes_excitation_beyond_last_pulse(tr_set_1f, monkeypa
 
 @pytest.mark.slow
 @pytest.mark.parametrize(
-    "dirname, emitting_transition_ids, paired_transition_ids, \
+    "dirname, emitting_transition_ids, paired_emission_ids, \
                          number_pulses, pulse_duration, time_between_pulses, \
                          excitation_rates, frame_time, store_time_points, \
                          expected",
@@ -474,7 +474,7 @@ def test_tcspc_detailed_removes_excitation_beyond_last_pulse(tr_set_1f, monkeypa
 def test_simulate_TCSPC(
     dirname,
     emitting_transition_ids,
-    paired_transition_ids,
+    paired_emission_ids,
     number_pulses,
     pulse_duration,
     time_between_pulses,
@@ -495,7 +495,7 @@ def test_simulate_TCSPC(
                 tr_set, emitting_transition_ids
             ),
             channel_names=("all",),
-            paired_transition_ids=paired_transition_ids,
+            paired_emission_ids=paired_emission_ids,
             number_pulses=number_pulses,
             pulse_duration=pulse_duration,
             time_between_pulses=time_between_pulses,
@@ -785,7 +785,7 @@ def test_simulate_TCSPC_detailed(request, caplog):
     transition_set = transition_set.adjust_rates({0: 0, 2: 0}, keep_zero_rates=True)
     transition_set.finalize()
     emitting_transition_ids = {2: 1, 3: 1, 6: 0.5, 7: 0.5}
-    paired_transition_ids = [4]
+    paired_emission_ids = [4]
     number_pulses = 4e4
     pulse_duration = 5e-11
     time_between_pulses = 1e-1
@@ -799,7 +799,7 @@ def test_simulate_TCSPC_detailed(request, caplog):
                 transition_set, emitting_transition_ids
             ),
             channel_names=("all",),
-            paired_transition_ids=paired_transition_ids,
+            paired_emission_ids=paired_emission_ids,
             number_pulses=number_pulses,
             pulse_duration=pulse_duration,
             time_between_pulses=time_between_pulses,

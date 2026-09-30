@@ -372,7 +372,7 @@ def test_emissions_tcspc_parameters(tr_set_bl_et_2f_diff):
         )
         args, kwargs = mock_tcspc.call_args
         np.testing.assert_array_equal(
-            kwargs["paired_transition_ids"], np.array([4, 38, 40])
+            kwargs["paired_emission_ids"], np.array([4, 38, 40])
         )
         expected = np.zeros_like(kwargs["detection_probabilities"])
         expected[[4, 5, 6, 7], 0] = 0.6820037131347214
@@ -380,6 +380,38 @@ def test_emissions_tcspc_parameters(tr_set_bl_et_2f_diff):
         np.testing.assert_allclose(kwargs["detection_probabilities"], expected)
         assert kwargs["channel_names"] == ("donor", "acceptor")
         assert list(emis.event_time_series.columns) == ["donor", "acceptor"]
+
+
+def test_get_paired_emission_ids_ignores_zero_rate_transition():
+    transitions = pd.DataFrame(
+        {
+            "initial_state": [(1, 0), (1, 0)],
+            "fluorophore_ids": [[0], [0, 1]],
+            "rate": [1.0, 0.0],
+        }
+    )
+
+    paired_emission_ids = em._get_paired_emission_ids(
+        transitions, np.array([0], dtype=np.intp)
+    )
+
+    assert paired_emission_ids == []
+
+
+def test_get_paired_emission_ids_requires_emitter_as_active_component():
+    transitions = pd.DataFrame(
+        {
+            "initial_state": [(1, 0, 1), (1, 0, 1), (1, 0, 1)],
+            "fluorophore_ids": [[0], [2], [0, 1]],
+            "rate": [1.0, 1.0, 1.0],
+        }
+    )
+
+    paired_emission_ids = em._get_paired_emission_ids(
+        transitions, np.array([0, 1], dtype=np.intp)
+    )
+
+    assert paired_emission_ids == [0]
 
 
 def test_emissions_tcspc_details_infers_excitation_rates(tr_set_1f_bl, caplog):

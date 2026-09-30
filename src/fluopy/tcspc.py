@@ -114,7 +114,7 @@ def simulate_TCSPC(
     transition_set: TransitionSet,
     detection_probabilities: npt.ArrayLike,
     channel_names: Sequence[str],
-    paired_transition_ids: Sequence[int] | None = None,
+    paired_emission_ids: Sequence[int] | None = None,
     number_pulses: int = 100_000,
     pulse_duration: float = 5e-11,
     time_between_pulses: float = 25e-9,
@@ -146,9 +146,9 @@ def simulate_TCSPC(
         Detection probability for every combined transition and channel.
     channel_names
         Channel names in the order used by detection_probabilities.
-    paired_transition_ids
+    paired_emission_ids
         Combined-state transition indices of emissions for which a paired transition
-        is available.
+        with the emitting fluorophore as its active component is available.
     number_pulses
         Number of pulses simulated.
     pulse_duration
@@ -177,8 +177,8 @@ def simulate_TCSPC(
         The time points at which emissions are detected, grouped by channel.
         If store_time_points is False, this will be None.
     lifetimes_DA : dict[str, npt.NDArray[np.float64]]
-        Contains the S1 durations of detected emissions when a paired transition was
-        available, grouped by channel.
+        Contains the S1 durations of detected emissions whose indices are provided by
+        paired_emission_ids, grouped by channel.
     lifetimes_D : dict[str, npt.NDArray[np.float64]]
         Contains the S1 durations of detected emissions when no paired transition was
         available, grouped by channel.
@@ -256,8 +256,9 @@ def simulate_TCSPC(
     lifetimes_DA: list[list[float]] = [[] for _ in resolved_channel_names]
     lifetimes_all: list[list[float]] = [[] for _ in resolved_channel_names]
     remember: tuple[int, float] = (0, np.inf)
-    if paired_transition_ids is None:
-        paired_transition_ids = []
+    paired_emission_id_set = frozenset(
+        () if paired_emission_ids is None else paired_emission_ids
+    )
     i = 0
     j = 1
     k = 0
@@ -427,7 +428,7 @@ def simulate_TCSPC(
             )
             if channel_index < len(resolved_channel_names):
                 lifetime = time - last_pulse_time
-                if next_transition in paired_transition_ids:
+                if next_transition in paired_emission_id_set:
                     lifetimes_DA[channel_index].append(lifetime)
                 else:
                     lifetimes_D[channel_index].append(lifetime)
@@ -455,7 +456,7 @@ def simulate_TCSPC_detailed(
     transition_set: TransitionSet,
     detection_probabilities: npt.ArrayLike,
     channel_names: Sequence[str],
-    paired_transition_ids: Sequence[int] | None = None,
+    paired_emission_ids: Sequence[int] | None = None,
     number_pulses: int = 100_000,
     pulse_duration: float = 5e-11,
     time_between_pulses: float = 25e-9,
@@ -491,9 +492,9 @@ def simulate_TCSPC_detailed(
         Detection probability for every combined transition and channel.
     channel_names
         Channel names in the order used by detection_probabilities.
-    paired_transition_ids
+    paired_emission_ids
         Combined-state transition indices of emissions for which a paired transition
-        is available.
+        with the emitting fluorophore as its active component is available.
     number_pulses
         Number of pulses simulated.
     pulse_duration
@@ -522,8 +523,8 @@ def simulate_TCSPC_detailed(
         The time points at which emissions are detected, grouped by channel.
         If store_time_points is False, this will be None.
     lifetimes_DA : dict[str, npt.NDArray[np.float64]]
-        Contains the S1 durations of detected emissions when a paired transition was
-        available, grouped by channel.
+        Contains the S1 durations of detected emissions whose indices are provided by
+        paired_emission_ids, grouped by channel.
     lifetimes_D : dict[str, npt.NDArray[np.float64]]
         Contains the S1 durations of detected emissions when no paired transition was
         available, grouped by channel.
@@ -606,8 +607,9 @@ def simulate_TCSPC_detailed(
     lifetimes_DA: list[list[float]] = [[] for _ in resolved_channel_names]
     lifetimes_all: list[list[float]] = [[] for _ in resolved_channel_names]
     remember: tuple[int, float] = (0, np.inf)
-    if paired_transition_ids is None:
-        paired_transition_ids = []
+    paired_emission_id_set = frozenset(
+        () if paired_emission_ids is None else paired_emission_ids
+    )
     i = 0
     j = 1
     k = 0
@@ -797,7 +799,7 @@ def simulate_TCSPC_detailed(
             )
             if channel_index < len(resolved_channel_names):
                 lifetime = time - last_pulse_time
-                if next_transition in paired_transition_ids:
+                if next_transition in paired_emission_id_set:
                     lifetimes_DA[channel_index].append(lifetime)
                 else:
                     lifetimes_D[channel_index].append(lifetime)
