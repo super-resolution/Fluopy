@@ -178,6 +178,11 @@ def test_transition_type_requires_matching_state_types(initial_state, final_stat
         tr.TransitionType("invalid", initial_state, final_state, False)
 
 
+def test_transition_type_requires_states():
+    with pytest.raises(TypeError, match="must be SingleState or PairedState"):
+        tr.TransitionType("invalid", "initial", "final", False)
+
+
 @pytest.mark.parametrize(
     "transition_type, fluorophore_ids, expected",
     [
@@ -296,6 +301,26 @@ def test_transition_copies_fluorophore_ids():
     fluorophore_ids.append(1)
 
     assert transition.fluorophore_ids == (0,)
+
+
+def test_transition_identity_accessors_reject_corrupted_ids():
+    single_transition = tr.Transition(
+        tr.TransitionType.EXCITATION,
+        rate=1,
+        fluorophore_ids=[0],
+    )
+    paired_transition = tr.Transition(
+        tr.TransitionType.FRET,
+        rate=1,
+        fluorophore_ids=[(0, 1)],
+    )
+    object.__setattr__(single_transition, "fluorophore_ids", ((0, 1),))
+    object.__setattr__(paired_transition, "fluorophore_ids", (0,))
+
+    with pytest.raises(RuntimeError, match="integer fluorophore identities"):
+        single_transition.get_single_fluorophore_ids()
+    with pytest.raises(RuntimeError, match="fluorophore identity pairs"):
+        paired_transition.get_fluorophore_pairs()
 
 
 @pytest.mark.parametrize(
@@ -489,6 +514,23 @@ class TestTransitionSet:
                 tr.TransitionSet(
                     transitions=transitions, fluorophore_system=fluorophore_system
                 )
+
+    @pytest.mark.parametrize("fluorophore_ids", [[(-1, 1)], [(0, 2)]])
+    def test_transition_set_rejects_paired_ids_outside_system(
+        self, flu_sys_2xcy5, fluorophore_ids
+    ):
+        transitions = {
+            "D: testfluo_1, A: testfluo_1, dist: 1.0": [
+                tr.Transition(
+                    tr.TransitionType.FRET,
+                    rate=1,
+                    fluorophore_ids=fluorophore_ids,
+                )
+            ]
+        }
+
+        with pytest.raises(ValueError, match="outside the system"):
+            tr.TransitionSet(transitions, flu_sys_2xcy5)
 
     # get_single_states is tested indirectly within test_transition_set
     def test_transition_set(self, request):
@@ -767,6 +809,7 @@ class TestTransitionSet:
             ("combined_state_transitions_df", pd.DataFrame),
             ("row_sums", np.ndarray),
             ("transition_matrix", np.ndarray),
+            ("terminal_state_combinations", frozenset),
         ],
     )
     def test_properties_finalize_lazily(
@@ -798,6 +841,7 @@ class TestTransitionSet:
             ("combined_state_transitions_df", "did not create a DataFrame"),
             ("row_sums", "did not create row sums"),
             ("transition_matrix", "did not create a transition matrix"),
+            ("terminal_state_combinations", "did not identify terminal states"),
         ],
     )
     def test_properties_reject_failed_finalization(
@@ -807,6 +851,7 @@ class TestTransitionSet:
             "combined_state_transitions_df": "_combined_state_transitions_df",
             "row_sums": "_row_sums",
             "transition_matrix": "_transition_matrix",
+            "terminal_state_combinations": "_terminal_state_combinations",
         }[property_name]
         setattr(tr_set_1f, private_name, None)
         monkeypatch.setattr(tr_set_1f, "finalize", lambda: tr_set_1f)
@@ -1274,6 +1319,70 @@ def test_get_single_states_rejects_invalid_paired_final_state(flu_sys_2xcy5):
         tr.get_single_states(transitions, flu_sys_2xcy5)
 
 
+def test_absorbing_helpers_reject_invalid_paired_final_state(flu_sys_2xcy5):
+    transition = tr.Transition(
+        tr.TransitionType.FRET,
+        rate=1,
+        fluorophore_ids=[(0, 1)],
+    )
+    transition.final_state = tr.SingleState.S0
+    transitions = {"pair": [transition]}
+    absorbing_states = {
+        0: np.array([], dtype=np.int64),
+        1: np.array([], dtype=np.int64),
+    }
+
+    with pytest.raises(TypeError, match="paired transition must have a PairedState"):
+        tr.get_absorbing_states(transitions, {}, flu_sys_2xcy5)
+    with pytest.raises(TypeError, match="paired transition must have a PairedState"):
+        tr.get_absorbing_fluorophore_ids(transition, absorbing_states)
+
+
+def test_absorbing_helpers_reject_invalid_nonpaired_final_state(flu_sys_cy5):
+    transition = tr.Transition(
+        tr.TransitionType.EXCITATION,
+        rate=1,
+        fluorophore_ids=[0],
+    )
+    transition.final_state = tr.PairedState.S0_S1
+    transitions = {"testfluo_1": [transition]}
+    absorbing_states = {0: np.array([], dtype=np.int64)}
+
+    with pytest.raises(
+        TypeError, match="non-paired transition must have a SingleState"
+    ):
+        tr.get_absorbing_states(transitions, {}, flu_sys_cy5)
+    with pytest.raises(
+        TypeError, match="non-paired transition must have a SingleState"
+    ):
+        tr.get_absorbing_fluorophore_ids(transition, absorbing_states)
+
+
+def test_remove_absorbing_states_rejects_invalid_paired_final_state(
+    tr_set_bl_et_2f_diff,
+):
+    transition = next(
+        transition
+        for transitions in tr_set_bl_et_2f_diff.transitions.values()
+        for transition in transitions
+        if isinstance(transition.initial_state, tr.PairedState)
+    )
+    transition.final_state = tr.SingleState.S0
+
+    with pytest.raises(TypeError, match="paired transition must have a PairedState"):
+        tr_set_bl_et_2f_diff.remove_absorbing_states()
+
+
+def test_remove_absorbing_states_rejects_invalid_nonpaired_final_state(tr_set_1f):
+    transition = next(iter(tr_set_1f.transitions["testfluo_1"]))
+    transition.final_state = tr.PairedState.S0_S1
+
+    with pytest.raises(
+        TypeError, match="non-paired transition must have a SingleState"
+    ):
+        tr_set_1f.remove_absorbing_states()
+
+
 def test_construct_transition_rate_list():
     transition_1 = pd.Series(
         tr.Transition(
@@ -1359,6 +1468,40 @@ def test_construct_transition_rate_list_requires_integer_identity():
 
     with pytest.raises(TypeError, match="identity must be an integer"):
         tr.construct_transition_rate_list(transition_df, [])
+
+
+@pytest.mark.parametrize(
+    "transition, state_combinations",
+    [
+        (
+            tr.Transition(
+                tr.TransitionType.EXCITATION,
+                rate=1,
+                fluorophore_ids=[0],
+            ),
+            [(tr.SingleState.S0.value,)],
+        ),
+        (
+            tr.Transition(
+                tr.TransitionType.FRET,
+                rate=1,
+                fluorophore_ids=[(0, 1)],
+            ),
+            [tr.PairedState.S1_S0.single_state_values],
+        ),
+    ],
+)
+def test_construct_transition_rate_list_skips_unavailable_final_state(
+    transition, state_combinations
+):
+    transition_df = pd.DataFrame([transition.to_dict()])
+    transition_df.index = pd.MultiIndex.from_tuples([("transition", 0)])
+
+    transition_rate_list = tr.construct_transition_rate_list(
+        transition_df, state_combinations
+    )
+
+    assert transition_rate_list == []
 
 
 def test_construct_transition_matrix_requires_integer_index():
@@ -1548,6 +1691,19 @@ def test_derive_fret_rejects_non_fret_included_transition(flu_obj_cy5_1):
             distance=5,
             refractive_index=1.33,
             include={"t1": [(pet_transition, 0.5)]},
+        )
+
+
+def test_derive_fret_rejects_invalid_included_transition_type(flu_obj_cy5_1):
+    with pytest.raises(TypeError, match="must be TransitionType objects"):
+        tr.derive_fret_transitions(
+            donor_data=flu_obj_cy5_1.constants,
+            acceptor_data=flu_obj_cy5_1.constants,
+            fluorophore_ids=[(0, 1)],
+            dipole_orientation_factor=2 / 3,
+            distance=5,
+            refractive_index=1.33,
+            include={"t1": [("invalid", 0.5)]},
         )
 
 

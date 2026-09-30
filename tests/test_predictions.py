@@ -110,6 +110,19 @@ def test_prediction_rejects_reachable_terminal_and_closed_class(flu_sys_cy5):
     with pytest.raises(ValueError, match="closed nonterminal class"):
         pr.Prediction(transition_set, initial_state_index=0)
 
+    prediction = pr.Prediction.__new__(pr.Prediction)
+    prediction.transition_set = transition_set
+    with pytest.raises(ValueError, match="closed nonterminal class"):
+        prediction.predict_transition_occurrences_absorbing(initial_state_index=0)
+
+
+def test_absorbing_prediction_requires_reachable_terminal_state(tr_set_1f):
+    prediction = pr.Prediction.__new__(pr.Prediction)
+    prediction.transition_set = tr_set_1f
+
+    with pytest.raises(ValueError, match="no terminal state is reachable"):
+        prediction.predict_transition_occurrences_absorbing(initial_state_index=0)
+
 
 def test_prediction_rejects_multiple_recurrent_classes(flu_sys_cy5):
     source = tr.SingleState("SOURCE_CUSTOM", 10)

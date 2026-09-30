@@ -852,6 +852,48 @@ def test_no_diff_dist_matches_transition_signature_across_distances():
     np.testing.assert_array_equal(discarded, np.array([2, 3, 4]))
 
 
+@pytest.mark.parametrize(
+    "index, message",
+    [
+        (
+            pd.MultiIndex.from_tuples([("A", 0, "extra")]),
+            "two-level index",
+        ),
+        (
+            pd.MultiIndex.from_tuples([("A", "invalid")]),
+            "identity must be an integer",
+        ),
+    ],
+)
+def test_no_diff_dist_rejects_invalid_index(index, message):
+    transition_df = pd.DataFrame(index=index)
+
+    with pytest.raises(TypeError, match=message):
+        an.no_diff_dist(transition_df, ["A"])
+
+
+def test_no_diff_dist_keeps_pair_with_unknown_donor():
+    index = pd.MultiIndex.from_tuples([("D: X, A: B, dist: 1", 0)])
+    transition_df = pd.DataFrame(
+        {
+            "abbreviation": ["PAIR"],
+            "initial_state": ["S1_S0"],
+            "final_state": ["S0_S1"],
+            "photon": [False],
+            "mechanism": ["CUSTOM"],
+        },
+        index=index,
+    )
+
+    collapsed, discarded_by_position, discarded = an.no_diff_dist(
+        transition_df, ["A", "B"]
+    )
+
+    pd.testing.assert_frame_equal(collapsed, transition_df)
+    assert discarded_by_position == {}
+    np.testing.assert_array_equal(discarded, np.array([], dtype=np.int64))
+
+
 def test_get_absorbing_state_times(sim_tr_set_1f_bl):
     absorbing_state_times = an.get_absorbing_state_times(simulation=sim_tr_set_1f_bl)
     assert np.isnan(absorbing_state_times)

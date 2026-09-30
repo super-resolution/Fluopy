@@ -872,3 +872,41 @@ def test_get_detection_probabilities_requires_spectral_data_for_bandpass():
             transition_set=transition_set,
             channels={"detector": em.DetectionChannel((500, 600))},
         )
+
+
+def test_get_detection_probabilities_rejects_paired_emission():
+    transition_set = SimpleNamespace(
+        combined_state_transitions_df=pd.DataFrame(
+            {"photon": [True], "fluorophore_ids": [[0, 1]]}
+        ),
+        fluorophore_system=SimpleNamespace(fluorophores=[]),
+    )
+
+    with pytest.raises(ValueError, match="must belong to one fluorophore"):
+        em.get_detection_probabilities(
+            transition_set,
+            {"detector": em.DetectionChannel()},
+        )
+
+
+def test_get_detection_probabilities_rejects_unfiltered_shared_channels(
+    tr_set_1f,
+):
+    channels = {
+        "first": em.DetectionChannel(),
+        "second": em.DetectionChannel((600, 650)),
+    }
+
+    with pytest.raises(ValueError, match="must not overlap"):
+        em.get_detection_probabilities(tr_set_1f, channels)
+
+
+def test_get_detection_probabilities_rejects_sum_above_one(tr_set_1f, monkeypatch):
+    monkeypatch.setattr(em, "get_p_filter", lambda **_: 0.6)
+    channels = {
+        "first": em.DetectionChannel((500, 550)),
+        "second": em.DetectionChannel((600, 650)),
+    }
+
+    with pytest.raises(ValueError, match="sum to at most 1"):
+        em.get_detection_probabilities(tr_set_1f, channels)
