@@ -222,10 +222,8 @@ class FluorophoreSystem:
         Derives transitions based on fluorophore and the experimental conditions to be
         mimicked.
 
-        This method derives only the transition types implemented by Fluopy.
-        User-defined SingleState, PairedState, and TransitionType objects are not
-        discovered automatically. Transitions using them must be added manually to
-        the returned dictionary before creating a TransitionSet.
+        This method derives the predefined subset of transitions described below. It
+        does not derive every transition type in BUILTIN_TRANSITION_TYPES.
 
         Parameters
         ----------
@@ -274,12 +272,15 @@ class FluorophoreSystem:
         singlet-singlet annihilation, singlet-triplet annihilation, cis-state transfer,
         and off-state transfer, respectively.
 
+        Built-in transition types not described above are not added automatically.
+        Paired transitions using a mechanism other than FRET are never derived
+        automatically. These transitions, and transitions using user-defined
+        SingleState, PairedState, or TransitionType objects, must be constructed
+        manually and added to the returned dictionary before creating a TransitionSet.
+
         A transition can be returned with rate zero when its corresponding
         FluorophoreData value is zero or its spectra do not overlap. TransitionSet
         removes zero-rate transitions by default.
-
-        User-defined transition types are not discovered automatically and must be
-        added manually to the returned dictionary.
 
         See Also
         --------
