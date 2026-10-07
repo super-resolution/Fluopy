@@ -77,6 +77,46 @@ def test_fcs_time_series_autocorrelation_requires_two_frames():
         fcs_obj.autocorrelate_time_series()
 
 
+@pytest.mark.parametrize("log", [False, True])
+def test_fcs_normalized_time_series_requires_nonzero_mean(log):
+    emissions = em.Emissions()
+    emissions.event_time_series = pd.DataFrame(
+        {"all": [0, 0, 0]}, index=[0.005, 0.010, 0.015]
+    )
+    fcs_obj = fcs_p.FCS(emissions)
+
+    with pytest.raises(ValueError, match="requires a non-zero mean"):
+        fcs_obj.autocorrelate_time_series(log=log, normalize=True)
+
+
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"end_time": 0}, "duration must be positive and finite"),
+        ({"start_time": np.nan}, "duration must be positive and finite"),
+        ({"base": 1}, "base must be greater than 1"),
+        ({"points_per_base": 0}, "points_per_base must be positive"),
+        ({"exp_min": 0, "exp_max": 0}, "exp_min must be smaller than exp_max"),
+    ],
+)
+def test_fcs_time_point_autocorrelation_rejects_invalid_boundaries(
+    small_emissions, kwargs, message
+):
+    fcs_obj = fcs_p.FCS(emissions=small_emissions)
+
+    with pytest.raises(ValueError, match=message):
+        fcs_obj.autocorrelate_time_points(**kwargs)
+
+
+def test_fcs_time_point_autocorrelation_rejects_adjusted_exponent_range(
+    small_emissions,
+):
+    fcs_obj = fcs_p.FCS(emissions=small_emissions)
+
+    with pytest.raises(ValueError, match="after adjusting exp_max"):
+        fcs_obj.autocorrelate_time_points(exp_min=0, exp_max=2)
+
+
 def test_fcs_autocorrelate_time_points_small_fixture(
     small_emissions, caplog, monkeypatch
 ):
