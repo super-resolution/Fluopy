@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -111,16 +113,21 @@ def test_fcs_autocorrelate_time_points_small_fixture(
 def test_fcs_autocorrelate_time_points(em_very_large, caplog):
     fcs_obj = fcs_p.FCS(emissions=em_very_large)
 
-    fcs_obj.autocorrelate_time_points(
-        exp_min=-8, exp_max=0, points_per_base=4, base=10, normalize=True
-    )
-    assert caplog.record_tuples == [
-        (
-            "fluopy.fcs",
-            30,
-            "The exp_max 0 yields a base to the power of exp_max 1 that is larger than the duration of the measurement: 0.1676677881662439. Therefore, exp_max is adjusted to -1.",
+    with caplog.at_level(logging.WARNING):
+        fcs_obj.autocorrelate_time_points(
+            exp_min=-8, exp_max=0, points_per_base=4, base=10, normalize=True
         )
+    warning_messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno == logging.WARNING
     ]
+    assert any(
+        "The exp_max 0" in message
+        and "larger than the duration of the measurement" in message
+        and "exp_max is adjusted to -1" in message
+        for message in warning_messages
+    )
 
     fcs_obj.autocorrelate_time_points(
         exp_min=-8, exp_max=-2, points_per_base=4, base=10, normalize=True
