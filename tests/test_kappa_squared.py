@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from fluopy import kappa_squared as ks
 
@@ -58,6 +59,37 @@ def test_simulate_rotational_motion():
     # vectors change over time (not static)
     assert not np.allclose(traj1[0], traj1[-1])
     assert not np.allclose(traj2[0], traj2[-1])
+
+
+def test_simulate_rotational_motion_accepts_zero_lifetime():
+    traj1, traj2 = ks.simulate_rotational_motion(
+        tau_rot=1,
+        tau_life=0,
+        dt=1,
+        seed=42,
+    )
+
+    assert traj1.shape == (1, 3)
+    assert traj2.shape == (1, 3)
+
+
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"tau_rot": 0}, "tau_rot must be positive and finite"),
+        ({"tau_rot": np.nan}, "tau_rot must be positive and finite"),
+        ({"tau_life": -1}, "tau_life must be finite and non-negative"),
+        ({"tau_life": np.inf}, "tau_life must be finite and non-negative"),
+        ({"dt": 0}, "dt must be positive and finite"),
+        ({"dt": np.nan}, "dt must be positive and finite"),
+    ],
+)
+def test_simulate_rotational_motion_rejects_invalid_boundaries(kwargs, message):
+    parameters = {"tau_rot": 1, "tau_life": 1, "dt": 1}
+    parameters.update(kwargs)
+
+    with pytest.raises(ValueError, match=message):
+        ks.simulate_rotational_motion(**parameters)
 
 
 def test_kappa_squared():
@@ -125,6 +157,24 @@ def test_integral_kappa_squared():
     assert avg_k2_long <= 4  # κ² is bounded between 0 and 4
 
 
+def test_integral_kappa_squared_requires_two_matching_trajectories():
+    one_orientation = np.array([[0, 0, 1]])
+    two_orientations = np.repeat(one_orientation, 2, axis=0)
+
+    with pytest.raises(ValueError, match="at least two orientations"):
+        ks.integral_kappa_squared(one_orientation, one_orientation, dt=1)
+    with pytest.raises(ValueError, match="must have the same length"):
+        ks.integral_kappa_squared(two_orientations, one_orientation, dt=1)
+
+
+@pytest.mark.parametrize("dt", [0, -1, np.nan, np.inf])
+def test_integral_kappa_squared_requires_positive_finite_dt(dt):
+    trajectory = np.array([[0, 0, 1], [0, 0, 1]])
+
+    with pytest.raises(ValueError, match="dt must be positive and finite"):
+        ks.integral_kappa_squared(trajectory, trajectory, dt=dt)
+
+
 def test_sample_kappa_squared_distribution():
     k2_values = np.array([0.0, 0.1, 0.5, 1.0, 2.0, 3.0, 3.9, 4.0])
     size = 50
@@ -141,6 +191,23 @@ def test_sample_kappa_squared_distribution():
         k2_values, size=size, seed=2
     )
     assert not np.allclose(samples, samples_diff_seed)
+
+
+@pytest.mark.parametrize(
+    "k2_values, message",
+    [
+        ([], "at least two values"),
+        ([1], "at least two values"),
+        ([1, 1], "must not be constant"),
+        ([0, np.nan], "finite values"),
+        ([-0.1, 1], "between 0 and 4"),
+        ([1, 4.1], "between 0 and 4"),
+        ([[0, 1], [2, 3]], "one-dimensional"),
+    ],
+)
+def test_sample_kappa_squared_distribution_rejects_invalid_values(k2_values, message):
+    with pytest.raises(ValueError, match=message):
+        ks.sample_kappa_squared_distribution(k2_values, seed=1)
 
 
 def test_kappa_squared_edge_cases():
