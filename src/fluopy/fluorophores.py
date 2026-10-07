@@ -202,7 +202,7 @@ class FluorophoreSystem:
         wavelength: float = 600,
         bleaching: bool = False,
         energy_transfer: bool = True,
-        dstorm: bool = True,
+        dstorm: bool = False,
         energy_transfer_parameters: (
             dict[
                 Literal[
@@ -256,7 +256,7 @@ class FluorophoreSystem:
                 and an efficiency. If the summed efficiencies is e.g., 0.5, all other
                 FRET transitions affecting the acceptor state are multiplied by 1-0.5.
         dstorm_parameters
-            May contain the following keys: reducing_agent, concentration, k_pet, ph.
+            May contain the following keys: reducing_agent, concentration, ph.
             Only used if dstorm is True.
 
         Notes
