@@ -515,6 +515,25 @@ def test_emissions_apply_threshold():
     )
 
 
+def test_emissions_accepts_zero_threshold():
+    emis = em.Emissions()
+    emis.event_time_series = pd.DataFrame({"all": [0, 1]}, dtype=np.int64)
+    expected = emis.event_time_series.copy()
+
+    emis.apply_threshold(0)
+
+    pd.testing.assert_frame_equal(emis.event_time_series, expected)
+
+
+@pytest.mark.parametrize("threshold", [-1, np.nan, np.inf])
+def test_emissions_rejects_invalid_threshold(threshold):
+    emis = em.Emissions()
+    emis.event_time_series = pd.DataFrame({"all": [1]}, dtype=np.int64)
+
+    with pytest.raises(ValueError, match="threshold must be finite and non-negative"):
+        emis.apply_threshold(threshold)
+
+
 def test_emissions_applies_channel_specific_thresholds():
     emis = em.Emissions(
         channels={"green": em.DetectionChannel(), "red": em.DetectionChannel()}
@@ -580,6 +599,15 @@ def test_emissions_adds_channel_specific_emccd_gain():
     pd.testing.assert_frame_equal(emis.event_time_series, expected)
 
 
+@pytest.mark.parametrize("emccd_gain", [0, -1, np.nan, np.inf])
+def test_emissions_rejects_invalid_emccd_gain(emccd_gain):
+    emis = em.Emissions()
+    emis.event_time_series = pd.DataFrame({"all": [1]}, dtype=np.int64)
+
+    with pytest.raises(ValueError, match="emccd_gain must be positive and finite"):
+        emis.add_emccd_gain(emccd_gain)
+
+
 def test_emissions_adds_scalar_gaussian_noise_and_clips_negative_counts():
     emis = em.Emissions()
     emis.event_time_series = pd.DataFrame(
@@ -629,6 +657,24 @@ def test_emissions_adds_channel_specific_gaussian_noise():
     pd.testing.assert_frame_equal(emis.event_time_series, expected)
 
 
+@pytest.mark.parametrize("mean", [np.nan, np.inf, -np.inf])
+def test_emissions_rejects_nonfinite_gaussian_mean(mean):
+    emis = em.Emissions()
+    emis.event_time_series = pd.DataFrame({"all": [1]}, dtype=np.int64)
+
+    with pytest.raises(ValueError, match="mean must be finite"):
+        emis.add_gaussian_noise(mean=mean, std=0)
+
+
+@pytest.mark.parametrize("std", [-1, np.nan, np.inf])
+def test_emissions_rejects_invalid_gaussian_standard_deviation(std):
+    emis = em.Emissions()
+    emis.event_time_series = pd.DataFrame({"all": [1]}, dtype=np.int64)
+
+    with pytest.raises(ValueError, match="std must be finite and non-negative"):
+        emis.add_gaussian_noise(mean=0, std=std)
+
+
 def test_emissions_adds_channel_specific_poisson_noise():
     emis = em.Emissions(
         channels={"green": em.DetectionChannel(), "red": em.DetectionChannel()}
@@ -641,6 +687,15 @@ def test_emissions_adds_channel_specific_poisson_noise():
 
     expected = pd.DataFrame({"green": [0, 1, 1], "red": [5, 4, 6]}, dtype=np.int64)
     pd.testing.assert_frame_equal(emis.event_time_series, expected)
+
+
+@pytest.mark.parametrize("rate", [-1, np.nan, np.inf])
+def test_emissions_rejects_invalid_poisson_rate(rate):
+    emis = em.Emissions()
+    emis.event_time_series = pd.DataFrame({"all": [1]}, dtype=np.int64)
+
+    with pytest.raises(ValueError, match="rate must be finite and non-negative"):
+        emis.add_poisson_noise(rate)
 
 
 def test_emissions_adds_scalar_poisson_noise_without_changing_time_points():

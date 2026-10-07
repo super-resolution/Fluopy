@@ -171,6 +171,8 @@ def calculate_excitation_rate(
             )
     cross_section = cross_section * 1e-4
     photon_flux_array = np.asarray(photon_flux, dtype=np.float64)
+    if np.any(~np.isfinite(photon_flux_array)) or np.any(photon_flux_array < 0):
+        raise ValueError("photon_flux must contain finite, non-negative values.")
     excitation_rate = np.asarray(
         photon_flux_array * cross_section,
         dtype=np.float64,
@@ -265,10 +267,17 @@ def calculate_internal_conversion_rate(
         emission_rate / quantum_yield - emission_rate, dtype=np.float64
     )
 
-    for outgoing_rate in other_outgoing_rates_args:
-        internal_conversion_rate -= outgoing_rate
-    for _, outgoing_rate in other_outgoing_rates_kwargs.items():
-        internal_conversion_rate -= outgoing_rate
+    other_outgoing_rates = (
+        *other_outgoing_rates_args,
+        *other_outgoing_rates_kwargs.values(),
+    )
+    for outgoing_rate in other_outgoing_rates:
+        outgoing_rate_array = np.asarray(outgoing_rate, dtype=np.float64)
+        if np.any(~np.isfinite(outgoing_rate_array)) or np.any(outgoing_rate_array < 0):
+            raise ValueError(
+                "other outgoing rates must contain finite, non-negative values."
+            )
+        internal_conversion_rate = internal_conversion_rate - outgoing_rate_array
     if np.any(internal_conversion_rate < 0):
         raise ValueError(
             "emission rate is too low to produce the given quantum yield while "

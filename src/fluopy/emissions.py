@@ -603,13 +603,15 @@ class Emissions:
             A seed to initialize the BitGenerator.
 
         """
-        rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
         gains = _resolve_channel_parameter(
             emccd_gain,
             event_time_series.columns,
             "emccd_gain",
         )
+        if np.any(~np.isfinite(gains)) or np.any(gains <= 0):
+            raise ValueError("emccd_gain must be positive and finite.")
+        rng = np.random.default_rng(seed)
         values = event_time_series.to_numpy(dtype=np.int64, copy=True)
         nonzero = values != 0
         scales = np.broadcast_to(gains, values.shape)
@@ -647,7 +649,6 @@ class Emissions:
             A seed to initialize the BitGenerator.
 
         """
-        rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
         means = _resolve_channel_parameter(mean, event_time_series.columns, "mean")
         standard_deviations = _resolve_channel_parameter(
@@ -655,6 +656,11 @@ class Emissions:
             event_time_series.columns,
             "std",
         )
+        if np.any(~np.isfinite(means)):
+            raise ValueError("mean must be finite.")
+        if np.any(~np.isfinite(standard_deviations)) or np.any(standard_deviations < 0):
+            raise ValueError("std must be finite and non-negative.")
+        rng = np.random.default_rng(seed)
         values = event_time_series.to_numpy(dtype=np.int64)
         variates = norm(loc=means, scale=standard_deviations).rvs(
             size=event_time_series.shape, random_state=rng
@@ -684,9 +690,11 @@ class Emissions:
             A seed to initialize the BitGenerator.
 
         """
-        rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
         rates = _resolve_channel_parameter(rate, event_time_series.columns, "rate")
+        if np.any(~np.isfinite(rates)) or np.any(rates < 0):
+            raise ValueError("rate must be finite and non-negative.")
+        rng = np.random.default_rng(seed)
         values = event_time_series.to_numpy(dtype=np.int64)
         variates = poisson(rates).rvs(size=event_time_series.shape, random_state=rng)
         variates = variates.astype(np.int64)
@@ -712,6 +720,8 @@ class Emissions:
             event_time_series.columns,
             "threshold",
         )
+        if np.any(~np.isfinite(thresholds)) or np.any(thresholds < 0):
+            raise ValueError("threshold must be finite and non-negative.")
         values = event_time_series.to_numpy(copy=True)
         values[values < thresholds] = 0
         event_time_series.iloc[:] = values
