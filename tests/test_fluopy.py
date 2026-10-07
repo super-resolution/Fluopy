@@ -10,13 +10,14 @@ def test_version():
 
 
 def test_version_when_version_module_is_unavailable(monkeypatch):
-    with monkeypatch.context() as context:
-        context.setitem(sys.modules, "fluopy._version", None)
-        reloaded_fluopy = importlib.reload(fluopy)
+    try:
+        with monkeypatch.context() as context:
+            context.setitem(sys.modules, "fluopy._version", None)
+            reloaded_fluopy = importlib.reload(fluopy)
 
-        assert reloaded_fluopy.__version__ == "not-installed"
-
-    importlib.reload(fluopy)
+            assert reloaded_fluopy.__version__ == "not-installed"
+    finally:
+        importlib.reload(fluopy)
 
 
 def test_logging():
