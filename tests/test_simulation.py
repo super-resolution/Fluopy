@@ -840,6 +840,13 @@ def test_approximation_handles_terminal_transition(pred_tr_set_1f, monkeypatch):
 
     time_series, transition_series = si.approximation(pred_tr_set_1f, size=20, seed=42)
 
+    expected_count = occurrences[starting_transition]
+    np.testing.assert_array_equal(
+        transition_series,
+        np.full(expected_count, starting_transition, dtype=np.int64),
+    )
+    assert time_series[0] == 0
+    assert np.all(np.diff(time_series) > 0)
     assert time_series.size == transition_series.size + 1
 
 
@@ -851,6 +858,7 @@ def test_approximation_ignores_absorbing_successors(pred_tr_set_1f_bl, monkeypat
     absorbing_transition = int(
         transition_df[transition_df["absorbing"]].index.get_level_values(1)[0]
     )
+    assert starting_transition != absorbing_transition
     graph = nx.DiGraph([(starting_transition, absorbing_transition)])
     monkeypatch.setattr(si.net, "construct_transition_graph", lambda **kwargs: graph)
     monkeypatch.setattr(si.net, "check_graph_suitable", lambda **kwargs: (True, []))
@@ -860,6 +868,14 @@ def test_approximation_ignores_absorbing_successors(pred_tr_set_1f_bl, monkeypat
 
     time_series, transition_series = si.approximation(prediction, size=20, seed=42)
 
+    expected_count = occurrences[starting_transition]
+    np.testing.assert_array_equal(
+        transition_series,
+        np.full(expected_count, starting_transition, dtype=np.int64),
+    )
+    assert absorbing_transition not in transition_series
+    assert time_series[0] == 0
+    assert np.all(np.diff(time_series) > 0)
     assert time_series.size == transition_series.size + 1
 
 
