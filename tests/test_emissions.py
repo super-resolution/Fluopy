@@ -11,12 +11,6 @@ from fluopy import fluo_data as fd
 from fluopy import simulation as si
 
 
-def assert_all_channel_equal(emis, expected):
-    pd.testing.assert_series_equal(
-        emis.select_event_time_series("all"), expected.rename("all")
-    )
-
-
 def test_emissions():
     frame_time = "5ms"
     channels = {"red": em.DetectionChannel(bandpass=(650, 700))}
@@ -501,36 +495,22 @@ def test_emissions_requires_complete_channel_parameter_mappings(threshold):
         emis.apply_threshold(threshold)
 
 
-def test_emissions_add_emccd_gain(em_large):
-    rng = np.random.default_rng(1)
-    # fmt: off
-    exp_values_prev = np.array(
-        [
-            49135, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 49692, 7458, 0, 0, 0, 0, 0, 0, 66619, 75942,
-            35871, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        ],
-        dtype=np.int64)
-    # fmt: on
-    exp_index = np.linspace(0, 9.9, 100)
-    exp_event_time_series_prev = pd.Series(exp_values_prev, index=exp_index)
-    assert_all_channel_equal(em_large, exp_event_time_series_prev)
-    em_large.add_emccd_gain(emccd_gain=10, seed=rng)
-    # fmt: off
-    exp_values = np.array(
-        [
-            492113, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 497653, 75361, 0, 0, 0, 0, 0, 0, 664801,
-            760421, 358760, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        ],
-        dtype=np.int64)
-    # fmt: on
-    exp_event_time_series = pd.Series(exp_values, index=exp_index)
-    assert_all_channel_equal(em_large, exp_event_time_series)
+def test_emissions_adds_scalar_emccd_gain():
+    emis = em.Emissions()
+    emis.event_time_series = pd.DataFrame(
+        {"all": [0, 2, 4]},
+        index=[0.1, 0.2, 0.3],
+        dtype=np.int64,
+    )
+
+    emis.add_emccd_gain(emccd_gain=2, seed=1)
+
+    expected = pd.DataFrame(
+        {"all": [0, 4, 8]},
+        index=[0.1, 0.2, 0.3],
+        dtype=np.int64,
+    )
+    pd.testing.assert_frame_equal(emis.event_time_series, expected)
 
 
 def test_emissions_adds_channel_specific_emccd_gain():
@@ -547,37 +527,35 @@ def test_emissions_adds_channel_specific_emccd_gain():
     pd.testing.assert_frame_equal(emis.event_time_series, expected)
 
 
-def test_emissions_add_gaussian_noise(em_large):
-    rng = np.random.default_rng(1)
-    # fmt: off
-    exp_values_prev = np.array(
-        [
-            49135, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 49692, 7458, 0, 0, 0, 0, 0, 0, 66619, 75942,
-            35871, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        ],
-        dtype=np.int64)
-    # fmt: on
-    exp_index = np.linspace(0, 9.9, 100)
-    exp_event_time_series_prev = pd.Series(exp_values_prev, index=exp_index)
-    assert_all_channel_equal(em_large, exp_event_time_series_prev)
-    em_large.add_gaussian_noise(mean=10, std=5, seed=rng)
-    # fmt: off
-    exp_values = np.array(
-        [
-            49146, 14, 11, 3, 14, 12, 7, 12, 11, 11, 10, 12, 6, 9, 7, 12, 10, 8, 6, 8,
-            10, 8, 49708, 7473, 0, 0, 9, 7, 11, 11, 66639, 75946, 35879, 20, 13, 13, 7,
-            1, 10, 10, 3, 6, 9, 5, 9, 10, 10, 7, 12, 14, 11, 5, 13, 7, 14, 4, 14, 9, 3,
-            8, 10, 11, 5, 4, 10, 7, 11, 13, 1, 11, 16, 8, 5, 13, 11, 14, 8, 2, 9, 7, 13,
-            10, 1, 4, 14, 13, 6, 9, 12, 12, 14, 11, 9, 8, 15, 0, 9, 10, 2, 11
-        ],
+def test_emissions_adds_scalar_gaussian_noise_and_clips_negative_counts():
+    emis = em.Emissions()
+    emis.event_time_series = pd.DataFrame(
+        {"all": [0, 1, 3]},
+        index=[0.1, 0.2, 0.3],
         dtype=np.int64,
     )
-    # fmt: on
-    exp_event_time_series = pd.Series(exp_values, index=exp_index)
-    assert_all_channel_equal(em_large, exp_event_time_series)
+
+    emis.add_gaussian_noise(mean=-2, std=0, seed=1)
+
+    expected = pd.DataFrame(
+        {"all": [0, 0, 1]},
+        index=[0.1, 0.2, 0.3],
+        dtype=np.int64,
+    )
+    pd.testing.assert_frame_equal(emis.event_time_series, expected)
+
+
+def test_emissions_adds_gaussian_noise_with_nonzero_standard_deviation():
+    emis = em.Emissions()
+    emis.event_time_series = pd.DataFrame(
+        {"all": [10, 10, 10, 10]},
+        dtype=np.int64,
+    )
+
+    emis.add_gaussian_noise(mean=0, std=5, seed=1)
+
+    expected = pd.DataFrame({"all": [11, 14, 11, 4]}, dtype=np.int64)
+    pd.testing.assert_frame_equal(emis.event_time_series, expected)
 
 
 def test_emissions_adds_channel_specific_gaussian_noise():
@@ -598,38 +576,6 @@ def test_emissions_adds_channel_specific_gaussian_noise():
     pd.testing.assert_frame_equal(emis.event_time_series, expected)
 
 
-def test_emissions_add_poisson_noise(em_large):
-    rng = np.random.default_rng(1)
-    # fmt: off
-    exp_values_prev = np.array(
-        [
-            49135, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 49692, 7458, 0, 0, 0, 0, 0, 0, 66619, 75942,
-            35871, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        ],
-        dtype=np.int64)
-    # fmt: on
-    exp_index = np.linspace(0, 9.9, 100)
-    exp_event_time_series_prev = pd.Series(exp_values_prev, index=exp_index)
-    assert_all_channel_equal(em_large, exp_event_time_series_prev)
-    em_large.add_poisson_noise(rate=10, seed=rng)
-    # fmt: off
-    exp_values = np.array(
-        [
-            49143, 13, 10, 13, 8, 8, 6, 7, 12, 10, 10, 11, 10, 11, 11, 14, 10, 7, 7, 14,
-            8, 11, 49706, 7465, 6, 15, 11, 12, 13, 14, 66632, 75951, 35883, 9, 8, 5, 9,
-            11, 14, 13, 10, 7, 7, 12, 9, 12, 11, 12, 9, 5, 8, 8, 12, 4, 7, 10, 8, 10, 18,
-            8, 6, 7, 11, 10, 13, 11, 9, 20, 12, 14, 13, 9, 9, 6, 11, 13, 11, 13, 10, 10,
-            12, 6, 6, 8, 3, 7, 17, 16, 5, 5, 7, 8, 12, 11, 9, 6, 7, 10, 8, 13
-        ],
-        np.int64)
-    # fmt: on
-    exp_event_time_series = pd.Series(exp_values, index=exp_index)
-    assert_all_channel_equal(em_large, exp_event_time_series)
-
-
 def test_emissions_adds_channel_specific_poisson_noise():
     emis = em.Emissions(
         channels={"green": em.DetectionChannel(), "red": em.DetectionChannel()}
@@ -644,7 +590,7 @@ def test_emissions_adds_channel_specific_poisson_noise():
     pd.testing.assert_frame_equal(emis.event_time_series, expected)
 
 
-def test_emissions_add_poisson_noise_is_frame_only_for_multiple_channels():
+def test_emissions_adds_scalar_poisson_noise_without_changing_time_points():
     emis = em.Emissions(
         channels={
             "green": em.DetectionChannel(),

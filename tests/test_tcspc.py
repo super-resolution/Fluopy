@@ -753,10 +753,9 @@ def test_simulate_TCSPC_counts_independent_fluorophore_emissions(
 
 
 @pytest.mark.slow
-def test_simulate_TCSPC_detailed(request, caplog):
+def test_simulate_TCSPC_detailed(tr_set_bl_et_2f_diff, caplog):
     rng = np.random.default_rng(42)
-    transition_set = request.getfixturevalue("tr_set_bl_et_2f_diff")
-    transition_set = transition_set.filter_by_identity(
+    transition_set = tr_set_bl_et_2f_diff.filter_by_identity(
         [2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15]
     )
     transition_set = transition_set.adjust_rates({0: 0, 2: 0}, keep_zero_rates=True)
@@ -833,21 +832,20 @@ def test_space_multiple_excitations_requires_float_dtype(dtype):
         si.space_multiple_excitations(time_series)
 
 
-def test_insert_excitations(request):
+def test_insert_excitations(tr_set_bl_et_3f):
     excitation_series = np.array(
         [1, 2, 0, -1, -1, -1, 2, -1, 1, -1, -1, 2, 1, -1, -1, -1]
     )
     transition_series = np.array([250, 241, 446, 446, 80, 120, 81, 398, 122])
-    transition_set = request.getfixturevalue("tr_set_bl_et_3f")
     transition_series_adj = si.insert_excitations(
-        transition_series, transition_set, excitation_series
+        transition_series, tr_set_bl_et_3f, excitation_series
     )
     excitation_mask = excitation_series != -1
 
     np.testing.assert_array_equal(
         transition_series_adj[~excitation_mask], transition_series
     )
-    inserted = transition_set.combined_state_transitions_df.iloc[
+    inserted = tr_set_bl_et_3f.combined_state_transitions_df.iloc[
         transition_series_adj[excitation_mask]
     ]
     assert (inserted["abbreviation"] == "EXC").all()
@@ -879,8 +877,7 @@ def test_insert_excitations_without_preceding_excitation(tr_set_1f):
     np.testing.assert_array_equal(result, transition_series)
 
 
-def test_get_state_series(request):
-    transition_set = request.getfixturevalue("tr_set_bl_et_3f")
+def test_get_state_series(tr_set_bl_et_3f):
     state_series_exp = np.array(
         [
             [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -889,7 +886,7 @@ def test_get_state_series(request):
         ]
     )
     states = [tuple(state) for state in state_series_exp.transpose()]
-    combined_transitions = transition_set.combined_state_transitions_df
+    combined_transitions = tr_set_bl_et_3f.combined_state_transitions_df
     transition_series = []
     for initial_state, final_state in zip(states[:-1], states[1:]):
         matching = combined_transitions[
@@ -898,6 +895,6 @@ def test_get_state_series(request):
         ]
         transition_series.append(matching.index[0])
 
-    state_series = si.get_state_series(transition_set, transition_series)
+    state_series = si.get_state_series(tr_set_bl_et_3f, transition_series)
 
     np.testing.assert_array_equal(state_series, state_series_exp)

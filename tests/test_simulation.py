@@ -1,6 +1,5 @@
 import logging
 import warnings
-from pathlib import Path
 
 import networkx as nx
 import numpy as np
@@ -10,6 +9,13 @@ import pytest
 from fluopy import prediction as pr
 from fluopy import simulation as si
 from fluopy import transitions as tr
+
+
+def _close_memmaps(*arrays):
+    for array in arrays:
+        if isinstance(array, np.memmap):
+            array.flush()
+            array._mmap.close()
 
 
 class TestSimulation:
@@ -68,10 +74,13 @@ def test_direct_method_steps_stops_at_absorbing_state(use_memmap, tmp_path):
         use_memmap=memmap_path,
     )
 
-    assert isinstance(time_series, np.memmap) is use_memmap
-    assert isinstance(transition_series, np.memmap) is use_memmap
-    assert time_series.shape == (2,)
-    np.testing.assert_array_equal(transition_series, [1])
+    try:
+        assert isinstance(time_series, np.memmap) is use_memmap
+        assert isinstance(transition_series, np.memmap) is use_memmap
+        assert time_series.shape == (2,)
+        np.testing.assert_array_equal(transition_series, [1])
+    finally:
+        _close_memmaps(time_series, transition_series)
 
 
 def test_direct_method_steps_with_memmap(tr_set_1f, tmp_path):
@@ -92,54 +101,35 @@ def test_direct_method_steps_with_memmap(tr_set_1f, tmp_path):
         use_memmap=tmp_path,
     )
 
-    assert isinstance(time_series, np.memmap)
-    assert isinstance(transition_series, np.memmap)
-    np.testing.assert_array_equal(time_series, expected_times)
-    np.testing.assert_array_equal(transition_series, expected_transitions)
+    try:
+        assert isinstance(time_series, np.memmap)
+        assert isinstance(transition_series, np.memmap)
+        np.testing.assert_array_equal(time_series, expected_times)
+        np.testing.assert_array_equal(transition_series, expected_transitions)
+    finally:
+        _close_memmaps(time_series, transition_series)
 
 
-def test_direct_method_time(tr_set_1f):
-    rng = np.random.default_rng(42)
+def test_direct_method_time(monkeypatch):
+    class FixedGenerator:
+        def uniform(self, low, high, size):
+            assert (low, high, size) == (0, 1, (2, 2))
+            return np.array([[np.exp(-2), 0.5], [np.exp(-2), 0.5]])
+
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: FixedGenerator())
+
     time_series, transition_series = si.direct_method_time(
-        transition_matrix=tr_set_1f.transition_matrix,
-        row_sums=tr_set_1f.row_sums,
+        transition_matrix=[[0, 1], [1, 0]],
+        row_sums=[2, 4],
         start_index=0,
-        size=10,
-        end_time=1e-6,
-        seed=rng,
+        size=2,
+        end_time=1.4,
+        seed=42,
         use_memmap=None,
     )
-    exp_time_series = np.array(
-        [
-            0.00000000e0,
-            2.56240192e-10,
-            2.64705453e-8,
-            2.88331209e-8,
-            7.57644173e-8,
-            7.78192550e-8,
-            2.48408814e-7,
-            2.48849080e-7,
-            3.88686227e-7,
-            3.89275763e-7,
-            4.21806267e-7,
-            4.22083224e-7,
-            4.27196942e-7,
-            4.27447478e-7,
-            5.58476170e-7,
-            5.60345094e-7,
-            6.11016612e-7,
-            6.12138006e-7,
-            7.42125463e-7,
-            7.44166288e-7,
-            9.99200862e-7,
-            1.00000000e-6,
-        ]
-    )
-    exp_transition_series = np.array(
-        [6, 0, 6, 0, 6, 0, 6, 0, 1, 0, 6, 0, 1, 0, 6, 0, 6, 0, 6, 0]
-    )
-    np.testing.assert_allclose(time_series, exp_time_series, rtol=1e-7)
-    np.testing.assert_array_equal(transition_series, exp_transition_series)
+
+    np.testing.assert_allclose(time_series, [0.0, 1.0, 1.4])
+    np.testing.assert_array_equal(transition_series, [1])
 
 
 def test_direct_method_time_stops_at_absorbing_state():
@@ -157,98 +147,62 @@ def test_direct_method_time_stops_at_absorbing_state():
 
 
 def test_direct_method_time_with_memmap(tr_set_1f, tmp_path):
-    rng = np.random.default_rng(42)
+    expected_times, expected_transitions = si.direct_method_time(
+        transition_matrix=tr_set_1f.transition_matrix,
+        row_sums=tr_set_1f.row_sums,
+        start_index=0,
+        size=10,
+        end_time=1e-6,
+        seed=42,
+        use_memmap=None,
+    )
     time_series, transition_series = si.direct_method_time(
         transition_matrix=tr_set_1f.transition_matrix,
         row_sums=tr_set_1f.row_sums,
         start_index=0,
         size=10,
         end_time=1e-6,
-        seed=rng,
+        seed=42,
         use_memmap=tmp_path,
     )
-    exp_time_series = np.array(
-        [
-            0.00000000e0,
-            2.56240192e-10,
-            2.64705453e-8,
-            2.88331209e-8,
-            7.57644173e-8,
-            7.78192550e-8,
-            2.48408814e-7,
-            2.48849080e-7,
-            3.88686227e-7,
-            3.89275763e-7,
-            4.21806267e-7,
-            4.22083224e-7,
-            4.27196942e-7,
-            4.27447478e-7,
-            5.58476170e-7,
-            5.60345094e-7,
-            6.11016612e-7,
-            6.12138006e-7,
-            7.42125463e-7,
-            7.44166288e-7,
-            9.99200862e-7,
-            1.00000000e-6,
-        ]
-    )
-    exp_transition_series = np.array(
-        [6, 0, 6, 0, 6, 0, 6, 0, 1, 0, 6, 0, 1, 0, 6, 0, 6, 0, 6, 0]
-    )
-    np.testing.assert_allclose(time_series, exp_time_series, rtol=1e-7)
-    np.testing.assert_array_equal(transition_series, exp_transition_series)
+
+    try:
+        assert isinstance(time_series, np.memmap)
+        assert isinstance(transition_series, np.memmap)
+        np.testing.assert_array_equal(time_series, expected_times)
+        np.testing.assert_array_equal(transition_series, expected_transitions)
+    finally:
+        _close_memmaps(time_series, transition_series)
 
 
-def test_first_reaction_method(tr_set_bl_et_2f_diff):
-    rng = np.random.default_rng(42)
-    time_series, transition_series = si.first_reaction_method(
-        transition_matrix=tr_set_bl_et_2f_diff.transition_matrix,
-        row_sums=tr_set_bl_et_2f_diff.row_sums,
-        combined_state_transitions_df=tr_set_bl_et_2f_diff.combined_state_transitions_df,
-        include_kap_sq=True,
-        minimum_rate=1e3,
-        start_index=0,
-        size=4,
-        seed=rng,
-        use_memmap=None,
-    )
-    exp_time_series = np.array(
-        [
-            0.00000000000000e0,
-            2.51211829116471e-10,
-            2.52237265362804e-10,
-            2.53171254576898e-10,
-            2.53177307732260e-10,
-        ]
-    )
-    exp_transition_series = np.array([32, 63, 32, 63])
-    np.testing.assert_allclose(time_series, exp_time_series, rtol=1e-7)
-    np.testing.assert_array_equal(transition_series, exp_transition_series)
+def test_first_reaction_method(monkeypatch):
+    class FixedGenerator:
+        def __init__(self):
+            self.responses = iter((np.array([0.4, 0.2]), np.array([0.3])))
+            self.scales = []
+
+        def exponential(self, scale):
+            self.scales.append(scale)
+            return next(self.responses)
+
+    generator = FixedGenerator()
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
 
     time_series, transition_series = si.first_reaction_method(
-        transition_matrix=tr_set_bl_et_2f_diff.transition_matrix,
-        row_sums=tr_set_bl_et_2f_diff.row_sums,
-        combined_state_transitions_df=tr_set_bl_et_2f_diff.combined_state_transitions_df,
+        transition_matrix=[[0, 0.25, 0.75], [1, 0, 0], [1, 0, 0]],
+        row_sums=[4, 2, 1],
+        combined_state_transitions_df=pd.DataFrame(index=np.arange(3)),
         include_kap_sq=False,
-        minimum_rate=1e3,
         start_index=0,
-        size=4,
-        seed=rng,
+        size=2,
+        seed=42,
         use_memmap=None,
     )
-    exp_time_series = np.array(
-        [
-            0.00000000000000e0,
-            2.29979230104149e-13,
-            4.33853663715442e-13,
-            1.49257871145080e-12,
-            1.76534034244079e-12,
-        ]
-    )
-    exp_transition_series = np.array([32, 63, 32, 63])
-    np.testing.assert_allclose(time_series, exp_time_series, rtol=1e-7)
-    np.testing.assert_array_equal(transition_series, exp_transition_series)
+
+    np.testing.assert_allclose(time_series, [0.0, 0.2, 0.5])
+    np.testing.assert_array_equal(transition_series, [2, 0])
+    np.testing.assert_allclose(generator.scales[0], [1.0, 1 / 3])
+    np.testing.assert_allclose(generator.scales[1], [1.0])
 
 
 def test_first_reaction_method_applies_kappa_squared_only_to_fret(monkeypatch):
@@ -282,7 +236,16 @@ def test_first_reaction_method_applies_kappa_squared_only_to_fret(monkeypatch):
 
 
 def test_first_reaction_method_with_memmap(tr_set_bl_et_2f_diff, tmp_path):
-    rng = np.random.default_rng(42)
+    expected_times, expected_transitions = si.first_reaction_method(
+        transition_matrix=tr_set_bl_et_2f_diff.transition_matrix,
+        row_sums=tr_set_bl_et_2f_diff.row_sums,
+        combined_state_transitions_df=tr_set_bl_et_2f_diff.combined_state_transitions_df,
+        minimum_rate=1e3,
+        start_index=0,
+        size=4,
+        seed=42,
+        use_memmap=None,
+    )
     time_series, transition_series = si.first_reaction_method(
         transition_matrix=tr_set_bl_et_2f_diff.transition_matrix,
         row_sums=tr_set_bl_et_2f_diff.row_sums,
@@ -290,21 +253,17 @@ def test_first_reaction_method_with_memmap(tr_set_bl_et_2f_diff, tmp_path):
         minimum_rate=1e3,
         start_index=0,
         size=4,
-        seed=rng,
+        seed=42,
         use_memmap=tmp_path,
     )
-    exp_time_series = np.array(
-        [
-            0.00000000000000e0,
-            2.51211829116471e-10,
-            2.52237265362804e-10,
-            2.53171254576898e-10,
-            2.53177307732260e-10,
-        ]
-    )
-    exp_transition_series = np.array([32, 63, 32, 63])
-    np.testing.assert_allclose(time_series, exp_time_series, rtol=1e-7)
-    np.testing.assert_array_equal(transition_series, exp_transition_series)
+
+    try:
+        assert isinstance(time_series, np.memmap)
+        assert isinstance(transition_series, np.memmap)
+        np.testing.assert_array_equal(time_series, expected_times)
+        np.testing.assert_array_equal(transition_series, expected_transitions)
+    finally:
+        _close_memmaps(time_series, transition_series)
 
 
 @pytest.mark.parametrize("use_memmap", [False, True])
@@ -328,10 +287,13 @@ def test_first_reaction_method_stops_at_absorbing_state(use_memmap, tmp_path):
         use_memmap=memmap_path,
     )
 
-    assert isinstance(time_series, np.memmap) is use_memmap
-    assert isinstance(transition_series, np.memmap) is use_memmap
-    assert time_series.shape == (2,)
-    np.testing.assert_array_equal(transition_series, [1])
+    try:
+        assert isinstance(time_series, np.memmap) is use_memmap
+        assert isinstance(transition_series, np.memmap) is use_memmap
+        assert time_series.shape == (2,)
+        np.testing.assert_array_equal(transition_series, [1])
+    finally:
+        _close_memmaps(time_series, transition_series)
 
 
 def test_approximation(pred_tr_set_1f):
@@ -505,133 +467,25 @@ def test_simulation(tr_set_1f):
     assert simulation.transition_set is tr_set_1f_new
 
 
-# also contains the test for simulation.delete_memmaps()
-@pytest.mark.parametrize("use_memmap", [None, "tmp_path"])
-@pytest.mark.parametrize(
-    "end_time, kap_sq_var, exp_time_series, exp_transition_series, exp_state_series",
-    [
-        [
-            None,
-            False,
-            np.array(
-                [
-                    0.00000000000e0,
-                    4.40600729235e-8,
-                    4.42125274724e-8,
-                    4.50453456369e-7,
-                    4.50726394735e-7,
-                    8.04052296605e-7,
-                    8.05044394342e-7,
-                    8.80747400872e-7,
-                    8.81560651839e-7,
-                    9.82930309396e-7,
-                    9.83119497061e-7,
-                ]
-            ),
-            np.array([0, 6, 0, 6, 0, 6, 0, 1, 0, 6]),
-            np.array([[0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]]),
-        ],
-        [
-            1e-6,
-            False,
-            np.array(
-                [
-                    0.00000000000e0,
-                    4.40600740169e-8,
-                    4.42125285628e-8,
-                    4.50453465361e-7,
-                    4.50726403722e-7,
-                    8.04052314341e-7,
-                    8.05044412115e-7,
-                    8.80747419909e-7,
-                    8.81560670868e-7,
-                    9.82930330960e-7,
-                    9.83119518629e-7,
-                    1.00000000000e-6,
-                ]
-            ),
-            np.array([0, 6, 0, 6, 0, 6, 0, 1, 0, 6]),
-            np.array([[0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]]),
-        ],
-        [
-            None,
-            True,
-            np.array(
-                [
-                    0.00000000000e0,
-                    4.13399675381e-7,
-                    4.13521560688e-7,
-                    6.63304105558e-7,
-                    6.64779860077e-7,
-                    6.76891265289e-7,
-                    6.78627923106e-7,
-                    7.05068978674e-7,
-                    7.05408153751e-7,
-                    9.19894090318e-7,
-                    9.20722150938e-7,
-                ]
-            ),
-            np.array([0, 6, 0, 6, 0, 6, 0, 1, 0, 1]),
-            np.array([[0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]]),
-        ],
-        [
-            1e4,
-            True,
-            None,
-            None,
-            None,
-        ],
-    ],
-)
-def test_simulation_run(
-    end_time,
-    kap_sq_var,
-    use_memmap,
-    exp_time_series,
-    exp_transition_series,
-    exp_state_series,
-    tr_set_1f,
-    tmp_path,
-):
-    rng = np.random.default_rng(42)
-    if use_memmap is not None:
-        memmap_path = tmp_path
-    else:
-        memmap_path = None
+def _assert_valid_simulation_run(simulation, transition_set, size, end_time):
+    assert simulation.time_series is not None
+    assert simulation.transition_series is not None
+    assert simulation.state_series is not None
+    assert simulation.time_series[0] == 0
+    assert np.all(np.diff(simulation.time_series) > 0)
 
-    size = 10
-    simulation = si.Simulation(transition_set=tr_set_1f)
-    if kap_sq_var and end_time is not None:
-        with pytest.raises(
-            ValueError,
-            match="end_time is not None but kap_sq_var is True. Not implemented.",
-        ):
-            simulation.run(
-                start_at=(0,),
-                size=size,
-                end_time=end_time,
-                kap_sq_var=kap_sq_var,
-                seed=rng,
-                use_memmap=memmap_path,
-            )
-        return
-
-    with pytest.warns(
-        si.FloatingPointPrecisionWarning,
-        match="Floating point precision error warning",
-    ):
-        simulation.run(
-            start_at=(0,),
-            size=size,
-            end_time=end_time,
-            kap_sq_var=kap_sq_var,
-            seed=rng,
-            use_memmap=memmap_path,
-        )
-
-    np.testing.assert_allclose(simulation.time_series, exp_time_series, rtol=1e-7)
-    np.testing.assert_array_equal(simulation.transition_series, exp_transition_series)
-    np.testing.assert_array_equal(simulation.state_series, exp_state_series)
+    transition_df = transition_set.combined_state_transitions_df
+    selected = transition_df.iloc[simulation.transition_series]
+    expected_initial_states = np.asarray(
+        selected["initial_state"].tolist(), dtype=np.int8
+    ).T
+    expected_final_states = np.asarray(
+        selected["final_state"].tolist(), dtype=np.int8
+    ).T
+    np.testing.assert_array_equal(
+        simulation.state_series[:, :-1], expected_initial_states
+    )
+    np.testing.assert_array_equal(simulation.state_series[:, 1:], expected_final_states)
 
     if end_time is None:
         assert simulation.time_series.size == size + 1
@@ -642,53 +496,105 @@ def test_simulation_run(
         assert simulation.state_series.shape[1] == simulation.transition_series.size + 1
         assert simulation.time_series[-1] == end_time
 
-    if use_memmap is not None:
+
+@pytest.mark.parametrize(
+    "end_time, kap_sq_var",
+    [
+        (None, False),
+        (1e-6, False),
+        (None, True),
+    ],
+)
+def test_simulation_run(
+    end_time,
+    kap_sq_var,
+    tr_set_1f,
+):
+    rng = np.random.default_rng(42)
+    size = 10
+    simulation = si.Simulation(transition_set=tr_set_1f)
+    with pytest.warns(
+        si.FloatingPointPrecisionWarning,
+        match="Floating point precision error warning",
+    ):
+        simulation.run(
+            start_at=(0,),
+            size=size,
+            end_time=end_time,
+            kap_sq_var=kap_sq_var,
+            seed=rng,
+        )
+
+    _assert_valid_simulation_run(simulation, tr_set_1f, size, end_time)
+    assert simulation.memmap_path is None
+    assert not isinstance(simulation.time_series, np.memmap)
+    assert not isinstance(simulation.transition_series, np.memmap)
+    assert not isinstance(simulation.state_series, np.memmap)
+
+
+def test_simulation_run_with_memmap(tr_set_1f, tmp_path):
+    size = 10
+    simulation = si.Simulation(transition_set=tr_set_1f)
+    with pytest.warns(
+        si.FloatingPointPrecisionWarning,
+        match="Floating point precision error warning",
+    ):
+        simulation.run(size=size, seed=42, use_memmap=tmp_path)
+
+    try:
+        _assert_valid_simulation_run(simulation, tr_set_1f, size, end_time=None)
         assert isinstance(simulation.time_series, np.memmap)
         assert isinstance(simulation.transition_series, np.memmap)
         assert isinstance(simulation.state_series, np.memmap)
-        assert simulation.memmap_path == memmap_path
-        assert len(simulation.time_series.base) == exp_time_series.size * 64 / 8
+        assert simulation.memmap_path == tmp_path
+        assert len(simulation.time_series.base) == simulation.time_series.nbytes
         assert (
             len(simulation.transition_series.base)
-            == exp_transition_series.size * 32 / 8
+            == simulation.transition_series.nbytes
         )
-        # 8 bit per number (* 8), result in byte (/ 8)
-        assert (
-            len(simulation.state_series.base)
-            == simulation.state_series.shape[1]
-            * 8
-            / 8
-            * simulation.state_series.shape[0]
+        assert len(simulation.state_series.base) == simulation.state_series.nbytes
+        assert (tmp_path / "state_series").is_file()
+        assert (tmp_path / "time_series").is_file()
+        assert (tmp_path / "transition_series").is_file()
+    finally:
+        arrays = (
+            simulation.time_series,
+            simulation.transition_series,
+            simulation.state_series,
         )
-        # convert to pathlib
-        assert (Path(memmap_path) / "state_series").is_file()
-        assert (Path(memmap_path) / "time_series").is_file()
-        assert (Path(memmap_path) / "transition_series").is_file()
-        simulation.delete_memmaps()
-        assert not (Path(memmap_path) / "state_series").is_file()
-        assert not (Path(memmap_path) / "time_series").is_file()
-        assert not (Path(memmap_path) / "transition_series").is_file()
-        assert not hasattr(simulation, "transition_series")
-        assert not hasattr(simulation, "time_series")
-        assert not hasattr(simulation, "state_series")
+        if simulation.memmap_path is not None and all(
+            isinstance(array, np.memmap) for array in arrays
+        ):
+            simulation.delete_memmaps()
+        else:
+            _close_memmaps(*arrays)
 
-    else:
-        assert simulation.memmap_path is None
-        assert not isinstance(simulation.time_series, np.memmap)
-        assert not isinstance(simulation.transition_series, np.memmap)
-        assert not isinstance(simulation.state_series, np.memmap)
+    assert not (tmp_path / "state_series").is_file()
+    assert not (tmp_path / "time_series").is_file()
+    assert not (tmp_path / "transition_series").is_file()
+    assert not hasattr(simulation, "transition_series")
+    assert not hasattr(simulation, "time_series")
+    assert not hasattr(simulation, "state_series")
+
+
+def test_simulation_run_rejects_end_time_with_variable_kappa(tr_set_1f):
+    simulation = si.Simulation(transition_set=tr_set_1f)
+
+    with pytest.raises(
+        ValueError,
+        match="end_time is not None but kap_sq_var is True. Not implemented.",
+    ):
+        simulation.run(end_time=1e4, kap_sq_var=True, seed=42)
+
+
+def test_simulation_run_rejects_invalid_boundaries(tr_set_1f):
+    simulation = si.Simulation(transition_set=tr_set_1f)
 
     with pytest.raises(
         ValueError,
         match="The number of starting states doesn't match the number of fluorophores.",
     ):
-        simulation.run(
-            start_at=(0, 1), size=size, end_time=None, seed=rng, use_memmap=None
-        )
-
-
-def test_simulation_run_rejects_invalid_boundaries(tr_set_1f):
-    simulation = si.Simulation(transition_set=tr_set_1f)
+        simulation.run(start_at=(0, 1), size=10, seed=42)
 
     with pytest.raises(ValueError, match="size must be positive."):
         simulation.run(start_at=(0,), size=0, seed=42)
@@ -731,27 +637,31 @@ def test_simulation_run_requires_transition_output(tr_set_1f, monkeypatch):
 
 def test_delete_memmaps_validates_all_arrays(tr_set_1f, tmp_path):
     simulation = si.Simulation(tr_set_1f)
-    with pytest.raises(ValueError, match="transition_series is not a memmap"):
-        simulation.delete_memmaps()
+    transition = None
+    time = None
+    state = None
+    try:
+        with pytest.raises(ValueError, match="transition_series is not a memmap"):
+            simulation.delete_memmaps()
 
-    transition = np.memmap(tmp_path / "transition", mode="w+", dtype=np.uint32, shape=1)
-    simulation.transition_series = transition
-    with pytest.raises(ValueError, match="time_series is not a memmap"):
-        simulation.delete_memmaps()
+        transition = np.memmap(
+            tmp_path / "transition", mode="w+", dtype=np.uint32, shape=1
+        )
+        simulation.transition_series = transition
+        with pytest.raises(ValueError, match="time_series is not a memmap"):
+            simulation.delete_memmaps()
 
-    time = np.memmap(tmp_path / "time", mode="w+", dtype=np.float64, shape=1)
-    simulation.time_series = time
-    with pytest.raises(ValueError, match="state_series is not a memmap"):
-        simulation.delete_memmaps()
+        time = np.memmap(tmp_path / "time", mode="w+", dtype=np.float64, shape=1)
+        simulation.time_series = time
+        with pytest.raises(ValueError, match="state_series is not a memmap"):
+            simulation.delete_memmaps()
 
-    state = np.memmap(tmp_path / "state", mode="w+", dtype=np.int8, shape=(1, 1))
-    simulation.state_series = state
-    with pytest.raises(ValueError, match="memmap path is unavailable"):
-        simulation.delete_memmaps()
-
-    transition._mmap.close()
-    time._mmap.close()
-    state._mmap.close()
+        state = np.memmap(tmp_path / "state", mode="w+", dtype=np.int8, shape=(1, 1))
+        simulation.state_series = state
+        with pytest.raises(ValueError, match="memmap path is unavailable"):
+            simulation.delete_memmaps()
+    finally:
+        _close_memmaps(transition, time, state)
 
 
 @pytest.mark.parametrize(

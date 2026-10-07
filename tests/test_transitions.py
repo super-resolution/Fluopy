@@ -462,7 +462,12 @@ class TestTransitionSet:
         ],
     )
     def test_transition_set_errors(
-        self, transition_type, fluorophore_ids, fluo_comb, expected, request
+        self,
+        transition_type,
+        fluorophore_ids,
+        fluo_comb,
+        expected,
+        flu_sys_2xcy5_1xatto643,
     ):
         transitions = {
             fluo_comb: [
@@ -473,7 +478,7 @@ class TestTransitionSet:
                 )
             ]
         }
-        fluorophore_system = request.getfixturevalue("flu_sys_2xcy5_1xatto643")
+        fluorophore_system = flu_sys_2xcy5_1xatto643
         if expected == "ValueError1":
             with pytest.raises(
                 ValueError,
@@ -533,7 +538,7 @@ class TestTransitionSet:
             tr.TransitionSet(transitions, flu_sys_2xcy5)
 
     # get_single_states is tested indirectly within test_transition_set
-    def test_transition_set(self, request):
+    def test_transition_set(self, flu_sys_2xcy5_1xatto643):
         zero_rate_transition = tr.Transition(
             transition_type=tr.TransitionType.INTERNAL_CONVERSION_S,
             rate=0,
@@ -585,7 +590,7 @@ class TestTransitionSet:
                 ),
             ],
         }
-        fluorophore_system = request.getfixturevalue("flu_sys_2xcy5_1xatto643")
+        fluorophore_system = flu_sys_2xcy5_1xatto643
         transition_set = tr.TransitionSet(
             transitions=transitions, fluorophore_system=fluorophore_system
         )
@@ -1824,8 +1829,8 @@ def test_derive_fret_without_donor_emission():
     "irradiance, bleaching, dstorm, summarize",
     [[0, False, False, False], [1, False, False, True], [1, True, True, False]],
 )
-def test_derive_transitions(irradiance, bleaching, dstorm, summarize, request):
-    fluorophore_data = request.getfixturevalue("flu_obj_cy5_1").constants
+def test_derive_transitions(irradiance, bleaching, dstorm, summarize, flu_obj_cy5_1):
+    fluorophore_data = flu_obj_cy5_1.constants
     transitions = tr.derive_transitions(
         summarize=summarize,
         fluorophore_data=fluorophore_data,
@@ -1880,8 +1885,8 @@ def test_derive_transitions(irradiance, bleaching, dstorm, summarize, request):
         )
 
 
-def test_derive_transitions_summarizes_matching_non_photon_transitions(request):
-    fluorophore_data = request.getfixturevalue("flu_obj_cy5_1").constants
+def test_derive_transitions_summarizes_matching_non_photon_transitions(flu_obj_cy5_1):
+    fluorophore_data = flu_obj_cy5_1.constants
     original_transitions = tr.derive_transitions(
         summarize=False,
         fluorophore_data=fluorophore_data,
