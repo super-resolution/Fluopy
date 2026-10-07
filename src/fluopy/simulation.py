@@ -231,8 +231,9 @@ class Simulation:
     ) -> None:
         """
         Approximates stochastic data based on the limiting distribution of a Markov
-        chain. Only suitable for single fluorophore systems. Absorbing states are not
-        considered. Each simple cycle should contain the most occurring state.
+        chain. Only suitable for single fluorophore systems. Absorbing transitions are
+        omitted under the assumption that they are too rare to affect the approximate
+        sequence. Each simple cycle should contain the most occurring state.
 
         Parameters
         ----------
@@ -254,7 +255,8 @@ class Simulation:
             )
         if prediction.absorbing_chain:
             logger.warning(
-                "approximation ignors absorbing states, they will not occur.",
+                "approximation assumes absorbing transitions are sufficiently rare "
+                "to ignore; they will not occur.",
                 stacklevel=2,
             )
         eval_floating_point_precision_error(
@@ -802,8 +804,10 @@ def approximation(
     The transitions are ordered via a topological sort and processed accordingly.
     Successor transitions are placed behind their predecessors. The topological sort is
     possible via a temporary conversion of the graph to a directed acyclic graph (DAG).
-    Only suitable for single fluorophore systems. Absorbing states are not considered.
-    Each simple cycle should contain the most occurring state.
+    Only suitable for single fluorophore systems. Absorbing transitions are omitted
+    under the assumption that they are too rare to affect the approximate sequence. If
+    a transition has no non-absorbing successor, the sequence ends at its first
+    occurrence. Each simple cycle should contain the most occurring state.
 
     Parameters
     ----------
@@ -851,18 +855,20 @@ def approximation(
         occurrences = transition_indices.size
         if occurrences == 0:
             continue
-        rng.shuffle(transition_indices)
         follow_up_transitions = np.array(list(G.successors(transition)), dtype=np.int64)
+        if follow_up_transitions.size:
+            follow_up_index = [
+                (fluorophore, int(transition)) for transition in follow_up_transitions
+            ]
+            follow_up_transitions = follow_up_transitions[
+                ~prediction.transition_set.transition_df["absorbing"].loc[
+                    follow_up_index
+                ]
+            ]
         if follow_up_transitions.size == 0:
-            continue
-        follow_up_index = [
-            (fluorophore, int(transition)) for transition in follow_up_transitions
-        ]
-        follow_up_transitions = follow_up_transitions[
-            ~prediction.transition_set.transition_df["absorbing"].loc[follow_up_index]
-        ]
-        if follow_up_transitions.size == 0:
-            continue
+            transition_series = transition_series[: transition_indices[0] + 1]
+            break
+        rng.shuffle(transition_indices)
         follow_up_index = [
             (fluorophore, int(transition)) for transition in follow_up_transitions
         ]
@@ -893,6 +899,14 @@ def approximation(
         transition_series = np.insert(
             arr=transition_series, obj=insert_at, values=follow_up_transitions
         )
+
+    if any(
+        not G.has_edge(int(current), int(successor))
+        for current, successor in zip(
+            transition_series[:-1], transition_series[1:], strict=True
+        )
+    ):
+        raise RuntimeError("approximation did not produce a realizable sequence.")
 
     time_step_series = np.empty(transition_series.size + 1, dtype=np.float64)
     time_step_series[0] = 0
