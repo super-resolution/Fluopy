@@ -89,6 +89,7 @@ def test_calculate_photon_flux_rejects_invalid_inputs(kwargs, message):
     [
         [1e10, None, None, "ValueError"],
         [1e10, 1, 1, "ValueError"],
+        [0, 1, None, 0],
         [1e10, 1, None, 3.8235e-15],
         [1e10, None, 1, 1000000],
         [[1e10, 1e5], None, 1, np.array([1e6, 1e1])],
@@ -127,9 +128,19 @@ def test_calculate_excitation_rate_rejects_invalid_coefficient(kwargs, message):
         fo.calculate_excitation_rate(photon_flux=1e10, **kwargs)
 
 
+@pytest.mark.parametrize("photon_flux", [-1, np.nan, np.inf, [1, -1]])
+def test_calculate_excitation_rate_rejects_invalid_photon_flux(photon_flux):
+    with pytest.raises(ValueError, match="photon_flux"):
+        fo.calculate_excitation_rate(
+            photon_flux=photon_flux,
+            absorption_cross_section=1,
+        )
+
+
 @pytest.mark.parametrize(
     "quantum_yield, fluorescence_lifetime, expected",
     [
+        [0, 2, 0],
         [1, 2, 0.5],
         [[1, 0.2], 2, np.array([0.5, 0.1])],
         [[1, 0.2], [2, 4], np.array([0.5, 0.05])],
@@ -173,6 +184,7 @@ def test_calculate_emission_rate_rejects_invalid_lifetime(lifetime):
     "quantum_yield, emission_rate, other_outgoing_rate, expected",
     [
         [0.5, 1e5, 0, 100000],
+        [1, 1e5, 0, 0],
         [[0.5, 0.1], 1e5, 0, np.array([100000, 900000])],
         [0.5, 1e5, 1e5, 0],
         [0.5, 1e5, 2e5, "ValueError"],
@@ -203,6 +215,27 @@ def test_calculate_internal_conversion_rate_with_positional_outgoing_rate():
     result = fo.calculate_internal_conversion_rate(0.5, 1e5, 2e4)
 
     assert result == pytest.approx(8e4)
+
+
+def test_calculate_internal_conversion_rate_rejects_zero_quantum_yield():
+    with pytest.raises(ValueError, match="quantum_yield"):
+        fo.calculate_internal_conversion_rate(quantum_yield=0)
+
+
+@pytest.mark.parametrize("as_keyword", [False, True])
+@pytest.mark.parametrize("outgoing_rate", [-1, np.nan, np.inf])
+def test_calculate_internal_conversion_rate_rejects_invalid_outgoing_rates(
+    outgoing_rate, as_keyword
+):
+    with pytest.raises(ValueError, match="other outgoing rates"):
+        if as_keyword:
+            fo.calculate_internal_conversion_rate(
+                quantum_yield=0.5,
+                emission_rate=1e5,
+                intersystem_crossing=outgoing_rate,
+            )
+        else:
+            fo.calculate_internal_conversion_rate(0.5, 1e5, outgoing_rate)
 
 
 @pytest.mark.parametrize("emission_rate", [-1, np.inf])
@@ -402,6 +435,24 @@ def test_calculate_fret_rate():
 
 
 @pytest.mark.parametrize(
+    "dipole_orientation_factor, expected",
+    [(0, 0), (4, 1.757e9)],
+)
+def test_calculate_fret_rate_accepts_orientation_factor_endpoints(
+    dipole_orientation_factor, expected
+):
+    result = fo.calculate_fret_rate(
+        distance=10,
+        emission_rate=5e8,
+        spectral_overlap_integral=1e16,
+        dipole_orientation_factor=dipole_orientation_factor,
+        refractive_index=1,
+    )
+
+    assert result == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
     "kwargs, message",
     [
         ({"distance": 0}, "distance"),
@@ -433,9 +484,18 @@ def test_calculate_fret_efficiency_rejects_invalid_inputs(kwargs, message):
         fo.calculate_fret_efficiency(**kwargs)
 
 
-def test_calcualte_photon_collection_rate():
-    result = fo.calculate_photon_collection_rate(NA=1.45, n1=1.51)
-    np.testing.assert_allclose(result, 0.3604549)
+@pytest.mark.parametrize(
+    "numerical_aperture, refractive_index, expected",
+    [(0, 1.51, 0), (1.51, 1.51, 0.5), (1.45, 1.51, 0.3604549)],
+)
+def test_calculate_photon_collection_rate(
+    numerical_aperture, refractive_index, expected
+):
+    result = fo.calculate_photon_collection_rate(
+        NA=numerical_aperture,
+        n1=refractive_index,
+    )
+    np.testing.assert_allclose(result, expected)
 
 
 @pytest.mark.parametrize(

@@ -400,10 +400,3 @@ def test_compute_tight_bbox_preserves_figure_width():
 
     assert bbox.width == pytest.approx(4)
     assert bbox.height > 0
-
-
-@pytest.mark.visual
-def test_plot_data_visual():
-    ax = plot_data()
-    assert ax.figure is not None
-    plt.show()

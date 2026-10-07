@@ -169,6 +169,12 @@ class Emissions:
             not isinstance(channel, DetectionChannel) for channel in channels.values()
         ):
             raise TypeError("channels must contain DetectionChannel values.")
+        try:
+            frame_duration = pd.Timedelta(frame_time)
+        except (TypeError, ValueError):
+            raise ValueError("frame_time must be a positive duration.") from None
+        if pd.isna(frame_duration) or frame_duration <= pd.Timedelta(0):
+            raise ValueError("frame_time must be a positive duration.")
 
         self.channels = dict(channels)
         self.parameters: dict[str, Any] = {
@@ -331,12 +337,19 @@ class Emissions:
                 "fluorophores."
             )
         size = int(size)
+        if size <= 0:
+            raise ValueError("size must be positive.")
+        if frames <= 0:
+            raise ValueError("frames must be positive.")
         detection_probabilities = get_detection_probabilities(
             transition_set=transition_set,
             channels=self.channels,
         )
         df = transition_set.combined_state_transitions_df
-        start_index = df[df["final_state"] == start_at].index[0]
+        start_indices = df.index[df["final_state"] == start_at]
+        if start_indices.empty:
+            raise ValueError(f"start_at {start_at} is not a valid combined state.")
+        start_index = start_indices[0]
         self.event_time_points, self.event_time_series = simulate_experiment(
             transition_matrix=transition_set.transition_matrix,
             row_sums=transition_set.row_sums,
@@ -417,6 +430,23 @@ class Emissions:
             Container for simulation-associated attributes and methods. Only returned if
             details is True.
         """
+        number_pulses = int(number_pulses)
+        size = int(size)
+        if number_pulses <= 0:
+            raise ValueError("number_pulses must be positive.")
+        if size <= 0:
+            raise ValueError("size must be positive.")
+        if not np.isfinite(pulse_duration) or pulse_duration <= 0:
+            raise ValueError("pulse_duration must be positive and finite.")
+        if not np.isfinite(time_between_pulses) or time_between_pulses <= 0:
+            raise ValueError("time_between_pulses must be positive and finite.")
+        if excitation_rates is not None:
+            rates = np.asarray(list(excitation_rates.values()), dtype=np.float64)
+            if np.any(~np.isfinite(rates)) or np.any(rates < 0):
+                raise ValueError(
+                    "excitation_rates values must be finite and non-negative."
+                )
+
         df = transition_set.transition_df
         exc = [j for _, j in df.index if df.loc[(_, j), "abbreviation"] == "EXC"]
         transition_set = transition_set.adjust_rates(
@@ -573,13 +603,15 @@ class Emissions:
             A seed to initialize the BitGenerator.
 
         """
-        rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
         gains = _resolve_channel_parameter(
             emccd_gain,
             event_time_series.columns,
             "emccd_gain",
         )
+        if np.any(~np.isfinite(gains)) or np.any(gains <= 0):
+            raise ValueError("emccd_gain must be positive and finite.")
+        rng = np.random.default_rng(seed)
         values = event_time_series.to_numpy(dtype=np.int64, copy=True)
         nonzero = values != 0
         scales = np.broadcast_to(gains, values.shape)
@@ -617,7 +649,6 @@ class Emissions:
             A seed to initialize the BitGenerator.
 
         """
-        rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
         means = _resolve_channel_parameter(mean, event_time_series.columns, "mean")
         standard_deviations = _resolve_channel_parameter(
@@ -625,6 +656,11 @@ class Emissions:
             event_time_series.columns,
             "std",
         )
+        if np.any(~np.isfinite(means)):
+            raise ValueError("mean must be finite.")
+        if np.any(~np.isfinite(standard_deviations)) or np.any(standard_deviations < 0):
+            raise ValueError("std must be finite and non-negative.")
+        rng = np.random.default_rng(seed)
         values = event_time_series.to_numpy(dtype=np.int64)
         variates = norm(loc=means, scale=standard_deviations).rvs(
             size=event_time_series.shape, random_state=rng
@@ -654,9 +690,11 @@ class Emissions:
             A seed to initialize the BitGenerator.
 
         """
-        rng = np.random.default_rng(seed)
         event_time_series = self._require_event_time_series()
         rates = _resolve_channel_parameter(rate, event_time_series.columns, "rate")
+        if np.any(~np.isfinite(rates)) or np.any(rates < 0):
+            raise ValueError("rate must be finite and non-negative.")
+        rng = np.random.default_rng(seed)
         values = event_time_series.to_numpy(dtype=np.int64)
         variates = poisson(rates).rvs(size=event_time_series.shape, random_state=rng)
         variates = variates.astype(np.int64)
@@ -682,6 +720,8 @@ class Emissions:
             event_time_series.columns,
             "threshold",
         )
+        if np.any(~np.isfinite(thresholds)) or np.any(thresholds < 0):
+            raise ValueError("threshold must be finite and non-negative.")
         values = event_time_series.to_numpy(copy=True)
         values[values < thresholds] = 0
         event_time_series.iloc[:] = values

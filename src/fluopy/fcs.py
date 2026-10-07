@@ -112,9 +112,17 @@ class FCS:
         event_time_points = self.emissions.select_event_time_points(self.channel)
         if event_time_points.size == 0:
             raise ValueError("selected channel contains no photon arrival times.")
+        if base <= 1:
+            raise ValueError("base must be greater than 1.")
+        if points_per_base <= 0:
+            raise ValueError("points_per_base must be positive.")
+        if exp_min >= exp_max:
+            raise ValueError("exp_min must be smaller than exp_max.")
         if end_time is None:
             end_time = float(event_time_points[-1])
         duration = end_time - start_time
+        if not np.isfinite(duration) or duration <= 0:
+            raise ValueError("measurement duration must be positive and finite.")
 
         if base**exp_max > duration:
             exp_max_adjusted = np.int64(np.floor(np.log(duration) / np.log(base)))
@@ -124,6 +132,10 @@ class FCS:
                 stacklevel=2,
             )
             exp_max = int(exp_max_adjusted)
+        if exp_min >= exp_max:
+            raise ValueError(
+                "exp_min must be smaller than exp_max after adjusting exp_max."
+            )
         number_of_edges = points_per_base * (exp_max - exp_min) + 1
         bins = np.logspace(
             exp_min, exp_max, number_of_edges, base=base, dtype=np.float64
@@ -174,6 +186,10 @@ class FCS:
                 "time-series autocorrelation requires at least two measured frames."
             )
         event_values = event_time_series.to_numpy(dtype=np.float64)
+        if normalize and np.mean(event_values) == 0:
+            raise ValueError(
+                "normalized time-series autocorrelation requires a non-zero mean."
+            )
         deltat = float(event_time_series.index[1] - event_time_series.index[0])
         if normalize and log:
             autocorrelation = mp.autocorrelate(

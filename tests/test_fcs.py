@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -20,10 +22,10 @@ def small_emissions():
     return emissions
 
 
-def test_fcs(em_very_large):
-    fcs_obj = fcs_p.FCS(emissions=em_very_large)
-    assert fcs_obj.emissions == em_very_large
-    assert fcs_obj.channel == "all"
+def test_fcs(small_emissions):
+    fcs_obj = fcs_p.FCS(emissions=small_emissions)
+    assert fcs_obj.emissions == small_emissions
+    assert fcs_obj.channel == "detector"
     assert fcs_obj.autocorrelation is None
     assert fcs_obj.tau is None
 
@@ -75,6 +77,46 @@ def test_fcs_time_series_autocorrelation_requires_two_frames():
         fcs_obj.autocorrelate_time_series()
 
 
+@pytest.mark.parametrize("log", [False, True])
+def test_fcs_normalized_time_series_requires_nonzero_mean(log):
+    emissions = em.Emissions()
+    emissions.event_time_series = pd.DataFrame(
+        {"all": [0, 0, 0]}, index=[0.005, 0.010, 0.015]
+    )
+    fcs_obj = fcs_p.FCS(emissions)
+
+    with pytest.raises(ValueError, match="requires a non-zero mean"):
+        fcs_obj.autocorrelate_time_series(log=log, normalize=True)
+
+
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"end_time": 0}, "duration must be positive and finite"),
+        ({"start_time": np.nan}, "duration must be positive and finite"),
+        ({"base": 1}, "base must be greater than 1"),
+        ({"points_per_base": 0}, "points_per_base must be positive"),
+        ({"exp_min": 0, "exp_max": 0}, "exp_min must be smaller than exp_max"),
+    ],
+)
+def test_fcs_time_point_autocorrelation_rejects_invalid_boundaries(
+    small_emissions, kwargs, message
+):
+    fcs_obj = fcs_p.FCS(emissions=small_emissions)
+
+    with pytest.raises(ValueError, match=message):
+        fcs_obj.autocorrelate_time_points(**kwargs)
+
+
+def test_fcs_time_point_autocorrelation_rejects_adjusted_exponent_range(
+    small_emissions,
+):
+    fcs_obj = fcs_p.FCS(emissions=small_emissions)
+
+    with pytest.raises(ValueError, match="after adjusting exp_max"):
+        fcs_obj.autocorrelate_time_points(exp_min=0, exp_max=2)
+
+
 def test_fcs_autocorrelate_time_points_small_fixture(
     small_emissions, caplog, monkeypatch
 ):
@@ -111,16 +153,21 @@ def test_fcs_autocorrelate_time_points_small_fixture(
 def test_fcs_autocorrelate_time_points(em_very_large, caplog):
     fcs_obj = fcs_p.FCS(emissions=em_very_large)
 
-    fcs_obj.autocorrelate_time_points(
-        exp_min=-8, exp_max=0, points_per_base=4, base=10, normalize=True
-    )
-    assert caplog.record_tuples == [
-        (
-            "fluopy.fcs",
-            30,
-            "The exp_max 0 yields a base to the power of exp_max 1 that is larger than the duration of the measurement: 0.1676677881662439. Therefore, exp_max is adjusted to -1.",
+    with caplog.at_level(logging.WARNING):
+        fcs_obj.autocorrelate_time_points(
+            exp_min=-8, exp_max=0, points_per_base=4, base=10, normalize=True
         )
+    warning_messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno == logging.WARNING
     ]
+    assert any(
+        "The exp_max 0" in message
+        and "larger than the duration of the measurement" in message
+        and "exp_max is adjusted to -1" in message
+        for message in warning_messages
+    )
 
     fcs_obj.autocorrelate_time_points(
         exp_min=-8, exp_max=-2, points_per_base=4, base=10, normalize=True

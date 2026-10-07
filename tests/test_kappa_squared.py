@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from fluopy import kappa_squared as ks
 
@@ -11,6 +12,10 @@ def test_random_unit_vector():
     v = ks.random_unit_vector(size=10, seed=rng)
     assert v.shape == (10, 3)
     assert np.allclose(np.linalg.norm(v, axis=1), 1)
+
+    first = ks.random_unit_vector(size=10, seed=42)
+    repeated = ks.random_unit_vector(size=10, seed=42)
+    np.testing.assert_array_equal(first, repeated)
 
 
 def test_rotational_diffusion_step():
@@ -26,6 +31,9 @@ def test_rotational_diffusion_step():
     rotated_v = ks.rotational_diffusion_step(v, dt, tau_rot, seed=rng)
     assert rotated_v.shape == (2, 3)
     assert np.allclose(np.linalg.norm(rotated_v, axis=1), 1)
+
+    unchanged = ks.rotational_diffusion_step(v, dt=0, tau_rot=tau_rot, seed=42)
+    np.testing.assert_allclose(unchanged, v)
 
 
 def test_simulate_rotational_motion():
@@ -53,16 +61,47 @@ def test_simulate_rotational_motion():
     assert not np.allclose(traj2[0], traj2[-1])
 
 
+def test_simulate_rotational_motion_accepts_zero_lifetime():
+    traj1, traj2 = ks.simulate_rotational_motion(
+        tau_rot=1,
+        tau_life=0,
+        dt=1,
+        seed=42,
+    )
+
+    assert traj1.shape == (1, 3)
+    assert traj2.shape == (1, 3)
+
+
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"tau_rot": 0}, "tau_rot must be positive and finite"),
+        ({"tau_rot": np.nan}, "tau_rot must be positive and finite"),
+        ({"tau_life": -1}, "tau_life must be finite and non-negative"),
+        ({"tau_life": np.inf}, "tau_life must be finite and non-negative"),
+        ({"dt": 0}, "dt must be positive and finite"),
+        ({"dt": np.nan}, "dt must be positive and finite"),
+    ],
+)
+def test_simulate_rotational_motion_rejects_invalid_boundaries(kwargs, message):
+    parameters = {"tau_rot": 1, "tau_life": 1, "dt": 1}
+    parameters.update(kwargs)
+
+    with pytest.raises(ValueError, match=message):
+        ks.simulate_rotational_motion(**parameters)
+
+
 def test_kappa_squared():
-    d = np.array([[1, 0, 0], [0, 1, 0]])
-    a = np.array([[0, 1, 0], [1, 0, 0]])
-    r = np.array([[0, 0, 1], [0, 0, 1]])
+    d = np.array([[1, 0, 0], [1, 0, 0], [0, 0, 1]])
+    a = np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]])
+    r = np.array([[0, 0, 1], [0, 0, 1], [0, 0, 1]])
 
     k2 = ks.kappa_squared(d, a, r)
 
-    assert k2.shape == (2,)
+    assert k2.shape == (3,)
     assert isinstance(k2, np.ndarray)
-    assert np.all(k2 >= 0)
+    np.testing.assert_allclose(k2, [0, 1, 4])
 
     # perpendicular dipoles with z-axis separation
     # κ² = (0 - 3*0*0)² = 0
@@ -73,24 +112,38 @@ def test_kappa_squared():
     assert np.allclose(k2_perp, 0)
 
 
+def test_isotropic_kappa_squared_mean():
+    rng = np.random.default_rng(42)
+    size = 10_000
+    donor = ks.random_unit_vector(size=size, seed=rng)
+    acceptor = ks.random_unit_vector(size=size, seed=rng)
+    distance = ks.random_unit_vector(size=size, seed=rng)
+
+    k2 = ks.kappa_squared(donor, acceptor, distance)
+
+    np.testing.assert_allclose(k2.mean(), 2 / 3, atol=0.02)
+
+
 def test_integral_kappa_squared():
     rng = np.random.default_rng(42)
     constant_traj = np.array([[0, 0, 1], [0, 0, 1]])
     assert ks.integral_kappa_squared(constant_traj, constant_traj, dt=0.001) == 4
 
-    traj1 = np.array([[1, 0, 0], [0, 1, 0], [1, 0, 0]])
-    traj2 = np.array([[0, 1, 0], [1, 0, 0], [0, 1, 0]])
-    dt = 0.001
+    traj1 = np.array([[1, 0, 0], [1, 0, 0], [0, 0, 1]])
+    traj2 = np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]])
+    assert ks.integral_kappa_squared(traj1, traj2, dt=0.5) == 1.5
 
-    avg_k2 = ks.integral_kappa_squared(traj1, traj2, dt)
-    assert isinstance(avg_k2, (float, np.floating))
-    assert avg_k2 >= 0
-
-    # custom r
-    r = np.array([1, 0, 0])
-    avg_k2_custom = ks.integral_kappa_squared(traj1, traj2, dt, r=r)
-    assert isinstance(avg_k2_custom, (float, np.floating))
-    assert avg_k2_custom >= 0
+    constant_x = np.array([[1, 0, 0], [1, 0, 0]])
+    assert ks.integral_kappa_squared(constant_x, constant_x, dt=0.5) == 1
+    assert (
+        ks.integral_kappa_squared(
+            constant_x,
+            constant_x,
+            dt=0.5,
+            r=np.array([1, 0, 0]),
+        )
+        == 4
+    )
 
     tau_rot = 1e-6
     tau_life = 1e-9
@@ -104,14 +157,33 @@ def test_integral_kappa_squared():
     assert avg_k2_long <= 4  # κ² is bounded between 0 and 4
 
 
+def test_integral_kappa_squared_requires_two_matching_trajectories():
+    one_orientation = np.array([[0, 0, 1]])
+    two_orientations = np.repeat(one_orientation, 2, axis=0)
+
+    with pytest.raises(ValueError, match="at least two orientations"):
+        ks.integral_kappa_squared(one_orientation, one_orientation, dt=1)
+    with pytest.raises(ValueError, match="must have the same length"):
+        ks.integral_kappa_squared(two_orientations, one_orientation, dt=1)
+
+
+@pytest.mark.parametrize("dt", [0, -1, np.nan, np.inf])
+def test_integral_kappa_squared_requires_positive_finite_dt(dt):
+    trajectory = np.array([[0, 0, 1], [0, 0, 1]])
+
+    with pytest.raises(ValueError, match="dt must be positive and finite"):
+        ks.integral_kappa_squared(trajectory, trajectory, dt=dt)
+
+
 def test_sample_kappa_squared_distribution():
-    k2_values = np.array([0.1, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5])
+    k2_values = np.array([0.0, 0.1, 0.5, 1.0, 2.0, 3.0, 3.9, 4.0])
     size = 50
     samples = ks.sample_kappa_squared_distribution(k2_values, size=size, seed=1)
     assert samples.shape == (size,)
     assert isinstance(samples, np.ndarray)
-    assert np.all(samples >= 0)
-    assert np.all(samples <= 4)
+    assert np.all(np.isfinite(samples))
+    assert np.all(samples > 0)
+    assert np.all(samples < 4)
 
     samples_repeat = ks.sample_kappa_squared_distribution(k2_values, size=size, seed=1)
     assert np.allclose(samples, samples_repeat)
@@ -119,6 +191,23 @@ def test_sample_kappa_squared_distribution():
         k2_values, size=size, seed=2
     )
     assert not np.allclose(samples, samples_diff_seed)
+
+
+@pytest.mark.parametrize(
+    "k2_values, message",
+    [
+        ([], "at least two values"),
+        ([1], "at least two values"),
+        ([1, 1], "must not be constant"),
+        ([0, np.nan], "finite values"),
+        ([-0.1, 1], "between 0 and 4"),
+        ([1, 4.1], "between 0 and 4"),
+        ([[0, 1], [2, 3]], "one-dimensional"),
+    ],
+)
+def test_sample_kappa_squared_distribution_rejects_invalid_values(k2_values, message):
+    with pytest.raises(ValueError, match=message):
+        ks.sample_kappa_squared_distribution(k2_values, seed=1)
 
 
 def test_kappa_squared_edge_cases():

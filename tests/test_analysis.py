@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from fluopy import analysis as an
+from fluopy import prediction as pr
 from fluopy import simulation as si
 from fluopy import transitions as tr
 
@@ -45,10 +46,10 @@ def test_analysis_warns_when_absorbing_state_was_reached(
 
 
 # test with 1 fluorophore, with bleaching
-def test_analysis_1(request, caplog):
+def test_analysis_1(tr_set_1f_bl, tr_set_1f_bl_2, caplog):
     with caplog.at_level(logging.WARNING):
-        pred_bl = request.getfixturevalue("pred_tr_set_1f_bl")
-        pred_bl_2 = request.getfixturevalue("pred_tr_set_1f_bl_2")
+        pred_bl = pr.Prediction(transition_set=tr_set_1f_bl)
+        pred_bl_2 = pr.Prediction(transition_set=tr_set_1f_bl_2)
         assert (
             "absorbing states have a lifetime of inf and a frequency / occupation "
             "of 0. Absorbing transitions have a frequency of 0."
@@ -59,7 +60,8 @@ def test_analysis_1(request, caplog):
         si.FloatingPointPrecisionWarning,
         match="Floating point precision error warning",
     ):
-        sim_tr_set_1f_bl = request.getfixturevalue("sim_tr_set_1f_bl")
+        sim_tr_set_1f_bl = si.Simulation(transition_set=tr_set_1f_bl)
+        sim_tr_set_1f_bl.run(size=1000, seed=np.random.default_rng(1))
 
     analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
     assert analysis.simulation == sim_tr_set_1f_bl
@@ -459,12 +461,17 @@ def test_analysis_transition_plots_can_collapse_transfer_distances():
 
 
 # test with 2 fluorophores, with energy transfer
-def test_analysis_2(request):
+def test_analysis_2(tr_set_et_2f_diff):
     with pytest.warns(
         si.FloatingPointPrecisionWarning,
         match="Floating point precision error",
     ):
-        sim_tr_set_et_2f_diff = request.getfixturevalue("sim_tr_set_et_2f_diff")
+        sim_tr_set_et_2f_diff = si.Simulation(transition_set=tr_set_et_2f_diff)
+        sim_tr_set_et_2f_diff.run(
+            size=1000,
+            end_time=5e-7,
+            seed=np.random.default_rng(1),
+        )
 
     analysis = an.Analysis(simulation=sim_tr_set_et_2f_diff)
     assert analysis.simulation == sim_tr_set_et_2f_diff
@@ -540,12 +547,13 @@ def test_analysis_2(request):
 
 
 # test with 2 fluorophores, without energy transfer
-def test_analysis_3(request):
+def test_analysis_3(tr_set_2f_diff):
     with pytest.warns(
         si.FloatingPointPrecisionWarning,
         match="Floating point precision error",
     ):
-        sim_tr_set_2f_diff = request.getfixturevalue("sim_tr_set_2f_diff")
+        sim_tr_set_2f_diff = si.Simulation(transition_set=tr_set_2f_diff)
+        sim_tr_set_2f_diff.run(size=1000, seed=np.random.default_rng(1))
 
     analysis = an.Analysis(simulation=sim_tr_set_2f_diff)
     assert analysis.simulation == sim_tr_set_2f_diff
@@ -616,13 +624,15 @@ def test_analysis_3(request):
         np.testing.assert_allclose(state_occ, exp_state_occ[fluorophore], rtol=1e-6)
 
 
-def test_get_fluorescence_lifetimes(request):
+def test_get_fluorescence_lifetimes(tr_set_1f_bl, tr_set_2f_diff):
     with pytest.warns(
         si.FloatingPointPrecisionWarning,
         match="Floating point precision error",
     ):
-        sim_tr_set_1f_bl = request.getfixturevalue("sim_tr_set_1f_bl")
-        sim_tr_set_2f_diff = request.getfixturevalue("sim_tr_set_2f_diff")
+        sim_tr_set_1f_bl = si.Simulation(transition_set=tr_set_1f_bl)
+        sim_tr_set_1f_bl.run(size=1000, seed=np.random.default_rng(1))
+        sim_tr_set_2f_diff = si.Simulation(transition_set=tr_set_2f_diff)
+        sim_tr_set_2f_diff.run(size=1000, seed=np.random.default_rng(1))
 
     assert tr.SingleState.S1.value == 1  # if it fails, check
     # analysis.get_fluorescence_lifetimes

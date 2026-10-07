@@ -258,15 +258,15 @@ def em_tr_set_et_2f_diff(sim_tr_set_et_2f_diff):
 
 @pytest.fixture()
 def em_large():
-    return _load_test_emissions("em_large")
+    return _load_test_emissions("em_large", load_event_time_points=False)
 
 
 @pytest.fixture()
 def em_very_large():
-    return _load_test_emissions("em_very_large")
+    return _load_test_emissions("em_very_large", load_event_time_points=True)
 
 
-def _load_test_emissions(name):
+def _load_test_emissions(name, load_event_time_points):
     data_path = Path(__file__).parent / "test_data"
     event_time_series = pd.read_csv(
         data_path / f"event_time_series_{name}.csv",
@@ -278,10 +278,8 @@ def _load_test_emissions(name):
 
     emis = em.Emissions()
     emis.event_time_series = event_time_series
-    emis.event_time_points = {
-        "all": np.asarray(
-            np.load(data_path / f"event_time_points_{name}.npy", allow_pickle=True),
-            dtype=np.float64,
-        )
-    }
+    if load_event_time_points:
+        emis.event_time_points = {
+            "all": np.load(data_path / f"event_time_points_{name}.npy")
+        }
     return emis

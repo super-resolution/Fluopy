@@ -126,6 +126,12 @@ def simulate_rotational_motion(
         Dipole orientations over time for the second dipole. Has length
         int(tau_life / dt).
     """
+    if not np.isfinite(tau_rot) or tau_rot <= 0:
+        raise ValueError("tau_rot must be positive and finite.")
+    if not np.isfinite(tau_life) or tau_life < 0:
+        raise ValueError("tau_life must be finite and non-negative.")
+    if not np.isfinite(dt) or dt <= 0:
+        raise ValueError("dt must be positive and finite.")
     rng = np.random.default_rng(seed)
     n_steps = int(tau_life / dt)
     v1 = random_unit_vector(size=1, seed=rng)[0]  # Get 1D vector
@@ -207,6 +213,12 @@ def integral_kappa_squared(
     """
     trajectory_1 = np.asarray(traj1, dtype=np.float64)
     trajectory_2 = np.asarray(traj2, dtype=np.float64)
+    if len(trajectory_1) != len(trajectory_2):
+        raise ValueError("traj1 and traj2 must have the same length.")
+    if len(trajectory_1) < 2:
+        raise ValueError("trajectories must contain at least two orientations.")
+    if not np.isfinite(dt) or dt <= 0:
+        raise ValueError("dt must be positive and finite.")
 
     if r is None:
         distance = np.array([0, 0, 1], dtype=np.float64)
@@ -240,9 +252,19 @@ def sample_kappa_squared_distribution(
     npt.NDArray[np.float64]
         Samples from the κ² distribution.
     """
-    rng = np.random.default_rng(seed)
-
     k2_array = np.asarray(k2_values, dtype=np.float64)
+    if k2_array.ndim != 1:
+        raise ValueError("k2_values must be one-dimensional.")
+    if k2_array.size < 2:
+        raise ValueError("k2_values must contain at least two values.")
+    if np.any(~np.isfinite(k2_array)):
+        raise ValueError("k2_values must contain finite values.")
+    if np.any((k2_array < 0) | (k2_array > 4)):
+        raise ValueError("k2_values must be between 0 and 4.")
+    if np.all(k2_array == k2_array[0]):
+        raise ValueError("k2_values must not be constant.")
+
+    rng = np.random.default_rng(seed)
     k2_values_scaled = k2_array / 4  # kappa² ranges from 0 to 4
     # for logit transform, scale to (0, 1)
     k2_values_scaled_log = logit(np.clip(k2_values_scaled, a_min=1e-5, a_max=1 - 1e-5))
