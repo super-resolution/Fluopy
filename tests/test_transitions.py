@@ -1885,6 +1885,19 @@ def test_derive_transitions(irradiance, bleaching, dstorm, summarize, flu_obj_cy
         )
 
 
+def test_derive_transitions_excludes_dstorm_by_default(flu_obj_cy5_1):
+    transitions = tr.derive_transitions(
+        fluorophore_data=flu_obj_cy5_1.constants,
+        wavelength=640,
+    )
+
+    abbreviations = {transition.abbreviation for transition in transitions}
+
+    assert abbreviations.isdisjoint(
+        {"PET_TS", "PET_SS", "PET_SO", "PET_TO", "TE", "PU", "PET_TR", "OXI"}
+    )
+
+
 def test_derive_transitions_summarizes_matching_non_photon_transitions(flu_obj_cy5_1):
     fluorophore_data = flu_obj_cy5_1.constants
     original_transitions = tr.derive_transitions(

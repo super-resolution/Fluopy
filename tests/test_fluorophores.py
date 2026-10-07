@@ -464,6 +464,18 @@ def test_load_transitions_does_not_mutate_dstorm_parameters(
     }
 
 
+def test_load_transitions_excludes_dstorm_by_default(flu_sys_cy5):
+    transitions = flu_sys_cy5.load_transitions(energy_transfer=False)
+
+    abbreviations = {
+        transition.abbreviation for transition in next(iter(transitions.values()))
+    }
+
+    assert abbreviations.isdisjoint(
+        {"PET_TS", "PET_SS", "PET_SO", "PET_TO", "TE", "PU", "PET_TR", "OXI"}
+    )
+
+
 @pytest.mark.parametrize(
     "positions, expected",
     [

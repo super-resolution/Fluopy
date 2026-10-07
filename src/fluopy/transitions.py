@@ -2048,7 +2048,7 @@ def derive_transitions(
     irradiance: float = 2,
     wavelength: float = 640,
     bleaching: bool = False,
-    dstorm: bool = True,
+    dstorm: bool = False,
     **dstorm_parameters: Any,
 ) -> list[Transition]:
     """
