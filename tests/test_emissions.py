@@ -49,6 +49,12 @@ def test_emissions_requires_channels():
         em.Emissions(channels={"detector": object()})
 
 
+@pytest.mark.parametrize("frame_time", ["0ms", "-1ms"])
+def test_emissions_requires_positive_frame_time(frame_time):
+    with pytest.raises(ValueError, match="frame_time must be a positive duration"):
+        em.Emissions(frame_time=frame_time)
+
+
 def test_emissions_requires_available_event_data():
     emis = em.Emissions()
 
@@ -289,6 +295,53 @@ def test_emissions_simulate_requires_one_start_state_per_fluorophore(tr_set_1f_b
             transition_set=tr_set_1f_bl,
             start_at=(0, 1),
             frames=1,
+        )
+
+
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"size": 0}, "size must be positive"),
+        ({"size": -1}, "size must be positive"),
+        ({"frames": 0}, "frames must be positive"),
+        ({"frames": -1}, "frames must be positive"),
+        ({"start_at": (99,)}, "not a valid combined state"),
+    ],
+)
+def test_emissions_simulate_rejects_invalid_boundaries(tr_set_1f_bl, kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        em.Emissions().simulate(transition_set=tr_set_1f_bl, **kwargs)
+
+
+@pytest.mark.parametrize("details", [False, True])
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"number_pulses": 0}, "number_pulses must be positive"),
+        ({"size": 0}, "size must be positive"),
+        ({"pulse_duration": 0}, "pulse_duration must be positive and finite"),
+        (
+            {"time_between_pulses": 0},
+            "time_between_pulses must be positive and finite",
+        ),
+        (
+            {"excitation_rates": {"testfluo_1": -1}},
+            "excitation_rates values must be finite and non-negative",
+        ),
+        (
+            {"excitation_rates": {"testfluo_1": np.nan}},
+            "excitation_rates values must be finite and non-negative",
+        ),
+    ],
+)
+def test_emissions_tcspc_rejects_invalid_boundaries(
+    tr_set_1f_bl, details, kwargs, message
+):
+    with pytest.raises(ValueError, match=message):
+        em.Emissions().tcspc(
+            transition_set=tr_set_1f_bl,
+            details=details,
+            **kwargs,
         )
 
 

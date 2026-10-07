@@ -169,6 +169,12 @@ class Emissions:
             not isinstance(channel, DetectionChannel) for channel in channels.values()
         ):
             raise TypeError("channels must contain DetectionChannel values.")
+        try:
+            frame_duration = pd.Timedelta(frame_time)
+        except (TypeError, ValueError):
+            raise ValueError("frame_time must be a positive duration.") from None
+        if pd.isna(frame_duration) or frame_duration <= pd.Timedelta(0):
+            raise ValueError("frame_time must be a positive duration.")
 
         self.channels = dict(channels)
         self.parameters: dict[str, Any] = {
@@ -331,12 +337,19 @@ class Emissions:
                 "fluorophores."
             )
         size = int(size)
+        if size <= 0:
+            raise ValueError("size must be positive.")
+        if frames <= 0:
+            raise ValueError("frames must be positive.")
         detection_probabilities = get_detection_probabilities(
             transition_set=transition_set,
             channels=self.channels,
         )
         df = transition_set.combined_state_transitions_df
-        start_index = df[df["final_state"] == start_at].index[0]
+        start_indices = df.index[df["final_state"] == start_at]
+        if start_indices.empty:
+            raise ValueError(f"start_at {start_at} is not a valid combined state.")
+        start_index = start_indices[0]
         self.event_time_points, self.event_time_series = simulate_experiment(
             transition_matrix=transition_set.transition_matrix,
             row_sums=transition_set.row_sums,
@@ -417,6 +430,23 @@ class Emissions:
             Container for simulation-associated attributes and methods. Only returned if
             details is True.
         """
+        number_pulses = int(number_pulses)
+        size = int(size)
+        if number_pulses <= 0:
+            raise ValueError("number_pulses must be positive.")
+        if size <= 0:
+            raise ValueError("size must be positive.")
+        if not np.isfinite(pulse_duration) or pulse_duration <= 0:
+            raise ValueError("pulse_duration must be positive and finite.")
+        if not np.isfinite(time_between_pulses) or time_between_pulses <= 0:
+            raise ValueError("time_between_pulses must be positive and finite.")
+        if excitation_rates is not None:
+            rates = np.asarray(list(excitation_rates.values()), dtype=np.float64)
+            if np.any(~np.isfinite(rates)) or np.any(rates < 0):
+                raise ValueError(
+                    "excitation_rates values must be finite and non-negative."
+                )
+
         df = transition_set.transition_df
         exc = [j for _, j in df.index if df.loc[(_, j), "abbreviation"] == "EXC"]
         transition_set = transition_set.adjust_rates(
