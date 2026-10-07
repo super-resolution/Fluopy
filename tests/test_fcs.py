@@ -20,10 +20,10 @@ def small_emissions():
     return emissions
 
 
-def test_fcs(em_very_large):
-    fcs_obj = fcs_p.FCS(emissions=em_very_large)
-    assert fcs_obj.emissions == em_very_large
-    assert fcs_obj.channel == "all"
+def test_fcs(small_emissions):
+    fcs_obj = fcs_p.FCS(emissions=small_emissions)
+    assert fcs_obj.emissions == small_emissions
+    assert fcs_obj.channel == "detector"
     assert fcs_obj.autocorrelation is None
     assert fcs_obj.tau is None
 
