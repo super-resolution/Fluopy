@@ -287,7 +287,7 @@ def test_same_name_accepts_shared_fluorophore_data():
 
 
 # all other load_transitions parameters are tested in derive_transitions
-@pytest.mark.parametrize("energy_transfer", [[True], [False]])
+@pytest.mark.parametrize("energy_transfer", [True, False])
 @pytest.mark.parametrize(
     "dirname, expected_true, expected_false, expected_warnings, "
     "energy_transfer_parameters",
