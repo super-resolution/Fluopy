@@ -49,7 +49,7 @@ def test_emissions_requires_channels():
         em.Emissions(channels={"detector": object()})
 
 
-@pytest.mark.parametrize("frame_time", ["0ms", "-1ms"])
+@pytest.mark.parametrize("frame_time", ["0ms", "-1ms", "invalid"])
 def test_emissions_requires_positive_frame_time(frame_time):
     with pytest.raises(ValueError, match="frame_time must be a positive duration"):
         em.Emissions(frame_time=frame_time)
@@ -234,6 +234,16 @@ def test_construct_event_time_series_drops_bin_after_simulation_end():
 
     assert emis.event_time_series.index[-1] == pytest.approx(0.01)
     np.testing.assert_array_equal(emis.event_time_series["all"], [1, 0])
+
+
+def test_construct_event_time_series_preserves_photon_at_simulation_end():
+    emis = em.Emissions()
+    emis.event_time_points = {"all": np.array([0.001, 0.01])}
+    simulation = SimpleNamespace(time_series=np.array([0.0, 0.01]))
+
+    emis.construct_event_time_series(simulation=simulation, resample="5ms")
+
+    np.testing.assert_array_equal(emis.event_time_series["all"], [1, 1])
 
 
 def test_emissions_simulate(tr_set_1f_bl):
