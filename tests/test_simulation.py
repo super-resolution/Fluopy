@@ -313,6 +313,15 @@ def test_approximation(pred_tr_set_1f):
         transition_series,
         [0, 1, 0, 6, 0, 6, 0, 1, 0, 6, 0, 6, 0, 6, 0, 1, 0, 6],
     )
+    graph = si.net.construct_transition_graph(
+        pred_tr_set_1f.transition_set.transition_df
+    )
+    assert all(
+        graph.has_edge(int(current), int(successor))
+        for current, successor in zip(
+            transition_series[:-1], transition_series[1:], strict=True
+        )
+    )
 
 
 def test_approximation_uses_transition_lifetimes(pred_tr_set_1f):
@@ -720,7 +729,7 @@ def test_simulation_approximate_warns_for_absorbing_chain(pred_tr_set_1f_bl, cap
     with caplog.at_level(logging.WARNING):
         simulation.approximate(pred_tr_set_1f_bl, size=20, seed=42)
 
-    assert "approximation ignors absorbing states" in caplog.text
+    assert "assumes absorbing transitions are sufficiently rare" in caplog.text
 
 
 def test_approximation_rejects_unsuitable_graph(pred_tr_set_1f, monkeypatch):
@@ -737,7 +746,9 @@ def test_approximation_requires_transition_time_distributions(pred_tr_set_1f):
         si.approximation(pred_tr_set_1f, size=20, seed=42)
 
 
-def test_approximation_handles_terminal_transition(pred_tr_set_1f, monkeypatch):
+def test_approximation_stops_at_transition_without_successor(
+    pred_tr_set_1f, monkeypatch
+):
     occurrences = (pred_tr_set_1f.frequency_transitions * 20).astype(np.int64)
     starting_transition = int(np.argmax(occurrences))
     graph = nx.DiGraph()
@@ -750,17 +761,27 @@ def test_approximation_handles_terminal_transition(pred_tr_set_1f, monkeypatch):
 
     time_series, transition_series = si.approximation(pred_tr_set_1f, size=20, seed=42)
 
-    expected_count = occurrences[starting_transition]
-    np.testing.assert_array_equal(
-        transition_series,
-        np.full(expected_count, starting_transition, dtype=np.int64),
-    )
+    np.testing.assert_array_equal(transition_series, [starting_transition])
     assert time_series[0] == 0
     assert np.all(np.diff(time_series) > 0)
     assert time_series.size == transition_series.size + 1
 
 
-def test_approximation_ignores_absorbing_successors(pred_tr_set_1f_bl, monkeypatch):
+def test_approximation_repeats_transition_with_self_loop(pred_tr_set_1f, monkeypatch):
+    occurrences = (pred_tr_set_1f.frequency_transitions * 20).astype(np.int64)
+    starting_transition = int(np.argmax(occurrences))
+    graph = nx.DiGraph([(starting_transition, starting_transition)])
+    monkeypatch.setattr(si.net, "construct_transition_graph", lambda **kwargs: graph)
+
+    _, transition_series = si.approximation(pred_tr_set_1f, size=20, seed=42)
+
+    np.testing.assert_array_equal(
+        transition_series,
+        np.full(occurrences[starting_transition], starting_transition, dtype=np.int64),
+    )
+
+
+def test_approximation_stops_before_absorbing_successor(pred_tr_set_1f_bl, monkeypatch):
     prediction = pred_tr_set_1f_bl
     occurrences = (prediction.frequency_transitions * 20).astype(np.int64)
     starting_transition = int(np.argmax(occurrences))
@@ -778,15 +799,22 @@ def test_approximation_ignores_absorbing_successors(pred_tr_set_1f_bl, monkeypat
 
     time_series, transition_series = si.approximation(prediction, size=20, seed=42)
 
-    expected_count = occurrences[starting_transition]
-    np.testing.assert_array_equal(
-        transition_series,
-        np.full(expected_count, starting_transition, dtype=np.int64),
-    )
+    np.testing.assert_array_equal(transition_series, [starting_transition])
     assert absorbing_transition not in transition_series
     assert time_series[0] == 0
     assert np.all(np.diff(time_series) > 0)
     assert time_series.size == transition_series.size + 1
+
+
+def test_approximation_rejects_unrealizable_internal_order(pred_tr_set_1f, monkeypatch):
+    graph = si.net.construct_transition_graph(
+        pred_tr_set_1f.transition_set.transition_df
+    )
+    monkeypatch.setattr(si.net, "construct_transition_graph", lambda **kwargs: graph)
+    monkeypatch.setattr(graph, "has_edge", lambda *args: False)
+
+    with pytest.raises(RuntimeError, match="did not produce a realizable sequence"):
+        si.approximation(pred_tr_set_1f, size=20, seed=42)
 
 
 def test_simulate_experiment_stops_at_absorbing_state(caplog):
