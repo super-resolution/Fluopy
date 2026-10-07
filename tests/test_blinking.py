@@ -22,6 +22,14 @@ def test_blinking(em_large):
     np.testing.assert_array_equal(blink.off_periods_frames, exp_off_periods_frames)
 
 
+def test_blinking_rejects_negative_memory():
+    emissions = em.Emissions()
+    emissions.event_time_series = pd.DataFrame({"all": [1, 0, 1]})
+
+    with pytest.raises(ValueError, match="memory must be non-negative"):
+        bl.Blinking(emissions=emissions, memory=-1)
+
+
 @pytest.mark.parametrize(
     "event_time_series, threshold, memory, exp_on_periods, exp_off_periods, "
     "exp_on_periods_frames, exp_off_periods_frames",
@@ -232,6 +240,14 @@ def test_get_blinking_statistics_without_events():
             ),
             1,
             "2 fluorophores",
+        ),
+        (
+            SimpleNamespace(
+                state_series=np.array([[SingleState.OFF.value]], dtype=np.int8),
+                time_series=np.array([0.0, 1.0]),
+            ),
+            -1,
+            "index must be non-negative",
         ),
         (
             SimpleNamespace(

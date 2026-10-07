@@ -64,6 +64,8 @@ class Blinking:
             Detection channel used to determine blinking periods. If None, the only
             configured channel is used.
         """
+        if memory < 0:
+            raise ValueError("memory must be non-negative.")
         self.emissions = emissions
         self.channel = emissions.resolve_channel(channel)
         if self.emissions.event_time_series is None:
@@ -245,6 +247,8 @@ def get_off_statistics(
     time_series = simulation.time_series
     if state_series is None or time_series is None:
         raise ValueError("OFF statistics require a completed simulation.")
+    if index < 0:
+        raise ValueError("index must be non-negative.")
     if index + 1 > state_series.shape[0]:
         raise ValueError(
             f"index assumes {index + 1} fluorophores but "
