@@ -1,4 +1,5 @@
 import importlib
+import logging
 import sys
 
 import fluopy
@@ -19,22 +20,20 @@ def test_version_when_version_module_is_unavailable(monkeypatch):
 
 
 def test_logging():
-    assert fluopy.logger
-
-    for module_name in [
+    loggers = {"fluopy": fluopy.logger}
+    for module_name in (
         "analysis",
-        # 'blinking',
         "emissions",
-        # 'fcs',
-        # 'plotting',
-        # 'fluo_data',
+        "fcs",
         "fluorophores",
-        # 'photophysics',
-        # 'kappa_squared',
         "prediction",
         "simulation",
         "tcspc",
-        # 'transitions'
-    ]:
+        "transitions",
+    ):
         module = getattr(fluopy, module_name)
-        assert module.logger
+        loggers[f"fluopy.{module_name}"] = module.logger
+
+    for name, logger in loggers.items():
+        assert isinstance(logger, logging.Logger)
+        assert logger.name == name

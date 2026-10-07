@@ -502,7 +502,7 @@ def test_simulation(tr_set_1f):
 
     tr_set_1f_new = tr_set_1f.adjust_rates(change_dict={6: 1e6})
     simulation = si.Simulation(transition_set=tr_set_1f_new)
-    assert simulation
+    assert simulation.transition_set is tr_set_1f_new
 
 
 # also contains the test for simulation.delete_memmaps()
