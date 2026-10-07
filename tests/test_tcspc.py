@@ -370,6 +370,7 @@ def _simulate_single_channel_tcspc(
     excitation_rates,
     store_time_points,
     seed,
+    frame_time="1ms",
 ):
     result = si.simulate_TCSPC(
         transition_set=transition_set,
@@ -382,7 +383,7 @@ def _simulate_single_channel_tcspc(
         pulse_duration=5e-11,
         time_between_pulses=time_between_pulses,
         excitation_rates=excitation_rates,
-        frame_time="1ms",
+        frame_time=frame_time,
         store_time_points=store_time_points,
         seed=seed,
     )
@@ -554,15 +555,14 @@ def test_simulate_TCSPC_homofret_lifetimes_with_relaxed_pulses(
             excitation_rates={"testfluo_1": 1e11},
             store_time_points=True,
             seed=np.random.default_rng(42),
+            frame_time="1s",
         )
 
     assert (
         "the last frame (of index 4000.0) has 0.00e+00 times the pulses of other frames."
         in caplog.text
     )
-    assert event_time_series.size == int(
-        np.ceil(number_pulses * time_between_pulses / 1e-3)
-    )
+    assert event_time_series.size == 4_000
     assert (
         event_time_series.values.sum()
         == lifetimes_D.size + lifetimes_DA.size
@@ -654,12 +654,11 @@ def test_simulate_TCSPC_fret_shortens_donor_lifetime(tr_set_bl_et_2f_diff, caplo
             excitation_rates={"testfluo_1": 1e11, "testfluo_2": 1e1},
             store_time_points=True,
             seed=np.random.default_rng(42),
+            frame_time="1s",
         )
 
     assert "the last frame (of index" in caplog.text
-    assert event_time_series.size == int(
-        np.ceil(number_pulses * time_between_pulses / 1e-3)
-    )
+    assert event_time_series.size == 4_000
     assert (
         event_time_series.values.sum()
         == lifetimes_D.size + lifetimes_DA.size
@@ -696,12 +695,11 @@ def test_simulate_TCSPC_photon_count_tracks_excitation_probability(tr_set_1f, ca
             excitation_rates={"testfluo_1": 1e12},
             store_time_points=True,
             seed=rng,
+            frame_time="1s",
         )
 
     assert "the last frame (of index" in caplog.text
-    assert event_time_series.size == int(
-        np.ceil(number_pulses * time_between_pulses / 1e-3)
-    )
+    assert event_time_series.size == 4_000
     assert (
         event_time_series.values.sum()
         == lifetimes_D.size + lifetimes_DA.size
@@ -720,6 +718,7 @@ def test_simulate_TCSPC_photon_count_tracks_excitation_probability(tr_set_1f, ca
             excitation_rates={"testfluo_1": 1.4e10},
             store_time_points=True,
             seed=rng,
+            frame_time="1s",
         )
 
     assert "the last frame (of index" in caplog.text
@@ -746,6 +745,7 @@ def test_simulate_TCSPC_counts_independent_fluorophore_emissions(
             excitation_rates={"testfluo_1": 1e12, "testfluo_2": 1.4e10},
             store_time_points=True,
             seed=np.random.default_rng(42),
+            frame_time="1s",
         )
 
     assert "the last frame (of index" in caplog.text
@@ -767,7 +767,7 @@ def test_simulate_TCSPC_detailed(request, caplog):
     pulse_duration = 5e-11
     time_between_pulses = 1e-1
     excitation_rates = {"testfluo_1": 1e12, "testfluo_2": 1.4e10}
-    frame_time = "1ms"
+    frame_time = "1s"
     store_time_points = True
     with caplog.at_level(logging.WARNING):
         return_values = si.simulate_TCSPC_detailed(
