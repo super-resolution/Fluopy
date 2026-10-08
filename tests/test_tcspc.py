@@ -390,6 +390,24 @@ def _simulate_single_channel_tcspc(
     return _unwrap_single_channel(result)
 
 
+def _get_emission_and_fret_donor_ids(transition_set):
+    transition_df = transition_set.combined_state_transitions_df
+    emissions = transition_df[transition_df["photon"]]
+    paired_transitions = transition_df[
+        transition_df["abbreviation"] == tr.TransitionType.FRET.abbreviation
+    ]
+    paired_sources = {
+        (row["initial_state"], row["fluorophore_ids"][0])
+        for _, row in paired_transitions.iterrows()
+    }
+    paired_emission_ids = [
+        identity
+        for identity, row in emissions.iterrows()
+        if (row["initial_state"], row["fluorophore_ids"][0]) in paired_sources
+    ]
+    return {identity: 1 for identity in emissions.index}, paired_emission_ids
+
+
 @pytest.mark.slow
 def test_simulate_TCSPC_single_fluorophore(tr_set_1f, caplog):
     assert tr.SingleState.S1.value == 1
@@ -526,18 +544,9 @@ def test_simulate_TCSPC_homofret_lifetimes_with_relaxed_pulses(
     transition_set.finalize()
     number_pulses = 4e4
     time_between_pulses = 1e-1
-    emitting_transition_ids = {
-        10: 1,
-        11: 1,
-        12: 1,
-        13: 1,
-        14: 1,
-        15: 1,
-        16: 1,
-        17: 1,
-        18: 1,
-        19: 1,
-    }
+    emitting_transition_ids, paired_emission_ids = _get_emission_and_fret_donor_ids(
+        transition_set
+    )
 
     with caplog.at_level(logging.WARNING):
         (
@@ -549,7 +558,7 @@ def test_simulate_TCSPC_homofret_lifetimes_with_relaxed_pulses(
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
             emitting_transition_ids=emitting_transition_ids,
-            paired_emission_ids=[10, 11],
+            paired_emission_ids=paired_emission_ids,
             number_pulses=number_pulses,
             time_between_pulses=time_between_pulses,
             excitation_rates={"testfluo_1": 1e11},
@@ -585,18 +594,9 @@ def test_simulate_TCSPC_homofret_lifetimes_with_overlapping_pulses(
     transition_set.finalize()
     number_pulses = 4e4
     time_between_pulses = 1e-9
-    emitting_transition_ids = {
-        10: 1,
-        11: 1,
-        12: 1,
-        13: 1,
-        14: 1,
-        15: 1,
-        16: 1,
-        17: 1,
-        18: 1,
-        19: 1,
-    }
+    emitting_transition_ids, paired_emission_ids = _get_emission_and_fret_donor_ids(
+        transition_set
+    )
 
     with caplog.at_level(logging.WARNING):
         (
@@ -608,7 +608,7 @@ def test_simulate_TCSPC_homofret_lifetimes_with_overlapping_pulses(
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
             emitting_transition_ids=emitting_transition_ids,
-            paired_emission_ids=[10, 11],
+            paired_emission_ids=paired_emission_ids,
             number_pulses=number_pulses,
             time_between_pulses=time_between_pulses,
             excitation_rates={"testfluo_1": 1e11},
