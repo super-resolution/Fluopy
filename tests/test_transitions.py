@@ -1509,7 +1509,43 @@ def test_construct_transition_rate_list_skips_unavailable_final_state(
     assert transition_rate_list == []
 
 
-def test_construct_transition_rate_list_skips_unavailable_state_combination():
+@pytest.mark.parametrize(
+    "transition, state_combinations, expected",
+    [
+        (
+            tr.Transition(
+                tr.TransitionType.EXCITATION,
+                rate=1,
+                fluorophore_ids=[0],
+            ),
+            [(0, 0), (0, 1), (1, 0), (1, 2)],
+            [[(0, 0), (1, 0), [0], "EXC", 0, 1, False, None]],
+        ),
+        (
+            tr.Transition(
+                tr.TransitionType.FRET,
+                rate=1,
+                fluorophore_ids=[(0, 1)],
+            ),
+            [(1, 0, 0), (0, 1, 0), (0, 0, 1)],
+            [[(1, 0, 0), (0, 1, 0), [0, 1], "FRET", 0, 1, False, "FRET"]],
+        ),
+    ],
+)
+def test_construct_transition_rate_list_skips_unavailable_state_combination(
+    transition, state_combinations, expected
+):
+    transition_df = pd.DataFrame([transition.to_dict()])
+    transition_df.index = pd.MultiIndex.from_tuples([("transition", 0)])
+
+    transition_rate_list = tr.construct_transition_rate_list(
+        transition_df, state_combinations
+    )
+
+    assert transition_rate_list == expected
+
+
+def test_construct_transition_rate_list_accepts_empty_state_combinations():
     transition = tr.Transition(
         tr.TransitionType.EXCITATION,
         rate=1,
@@ -1517,13 +1553,10 @@ def test_construct_transition_rate_list_skips_unavailable_state_combination():
     )
     transition_df = pd.DataFrame([transition.to_dict()])
     transition_df.index = pd.MultiIndex.from_tuples([("transition", 0)])
-    state_combinations = [(0, 0), (0, 1), (1, 0)]
 
-    transition_rate_list = tr.construct_transition_rate_list(
-        transition_df, state_combinations
-    )
+    transition_rate_list = tr.construct_transition_rate_list(transition_df, [])
 
-    assert transition_rate_list == [[(0, 0), (1, 0), [0], "EXC", 0, 1, False, None]]
+    assert transition_rate_list == []
 
 
 def test_construct_transition_matrix_requires_integer_index():
