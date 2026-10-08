@@ -836,7 +836,28 @@ def test_insert_excitations(tr_set_bl_et_3f):
     excitation_series = np.array(
         [1, 2, 0, -1, -1, -1, 2, -1, 1, -1, -1, 2, 1, -1, -1, -1]
     )
-    transition_series = np.array([250, 241, 446, 446, 80, 120, 81, 398, 122])
+    transition_df = tr_set_bl_et_3f.combined_state_transitions_df
+    transition_descriptions = [
+        ((1, 1, 1), (0, 1, 1), "IC"),
+        ((0, 1, 1), (0, 0, 1), "IC"),
+        ((0, 0, 1), (0, 0, 0), "IC"),
+        ((0, 0, 1), (0, 0, 0), "IC"),
+        ((0, 1, 0), (0, 3, 0), "ISC_ST"),
+        ((0, 3, 0), (0, 0, 0), "ISC_TS"),
+        ((0, 1, 1), (0, 3, 1), "ISC_ST"),
+        ((0, 3, 1), (0, 3, 3), "ISC_ST"),
+        ((0, 3, 3), (0, 0, 3), "ISC_TS"),
+    ]
+    transition_series = np.array(
+        [
+            transition_df.index[
+                (transition_df["initial_state"] == initial_state)
+                & (transition_df["final_state"] == final_state)
+                & (transition_df["abbreviation"] == abbreviation)
+            ][0]
+            for initial_state, final_state, abbreviation in transition_descriptions
+        ]
+    )
     transition_series_adj = si.insert_excitations(
         transition_series, tr_set_bl_et_3f, excitation_series
     )
@@ -845,9 +866,7 @@ def test_insert_excitations(tr_set_bl_et_3f):
     np.testing.assert_array_equal(
         transition_series_adj[~excitation_mask], transition_series
     )
-    inserted = tr_set_bl_et_3f.combined_state_transitions_df.iloc[
-        transition_series_adj[excitation_mask]
-    ]
+    inserted = transition_df.iloc[transition_series_adj[excitation_mask]]
     assert (inserted["abbreviation"] == "EXC").all()
     np.testing.assert_array_equal(
         [fluorophore_ids[0] for fluorophore_ids in inserted["fluorophore_ids"]],

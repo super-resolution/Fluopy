@@ -1414,11 +1414,11 @@ def test_construct_transition_rate_list():
     )
     expected = [
         [(0, 0, 5), (1, 0, 5), [0], "EXC", 0, 1, False, None],
-        [(0, 0, 5), (0, 1, 5), [1], "EXC", 0, 1, False, None],
         [(0, 1, 5), (1, 1, 5), [0], "EXC", 0, 1, False, None],
+        [(0, 0, 5), (0, 1, 5), [1], "EXC", 0, 1, False, None],
         [(1, 0, 5), (1, 1, 5), [1], "EXC", 0, 1, False, None],
-        [(0, 1, 5), (1, 0, 5), [1, 0], "FRET", 1, 1, False, "FRET"],
         [(1, 0, 5), (0, 1, 5), [0, 1], "FRET", 1, 1, False, "FRET"],
+        [(0, 1, 5), (1, 0, 5), [1, 0], "FRET", 1, 1, False, "FRET"],
     ]
     assert transition_rate_list == expected
 
@@ -1507,6 +1507,23 @@ def test_construct_transition_rate_list_skips_unavailable_final_state(
     )
 
     assert transition_rate_list == []
+
+
+def test_construct_transition_rate_list_skips_unavailable_state_combination():
+    transition = tr.Transition(
+        tr.TransitionType.EXCITATION,
+        rate=1,
+        fluorophore_ids=[0],
+    )
+    transition_df = pd.DataFrame([transition.to_dict()])
+    transition_df.index = pd.MultiIndex.from_tuples([("transition", 0)])
+    state_combinations = [(0, 0), (0, 1), (1, 0)]
+
+    transition_rate_list = tr.construct_transition_rate_list(
+        transition_df, state_combinations
+    )
+
+    assert transition_rate_list == [[(0, 0), (1, 0), [0], "EXC", 0, 1, False, None]]
 
 
 def test_construct_transition_matrix_requires_integer_index():
