@@ -39,6 +39,16 @@ class TestSimulation:
         assert simulation.transition_series.shape == (1000,)
         assert simulation.memmap_path is None
 
+    def test_run_self_transition(self, tr_set_self_cycle):
+        transition_set = tr_set_self_cycle.filter_by_identity([1, 2])
+        simulation = si.Simulation(transition_set)
+
+        simulation.run(size=4, seed=42)
+
+        np.testing.assert_array_equal(simulation.transition_series, np.zeros(4))
+        np.testing.assert_array_equal(simulation.state_series, np.zeros((1, 5)))
+        assert np.all(np.diff(simulation.time_series) > 0)
+
 
 def test_direct_method_steps(monkeypatch):
     class FixedGenerator:
@@ -344,6 +354,39 @@ def test_approximation_uses_transition_lifetimes(pred_tr_set_1f):
     )
 
     np.testing.assert_array_equal(np.diff(time_series), lifetimes[transition_series])
+
+
+def test_approximation_inserts_self_transitions_in_matching_states(tr_set_self_cycle):
+    prediction = pr.Prediction(tr_set_self_cycle)
+
+    time_series, transition_series = si.approximation(
+        prediction=prediction, size=110, seed=42
+    )
+
+    np.testing.assert_array_equal(
+        np.bincount(transition_series, minlength=3), [90, 10, 10]
+    )
+    transition_df = tr_set_self_cycle.transition_df
+    initial_states = (
+        transition_df["initial_state"].iloc[transition_series[1:]].to_numpy()
+    )
+    final_states = transition_df["final_state"].iloc[transition_series[:-1]].to_numpy()
+    np.testing.assert_array_equal(initial_states, final_states)
+    assert time_series.size == transition_series.size + 1
+    assert np.all(np.diff(time_series) > 0)
+
+
+def test_approximation_handles_only_self_transitions(tr_set_self_cycle):
+    transition_set = tr_set_self_cycle.filter_by_identity([1, 2])
+    prediction = pr.Prediction(transition_set)
+
+    time_series, transition_series = si.approximation(
+        prediction=prediction, size=20, seed=42
+    )
+
+    np.testing.assert_array_equal(transition_series, np.zeros(20, dtype=np.int64))
+    assert time_series.size == 21
+    assert np.all(np.diff(time_series) > 0)
 
 
 def test_approximation_rejects_size_without_occurrences(pred_tr_set_1f):

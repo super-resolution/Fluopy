@@ -233,7 +233,9 @@ class Simulation:
         Approximates stochastic data based on the limiting distribution of a Markov
         chain. Only suitable for single fluorophore systems. Absorbing transitions are
         omitted under the assumption that they are too rare to affect the approximate
-        sequence. Each simple cycle should contain the most occurring state.
+        sequence. Self-transitions are inserted only where their source state is
+        occupied. Each simple cycle should contain the most occurring state-changing
+        transition.
 
         Parameters
         ----------
@@ -801,13 +803,15 @@ def approximation(
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
     """
     Approximates stochastic data based on the limiting distribution of a Markov chain.
-    The transitions are ordered via a topological sort and processed accordingly.
-    Successor transitions are placed behind their predecessors. The topological sort is
-    possible via a temporary conversion of the graph to a directed acyclic graph (DAG).
-    Only suitable for single fluorophore systems. Absorbing transitions are omitted
-    under the assumption that they are too rare to affect the approximate sequence. If
-    a transition has no non-absorbing successor, the sequence ends at its first
-    occurrence. Each simple cycle should contain the most occurring state.
+    State-changing transitions are ordered via a topological sort and processed
+    accordingly. Successor transitions are placed behind their predecessors, and
+    self-transitions are then inserted where their source state is occupied. The
+    topological sort is possible via a temporary conversion of the graph to a directed
+    acyclic graph (DAG). Only suitable for single fluorophore systems. Absorbing
+    transitions are omitted under the assumption that they are too rare to affect the
+    approximate sequence. If a transition has no non-absorbing successor, the sequence
+    ends at its first occurrence. Each simple cycle should contain the most occurring
+    state-changing transition.
 
     Parameters
     ----------
@@ -831,82 +835,155 @@ def approximation(
     transition_occurrences = transition_occurrences.astype(np.int64)
     if not np.any(transition_occurrences > 0):
         raise ValueError("size is too small to produce any transition occurrences.")
-    maximum_transition_index = np.argmax(transition_occurrences)
-    starting_transition = int(maximum_transition_index)
     fluorophore = prediction.transition_set.fluorophore_system.fluorophores[0].name
-    G = net.construct_transition_graph(
-        transition_df=prediction.transition_set.transition_df
+    transition_df = prediction.transition_set.transition_df
+    self_transition_mask = np.fromiter(
+        (
+            initial_state == final_state
+            for initial_state, final_state in zip(
+                transition_df["initial_state"],
+                transition_df["final_state"],
+                strict=True,
+            )
+        ),
+        dtype=np.bool_,
+        count=transition_df.shape[0],
     )
-    graph_suited, _ = net.check_graph_suitable(G=G, starting_node=starting_transition)
-    if not graph_suited:
-        raise ValueError(
-            "graph not suited for approximation. Check for loops that do not contain "
-            "the most occurring state."
-        )
-    transition_order = net.determine_node_order(G=G, starting_node=starting_transition)
-
+    transition_ids = transition_df.index.get_level_values(1).to_numpy(dtype=np.int64)
+    self_transition_ids = transition_ids[self_transition_mask]
+    state_changing_occurrences = transition_occurrences.copy()
+    state_changing_occurrences[self_transition_ids] = 0
     rng = np.random.default_rng(seed)
-    transition_series = np.full(
-        transition_occurrences[maximum_transition_index], fill_value=starting_transition
-    )
+    if np.any(state_changing_occurrences > 0):
+        starting_transition = int(np.argmax(state_changing_occurrences))
+        state_changing_df = transition_df.loc[~self_transition_mask]
+        G = net.construct_transition_graph(transition_df=state_changing_df)
+        graph_suited, _ = net.check_graph_suitable(
+            G=G, starting_node=starting_transition
+        )
+        if not graph_suited:
+            raise ValueError(
+                "graph not suited for approximation. Check for loops that do not "
+                "contain the most occurring state."
+            )
+        transition_order = net.determine_node_order(
+            G=G, starting_node=starting_transition
+        )
+        transition_series = np.full(
+            state_changing_occurrences[starting_transition],
+            fill_value=starting_transition,
+        )
 
-    for transition in transition_order:
-        transition_indices = np.where(transition_series == transition)[0]
-        occurrences = transition_indices.size
-        if occurrences == 0:
-            continue
-        follow_up_transitions = np.array(list(G.successors(transition)), dtype=np.int64)
-        if follow_up_transitions.size:
+        for transition in transition_order:
+            transition_indices = np.where(transition_series == transition)[0]
+            occurrences = transition_indices.size
+            if occurrences == 0:
+                continue
+            follow_up_transitions = np.array(
+                list(G.successors(transition)), dtype=np.int64
+            )
+            if follow_up_transitions.size:
+                follow_up_index = [
+                    (fluorophore, int(transition))
+                    for transition in follow_up_transitions
+                ]
+                follow_up_transitions = follow_up_transitions[
+                    ~transition_df["absorbing"].loc[follow_up_index]
+                ]
+            if follow_up_transitions.size == 0:
+                transition_series = transition_series[: transition_indices[0] + 1]
+                break
             follow_up_index = [
                 (fluorophore, int(transition)) for transition in follow_up_transitions
             ]
-            follow_up_transitions = follow_up_transitions[
-                ~prediction.transition_set.transition_df["absorbing"].loc[
-                    follow_up_index
-                ]
-            ]
-        if follow_up_transitions.size == 0:
-            transition_series = transition_series[: transition_indices[0] + 1]
-            break
-        rng.shuffle(transition_indices)
-        follow_up_index = [
-            (fluorophore, int(transition)) for transition in follow_up_transitions
-        ]
-        rates = (
-            prediction.transition_set.transition_df["rate"]
-            .loc[follow_up_index]
-            .to_numpy()
-        )
-        repeats = rates * occurrences / rates.sum()
-        rounded_repeats = it.saferound(
-            repeats, places=0, topline=occurrences
-        )  # topline such that each transition will get a followup transition
-        rounded_repeats = np.array(rounded_repeats, dtype=np.int64)
-        if starting_transition in follow_up_transitions:
-            indices_starting_transition = np.where(
-                follow_up_transitions == starting_transition
-            )[0]
-            follow_up_transitions = np.delete(
-                follow_up_transitions, indices_starting_transition
+            rates = transition_df["rate"].loc[follow_up_index].to_numpy()
+            repeats = rates * occurrences / rates.sum()
+            rounded_repeats = it.saferound(
+                repeats, places=0, topline=occurrences
+            )  # topline such that each transition will get a followup transition
+            rounded_repeats = np.array(rounded_repeats, dtype=np.int64)
+            rng.shuffle(transition_indices)
+            if starting_transition in follow_up_transitions:
+                indices_starting_transition = np.where(
+                    follow_up_transitions == starting_transition
+                )[0]
+                follow_up_transitions = np.delete(
+                    follow_up_transitions, indices_starting_transition
+                )
+                number_of_deletions = rounded_repeats[indices_starting_transition].sum()
+                rounded_repeats = np.delete(
+                    rounded_repeats, indices_starting_transition
+                )
+                transition_indices = transition_indices[:-number_of_deletions]
+            follow_up_transitions = np.repeat(
+                follow_up_transitions, repeats=rounded_repeats
             )
-            number_of_deletions = rounded_repeats[indices_starting_transition].sum()
-            rounded_repeats = np.delete(rounded_repeats, indices_starting_transition)
-            transition_indices = transition_indices[:-number_of_deletions]
-        follow_up_transitions = np.repeat(
-            follow_up_transitions, repeats=rounded_repeats
-        )
-        insert_at = transition_indices + 1
-        transition_series = np.insert(
-            arr=transition_series, obj=insert_at, values=follow_up_transitions
-        )
+            insert_at = transition_indices + 1
+            transition_series = np.insert(
+                arr=transition_series, obj=insert_at, values=follow_up_transitions
+            )
 
-    if any(
-        not G.has_edge(int(current), int(successor))
-        for current, successor in zip(
-            transition_series[:-1], transition_series[1:], strict=True
+        if any(
+            not G.has_edge(int(current), int(successor))
+            for current, successor in zip(
+                transition_series[:-1], transition_series[1:], strict=True
+            )
+        ):
+            raise RuntimeError("approximation did not produce a realizable sequence.")
+    else:
+        transition_series = np.array([], dtype=np.int64)
+
+    if self_transition_ids.size:
+        if transition_series.size:
+            slot_states = np.empty(transition_series.size + 1, dtype=object)
+            slot_states[0] = transition_df["initial_state"].iloc[transition_series[0]]
+            slot_states[1:] = transition_df["final_state"].iloc[transition_series]
+        else:
+            starting_self_transition = self_transition_ids[
+                np.argmax(transition_occurrences[self_transition_ids])
+            ]
+            slot_states = np.array(
+                [transition_df["initial_state"].iloc[starting_self_transition]],
+                dtype=object,
+            )
+
+        insertion_slots = []
+        insertion_values = []
+        for transition in self_transition_ids:
+            occurrences = transition_occurrences[transition]
+            if occurrences == 0:
+                continue
+            source_state = transition_df["initial_state"].iloc[transition]
+            compatible_slots = np.flatnonzero(slot_states == source_state)
+            if compatible_slots.size == 0:
+                continue
+            insertion_slots.append(
+                rng.choice(compatible_slots, size=occurrences, replace=True)
+            )
+            insertion_values.append(np.full(occurrences, transition, dtype=np.int64))
+
+        if insertion_slots:
+            insertion_slots_array = np.concatenate(insertion_slots)
+            insertion_values_array = np.concatenate(insertion_values)
+            random_order = rng.permutation(insertion_slots_array.size)
+            insertion_slots_array = insertion_slots_array[random_order]
+            insertion_values_array = insertion_values_array[random_order]
+            slot_order = np.argsort(insertion_slots_array, kind="stable")
+            transition_series = np.insert(
+                transition_series,
+                insertion_slots_array[slot_order],
+                insertion_values_array[slot_order],
+            )
+
+    if self_transition_ids.size:
+        initial_states = (
+            transition_df["initial_state"].iloc[transition_series[1:]].to_numpy()
         )
-    ):
-        raise RuntimeError("approximation did not produce a realizable sequence.")
+        final_states = (
+            transition_df["final_state"].iloc[transition_series[:-1]].to_numpy()
+        )
+        if np.any(initial_states != final_states):
+            raise RuntimeError("approximation did not produce a realizable sequence.")
 
     time_step_series = np.empty(transition_series.size + 1, dtype=np.float64)
     time_step_series[0] = 0

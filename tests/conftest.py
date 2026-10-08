@@ -92,6 +92,31 @@ def tr_set_bl_et_3f(flu_sys_2xcy5_1xatto643):
 
 
 @pytest.fixture()
+def tr_set_self_cycle(flu_sys_cy5):
+    self_transition = tr.TransitionType(
+        "SELF", tr.SingleState.S0, tr.SingleState.S0, False
+    )
+    return tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(self_transition, rate=9, fluorophore_ids=[0]),
+                tr.Transition(
+                    tr.TransitionType.EXCITATION,
+                    rate=1,
+                    fluorophore_ids=[0],
+                ),
+                tr.Transition(
+                    tr.TransitionType.FLUORESCENT_EMISSION,
+                    rate=1,
+                    fluorophore_ids=[0],
+                ),
+            ]
+        },
+        flu_sys_cy5,
+    )
+
+
+@pytest.fixture()
 def tr_set_bl_et_2f_diff(flu_sys_1xcy5_1xatto643):
     transitions = flu_sys_1xcy5_1xatto643.load_transitions(
         irradiance=2,

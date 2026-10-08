@@ -46,6 +46,32 @@ def test_connected_non_absorbing_prediction_is_independent_of_initial_index(
     np.testing.assert_array_equal(frequencies_0, frequencies_1)
 
 
+def test_self_transition_affects_events_but_not_state_statistics(
+    tr_set_self_cycle,
+):
+    prediction = pr.Prediction(tr_set_self_cycle)
+
+    np.testing.assert_allclose(
+        prediction.frequency_transitions, [9 / 11, 1 / 11, 1 / 11]
+    )
+    np.testing.assert_allclose(prediction.frequency_states["testfluo_1"], [0.5, 0.5])
+    np.testing.assert_allclose(prediction.mean_transition_times, [0.1, 0.1, 1.0])
+    np.testing.assert_allclose(prediction.mean_lifetimes["testfluo_1"], [1.0, 1.0])
+    np.testing.assert_allclose(prediction.state_occupations["testfluo_1"], [0.5, 0.5])
+
+
+def test_self_transition_only_prediction(tr_set_self_cycle):
+    transition_set = tr_set_self_cycle.filter_by_identity([1, 2])
+
+    prediction = pr.Prediction(transition_set)
+
+    np.testing.assert_array_equal(prediction.frequency_transitions, [1.0])
+    np.testing.assert_array_equal(prediction.frequency_states["testfluo_1"], [1.0])
+    np.testing.assert_allclose(prediction.mean_transition_times, [1 / 9])
+    np.testing.assert_array_equal(prediction.mean_lifetimes["testfluo_1"], [np.inf])
+    np.testing.assert_array_equal(prediction.state_occupations["testfluo_1"], [1.0])
+
+
 def test_prediction_uses_only_the_reachable_subchain(flu_sys_cy5):
     intermediate = tr.SingleState("INTERMEDIATE_CUSTOM", 10)
     terminal = tr.SingleState("TERMINAL_CUSTOM", 11)

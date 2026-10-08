@@ -392,6 +392,9 @@ class Prediction:
         frequency_states = {
             key: np.zeros(len(value)) for key, value in single_states.items()
         }
+        self_frequency_states = {
+            key: np.zeros(len(value)) for key, value in single_states.items()
+        }
         grouped = self.transition_set.transition_df.groupby(level=0)
         for fluorophore_comb_raw, f_transitions in grouped:
             fluorophore_comb = cast(str, fluorophore_comb_raw)
@@ -403,15 +406,27 @@ class Prediction:
                 factor = 1.0
                 for row_index, transition in f_transitions.iterrows():
                     identity = int(cast(tuple[Any, int], row_index)[1])
-                    _, acceptor_i = transition["initial_state"].single_state_values
+                    donor_i, acceptor_i = transition[
+                        "initial_state"
+                    ].single_state_values
                     donor_f, acceptor_f = transition["final_state"].single_state_values
                     index_1 = np.where(single_states_d == donor_f)[0][0]
-                    frequency_states[d][index_1] += (
+                    donor_frequencies = (
+                        frequency_states
+                        if donor_i != donor_f
+                        else self_frequency_states
+                    )
+                    donor_frequencies[d][index_1] += (
                         self.frequency_transitions[identity] * factor
                     )
                     if acceptor_i != acceptor_f:
                         index_2 = np.where(single_states_a == acceptor_f)[0][0]
                         frequency_states[a][index_2] += (
+                            self.frequency_transitions[identity] * factor
+                        )
+                    else:
+                        index_2 = np.where(single_states_a == acceptor_f)[0][0]
+                        self_frequency_states[a][index_2] += (
                             self.frequency_transitions[identity] * factor
                         )
 
@@ -422,13 +437,21 @@ class Prediction:
                     index = np.where(
                         single_states_f == transition["final_state"].value
                     )[0][0]
-                    frequency_states[fluorophore_comb][
-                        index
-                    ] += self.frequency_transitions[identity]
+                    target = (
+                        frequency_states
+                        if transition["initial_state"] != transition["final_state"]
+                        else self_frequency_states
+                    )
+                    target[fluorophore_comb][index] += self.frequency_transitions[
+                        identity
+                    ]
         for fluorophore, state_frequencies in frequency_states.items():
             total = state_frequencies.sum()
+            if total == 0:
+                state_frequencies = self_frequency_states[fluorophore]
+                total = state_frequencies.sum()
             if total > 0:
-                frequency_states[fluorophore] /= total
+                frequency_states[fluorophore] = state_frequencies / total
 
         return frequency_states
 
@@ -458,23 +481,28 @@ class Prediction:
 
         for fluorophore, states in self.transition_set.single_states.items():
             for i, state in enumerate(states):
-                total_rate = 0.0
+                event_rate = 0.0
+                exit_rate = 0.0
                 associated_transitions: list[int] = []
                 for j, transition in self.transition_set.transition_df.loc[
                     fluorophore
                 ].iterrows():
                     source = transition.initial_state.value
                     if source == state:
-                        total_rate += transition.rate
+                        event_rate += transition.rate
+                        if transition.initial_state != transition.final_state:
+                            exit_rate += transition.rate
                         associated_transitions.append(cast(int, j))
-                if total_rate == 0:
-                    lifetime_mean = np.inf
+                if event_rate == 0:
+                    transition_pdf: Any = np.inf
+                else:
+                    transition_pdf = expon(scale=1 / event_rate)
+                if exit_rate == 0:
                     lifetime_pdf: Any = np.inf
                 else:
-                    lifetime_mean = 1 / total_rate
-                    lifetime_pdf = expon(scale=lifetime_mean)
+                    lifetime_pdf = expon(scale=1 / exit_rate)
                 lifetime_distributions[fluorophore][i] = lifetime_pdf
-                transition_time_distributions[associated_transitions] = lifetime_pdf
+                transition_time_distributions[associated_transitions] = transition_pdf
 
         return transition_time_distributions, lifetime_distributions
 
@@ -503,9 +531,21 @@ class Prediction:
             mean_lifetimes[fluorophore] = np.array(
                 [distr.mean() if distr != np.inf else np.inf for distr in distributions]
             )
-        return mean_lifetimes, calculate_state_occupations(
+        state_occupations = calculate_state_occupations(
             self.frequency_states, mean_lifetimes
         )
+        for fluorophore, occupations in state_occupations.items():
+            if occupations.sum() == 0:
+                persistent_states = np.isinf(mean_lifetimes[fluorophore]) & (
+                    self.frequency_states[fluorophore] > 0
+                )
+                if np.any(persistent_states):
+                    frequencies = self.frequency_states[fluorophore][persistent_states]
+                    state_occupations[fluorophore][persistent_states] = (
+                        frequencies / frequencies.sum()
+                    )
+
+        return mean_lifetimes, state_occupations
 
     def plot_frequency_transitions(self, **kwargs: Any) -> mplAxes:
         """
