@@ -51,7 +51,8 @@ class Analysis:
         Contains 1-D array_like for each transition (time until the transition).
     lifetime_distributions : dict
         Name of fluorophores as keys and collections of their state's simulated
-        lifetimes (1-D array_like) as values.
+        lifetimes (1-D array_like) as values. The final residence may be right-censored
+        by the observation limit and is not included.
     mean_transition_times : 1-D array_like
         Simulated means of time until transition.
     mean_lifetimes : dict
