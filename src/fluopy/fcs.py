@@ -13,6 +13,7 @@ import numba
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from scipy.signal import correlate
 
 from . import plotting
 
@@ -208,7 +209,12 @@ class FCS:
             deviation = (
                 event_values - mean
             )  # delta I(t) (wiki) - fluctuation around the mean value
-            autocorrelation = np.correlate(deviation, deviation, mode="full")
+            autocorrelation = correlate(
+                deviation,
+                deviation,
+                mode="full",
+                method="auto",
+            )
             autocorrelation = autocorrelation[autocorrelation.size // 2 :]
             autocorrelation = np.divide(
                 autocorrelation, np.arange(autocorrelation.size, 0, -1)
@@ -222,7 +228,12 @@ class FCS:
             self.tau = np.arange(1, autocorrelation.size + 1, dtype=np.float64) * deltat
 
         else:
-            autocorrelation = np.correlate(event_values, event_values, mode="full")
+            autocorrelation = correlate(
+                event_values,
+                event_values,
+                mode="full",
+                method="auto",
+            )
             # note that this version is the autocorrelation in the sense of signal
             # processing and differs from the statistical definition of autocorrelation.
             autocorrelation = autocorrelation[autocorrelation.size // 2 :][1:]

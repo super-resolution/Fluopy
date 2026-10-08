@@ -110,4 +110,4 @@ jobs:
           python -m pip install --group test .
 
       - name: Run slow tests
-        run: pytest -m "slow and not gui and not visual"
+        run: pytest -m slow

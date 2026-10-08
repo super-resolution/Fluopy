@@ -942,6 +942,7 @@ def get_detection_probabilities(
     df = transition_set.combined_state_transitions_df
     probabilities = np.zeros((len(df), len(channels)), dtype=np.float64)
     fluorophores = transition_set.fluorophore_system.fluorophores
+    probabilities_by_fluorophore: dict[int, npt.NDArray[np.float64]] = {}
 
     for transition_id in np.flatnonzero(df["photon"].to_numpy()):
         transition = df.iloc[transition_id]
@@ -949,7 +950,12 @@ def get_detection_probabilities(
         if len(fluorophore_ids) != 1:
             raise ValueError("an emitting transition must belong to one fluorophore.")
         fluorophore_id = fluorophore_ids[0]
+        if fluorophore_id in probabilities_by_fluorophore:
+            probabilities[transition_id] = probabilities_by_fluorophore[fluorophore_id]
+            continue
+
         fluorophore = fluorophores[fluorophore_id]
+        fluorophore_probabilities = np.zeros(len(channels), dtype=np.float64)
 
         eligible_channels = [
             channel
@@ -973,7 +979,7 @@ def get_detection_probabilities(
                     emission_spectrum=constants.emission_spectrum,
                     bandpass=channel.bandpass,
                 )
-            probabilities[transition_id, channel_index] = (
+            fluorophore_probabilities[channel_index] = (
                 p_passed * channel.detection_efficiency
             )
 
@@ -991,6 +997,9 @@ def get_detection_probabilities(
                         "detection channel bandpasses must not overlap for the same "
                         "fluorophore."
                     )
+
+        probabilities_by_fluorophore[fluorophore_id] = fluorophore_probabilities
+        probabilities[transition_id] = fluorophore_probabilities
 
     if np.any(probabilities.sum(axis=1) > 1 + 1e-12):
         raise ValueError(

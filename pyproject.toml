@@ -117,12 +117,11 @@ target-version = ["py312"]
 testpaths = [
     "tests"
 ]
-addopts = "--import-mode=importlib --strict-markers -m 'not gui and not slow'"
+addopts = "--import-mode=importlib --strict-markers -m 'not slow'"
 filterwarnings = [
     "ignore::fluopy.simulation.FloatingPointPrecisionWarning",
 ]
 markers = [
-    "gui: marks tests that require user interaction (skipped by default)",
     "slow: marks tests as slow (skipped by default)",
 ]
 

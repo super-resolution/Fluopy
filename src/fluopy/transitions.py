@@ -1573,7 +1573,11 @@ def construct_transition_rate_list(
     list[TransitionRateRecord]
         Contains lists of each realizable combined-state transition.
     """
+    state_combinations = list(state_combinations)
     valid_states = set(state_combinations)
+    component_states = tuple(
+        tuple(dict.fromkeys(states)) for states in zip(*state_combinations)
+    )
     transition_rate_list: list[TransitionRateRecord] = []
 
     for index, transition in transition_df.iterrows():
@@ -1586,15 +1590,18 @@ def construct_transition_rate_list(
 
         initial_state = transition["initial_state"]
         final_state = transition["final_state"]
+        if not state_combinations:
+            continue
 
         if isinstance(initial_state, SingleState):
             source = initial_state.value
             destination = final_state.value
-            for current_state in state_combinations:
-                for fluorophore_id in transition["fluorophore_ids"]:
-                    if current_state[fluorophore_id] != source:
+            for fluorophore_id in transition["fluorophore_ids"]:
+                candidate_component_states = list(component_states)
+                candidate_component_states[fluorophore_id] = (source,)
+                for current_state in product(*candidate_component_states):
+                    if current_state not in valid_states:
                         continue
-
                     future_state_values = list(current_state)
                     future_state_values[fluorophore_id] = destination
                     future_state = tuple(future_state_values)
@@ -1616,14 +1623,13 @@ def construct_transition_rate_list(
         else:
             source_donor, source_acceptor = initial_state.single_state_values
             destination_donor, destination_acceptor = final_state.single_state_values
-            for current_state in state_combinations:
-                for donor, acceptor in transition["fluorophore_ids"]:
-                    if (
-                        current_state[donor] != source_donor
-                        or current_state[acceptor] != source_acceptor
-                    ):
+            for donor, acceptor in transition["fluorophore_ids"]:
+                candidate_component_states = list(component_states)
+                candidate_component_states[donor] = (source_donor,)
+                candidate_component_states[acceptor] = (source_acceptor,)
+                for current_state in product(*candidate_component_states):
+                    if current_state not in valid_states:
                         continue
-
                     future_state_values = list(current_state)
                     future_state_values[donor] = destination_donor
                     future_state_values[acceptor] = destination_acceptor
