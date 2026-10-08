@@ -860,6 +860,8 @@ def space_multiple_excitations(time_series: npt.NDArray[np.float64]) -> None:
         "time higher than expected.",
         stacklevel=2,
     )
+    # Repeated passes are acceptable because simultaneous excitations are limited by
+    # the typically small number of fluorophores, so duplicate groups remain small.
     indices = np.unique(time_series, return_index=True)[1]
     while indices.size != time_series.size:
         mask = np.ones(time_series.shape, dtype=bool)
