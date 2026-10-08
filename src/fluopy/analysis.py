@@ -95,8 +95,8 @@ class Analysis:
         if absorbing:
             logger.warning(
                 "if a fluorophore reaches its individual absorbing state, it has an "
-                "absolute state and transition frequency of 1, but the lifetime is nan "
-                "and the state occupation 0.",
+                "absolute state and transition frequency of 1. Completed lifetime "
+                "estimates may be nan.",
                 stacklevel=2,
             )
 
@@ -262,6 +262,35 @@ class Analysis:
         transition_ids = combined_transition_df["transition_id"].to_numpy(
             dtype=np.int64
         )
+        combined_transition_indices = np.asarray(self.transition_series, dtype=np.int64)
+        event_transition_ids = transition_ids[combined_transition_indices]
+        involved_fluorophore_ids = combined_transition_df["fluorophore_ids"].to_numpy(
+            dtype=object
+        )[combined_transition_indices]
+        initiating_fluorophore_ids = np.fromiter(
+            (fluorophore_ids[0] for fluorophore_ids in involved_fluorophore_ids),
+            dtype=np.int64,
+            count=self.transition_series.size,
+        )
+        event_times = self.time_series[1 : self.transition_series.size + 1]
+        state_changes = np.diff(self.state_series, axis=1) != 0
+        for fluorophore_id in range(self.state_series.shape[0]):
+            initiated = initiating_fluorophore_ids == fluorophore_id
+            resets = initiated | state_changes[fluorophore_id]
+            reset_indices = np.flatnonzero(resets)
+            reset_times = event_times[reset_indices]
+            reset_intervals = np.diff(np.insert(reset_times, 0, self.time_series[0]))
+            initiated_resets = initiated[reset_indices]
+            initiated_transition_ids = event_transition_ids[reset_indices][
+                initiated_resets
+            ]
+            initiated_intervals = reset_intervals[initiated_resets]
+            # Repeated masks outperform sorting for the typically small number of
+            # transition definitions in Fluopy, including for long trajectories.
+            for _, transition_id in self.simulation.transition_set.transition_df.index:
+                transition_time_parts[transition_id].append(
+                    initiated_intervals[initiated_transition_ids == transition_id]
+                )
 
         for fluorophore_id, fluorophore_state_series in enumerate(self.state_series):
             fluorophore = (
@@ -269,8 +298,7 @@ class Analysis:
                     fluorophore_id
                 ].name
             )
-            state_differences = np.diff(fluorophore_state_series)
-            change_indices = np.where(state_differences != 0)[0]
+            change_indices = np.flatnonzero(state_changes[fluorophore_id])
             if change_indices.size == 0:
                 continue
             changed_state_indices = change_indices + 1
@@ -287,29 +315,6 @@ class Analysis:
                     np.where(initial_states == state)
                 ]
                 lifetime_parts[fluorophore][state_index].append(state_residence_times)
-
-            combined_transition_indices = self.transition_series[change_indices]
-            transition_ids_at_changes = transition_ids[combined_transition_indices]
-            involved_fluorophore_ids = combined_transition_df[
-                "fluorophore_ids"
-            ].to_numpy(dtype=object)[combined_transition_indices]
-            initiating_fluorophore_ids = np.array(
-                [fluorophore_ids[0] for fluorophore_ids in involved_fluorophore_ids],
-                dtype=np.int64,
-            )
-            # Repeated masks outperform sorting for the typically small number of
-            # transition definitions in Fluopy, including for long trajectories.
-            for (
-                transition_group,
-                transition_id,
-            ) in self.simulation.transition_set.transition_df.index:
-                occurrence_mask = transition_ids_at_changes == transition_id
-                if parse_paired_transition_label(transition_group) is not None:
-                    occurrence_mask &= initiating_fluorophore_ids == fluorophore_id
-
-                transition_time_parts[transition_id].append(
-                    residence_times[occurrence_mask]
-                )
 
         lifetime_distributions = {
             fluorophore: [
@@ -349,9 +354,30 @@ class Analysis:
                     for distr in distributions
                 ]
             )
-        return mean_lifetimes, calculate_state_occupations(
+        state_occupations = calculate_state_occupations(
             self.frequency_states, mean_lifetimes
         )
+        if self.transition_series.size:
+            combined_transition_df = (
+                self.simulation.transition_set.combined_state_transitions_df
+            )
+            observed_transitions = combined_transition_df.iloc[self.transition_series]
+            has_self_event = any(
+                initial_state == final_state
+                for initial_state, final_state in zip(
+                    observed_transitions["initial_state"],
+                    observed_transitions["final_state"],
+                    strict=True,
+                )
+            )
+            if has_self_event:
+                for fluorophore, occupations in state_occupations.items():
+                    if occupations.sum() == 0:
+                        state_occupations[fluorophore] = self.frequency_states[
+                            fluorophore
+                        ].copy()
+
+        return mean_lifetimes, state_occupations
 
     def get_fluorescence_lifetimes(
         self, fluorophore: str | None = None

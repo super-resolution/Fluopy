@@ -39,6 +39,16 @@ class TestSimulation:
         assert simulation.transition_series.shape == (1000,)
         assert simulation.memmap_path is None
 
+    def test_run_self_transition(self, tr_set_self_cycle):
+        transition_set = tr_set_self_cycle.filter_by_identity([1, 2])
+        simulation = si.Simulation(transition_set)
+
+        simulation.run(size=4, seed=42)
+
+        np.testing.assert_array_equal(simulation.transition_series, np.zeros(4))
+        np.testing.assert_array_equal(simulation.state_series, np.zeros((1, 5)))
+        assert np.all(np.diff(simulation.time_series) > 0)
+
 
 def test_direct_method_steps(monkeypatch):
     class FixedGenerator:

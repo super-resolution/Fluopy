@@ -222,6 +222,70 @@ def test_analysis_without_state_changes(tr_set_1f):
     )
 
 
+def test_self_transition_resets_event_time_but_not_state_lifetime(
+    tr_set_self_cycle,
+):
+    combined_transitions = tr_set_self_cycle.combined_state_transitions_df
+    combined_ids = {
+        transition_id: combined_transitions.index[
+            combined_transitions["transition_id"] == transition_id
+        ][0]
+        for transition_id in range(3)
+    }
+    simulation = SimpleNamespace(
+        transition_set=tr_set_self_cycle,
+        transition_series=np.array(
+            [combined_ids[0], combined_ids[0], combined_ids[1], combined_ids[2]]
+        ),
+        state_series=np.array([[0, 0, 0, 1, 0]]),
+        time_series=np.array([0.0, 1.0, 2.0, 4.0, 7.0]),
+    )
+    baseline_simulation = SimpleNamespace(
+        transition_set=tr_set_self_cycle,
+        transition_series=np.array([combined_ids[1], combined_ids[2]]),
+        state_series=np.array([[0, 1, 0]]),
+        time_series=np.array([0.0, 4.0, 7.0]),
+    )
+
+    analysis = an.Analysis(simulation)
+    baseline = an.Analysis(baseline_simulation)
+
+    np.testing.assert_array_equal(analysis.transition_time_distributions[0], [1.0, 1.0])
+    np.testing.assert_array_equal(analysis.transition_time_distributions[1], [2.0])
+    np.testing.assert_array_equal(analysis.transition_time_distributions[2], [3.0])
+    np.testing.assert_array_equal(
+        analysis.lifetime_distributions["testfluo_1"][0], [4.0]
+    )
+    np.testing.assert_array_equal(
+        analysis.lifetime_distributions["testfluo_1"][1], [3.0]
+    )
+    np.testing.assert_array_equal(
+        analysis.mean_lifetimes["testfluo_1"],
+        baseline.mean_lifetimes["testfluo_1"],
+    )
+    np.testing.assert_array_equal(
+        analysis.state_occupations["testfluo_1"],
+        baseline.state_occupations["testfluo_1"],
+    )
+
+
+def test_self_transition_only_analysis(tr_set_self_cycle):
+    transition_set = tr_set_self_cycle.filter_by_identity([1, 2])
+    simulation = SimpleNamespace(
+        transition_set=transition_set,
+        transition_series=np.array([0, 0]),
+        state_series=np.array([[0, 0, 0]]),
+        time_series=np.array([0.0, 0.5, 1.0]),
+    )
+
+    analysis = an.Analysis(simulation)
+
+    np.testing.assert_array_equal(analysis.transition_time_distributions[0], [0.5, 0.5])
+    assert analysis.lifetime_distributions["testfluo_1"][0].size == 0
+    assert np.isnan(analysis.mean_lifetimes["testfluo_1"][0])
+    np.testing.assert_array_equal(analysis.state_occupations["testfluo_1"], [1.0])
+
+
 def test_energy_transfer_time_is_recorded_only_for_donor_with_equal_source_states():
     energy_transfer_label = "D: A, A: B, dist: 1"
     transition_df = pd.DataFrame(
