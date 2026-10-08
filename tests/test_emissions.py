@@ -889,7 +889,16 @@ def test_get_p_filter_without_spectral_overlap():
 
 def test_get_detection_probabilities_uses_each_fluorophore_spectrum(
     tr_set_bl_et_2f_diff,
+    monkeypatch,
 ):
+    original_get_p_filter = em.get_p_filter
+    filtered_bandpasses = []
+
+    def count_filter_calls(emission_spectrum, bandpass):
+        filtered_bandpasses.append(bandpass)
+        return original_get_p_filter(emission_spectrum, bandpass)
+
+    monkeypatch.setattr(em, "get_p_filter", count_filter_calls)
     channels = {
         "first": em.DetectionChannel((650, 700), fluorophore_ids=frozenset({0})),
         "second": em.DetectionChannel(
@@ -907,6 +916,7 @@ def test_get_detection_probabilities_uses_each_fluorophore_spectrum(
     expected[[4, 5, 6, 7], 0] = 0.6820037131347214
     expected[[38, 39, 40, 41, 42], 1] = 0.5847564420110373 * 0.5
     np.testing.assert_allclose(probabilities, expected)
+    assert filtered_bandpasses == [(650, 700), (650, 700)]
 
 
 def test_get_detection_probabilities_rejects_overlapping_channels(
