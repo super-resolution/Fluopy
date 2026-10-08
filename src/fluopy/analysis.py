@@ -297,6 +297,8 @@ class Analysis:
                 [fluorophore_ids[0] for fluorophore_ids in involved_fluorophore_ids],
                 dtype=np.int64,
             )
+            # Repeated masks outperform sorting for the typically small number of
+            # transition definitions in Fluopy, including for long trajectories.
             for (
                 transition_group,
                 transition_id,
