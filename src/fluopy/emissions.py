@@ -20,6 +20,7 @@ from .simulation import (
     Simulation,
     eval_floating_point_precision_error,
     simulate_experiment,
+    simulate_experiment_sparse,
 )
 from .tcspc import simulate_TCSPC, simulate_TCSPC_detailed
 from .transitions import TransitionSet
@@ -350,7 +351,12 @@ class Emissions:
         if start_indices.empty:
             raise ValueError(f"start_at {start_at} is not a valid combined state.")
         start_index = start_indices[0]
-        self.event_time_points, self.event_time_series = simulate_experiment(
+        experiment_simulator = (
+            simulate_experiment_sparse
+            if transition_set.matrix_format == "sparse"
+            else simulate_experiment
+        )
+        self.event_time_points, self.event_time_series = experiment_simulator(
             transition_matrix=transition_set.transition_matrix,
             row_sums=transition_set.row_sums,
             detection_probabilities=detection_probabilities,

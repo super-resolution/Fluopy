@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import sparse
 
 from fluopy import fluo_data as fd
 from fluopy import photophysics as fo
@@ -1448,6 +1449,77 @@ def test_construct_transition_matrix():
     expected_row_sums = np.array([10002, 0, 1])
     np.testing.assert_allclose(transition_matrix, expected_transition_matrix, rtol=1e-6)
     np.testing.assert_allclose(row_sums, expected_row_sums, rtol=1e-5)
+
+
+def test_construct_sparse_transition_matrix_matches_dense():
+    combined_state_transitions_df = pd.DataFrame(
+        {
+            "initial_state": [(0, 0), (0, 1), (0, 1)],
+            "final_state": [(0, 1), (1, 0), (0, 0)],
+            "rate": [1, 1e4, 2],
+        }
+    )
+
+    dense_matrix, dense_row_sums = tr.construct_transition_matrix(
+        combined_state_transitions_df
+    )
+    sparse_matrix, sparse_row_sums = tr.construct_sparse_transition_matrix(
+        combined_state_transitions_df
+    )
+
+    assert isinstance(sparse_matrix, sparse.csr_array)
+    np.testing.assert_allclose(sparse_matrix.toarray(), dense_matrix)
+    np.testing.assert_array_equal(sparse_row_sums, dense_row_sums)
+
+
+def test_construct_sparse_transition_matrix_rejects_noninteger_index():
+    combined_state_transitions_df = pd.DataFrame(
+        {
+            "initial_state": [(0,)],
+            "final_state": [(1,)],
+            "rate": [1],
+        },
+        index=["invalid"],
+    )
+
+    with pytest.raises(TypeError, match="index must be an integer"):
+        tr.construct_sparse_transition_matrix(combined_state_transitions_df)
+
+
+def test_construct_empty_sparse_transition_matrix():
+    combined_state_transitions_df = pd.DataFrame(
+        {
+            "initial_state": [(0,)],
+            "final_state": [(1,)],
+            "rate": [0],
+        }
+    )
+
+    transition_matrix, row_sums = tr.construct_sparse_transition_matrix(
+        combined_state_transitions_df
+    )
+
+    np.testing.assert_array_equal(transition_matrix.toarray(), [[0]])
+    np.testing.assert_array_equal(row_sums, [0])
+
+
+def test_transition_set_sparse_backend_matches_dense(tr_set_1f):
+    sparse_transition_set = tr_set_1f.with_matrix_format("sparse")
+
+    assert sparse_transition_set.matrix_format == "sparse"
+    assert isinstance(sparse_transition_set.transition_matrix, sparse.csr_array)
+    np.testing.assert_allclose(
+        sparse_transition_set.transition_matrix.toarray(),
+        tr_set_1f.transition_matrix,
+    )
+    np.testing.assert_array_equal(sparse_transition_set.row_sums, tr_set_1f.row_sums)
+    assert sparse_transition_set.filter_by_identity().matrix_format == "sparse"
+    assert sparse_transition_set.with_matrix_format("dense").matrix_format == "dense"
+
+
+def test_transition_set_rejects_unknown_matrix_format(flu_sys_cy5):
+    with pytest.raises(ValueError, match="matrix_format"):
+        tr.TransitionSet({}, flu_sys_cy5, matrix_format="unknown")
 
 
 def test_construct_transition_rate_list_requires_two_level_index():

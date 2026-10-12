@@ -1,10 +1,12 @@
 import logging
 import warnings
+from types import SimpleNamespace
 
 import networkx as nx
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import sparse
 
 from fluopy import prediction as pr
 from fluopy import simulation as si
@@ -49,8 +51,53 @@ class TestSimulation:
         np.testing.assert_array_equal(simulation.state_series, np.zeros((1, 5)))
         assert np.all(np.diff(simulation.time_series) > 0)
 
+    @pytest.mark.parametrize(
+        "run_kwargs",
+        [
+            {"size": 100, "seed": 42},
+            {"size": 100, "end_time": 1e-7, "seed": 42},
+            {"size": 100, "kap_sq_var": True, "seed": 42},
+        ],
+    )
+    def test_sparse_backend_matches_dense(self, tr_set_1f, run_kwargs):
+        sparse_transition_set = tr_set_1f.with_matrix_format("sparse")
+        dense_simulation = si.Simulation(tr_set_1f)
+        sparse_simulation = si.Simulation(sparse_transition_set)
 
-def test_direct_method_steps(monkeypatch):
+        dense_simulation.run(**run_kwargs)
+        sparse_simulation.run(**run_kwargs)
+
+        np.testing.assert_array_equal(
+            sparse_simulation.transition_series, dense_simulation.transition_series
+        )
+        np.testing.assert_array_equal(
+            sparse_simulation.time_series, dense_simulation.time_series
+        )
+        np.testing.assert_array_equal(
+            sparse_simulation.state_series, dense_simulation.state_series
+        )
+
+    def test_sparse_first_reaction_with_fret_matches_dense(self, tr_set_bl_et_2f_diff):
+        sparse_transition_set = tr_set_bl_et_2f_diff.with_matrix_format("sparse")
+        dense_simulation = si.Simulation(tr_set_bl_et_2f_diff)
+        sparse_simulation = si.Simulation(sparse_transition_set)
+
+        dense_simulation.run(size=20, kap_sq_var=True, seed=42)
+        sparse_simulation.run(size=20, kap_sq_var=True, seed=42)
+
+        np.testing.assert_array_equal(
+            sparse_simulation.transition_series, dense_simulation.transition_series
+        )
+        np.testing.assert_array_equal(
+            sparse_simulation.time_series, dense_simulation.time_series
+        )
+        np.testing.assert_array_equal(
+            sparse_simulation.state_series, dense_simulation.state_series
+        )
+
+
+@pytest.mark.parametrize("sparse_backend", [False, True])
+def test_direct_method_steps(monkeypatch, sparse_backend):
     class FixedGenerator:
         def uniform(self, low, high, size):
             assert (low, high, size) == (0, 1, (2, 2))
@@ -58,8 +105,13 @@ def test_direct_method_steps(monkeypatch):
 
     monkeypatch.setattr(si.np.random, "default_rng", lambda seed: FixedGenerator())
 
-    time_series, transition_series = si.direct_method_steps(
-        transition_matrix=[[0, 1], [1, 0]],
+    transition_matrix = np.array([[0, 1], [1, 0]])
+    method = si.direct_method_steps
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        method = si.direct_method_steps_sparse
+    time_series, transition_series = method(
+        transition_matrix=transition_matrix,
         row_sums=[2, 4],
         start_index=0,
         size=2,
@@ -71,12 +123,20 @@ def test_direct_method_steps(monkeypatch):
     np.testing.assert_array_equal(transition_series, [1, 0])
 
 
+@pytest.mark.parametrize("sparse_backend", [False, True])
 @pytest.mark.parametrize("use_memmap", [False, True])
-def test_direct_method_steps_stops_at_absorbing_state(use_memmap, tmp_path):
+def test_direct_method_steps_stops_at_absorbing_state(
+    use_memmap, sparse_backend, tmp_path
+):
     memmap_path = tmp_path if use_memmap else None
+    transition_matrix = np.array([[0, 1], [0, 0]])
+    method = si.direct_method_steps
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        method = si.direct_method_steps_sparse
 
-    time_series, transition_series = si.direct_method_steps(
-        transition_matrix=[[0, 1], [0, 0]],
+    time_series, transition_series = method(
+        transition_matrix=transition_matrix,
         row_sums=[1, 0],
         start_index=0,
         size=3,
@@ -93,17 +153,23 @@ def test_direct_method_steps_stops_at_absorbing_state(use_memmap, tmp_path):
         _close_memmaps(time_series, transition_series)
 
 
-def test_direct_method_steps_with_memmap(tr_set_1f, tmp_path):
-    expected_times, expected_transitions = si.direct_method_steps(
-        transition_matrix=tr_set_1f.transition_matrix,
+@pytest.mark.parametrize("sparse_backend", [False, True])
+def test_direct_method_steps_with_memmap(tr_set_1f, sparse_backend, tmp_path):
+    transition_matrix = tr_set_1f.transition_matrix
+    method = si.direct_method_steps
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        method = si.direct_method_steps_sparse
+    expected_times, expected_transitions = method(
+        transition_matrix=transition_matrix,
         row_sums=tr_set_1f.row_sums,
         start_index=0,
         size=10,
         seed=42,
         use_memmap=None,
     )
-    time_series, transition_series = si.direct_method_steps(
-        transition_matrix=tr_set_1f.transition_matrix,
+    time_series, transition_series = method(
+        transition_matrix=transition_matrix,
         row_sums=tr_set_1f.row_sums,
         start_index=0,
         size=10,
@@ -120,7 +186,8 @@ def test_direct_method_steps_with_memmap(tr_set_1f, tmp_path):
         _close_memmaps(time_series, transition_series)
 
 
-def test_direct_method_time(monkeypatch):
+@pytest.mark.parametrize("sparse_backend", [False, True])
+def test_direct_method_time(monkeypatch, sparse_backend):
     class FixedGenerator:
         def uniform(self, low, high, size):
             assert (low, high, size) == (0, 1, (2, 2))
@@ -128,8 +195,13 @@ def test_direct_method_time(monkeypatch):
 
     monkeypatch.setattr(si.np.random, "default_rng", lambda seed: FixedGenerator())
 
-    time_series, transition_series = si.direct_method_time(
-        transition_matrix=[[0, 1], [1, 0]],
+    transition_matrix = np.array([[0, 1], [1, 0]])
+    method = si.direct_method_time
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        method = si.direct_method_time_sparse
+    time_series, transition_series = method(
+        transition_matrix=transition_matrix,
         row_sums=[2, 4],
         start_index=0,
         size=2,
@@ -142,9 +214,15 @@ def test_direct_method_time(monkeypatch):
     np.testing.assert_array_equal(transition_series, [1])
 
 
-def test_direct_method_time_stops_at_absorbing_state():
-    time_series, transition_series = si.direct_method_time(
-        transition_matrix=[[0, 1], [0, 0]],
+@pytest.mark.parametrize("sparse_backend", [False, True])
+def test_direct_method_time_stops_at_absorbing_state(sparse_backend):
+    transition_matrix = np.array([[0, 1], [0, 0]])
+    method = si.direct_method_time
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        method = si.direct_method_time_sparse
+    time_series, transition_series = method(
+        transition_matrix=transition_matrix,
         row_sums=[1, 0],
         start_index=0,
         size=3,
@@ -156,9 +234,15 @@ def test_direct_method_time_stops_at_absorbing_state():
     np.testing.assert_array_equal(transition_series, [1])
 
 
-def test_direct_method_time_with_memmap(tr_set_1f, tmp_path):
-    expected_times, expected_transitions = si.direct_method_time(
-        transition_matrix=tr_set_1f.transition_matrix,
+@pytest.mark.parametrize("sparse_backend", [False, True])
+def test_direct_method_time_with_memmap(tr_set_1f, sparse_backend, tmp_path):
+    transition_matrix = tr_set_1f.transition_matrix
+    method = si.direct_method_time
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        method = si.direct_method_time_sparse
+    expected_times, expected_transitions = method(
+        transition_matrix=transition_matrix,
         row_sums=tr_set_1f.row_sums,
         start_index=0,
         size=10,
@@ -166,8 +250,8 @@ def test_direct_method_time_with_memmap(tr_set_1f, tmp_path):
         seed=42,
         use_memmap=None,
     )
-    time_series, transition_series = si.direct_method_time(
-        transition_matrix=tr_set_1f.transition_matrix,
+    time_series, transition_series = method(
+        transition_matrix=transition_matrix,
         row_sums=tr_set_1f.row_sums,
         start_index=0,
         size=10,
@@ -185,7 +269,8 @@ def test_direct_method_time_with_memmap(tr_set_1f, tmp_path):
         _close_memmaps(time_series, transition_series)
 
 
-def test_first_reaction_method(monkeypatch):
+@pytest.mark.parametrize("sparse_backend", [False, True])
+def test_first_reaction_method(monkeypatch, sparse_backend):
     class FixedGenerator:
         def __init__(self):
             self.responses = iter((np.array([0.4, 0.2]), np.array([0.3])))
@@ -198,8 +283,13 @@ def test_first_reaction_method(monkeypatch):
     generator = FixedGenerator()
     monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
 
-    time_series, transition_series = si.first_reaction_method(
-        transition_matrix=[[0, 0.25, 0.75], [1, 0, 0], [1, 0, 0]],
+    transition_matrix = np.array([[0, 0.25, 0.75], [1, 0, 0], [1, 0, 0]])
+    method = si.first_reaction_method
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        method = si.first_reaction_method_sparse
+    time_series, transition_series = method(
+        transition_matrix=transition_matrix,
         row_sums=[4, 2, 1],
         combined_state_transitions_df=pd.DataFrame(index=np.arange(3)),
         include_kap_sq=False,
@@ -215,7 +305,10 @@ def test_first_reaction_method(monkeypatch):
     np.testing.assert_allclose(generator.scales[1], [1.0])
 
 
-def test_first_reaction_method_applies_kappa_squared_only_to_fret(monkeypatch):
+@pytest.mark.parametrize("sparse_backend", [False, True])
+def test_first_reaction_method_applies_kappa_squared_only_to_fret(
+    monkeypatch, sparse_backend
+):
     transitions = pd.DataFrame(
         {
             "rate": [0.0, 1.0, 1.0],
@@ -232,8 +325,13 @@ def test_first_reaction_method_applies_kappa_squared_only_to_fret(monkeypatch):
         lambda k2_values, size, seed: np.zeros(size),
     )
 
-    _, transition_series = si.first_reaction_method(
-        transition_matrix=[[0, 0.5, 0.5], [0, 0, 0], [0, 0, 0]],
+    transition_matrix = np.array([[0, 0.5, 0.5], [0, 0, 0], [0, 0, 0]])
+    method = si.first_reaction_method
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        method = si.first_reaction_method_sparse
+    _, transition_series = method(
+        transition_matrix=transition_matrix,
         row_sums=[2, 0, 0],
         combined_state_transitions_df=transitions,
         include_kap_sq=True,
@@ -245,9 +343,17 @@ def test_first_reaction_method_applies_kappa_squared_only_to_fret(monkeypatch):
     np.testing.assert_array_equal(transition_series, [2])
 
 
-def test_first_reaction_method_with_memmap(tr_set_bl_et_2f_diff, tmp_path):
-    expected_times, expected_transitions = si.first_reaction_method(
-        transition_matrix=tr_set_bl_et_2f_diff.transition_matrix,
+@pytest.mark.parametrize("sparse_backend", [False, True])
+def test_first_reaction_method_with_memmap(
+    tr_set_bl_et_2f_diff, sparse_backend, tmp_path
+):
+    transition_matrix = tr_set_bl_et_2f_diff.transition_matrix
+    method = si.first_reaction_method
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        method = si.first_reaction_method_sparse
+    expected_times, expected_transitions = method(
+        transition_matrix=transition_matrix,
         row_sums=tr_set_bl_et_2f_diff.row_sums,
         combined_state_transitions_df=tr_set_bl_et_2f_diff.combined_state_transitions_df,
         minimum_rate=1e3,
@@ -256,8 +362,8 @@ def test_first_reaction_method_with_memmap(tr_set_bl_et_2f_diff, tmp_path):
         seed=42,
         use_memmap=None,
     )
-    time_series, transition_series = si.first_reaction_method(
-        transition_matrix=tr_set_bl_et_2f_diff.transition_matrix,
+    time_series, transition_series = method(
+        transition_matrix=transition_matrix,
         row_sums=tr_set_bl_et_2f_diff.row_sums,
         combined_state_transitions_df=tr_set_bl_et_2f_diff.combined_state_transitions_df,
         minimum_rate=1e3,
@@ -276,8 +382,11 @@ def test_first_reaction_method_with_memmap(tr_set_bl_et_2f_diff, tmp_path):
         _close_memmaps(time_series, transition_series)
 
 
+@pytest.mark.parametrize("sparse_backend", [False, True])
 @pytest.mark.parametrize("use_memmap", [False, True])
-def test_first_reaction_method_stops_at_absorbing_state(use_memmap, tmp_path):
+def test_first_reaction_method_stops_at_absorbing_state(
+    use_memmap, sparse_backend, tmp_path
+):
     transitions = pd.DataFrame(
         {
             "fluorophore_ids": [[0], [0]],
@@ -285,9 +394,14 @@ def test_first_reaction_method_stops_at_absorbing_state(use_memmap, tmp_path):
         }
     )
     memmap_path = tmp_path if use_memmap else None
+    transition_matrix = np.array([[0, 1], [0, 0]])
+    method = si.first_reaction_method
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        method = si.first_reaction_method_sparse
 
-    time_series, transition_series = si.first_reaction_method(
-        transition_matrix=[[0, 1], [0, 0]],
+    time_series, transition_series = method(
+        transition_matrix=transition_matrix,
         row_sums=[1, 0],
         combined_state_transitions_df=transitions,
         include_kap_sq=False,
@@ -332,6 +446,17 @@ def test_approximation(pred_tr_set_1f):
             transition_series[:-1], transition_series[1:], strict=True
         )
     )
+
+
+def test_approximation_sparse_prediction_matches_dense(pred_tr_set_1f):
+    sparse_transition_set = pred_tr_set_1f.transition_set.with_matrix_format("sparse")
+    sparse_prediction = pr.Prediction(sparse_transition_set)
+
+    dense_result = si.approximation(pred_tr_set_1f, size=20, seed=42)
+    sparse_result = si.approximation(sparse_prediction, size=20, seed=42)
+
+    np.testing.assert_array_equal(sparse_result[0], dense_result[0])
+    np.testing.assert_array_equal(sparse_result[1], dense_result[1])
 
 
 def test_approximation_uses_transition_lifetimes(pred_tr_set_1f):
@@ -387,6 +512,36 @@ def test_approximation_handles_only_self_transitions(tr_set_self_cycle):
     np.testing.assert_array_equal(transition_series, np.zeros(20, dtype=np.int64))
     assert time_series.size == 21
     assert np.all(np.diff(time_series) > 0)
+
+
+def test_approximation_skips_unusable_self_transitions(tr_set_self_cycle):
+    class FixedLifetimeDistribution:
+        def rvs(self, size, random_state):
+            return np.ones(size)
+
+    transition_df = pd.DataFrame(
+        {
+            "initial_state": [(0,), (1,), (2,)],
+            "final_state": [(0,), (1,), (2,)],
+        },
+        index=pd.MultiIndex.from_product(
+            [["testfluo_1"], range(3)], names=["fluorophore", "identity"]
+        ),
+    )
+    prediction = SimpleNamespace(
+        frequency_transitions=np.array([0.75, 0.25, 0.0]),
+        transition_set=SimpleNamespace(
+            fluorophore_system=tr_set_self_cycle.fluorophore_system,
+            transition_df=transition_df,
+        ),
+        transition_time_distributions=np.array(
+            [FixedLifetimeDistribution() for _ in range(3)], dtype=object
+        ),
+    )
+
+    _, transition_series = si.approximation(prediction, size=4, seed=42)
+
+    np.testing.assert_array_equal(transition_series, [0, 0, 0])
 
 
 def test_approximation_rejects_size_without_occurrences(pred_tr_set_1f):
@@ -480,6 +635,35 @@ def test_simulate_experiment(
         )
 
 
+def test_simulate_experiment_sparse_matches_dense(tr_set_1f):
+    detection_probabilities = np.zeros((tr_set_1f.transition_matrix.shape[1], 1))
+    detection_probabilities[1, 0] = 0.9
+    kwargs = {
+        "row_sums": tr_set_1f.row_sums,
+        "detection_probabilities": detection_probabilities,
+        "channel_names": ("detector",),
+        "size": 100,
+        "frames": 3,
+        "frame_time": "5ms",
+        "store_time_points": True,
+        "seed": 42,
+    }
+
+    dense_points, dense_series = si.simulate_experiment(
+        transition_matrix=tr_set_1f.transition_matrix,
+        **kwargs,
+    )
+    sparse_points, sparse_series = si.simulate_experiment_sparse(
+        transition_matrix=sparse.csr_array(tr_set_1f.transition_matrix),
+        **kwargs,
+    )
+
+    pd.testing.assert_frame_equal(sparse_series, dense_series)
+    assert sparse_points is not None
+    assert dense_points is not None
+    np.testing.assert_array_equal(sparse_points["detector"], dense_points["detector"])
+
+
 @pytest.mark.parametrize(
     "detection_probabilities, channel_names, match",
     [
@@ -493,12 +677,18 @@ def test_simulate_experiment(
         ([[0.6, 0.6]], ("first", "second"), "sum to at most 1"),
     ],
 )
+@pytest.mark.parametrize("sparse_backend", [False, True])
 def test_simulate_experiment_validates_detection_probabilities(
-    detection_probabilities, channel_names, match
+    detection_probabilities, channel_names, match, sparse_backend
 ):
+    transition_matrix = np.array([[1]])
+    simulator = si.simulate_experiment
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        simulator = si.simulate_experiment_sparse
     with pytest.raises(ValueError, match=match):
-        si.simulate_experiment(
-            transition_matrix=[[1]],
+        simulator(
+            transition_matrix=transition_matrix,
             row_sums=[1],
             detection_probabilities=detection_probabilities,
             channel_names=channel_names,
@@ -860,21 +1050,33 @@ def test_approximation_rejects_unrealizable_internal_order(pred_tr_set_1f, monke
         si.approximation(pred_tr_set_1f, size=20, seed=42)
 
 
-def test_simulate_experiment_stops_at_absorbing_state(caplog):
+@pytest.mark.parametrize("sparse_backend", [False, True])
+@pytest.mark.parametrize("store_time_points", [False, True])
+def test_simulate_experiment_stops_at_absorbing_state(
+    caplog, sparse_backend, store_time_points
+):
+    transition_matrix = np.array([[0]])
+    simulator = si.simulate_experiment
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        simulator = si.simulate_experiment_sparse
     with caplog.at_level(logging.WARNING):
-        event_time_points, event_time_series = si.simulate_experiment(
-            transition_matrix=[[0]],
+        event_time_points, event_time_series = simulator(
+            transition_matrix=transition_matrix,
             row_sums=[0],
             detection_probabilities=[[0]],
             channel_names=("detector",),
             start_index=0,
             frames=2,
             frame_time="1ms",
-            store_time_points=True,
+            store_time_points=store_time_points,
             seed=42,
         )
 
-    assert event_time_points is not None
-    np.testing.assert_array_equal(event_time_points["detector"], [])
+    if store_time_points:
+        assert event_time_points is not None
+        np.testing.assert_array_equal(event_time_points["detector"], [])
+    else:
+        assert event_time_points is None
     np.testing.assert_array_equal(event_time_series["detector"], [0, 0])
     assert "absorbing state" in caplog.text

@@ -5,10 +5,13 @@ Compute a prediction for a photophysical system.
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import numpy.typing as npt
+from scipy import sparse
+from scipy.sparse.linalg import MatrixRankWarning, spsolve
 from scipy.stats import expon
 
 from . import plotting
@@ -131,9 +134,14 @@ class Prediction:
         self.initial_state_index = int(initial_state_index)
         self._terminal_state_combinations = self._get_terminal_state_combinations()
         transition_matrix = transition_set.transition_matrix
-        self._reachable_transition_indices = _get_reachable_indices(
-            transition_matrix, self.initial_state_index
-        )
+        if sparse.issparse(transition_matrix):
+            self._reachable_transition_indices = _get_reachable_indices_sparse(
+                transition_matrix, self.initial_state_index
+            )
+        else:
+            self._reachable_transition_indices = _get_reachable_indices(
+                transition_matrix, self.initial_state_index
+            )
         terminal_indices = np.flatnonzero(transition_set.row_sums == 0)
         self._reachable_terminal_indices = np.intersect1d(
             self._reachable_transition_indices,
@@ -141,9 +149,14 @@ class Prediction:
             assume_unique=True,
         )
         if self._reachable_terminal_indices.size:
-            can_reach_terminal = _get_reachable_indices(
-                transition_matrix.T, self._reachable_terminal_indices
-            )
+            if sparse.issparse(transition_matrix):
+                can_reach_terminal = _get_reachable_indices_sparse(
+                    transition_matrix.T, self._reachable_terminal_indices
+                )
+            else:
+                can_reach_terminal = _get_reachable_indices(
+                    transition_matrix.T, self._reachable_terminal_indices
+                )
             if not np.all(
                 np.isin(self._reachable_transition_indices, can_reach_terminal)
             ):
@@ -181,11 +194,25 @@ class Prediction:
         self.mean_lifetimes: dict[str, npt.NDArray[np.float64]] | None
         self.state_occupations: dict[str, npt.NDArray[np.float64]] | None
         if self.absorbing_chain:
-            self.frequency_transitions = self.predict_transition_occurrences_absorbing(
-                initial_state_index=self.initial_state_index
-            )
+            if sparse.issparse(transition_matrix):
+                self.frequency_transitions = (
+                    self.predict_transition_occurrences_absorbing_sparse(
+                        initial_state_index=self.initial_state_index
+                    )
+                )
+            else:
+                self.frequency_transitions = (
+                    self.predict_transition_occurrences_absorbing(
+                        initial_state_index=self.initial_state_index
+                    )
+                )
         else:
-            self.frequency_transitions = self.predict_transition_occurrences()
+            if sparse.issparse(transition_matrix):
+                self.frequency_transitions = (
+                    self.predict_transition_occurrences_sparse()
+                )
+            else:
+                self.frequency_transitions = self.predict_transition_occurrences()
         self.frequency_states = self.predict_state_occurrences()
         if not self.paired_transitions:
             (
@@ -290,6 +317,64 @@ class Prediction:
             frequency_transitions, self.transition_set.transition_df
         )
 
+    def predict_transition_occurrences_sparse(self) -> npt.NDArray[np.float64]:
+        """Sparse counterpart of predict_transition_occurrences."""
+        full_transition_matrix = sparse.csr_array(
+            self.transition_set.transition_matrix, dtype=np.float64
+        )
+        frequency_transitions = np.zeros(self.transition_set.transition_df.shape[0])
+        if full_transition_matrix.nnz == 0:
+            return frequency_transitions
+
+        reachable_indices = getattr(
+            self,
+            "_reachable_transition_indices",
+            np.arange(full_transition_matrix.shape[0]),
+        )
+        transition_matrix = full_transition_matrix[reachable_indices][
+            :, reachable_indices
+        ]
+        size = transition_matrix.shape[0]
+        stationary_system = (
+            transition_matrix.T - sparse.eye(size, format="csr")
+        ).tolil()
+        stationary_system[-1, :] = np.ones(size)
+        normalization = np.zeros(size)
+        normalization[-1] = 1
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", MatrixRankWarning)
+                reachable_stationary_distribution = spsolve(
+                    stationary_system.tocsr(), normalization
+                )
+        except (MatrixRankWarning, RuntimeError) as exception:
+            raise ValueError(
+                "the reachable non-absorbing subchain does not have a unique "
+                "stationary distribution."
+            ) from exception
+        if not np.all(np.isfinite(reachable_stationary_distribution)):
+            raise ValueError(
+                "the reachable non-absorbing subchain does not have a unique "
+                "stationary distribution."
+            )
+        stationary_distribution_combined_state_transitions = np.zeros(
+            full_transition_matrix.shape[0]
+        )
+        stationary_distribution_combined_state_transitions[reachable_indices] = (
+            reachable_stationary_distribution
+        )
+
+        df = self.transition_set.combined_state_transitions_df
+        for _, i in self.transition_set.transition_df.index:
+            indices = df.index[df["transition_id"] == i].tolist()
+            frequency_transitions[i] = (
+                stationary_distribution_combined_state_transitions[indices].sum()
+            )
+
+        return normalize_transition_frequencies(
+            frequency_transitions, self.transition_set.transition_df
+        )
+
     def predict_transition_occurrences_absorbing(
         self, initial_state_index: int = 0
     ) -> npt.NDArray[np.float64]:
@@ -360,6 +445,71 @@ class Prediction:
             np.flatnonzero(transient_indices == initial_state_index)[0]
         )
         expected_transient_visits = N[initial_transient_index]
+        expected_visits = np.zeros(transition_matrix.shape[0])
+        expected_visits[transient_indices] = expected_transient_visits
+        expected_visits[drop_diff] = 0
+        for _, i in self.transition_set.transition_df.index:
+            indices = df.index[df["transition_id"] == i].tolist()
+            frequency_transitions[i] = expected_visits[indices].sum()
+
+        return normalize_transition_frequencies(
+            frequency_transitions, self.transition_set.transition_df
+        )
+
+    def predict_transition_occurrences_absorbing_sparse(
+        self, initial_state_index: int = 0
+    ) -> npt.NDArray[np.float64]:
+        """Sparse counterpart of predict_transition_occurrences_absorbing."""
+        transition_abs = self.transition_set.transition_df["absorbing"]
+        abs_indices = transition_abs[transition_abs].index.get_level_values(1)
+        df = self.transition_set.combined_state_transitions_df
+        abs_indices_combined = df[df["transition_id"].isin(abs_indices)].index
+        transition_matrix = sparse.csr_array(
+            self.transition_set.transition_matrix, dtype=np.float64
+        )
+        reachable_indices = _get_reachable_indices_sparse(
+            transition_matrix, initial_state_index
+        )
+        terminal_indices = np.flatnonzero(self.transition_set.row_sums == 0)
+        drop_transitions = np.intersect1d(
+            reachable_indices, terminal_indices, assume_unique=True
+        )
+        frequency_transitions = np.zeros(transition_abs.size)
+        if initial_state_index in drop_transitions:
+            return frequency_transitions
+        if not drop_transitions.size:
+            raise ValueError("no terminal state is reachable from initial_state_index.")
+        can_reach_terminal = _get_reachable_indices_sparse(
+            transition_matrix.T, drop_transitions
+        )
+        if not np.all(np.isin(reachable_indices, can_reach_terminal)):
+            raise ValueError(
+                "the reachable subchain contains a closed nonterminal class; "
+                "absorption is not certain."
+            )
+        drop_diff = abs_indices_combined[
+            ~np.isin(abs_indices_combined, drop_transitions)
+        ]
+        transient_indices = reachable_indices[
+            ~np.isin(reachable_indices, drop_transitions)
+        ]
+        Q = transition_matrix[transient_indices][:, transient_indices]
+        initial_transient_index = int(
+            np.flatnonzero(transient_indices == initial_state_index)[0]
+        )
+        initial_visit = np.zeros(transient_indices.size)
+        initial_visit[initial_transient_index] = 1
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", MatrixRankWarning)
+                expected_transient_visits = spsolve(
+                    (sparse.eye(Q.shape[0], format="csr") - Q).T,
+                    initial_visit,
+                )
+        except (MatrixRankWarning, RuntimeError) as exception:
+            raise ValueError("the transient subchain is singular.") from exception
+        if not np.all(np.isfinite(expected_transient_visits)):
+            raise ValueError("the transient subchain is singular.")
         expected_visits = np.zeros(transition_matrix.shape[0])
         expected_visits[transient_indices] = expected_transient_visits
         expected_visits[drop_diff] = 0
@@ -791,6 +941,29 @@ class Prediction:
         ax = plotting.plot_data(data=data, **kwargs)
 
         return ax
+
+
+def _get_reachable_indices_sparse(
+    transition_matrix: sparse.spmatrix | sparse.sparray,
+    start_indices: int | npt.ArrayLike,
+) -> npt.NDArray[np.int64]:
+    """Sparse counterpart of _get_reachable_indices."""
+    matrix = sparse.csr_array(transition_matrix, dtype=np.float64)
+    matrix.eliminate_zeros()
+    reachable = np.zeros(matrix.shape[0], dtype=bool)
+    frontier = np.atleast_1d(start_indices).astype(np.int64)
+    reachable[frontier] = True
+
+    while frontier.size:
+        neighbor_parts = [
+            matrix.indices[matrix.indptr[row] : matrix.indptr[row + 1]]
+            for row in frontier
+        ]
+        next_indices = np.unique(np.concatenate(neighbor_parts))
+        frontier = next_indices[~reachable[next_indices]]
+        reachable[frontier] = True
+
+    return np.flatnonzero(reachable)
 
 
 def _get_reachable_indices(

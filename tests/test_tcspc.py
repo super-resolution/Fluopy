@@ -2,6 +2,7 @@ import logging
 from copy import deepcopy
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from fluopy import tcspc as si
@@ -122,6 +123,47 @@ def test_compare_simulate_TCSPC_and_simulate_TCSPC_detailed(tr_set_1f):
     assert np.array_equal(lifetimes_D, lifetimes_D_)
     assert np.array_equal(lifetimes_all, lifetimes_all_)
     assert len(simulation.time_series) == 4462
+
+
+@pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
+def test_tcspc_sparse_backend_matches_dense(call, tr_set_1f):
+    dense_transition_set = _without_continuous_excitation(deepcopy(tr_set_1f))
+    sparse_transition_set = tr_set_1f.with_matrix_format("sparse")
+    sparse_transition_set = _without_continuous_excitation(sparse_transition_set)
+    kwargs = {
+        "channel_names": ("all",),
+        "paired_emission_ids": [],
+        "number_pulses": 500,
+        "pulse_duration": 5e-11,
+        "time_between_pulses": 25e-9,
+        "excitation_rates": {"testfluo_1": 1e11},
+        "frame_time": "10us",
+        "store_time_points": True,
+        "seed": 42,
+    }
+
+    dense_result = call(
+        transition_set=dense_transition_set,
+        detection_probabilities=_single_channel_probabilities(
+            dense_transition_set, {1: 1}
+        ),
+        **kwargs,
+    )
+    sparse_result = call(
+        transition_set=sparse_transition_set,
+        detection_probabilities=_single_channel_probabilities(
+            sparse_transition_set, {1: 1}
+        ),
+        **kwargs,
+    )
+
+    dense_values = _unwrap_single_channel(dense_result)[:5]
+    sparse_values = _unwrap_single_channel(sparse_result)[:5]
+    pd.testing.assert_series_equal(sparse_values[0], dense_values[0])
+    for sparse_value, dense_value in zip(
+        sparse_values[1:], dense_values[1:], strict=True
+    ):
+        np.testing.assert_array_equal(sparse_value, dense_value)
 
 
 @pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
