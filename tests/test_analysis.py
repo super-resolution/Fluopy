@@ -65,12 +65,12 @@ def test_analysis_1(tr_set_1f_bl, tr_set_1f_bl_2, caplog):
 
     analysis = an.Analysis(simulation=sim_tr_set_1f_bl)
     assert analysis.simulation == sim_tr_set_1f_bl
-    exp_freq_trans = np.array([0.496, 0.147, 0.001, 0.001, 0.008, 0.008, 0.339, 0.0])
+    exp_freq_trans = np.array([0.495, 0.126, 0.0, 0.0, 0.01, 0.01, 0.359, 0.0])
     np.testing.assert_allclose(
         analysis.frequency_transitions, exp_freq_trans, rtol=1e-6
     )
     exp_freq_states = {
-        "testfluo_1": np.array([0.4955045, 0.4955045, 0.000999001, 0.00799201, 0.0])
+        "testfluo_1": np.array([0.4955045, 0.49450549, 0.0, 0.00999001, 0.0])
     }
     for fluorophore, freq in analysis.frequency_states.items():
         np.testing.assert_allclose(freq, exp_freq_states[fluorophore], rtol=1e-6)
@@ -81,13 +81,13 @@ def test_analysis_1(tr_set_1f_bl, tr_set_1f_bl_2, caplog):
             assert isinstance(distr, np.ndarray)
     exp_mean_trans_times = np.array(
         [
-            1.75134964e-07,
-            8.60868941e-10,
-            1.09073262e-09,
-            3.09550669e-04,
-            7.35362906e-10,
-            5.75112962e-06,
-            9.43759362e-10,
+            1.69117671e-07,
+            9.62991915e-10,
+            np.nan,
+            np.nan,
+            9.05998220e-10,
+            8.11900555e-06,
+            9.44551601e-10,
             np.nan,
         ]
     )
@@ -96,7 +96,7 @@ def test_analysis_1(tr_set_1f_bl, tr_set_1f_bl_2, caplog):
     )
     exp_mean_lifetimes = {
         "testfluo_1": np.array(
-            [1.75134964e-07, 9.16072311e-10, 3.09550669e-04, 5.75112962e-06, np.nan]
+            [1.69117671e-07, 9.48466643e-10, np.nan, 8.11900555e-06, np.nan]
         )
     }
     for fluorophore, mean_lifetimes in analysis.mean_lifetimes.items():
@@ -105,7 +105,7 @@ def test_analysis_1(tr_set_1f_bl, tr_set_1f_bl_2, caplog):
         )
     exp_state_occ = {
         "testfluo_1": np.array(
-            [0.196140584, 0.00102594567, 0.698947697, 0.103885773, 0.0]
+            [0.50671376, 0.0028360853449130286, 0.0, 0.49045015, 0.0]
         )
     }
     for fluorophore, state_occ in analysis.state_occupations.items():
@@ -542,15 +542,15 @@ def test_analysis_2(tr_set_et_2f_diff):
     exp_freq_trans = np.array(
         [
             5.137426e-04,
-            2.568713e-04,
-            0.000000e00,
-            0.000000e00,
-            0.000000e00,
-            0.000000e00,
-            2.568713e-04,
-            9.989725e-01,
             5.137426e-04,
-            2.568713e-04,
+            0.000000e00,
+            0.000000e00,
+            0.000000e00,
+            0.000000e00,
+            5.137426e-04,
+            9.984588e-01,
+            7.706139e-04,
+            0.000000e00,
             0.000000e00,
             0.000000e00,
             2.568713e-04,
@@ -574,20 +574,20 @@ def test_analysis_2(tr_set_et_2f_diff):
             assert isinstance(distr, np.ndarray)
     exp_mean_trans_times = np.array(
         [
-            8.446330e-08,
-            3.778371e-13,
+            1.38043664e-07,
+            2.69331086e-13,
             np.nan,
             np.nan,
             np.nan,
             np.nan,
-            2.315027e-14,
-            4.772330e-13,
-            1.380437e-07,
-            4.950885e-13,
+            5.30726868e-13,
+            4.89662687e-13,
+            6.27453880e-08,
             np.nan,
             np.nan,
-            1.008086e-14,
-            4.636361e-13,
+            np.nan,
+            3.54344052e-13,
+            4.51943853e-13,
             np.nan,
         ]
     )
@@ -595,16 +595,16 @@ def test_analysis_2(tr_set_et_2f_diff):
         analysis.mean_transition_times, exp_mean_trans_times, rtol=1e-6
     )
     exp_mean_lifetimes = {
-        "testfluo_1": np.array([1.14833593e-10, 4.77090756e-13, np.nan, np.nan]),
-        "testfluo_2": np.array([1.14847159e-10, 4.63527596e-13, np.nan]),
+        "testfluo_1": np.array([1.19784225e-10, 4.89570542e-13, np.nan, np.nan]),
+        "testfluo_2": np.array([1.19852792e-10, 4.51918763e-13, np.nan]),
     }
     for fluorophore, mean_lifetimes in analysis.mean_lifetimes.items():
         np.testing.assert_allclose(
             mean_lifetimes, exp_mean_lifetimes[fluorophore], rtol=1e-6
         )
     exp_state_occ = {
-        "testfluo_1": np.array([0.99586362, 0.00413638, 0.0, 0.0]),
-        "testfluo_2": np.array([0.99598121, 0.00401878603, 0.0]),
+        "testfluo_1": np.array([0.99593057, 0.00406942563323615, 0.0, 0.0]),
+        "testfluo_2": np.array([0.99624451, 0.00375549, 0.0]),
     }
     for fluorophore, state_occ in analysis.state_occupations.items():
         np.testing.assert_allclose(state_occ, exp_state_occ[fluorophore], rtol=1e-6)
@@ -623,26 +623,26 @@ def test_analysis_3(tr_set_2f_diff):
     assert analysis.simulation == sim_tr_set_2f_diff
     exp_freq_trans = np.array(
         [
-            0.49180328,
-            0.1147541,
+            0.495,
+            0.155,
             0.0,
             0.0,
-            0.01639344,
-            0.01639344,
-            0.36065574,
+            0.01,
+            0.01,
+            0.33,
             0.5,
-            0.30283912,
-            0.00157728707,
-            0.00157728707,
-            0.19400631,
+            0.32,
+            0.0,
+            0.0,
+            0.18,
         ]
     )
     np.testing.assert_allclose(
         analysis.frequency_transitions, exp_freq_trans, rtol=1e-6
     )
     exp_freq_states = {
-        "testfluo_1": np.array([0.49318801, 0.49046322, 0.0, 0.01634877]),
-        "testfluo_2": np.array([0.4992126, 0.4992126, 0.00157480315]),
+        "testfluo_1": np.array([0.49625935, 0.49376559, 0.0, 0.00997506]),
+        "testfluo_2": np.array([0.50083195, 0.49916805, 0.0]),
     }
     for fluorophore, freq in analysis.frequency_states.items():
         np.testing.assert_allclose(freq, exp_freq_states[fluorophore], rtol=1e-6)
@@ -653,18 +653,18 @@ def test_analysis_3(tr_set_2f_diff):
             assert isinstance(distr, np.ndarray)
     exp_mean_trans_times = np.array(
         [
-            1.75200755e-07,
-            1.02682822e-09,
+            1.89149553e-07,
+            9.56660616e-10,
             np.nan,
             np.nan,
-            4.97850718e-10,
-            1.01301802e-05,
-            8.40610810e-10,
-            2.73973283e-07,
-            2.96493537e-09,
-            4.91345055e-11,
-            4.79878872e-06,
-            2.84417298e-09,
+            1.21315873e-09,
+            9.32848389e-06,
+            9.71552909e-10,
+            2.46557592e-07,
+            3.06333031e-09,
+            np.nan,
+            np.nan,
+            2.49423001e-09,
         ]
     )
     np.testing.assert_allclose(
@@ -672,17 +672,17 @@ def test_analysis_3(tr_set_2f_diff):
     )
     exp_mean_lifetimes = {
         "testfluo_1": np.array(
-            [1.75200755e-07, 8.72636203e-10, np.nan, 1.01301802e-05]
+            [1.89149553e-07, 9.71770592e-10, np.nan, 9.32848389e-06]
         ),
-        "testfluo_2": np.array([2.73973283e-07, 2.90870254e-09, 4.79878872e-06]),
+        "testfluo_2": np.array([2.46557592e-07, 2.85845420e-09, np.nan]),
     }
     for fluorophore, mean_lifetimes in analysis.mean_lifetimes.items():
         np.testing.assert_allclose(
             mean_lifetimes, exp_mean_lifetimes[fluorophore], rtol=1e-6
         )
     exp_state_occ = {
-        "testfluo_1": np.array([0.342272103, 0.00169536294, 0.0, 0.656032534]),
-        "testfluo_2": np.array([0.938200021, 0.00996062374, 0.0518393553]),
+        "testfluo_1": np.array([0.50089435, 0.00256045, 0.0, 0.4965452]),
+        "testfluo_2": np.array([0.98857705, 0.01142295, 0.0]),
     }
     for fluorophore, state_occ in analysis.state_occupations.items():
         np.testing.assert_allclose(state_occ, exp_state_occ[fluorophore], rtol=1e-6)
@@ -713,11 +713,11 @@ def test_get_fluorescence_lifetimes(tr_set_1f_bl, tr_set_2f_diff):
                 1.59230928e-09,
                 7.23212712e-10,
                 6.13916751e-10,
-                6.61515620e-10,
-                4.89384977e-10,
-                7.77973574e-10,
-                5.22660359e-10,
-                6.71603162e-10,
+                4.72422934e-10,
+                3.22910609e-09,
+                4.44213999e-10,
+                1.74494447e-10,
+                1.91106997e-09,
             ]
         ),
         rtol=1e-6,

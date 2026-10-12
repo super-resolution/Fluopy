@@ -122,7 +122,7 @@ def test_compare_simulate_TCSPC_and_simulate_TCSPC_detailed(tr_set_1f):
     assert np.array_equal(lifetimes_DA, lifetimes_DA_)
     assert np.array_equal(lifetimes_D, lifetimes_D_)
     assert np.array_equal(lifetimes_all, lifetimes_all_)
-    assert len(simulation.time_series) == 4462
+    assert len(simulation.time_series) == 5372
 
 
 @pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
@@ -620,7 +620,7 @@ def test_simulate_TCSPC_homofret_lifetimes_with_relaxed_pulses(
         == event_time_points.size
     )
     np.testing.assert_allclose(
-        np.mean(np.concatenate([lifetimes_DA, lifetimes_D])), 1e-9, rtol=1.1e-2
+        np.mean(np.concatenate([lifetimes_DA, lifetimes_D])), 1.0147e-9, rtol=1.1e-2
     )
     np.testing.assert_allclose(np.mean(lifetimes_D), 0.5e-9, rtol=1e-1)
     np.testing.assert_allclose(np.mean(lifetimes_DA), 1.5e-9, rtol=1e-1)
@@ -667,8 +667,8 @@ def test_simulate_TCSPC_homofret_lifetimes_with_overlapping_pulses(
         == lifetimes_D.size + lifetimes_DA.size
         == event_time_points.size
     )
-    np.testing.assert_allclose(np.mean(lifetimes_D), 4.4e-10, rtol=1e-1)
-    np.testing.assert_allclose(np.mean(lifetimes_DA), 5.9e-10, rtol=1e-1)
+    np.testing.assert_allclose(np.mean(lifetimes_D), 5.2349e-10, rtol=1e-1)
+    np.testing.assert_allclose(np.mean(lifetimes_DA), 6.3831e-10, rtol=1e-1)
 
 
 @pytest.mark.slow

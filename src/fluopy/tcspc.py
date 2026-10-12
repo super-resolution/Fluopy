@@ -204,15 +204,9 @@ def simulate_TCSPC(
             transition_matrix_non_exc
         )
     else:
-        transition_matrix_sorted_indices_non_exc = np.argsort(
+        cumulative_transition_probabilities_non_exc = np.cumsum(
             transition_matrix_non_exc, axis=1
         )
-        sorted_transition_matrix_non_exc = np.take_along_axis(
-            arr=transition_matrix_non_exc,
-            indices=transition_matrix_sorted_indices_non_exc,
-            axis=1,
-        )
-        cumsum_sorted_trm_non_exc = np.cumsum(sorted_transition_matrix_non_exc, axis=1)
     number_fluorophores = transition_set.fluorophore_system.count
     if excitation_rates is None:
         excitation_rates = {}
@@ -411,13 +405,13 @@ def simulate_TCSPC(
                 )
                 time += transition_time
                 if sparse_transition_rows is None:
-                    sorted_index = np.searchsorted(
-                        cumsum_sorted_trm_non_exc[current_state_index],
+                    next_transition = np.searchsorted(
+                        cumulative_transition_probabilities_non_exc[
+                            current_state_index
+                        ],
                         random_numbers[k - (m - 1) * size, 1],
+                        side="right",
                     )
-                    next_transition = transition_matrix_sorted_indices_non_exc[
-                        current_state_index, sorted_index
-                    ]
                 else:
                     next_transition = si._sample_sparse_transition(
                         current_state_index,
@@ -564,15 +558,9 @@ def simulate_TCSPC_detailed(
             transition_matrix_non_exc
         )
     else:
-        transition_matrix_sorted_indices_non_exc = np.argsort(
+        cumulative_transition_probabilities_non_exc = np.cumsum(
             transition_matrix_non_exc, axis=1
         )
-        sorted_transition_matrix_non_exc = np.take_along_axis(
-            arr=transition_matrix_non_exc,
-            indices=transition_matrix_sorted_indices_non_exc,
-            axis=1,
-        )
-        cumsum_sorted_trm_non_exc = np.cumsum(sorted_transition_matrix_non_exc, axis=1)
     number_fluorophores = transition_set.fluorophore_system.count
     if excitation_rates is None:
         excitation_rates = {}
@@ -791,13 +779,13 @@ def simulate_TCSPC_detailed(
                 )
                 time += transition_time
                 if sparse_transition_rows is None:
-                    sorted_index = np.searchsorted(
-                        cumsum_sorted_trm_non_exc[current_state_index],
+                    next_transition = np.searchsorted(
+                        cumulative_transition_probabilities_non_exc[
+                            current_state_index
+                        ],
                         random_numbers[k - (m - 1) * size, 1],
+                        side="right",
                     )
-                    next_transition = transition_matrix_sorted_indices_non_exc[
-                        current_state_index, sorted_index
-                    ]
                 else:
                     next_transition = si._sample_sparse_transition(
                         current_state_index,

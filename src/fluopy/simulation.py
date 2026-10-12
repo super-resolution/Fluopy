@@ -338,10 +338,8 @@ def _prepare_sparse_transition_rows(
     for row in range(matrix.shape[0]):
         start = indptr[row]
         end = indptr[row + 1]
-        order = np.argsort(cumulative_probabilities[start:end])
-        indices[start:end] = indices[start:end][order]
         cumulative_probabilities[start:end] = np.cumsum(
-            cumulative_probabilities[start:end][order]
+            cumulative_probabilities[start:end]
         )
 
     return indptr, indices, cumulative_probabilities
@@ -356,7 +354,9 @@ def _sample_sparse_transition(
 ) -> int:
     start = indptr[current_state_index]
     end = indptr[current_state_index + 1]
-    offset = np.searchsorted(cumulative_probabilities[start:end], random_number)
+    offset = np.searchsorted(
+        cumulative_probabilities[start:end], random_number, side="right"
+    )
     return int(indices[start + offset])
 
 
@@ -546,11 +546,7 @@ def direct_method_steps(
     # transition equals start_at
     current_state_index = start_index
 
-    transition_matrix_sorted_indices = np.argsort(matrix, axis=1)
-    sorted_transition_matrix = np.take_along_axis(
-        arr=matrix, indices=transition_matrix_sorted_indices, axis=1
-    )
-    cumsum_sorted_trm = np.cumsum(sorted_transition_matrix, axis=1)
+    cumulative_transition_probabilities = np.cumsum(matrix, axis=1)
     absorbing_state_reached = False
 
     for i in range(size):
@@ -564,13 +560,11 @@ def direct_method_steps(
         # distribution
         transition_time = 1 / current_state_lambda * np.log(1 / random_numbers[i, 0])
 
-        sorted_index = np.searchsorted(
-            cumsum_sorted_trm[current_state_index], random_numbers[i, 1]
+        next_transition = np.searchsorted(
+            cumulative_transition_probabilities[current_state_index],
+            random_numbers[i, 1],
+            side="right",
         )
-
-        next_transition = transition_matrix_sorted_indices[
-            current_state_index, sorted_index
-        ]
 
         transition_series[i] = current_state_index = next_transition
 
@@ -812,11 +806,7 @@ def direct_method_time(
     )  # never a memmap, is initialized on RAM anyways
 
     time_series[0] = 0
-    transition_matrix_sorted_indices = np.argsort(matrix, axis=1)
-    sorted_transition_matrix = np.take_along_axis(
-        arr=matrix, indices=transition_matrix_sorted_indices, axis=1
-    )
-    cumsum_sorted_trm = np.cumsum(sorted_transition_matrix, axis=1)
+    cumulative_transition_probabilities = np.cumsum(matrix, axis=1)
 
     abso = 0
     i = 0
@@ -831,14 +821,11 @@ def direct_method_time(
             1 / current_state_lambda * np.log(1 / random_numbers[i - (j - 1) * size, 0])
         )
 
-        sorted_index = np.searchsorted(
-            cumsum_sorted_trm[current_state_index],
+        next_transition = np.searchsorted(
+            cumulative_transition_probabilities[current_state_index],
             random_numbers[i - (j - 1) * size, 1],
+            side="right",
         )
-
-        next_transition = transition_matrix_sorted_indices[
-            current_state_index, sorted_index
-        ]
 
         transition_series[i] = next_transition
         time_series[i + 1] = time_series[i] + transition_time
@@ -1641,11 +1628,7 @@ def simulate_experiment(
             "detection probabilities must sum to at most 1 per transition."
         )
     cumulative_detection_probabilities = np.cumsum(probabilities, axis=1)
-    transition_matrix_sorted_indices = np.argsort(matrix, axis=1)
-    sorted_transition_matrix = np.take_along_axis(
-        arr=matrix, indices=transition_matrix_sorted_indices, axis=1
-    )
-    cumsum_sorted_trm = np.cumsum(sorted_transition_matrix, axis=1)
+    cumulative_transition_probabilities = np.cumsum(matrix, axis=1)
 
     rng = np.random.default_rng(seed)
     current_state_index = start_index
@@ -1706,13 +1689,11 @@ def simulate_experiment(
                     break
 
             skip = False
-            sorted_index = np.searchsorted(
-                cumsum_sorted_trm[current_state_index],
+            next_transition = np.searchsorted(
+                cumulative_transition_probabilities[current_state_index],
                 random_numbers[i - (j - 1) * size, 1],
+                side="right",
             )
-            next_transition = transition_matrix_sorted_indices[
-                current_state_index, sorted_index
-            ]
             cumulative_probabilities = cumulative_detection_probabilities[
                 next_transition
             ]
