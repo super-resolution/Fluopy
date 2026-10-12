@@ -15,6 +15,7 @@ import iteround as it  # type: ignore[import-untyped]
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from scipy import sparse
 
 from . import _graphs as net
 from .kappa_squared import (
@@ -156,7 +157,12 @@ class Simulation:
             transition_set=self.transition_set, largest_number=end_time
         )
         if end_time is None and not kap_sq_var:
-            self.time_series, self.transition_series = direct_method_steps(
+            direct_steps = (
+                direct_method_steps_sparse
+                if sparse.issparse(self.transition_set.transition_matrix)
+                else direct_method_steps
+            )
+            self.time_series, self.transition_series = direct_steps(
                 transition_matrix=self.transition_set.transition_matrix,
                 row_sums=self.transition_set.row_sums,
                 start_index=start_index,
@@ -165,7 +171,12 @@ class Simulation:
                 use_memmap=use_memmap,
             )
         elif end_time is None and kap_sq_var:
-            self.time_series, self.transition_series = first_reaction_method(
+            first_reaction = (
+                first_reaction_method_sparse
+                if sparse.issparse(self.transition_set.transition_matrix)
+                else first_reaction_method
+            )
+            self.time_series, self.transition_series = first_reaction(
                 transition_matrix=self.transition_set.transition_matrix,
                 row_sums=self.transition_set.row_sums,
                 combined_state_transitions_df=df,
@@ -176,7 +187,12 @@ class Simulation:
                 **kwargs,
             )
         elif end_time is not None and not kap_sq_var:
-            self.time_series, self.transition_series = direct_method_time(
+            direct_time = (
+                direct_method_time_sparse
+                if sparse.issparse(self.transition_set.transition_matrix)
+                else direct_method_time
+            )
+            self.time_series, self.transition_series = direct_time(
                 transition_matrix=self.transition_set.transition_matrix,
                 row_sums=self.transition_set.row_sums,
                 start_index=start_index,
@@ -305,6 +321,147 @@ class Simulation:
         (Path(self.memmap_path) / "transition_series").unlink(missing_ok=True)
         (Path(self.memmap_path) / "time_series").unlink(missing_ok=True)
         (Path(self.memmap_path) / "state_series").unlink(missing_ok=True)
+
+
+def _prepare_sparse_transition_rows(
+    transition_matrix: sparse.spmatrix | sparse.sparray,
+) -> tuple[
+    npt.NDArray[np.int64],
+    npt.NDArray[np.int64],
+    npt.NDArray[np.float64],
+]:
+    matrix = sparse.csr_array(transition_matrix, dtype=np.float64)
+    matrix.eliminate_zeros()
+    indptr = np.asarray(matrix.indptr, dtype=np.int64)
+    indices = np.asarray(matrix.indices, dtype=np.int64).copy()
+    cumulative_probabilities = np.asarray(matrix.data, dtype=np.float64).copy()
+    for row in range(matrix.shape[0]):
+        start = indptr[row]
+        end = indptr[row + 1]
+        order = np.argsort(cumulative_probabilities[start:end])
+        indices[start:end] = indices[start:end][order]
+        cumulative_probabilities[start:end] = np.cumsum(
+            cumulative_probabilities[start:end][order]
+        )
+
+    return indptr, indices, cumulative_probabilities
+
+
+def _sample_sparse_transition(
+    current_state_index: int,
+    random_number: float,
+    indptr: npt.NDArray[np.int64],
+    indices: npt.NDArray[np.int64],
+    cumulative_probabilities: npt.NDArray[np.float64],
+) -> int:
+    start = indptr[current_state_index]
+    end = indptr[current_state_index + 1]
+    offset = np.searchsorted(cumulative_probabilities[start:end], random_number)
+    return int(indices[start + offset])
+
+
+def direct_method_steps_sparse(
+    transition_matrix: sparse.spmatrix | sparse.sparray,
+    row_sums: npt.ArrayLike,
+    start_index: int = 0,
+    size: int = 10,
+    seed: RandomGeneratorSeed = None,
+    use_memmap: str | Path | None = None,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.uint32]]:
+    """Sparse counterpart of direct_method_steps."""
+    rates = np.asarray(row_sums, dtype=np.float64)
+    rng = np.random.default_rng(seed)
+
+    time_step_series: npt.NDArray[np.float32]
+    transition_series: npt.NDArray[np.uint32]
+    time_series: npt.NDArray[np.float64]
+
+    if use_memmap is not None:
+        time_step_series = np.memmap(
+            Path(use_memmap) / "time_step_series",
+            dtype=np.float32,
+            mode="w+",
+            shape=(size + 1,),
+        )
+        transition_series = np.memmap(
+            Path(use_memmap) / "transition_series",
+            dtype=np.uint32,
+            mode="w+",
+            shape=(size,),
+        )
+        time_series = np.memmap(
+            Path(use_memmap) / "time_series",
+            dtype=np.float64,
+            mode="w+",
+            shape=(size + 1,),
+        )
+    else:
+        time_step_series = np.empty(size + 1, dtype=np.float32)
+        transition_series = np.empty(size, dtype=np.uint32)
+        time_series = np.empty(size + 1, dtype=np.float64)
+    random_numbers = rng.uniform(low=0, high=1, size=(size, 2))
+    time_step_series[0] = 0
+
+    current_state_index = start_index
+    indptr, indices, cumulative_probabilities = _prepare_sparse_transition_rows(
+        transition_matrix
+    )
+    absorbing_state_reached = False
+
+    for i in range(size):
+        current_state_lambda = rates[current_state_index]
+        if current_state_lambda == 0:
+            absorbing_state_reached = True
+            break
+        transition_time = 1 / current_state_lambda * np.log(1 / random_numbers[i, 0])
+        next_transition = _sample_sparse_transition(
+            current_state_index,
+            random_numbers[i, 1],
+            indptr,
+            indices,
+            cumulative_probabilities,
+        )
+        transition_series[i] = current_state_index = next_transition
+        time_step_series[i + 1] = transition_time
+
+    if absorbing_state_reached:
+        if use_memmap is not None:
+            _flush_memmap(time_step_series)
+            _flush_memmap(transition_series)
+            _flush_memmap(time_series)
+            time_step_series = np.memmap(
+                Path(use_memmap) / "time_step_series",
+                mode="r+",
+                dtype=np.float32,
+                shape=(i + 1,),
+            )
+            transition_series = np.memmap(
+                Path(use_memmap) / "transition_series",
+                mode="r+",
+                dtype=np.uint32,
+                shape=(i,),
+            )
+            time_series = np.memmap(
+                Path(use_memmap) / "time_series",
+                dtype=np.float64,
+                mode="r+",
+                shape=(i + 1,),
+            )
+        else:
+            time_step_series.resize((i + 1,))
+            transition_series.resize((i,))
+            time_series.resize((i + 1,))
+
+    time_series[:] = np.cumsum(time_step_series, dtype=np.float64)
+
+    if use_memmap is not None:
+        del time_step_series
+        gc.collect()
+        (Path(use_memmap) / "time_step_series").unlink(missing_ok=True)
+        _flush_memmap(transition_series)
+        _flush_memmap(time_series)
+
+    return time_series, transition_series
 
 
 def direct_method_steps(
@@ -455,6 +612,123 @@ def direct_method_steps(
         (Path(use_memmap) / "time_step_series").unlink(missing_ok=True)
         _flush_memmap(transition_series)
         _flush_memmap(time_series)
+
+    return time_series, transition_series
+
+
+def direct_method_time_sparse(
+    transition_matrix: sparse.spmatrix | sparse.sparray,
+    row_sums: npt.ArrayLike,
+    start_index: int = 0,
+    size: int = 10,
+    end_time: float = 10,
+    seed: RandomGeneratorSeed = None,
+    use_memmap: str | Path | None = None,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.uint32]]:
+    """Sparse counterpart of direct_method_time."""
+    rates = np.asarray(row_sums, dtype=np.float64)
+    rng = np.random.default_rng(seed)
+
+    transition_series: npt.NDArray[np.uint32]
+    time_series: npt.NDArray[np.float64]
+    current_state_index = start_index
+
+    if use_memmap is not None:
+        transition_series = np.memmap(
+            Path(use_memmap) / "transition_series",
+            dtype=np.uint32,
+            mode="w+",
+            shape=(size,),
+        )
+        time_series = np.memmap(
+            Path(use_memmap) / "time_series",
+            dtype=np.float64,
+            mode="w+",
+            shape=(size + 1,),
+        )
+    else:
+        transition_series = np.empty(size, dtype=np.uint32)
+        time_series = np.empty(size + 1, dtype=np.float64)
+    random_numbers = rng.uniform(low=0, high=1, size=(size, 2))
+
+    time_series[0] = 0
+    indptr, indices, cumulative_probabilities = _prepare_sparse_transition_rows(
+        transition_matrix
+    )
+
+    abso = 0
+    i = 0
+    j = 1
+    while time_series[i] < end_time:
+        current_state_lambda = rates[current_state_index]
+        if current_state_lambda == 0:
+            abso = 1
+            break
+        random_index = i - (j - 1) * size
+        transition_time = (
+            1 / current_state_lambda * np.log(1 / random_numbers[random_index, 0])
+        )
+        next_transition = _sample_sparse_transition(
+            current_state_index,
+            random_numbers[random_index, 1],
+            indptr,
+            indices,
+            cumulative_probabilities,
+        )
+
+        transition_series[i] = next_transition
+        time_series[i + 1] = time_series[i] + transition_time
+        current_state_index = next_transition
+
+        i += 1
+        if i == j * size:
+            j += 1
+            random_numbers = rng.uniform(low=0, high=1, size=(size, 2))
+            if use_memmap is not None:
+                _flush_memmap(time_series)
+                _flush_memmap(transition_series)
+                time_series = np.memmap(
+                    Path(use_memmap) / "time_series",
+                    mode="r+",
+                    dtype=np.float64,
+                    shape=(j * size + 1,),
+                )
+                transition_series = np.memmap(
+                    Path(use_memmap) / "transition_series",
+                    mode="r+",
+                    dtype=np.uint32,
+                    shape=(j * size,),
+                )
+            else:
+                time_series.resize((j * size + 1,))
+                transition_series.resize((j * size,))
+
+    time_series[i + abso] = end_time
+
+    if use_memmap is not None:
+        _flush_memmap(time_series)
+        _flush_memmap(transition_series)
+        cast(Any, time_series)._mmap.close()
+        cast(Any, transition_series)._mmap.close()
+        with (Path(use_memmap) / "time_series").open("r+b") as file:
+            file.truncate(8 * (i + 1 + abso))
+        with (Path(use_memmap) / "transition_series").open("r+b") as file:
+            file.truncate(4 * (i - 1 + abso))
+        time_series = np.memmap(
+            Path(use_memmap) / "time_series",
+            mode="r+",
+            dtype=np.float64,
+            shape=(i + 1 + abso,),
+        )
+        transition_series = np.memmap(
+            Path(use_memmap) / "transition_series",
+            mode="r+",
+            dtype=np.uint32,
+            shape=(i - 1 + abso,),
+        )
+    else:
+        transition_series = transition_series[: i - 1 + abso]
+        time_series = time_series[: i + 1 + abso]
 
     return time_series, transition_series
 
@@ -619,6 +893,144 @@ def direct_method_time(
     else:
         transition_series = transition_series[: i - 1 + abso]
         time_series = time_series[: i + 1 + abso]
+
+    return time_series, transition_series
+
+
+def first_reaction_method_sparse(
+    transition_matrix: sparse.spmatrix | sparse.sparray,
+    row_sums: npt.ArrayLike,
+    combined_state_transitions_df: pd.DataFrame,
+    include_kap_sq: bool = True,
+    minimum_rate: float = 0,
+    start_index: int = 0,
+    size: int = 10,
+    seed: RandomGeneratorSeed = None,
+    use_memmap: str | Path | None = None,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.uint32]]:
+    """Sparse counterpart of first_reaction_method."""
+    matrix = sparse.csr_array(transition_matrix, dtype=np.float64)
+    matrix.eliminate_zeros()
+    matrix.sort_indices()
+    state_rates = np.asarray(row_sums, dtype=np.float64)
+    rng = np.random.default_rng(seed)
+
+    time_step_series: npt.NDArray[np.float32]
+    transition_series: npt.NDArray[np.uint32]
+    time_series: npt.NDArray[np.float64]
+
+    if use_memmap is not None:
+        time_step_series = np.memmap(
+            Path(use_memmap) / "time_step_series",
+            dtype=np.float32,
+            mode="w+",
+            shape=(size + 1,),
+        )
+        transition_series = np.memmap(
+            Path(use_memmap) / "transition_series",
+            dtype=np.uint32,
+            mode="w+",
+            shape=(size,),
+        )
+        time_series = np.memmap(
+            Path(use_memmap) / "time_series",
+            dtype=np.float64,
+            mode="w+",
+            shape=(size + 1,),
+        )
+    else:
+        time_step_series = np.empty(size + 1, dtype=np.float32)
+        transition_series = np.empty(size, dtype=np.uint32)
+        time_series = np.empty(size + 1, dtype=np.float64)
+
+    time_step_series[0] = 0
+    if "mechanism" in combined_state_transitions_df:
+        mask = (
+            combined_state_transitions_df["mechanism"] == TransitionMechanism.FRET
+        ) & (combined_state_transitions_df["rate"] > minimum_rate)
+        fret_indices = combined_state_transitions_df.index[mask].to_numpy(
+            dtype=np.int64
+        )
+    else:
+        fret_indices = np.array([], dtype=np.int64)
+
+    if include_kap_sq and fret_indices.size:
+        N = 100000
+        d = random_unit_vector(size=N, seed=rng)
+        a = random_unit_vector(size=N, seed=rng)
+        r = random_unit_vector(size=N, seed=rng)
+        k2_values = kappa_squared(d=d, a=a, r=r)
+        kappa_squared_sampled = sample_kappa_squared_distribution(
+            k2_values=k2_values, size=size, seed=rng
+        )
+        kappa_squared_ratio = kappa_squared_sampled / (2 / 3)
+    else:
+        kappa_squared_ratio = np.ones(size)
+
+    current_state_index = start_index
+    absorbing_state_reached = False
+    for i in range(size):
+        current_state_rate = state_rates[current_state_index]
+        if current_state_rate == 0:
+            absorbing_state_reached = True
+            break
+        start = matrix.indptr[current_state_index]
+        end = matrix.indptr[current_state_index + 1]
+        non_zero_indices = matrix.indices[start:end]
+        non_zero_rates = matrix.data[start:end] * current_state_rate
+        if fret_indices.size:
+            non_zero_rates = non_zero_rates.copy()
+            non_zero_rates[
+                np.isin(non_zero_indices, fret_indices)
+            ] *= kappa_squared_ratio[i]
+        waiting_time_scales = np.full(non_zero_rates.shape, np.inf)
+        np.divide(
+            1,
+            non_zero_rates,
+            out=waiting_time_scales,
+            where=non_zero_rates > 0,
+        )
+        times = rng.exponential(scale=waiting_time_scales)
+        min_index = np.argmin(times)
+        transition_series[i] = current_state_index = non_zero_indices[min_index]
+        time_step_series[i + 1] = times[min_index]
+
+    if absorbing_state_reached:
+        if use_memmap is not None:
+            _flush_memmap(time_step_series)
+            _flush_memmap(transition_series)
+            _flush_memmap(time_series)
+            time_step_series = np.memmap(
+                Path(use_memmap) / "time_step_series",
+                mode="r+",
+                dtype=np.float32,
+                shape=(i + 1,),
+            )
+            transition_series = np.memmap(
+                Path(use_memmap) / "transition_series",
+                mode="r+",
+                dtype=np.uint32,
+                shape=(i,),
+            )
+            time_series = np.memmap(
+                Path(use_memmap) / "time_series",
+                dtype=np.float64,
+                mode="r+",
+                shape=(i + 1,),
+            )
+        else:
+            time_step_series.resize((i + 1,))
+            transition_series.resize((i,))
+            time_series.resize((i + 1,))
+
+    time_series[:] = np.cumsum(time_step_series, dtype=np.float64)
+
+    if use_memmap is not None:
+        del time_step_series
+        gc.collect()
+        (Path(use_memmap) / "time_step_series").unlink(missing_ok=True)
+        _flush_memmap(transition_series)
+        _flush_memmap(time_series)
 
     return time_series, transition_series
 
@@ -982,7 +1394,7 @@ def approximation(
         final_states = (
             transition_df["final_state"].iloc[transition_series[:-1]].to_numpy()
         )
-        if np.any(initial_states != final_states):
+        if np.any(initial_states != final_states):  # pragma: no cover
             raise RuntimeError("approximation did not produce a realizable sequence.")
 
     time_step_series = np.empty(transition_series.size + 1, dtype=np.float64)
@@ -1001,6 +1413,151 @@ def approximation(
     time_series[:] = np.cumsum(time_step_series, dtype=np.float64)
 
     return time_series, transition_series
+
+
+def simulate_experiment_sparse(
+    transition_matrix: sparse.spmatrix | sparse.sparray,
+    row_sums: npt.ArrayLike,
+    detection_probabilities: npt.ArrayLike,
+    channel_names: Sequence[str],
+    start_index: int = 0,
+    size: int = 100_000,
+    frames: int = 10,
+    frame_time: str = "5ms",
+    store_time_points: bool = False,
+    seed: RandomGeneratorSeed = None,
+) -> tuple[dict[str, npt.NDArray[np.float64]] | None, pd.DataFrame]:
+    """Sparse counterpart of simulate_experiment."""
+    matrix = sparse.csr_array(transition_matrix, dtype=np.float64)
+    rates = np.asarray(row_sums, dtype=np.float64)
+    probabilities = np.asarray(detection_probabilities, dtype=np.float64)
+    if channel_names is None or isinstance(channel_names, str):
+        raise ValueError("channel_names must be a sequence of channel names.")
+    channel_names = tuple(channel_names)
+    if not channel_names:
+        raise ValueError("at least one channel name is required.")
+    if any(not isinstance(name, str) or not name for name in channel_names):
+        raise ValueError("channel names must be non-empty strings.")
+    if len(set(channel_names)) != len(channel_names):
+        raise ValueError("channel names must be unique.")
+    if probabilities.shape != (matrix.shape[1], len(channel_names)):
+        raise ValueError(
+            "detection_probabilities must contain one row per transition and one "
+            "column per channel."
+        )
+    if np.any(~np.isfinite(probabilities)) or np.any(
+        (probabilities < 0) | (probabilities > 1)
+    ):
+        raise ValueError("detection probabilities must be finite and between 0 and 1.")
+    if np.any(probabilities.sum(axis=1) > 1 + 1e-12):
+        raise ValueError(
+            "detection probabilities must sum to at most 1 per transition."
+        )
+    cumulative_detection_probabilities = np.cumsum(probabilities, axis=1)
+    indptr, indices, cumulative_probabilities = _prepare_sparse_transition_rows(matrix)
+
+    rng = np.random.default_rng(seed)
+    current_state_index = start_index
+
+    seconds_per_frame = float(pd.Timedelta(frame_time) / np.timedelta64(1, "s"))
+    time_stamps = np.linspace(seconds_per_frame, seconds_per_frame * frames, frames)
+    time_stamps = np.round(time_stamps, decimals=12)
+    photon_collector = np.zeros((time_stamps.size, len(channel_names)), dtype=np.int64)
+    time = 0
+    if store_time_points:
+        time_points: list[list[float]] = [[] for _ in channel_names]
+    else:
+        event_time_points = None
+
+    frame = 0
+    frame_diff = 0
+    skip = False
+    while frame < frames:
+        frame += 1
+        random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
+        i = 0
+        j = 1
+        while time < seconds_per_frame:
+            if not skip:
+                current_state_lambda = rates[current_state_index]
+                if current_state_lambda == 0:
+                    event_time_series = pd.DataFrame(
+                        photon_collector,
+                        index=time_stamps,
+                        columns=channel_names,
+                        dtype=np.int64,
+                    )
+                    logger.warning(
+                        "All fluorophores underwent photobleaching or entered "
+                        "another Markov chain absorbing state.",
+                        stacklevel=2,
+                    )
+                    if store_time_points:
+                        event_time_points = {
+                            channel_name: np.asarray(
+                                time_points[channel_index], dtype=np.float64
+                            )
+                            for channel_index, channel_name in enumerate(channel_names)
+                        }
+                    return event_time_points, event_time_series
+
+                random_index = i - (j - 1) * size
+                transition_time = (
+                    1
+                    / current_state_lambda
+                    * np.log(1 / random_numbers[random_index, 0])
+                )
+                time += transition_time
+                if time > seconds_per_frame:
+                    frame_diff = int(np.floor(time / seconds_per_frame)) - 1
+                    time -= (frame_diff + 1) * seconds_per_frame
+                    skip = True
+                    break
+
+            skip = False
+            random_index = i - (j - 1) * size
+            next_transition = _sample_sparse_transition(
+                current_state_index,
+                random_numbers[random_index, 1],
+                indptr,
+                indices,
+                cumulative_probabilities,
+            )
+            detection_cumulative = cumulative_detection_probabilities[next_transition]
+            if detection_cumulative[-1] > 0:
+                channel_index = np.searchsorted(
+                    detection_cumulative,
+                    random_numbers[random_index, 2],
+                    side="right",
+                )
+                if channel_index < len(channel_names):
+                    photon_collector[frame - 1, channel_index] += 1
+                    if store_time_points:
+                        time_points[channel_index].append(
+                            (frame - 1) * seconds_per_frame + time
+                        )
+
+            current_state_index = next_transition
+            i += 1
+            if i == j * size:
+                j += 1
+                random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
+
+        frame += frame_diff
+
+    event_time_series = pd.DataFrame(
+        photon_collector,
+        index=time_stamps,
+        columns=channel_names,
+        dtype=np.int64,
+    )
+    if store_time_points:
+        event_time_points = {
+            channel_name: np.asarray(time_points[channel_index], dtype=np.float64)
+            for channel_index, channel_name in enumerate(channel_names)
+        }
+
+    return event_time_points, event_time_series
 
 
 def simulate_experiment(

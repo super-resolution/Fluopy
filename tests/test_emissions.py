@@ -272,6 +272,32 @@ def test_emissions_simulate(tr_set_1f_bl):
     )
 
 
+def test_emissions_simulate_sparse_backend_matches_dense(tr_set_1f_bl):
+    sparse_transition_set = tr_set_1f_bl.with_matrix_format("sparse")
+    kwargs = {
+        "frame_time": "100us",
+        "channels": {"red": em.DetectionChannel((650, 700))},
+        "seed": 42,
+    }
+    dense_emissions = em.Emissions(**kwargs)
+    sparse_emissions = em.Emissions(**kwargs)
+
+    dense_emissions.simulate(tr_set_1f_bl, size=100, frames=2, store_time_points=True)
+    sparse_emissions.simulate(
+        sparse_transition_set, size=100, frames=2, store_time_points=True
+    )
+
+    pd.testing.assert_frame_equal(
+        sparse_emissions.event_time_series, dense_emissions.event_time_series
+    )
+    assert sparse_emissions.event_time_points is not None
+    assert dense_emissions.event_time_points is not None
+    np.testing.assert_array_equal(
+        sparse_emissions.event_time_points["red"],
+        dense_emissions.event_time_points["red"],
+    )
+
+
 def test_emissions_simulate_routes_photons_to_distinct_channels(tr_set_1f_bl):
     emis = em.Emissions(
         frame_time="100us",

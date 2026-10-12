@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, cast
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from scipy import sparse
 
 from . import simulation as si
 from .simulation import Simulation
@@ -197,15 +198,21 @@ def simulate_TCSPC(
         )
     )
 
-    transition_matrix_sorted_indices_non_exc = np.argsort(
-        transition_matrix_non_exc, axis=1
-    )
-    sorted_transition_matrix_non_exc = np.take_along_axis(
-        arr=transition_matrix_non_exc,
-        indices=transition_matrix_sorted_indices_non_exc,
-        axis=1,
-    )
-    cumsum_sorted_trm_non_exc = np.cumsum(sorted_transition_matrix_non_exc, axis=1)
+    sparse_transition_rows = None
+    if sparse.issparse(transition_matrix_non_exc):
+        sparse_transition_rows = si._prepare_sparse_transition_rows(
+            transition_matrix_non_exc
+        )
+    else:
+        transition_matrix_sorted_indices_non_exc = np.argsort(
+            transition_matrix_non_exc, axis=1
+        )
+        sorted_transition_matrix_non_exc = np.take_along_axis(
+            arr=transition_matrix_non_exc,
+            indices=transition_matrix_sorted_indices_non_exc,
+            axis=1,
+        )
+        cumsum_sorted_trm_non_exc = np.cumsum(sorted_transition_matrix_non_exc, axis=1)
     number_fluorophores = transition_set.fluorophore_system.count
     if excitation_rates is None:
         excitation_rates = {}
@@ -403,14 +410,20 @@ def simulate_TCSPC(
                     1 / random_numbers[k - (m - 1) * size, 0]
                 )
                 time += transition_time
-                sorted_index = np.searchsorted(
-                    cumsum_sorted_trm_non_exc[current_state_index],
-                    random_numbers[k - (m - 1) * size, 1],
-                )
-
-                next_transition = transition_matrix_sorted_indices_non_exc[
-                    current_state_index, sorted_index
-                ]
+                if sparse_transition_rows is None:
+                    sorted_index = np.searchsorted(
+                        cumsum_sorted_trm_non_exc[current_state_index],
+                        random_numbers[k - (m - 1) * size, 1],
+                    )
+                    next_transition = transition_matrix_sorted_indices_non_exc[
+                        current_state_index, sorted_index
+                    ]
+                else:
+                    next_transition = si._sample_sparse_transition(
+                        current_state_index,
+                        random_numbers[k - (m - 1) * size, 1],
+                        *sparse_transition_rows,
+                    )
                 if time > next_pulse_time:
                     remember = (int(next_transition), float(time))
                     break
@@ -545,15 +558,21 @@ def simulate_TCSPC_detailed(
         )
     )
 
-    transition_matrix_sorted_indices_non_exc = np.argsort(
-        transition_matrix_non_exc, axis=1
-    )
-    sorted_transition_matrix_non_exc = np.take_along_axis(
-        arr=transition_matrix_non_exc,
-        indices=transition_matrix_sorted_indices_non_exc,
-        axis=1,
-    )
-    cumsum_sorted_trm_non_exc = np.cumsum(sorted_transition_matrix_non_exc, axis=1)
+    sparse_transition_rows = None
+    if sparse.issparse(transition_matrix_non_exc):
+        sparse_transition_rows = si._prepare_sparse_transition_rows(
+            transition_matrix_non_exc
+        )
+    else:
+        transition_matrix_sorted_indices_non_exc = np.argsort(
+            transition_matrix_non_exc, axis=1
+        )
+        sorted_transition_matrix_non_exc = np.take_along_axis(
+            arr=transition_matrix_non_exc,
+            indices=transition_matrix_sorted_indices_non_exc,
+            axis=1,
+        )
+        cumsum_sorted_trm_non_exc = np.cumsum(sorted_transition_matrix_non_exc, axis=1)
     number_fluorophores = transition_set.fluorophore_system.count
     if excitation_rates is None:
         excitation_rates = {}
@@ -771,14 +790,20 @@ def simulate_TCSPC_detailed(
                     1 / random_numbers[k - (m - 1) * size, 0]
                 )
                 time += transition_time
-                sorted_index = np.searchsorted(
-                    cumsum_sorted_trm_non_exc[current_state_index],
-                    random_numbers[k - (m - 1) * size, 1],
-                )
-
-                next_transition = transition_matrix_sorted_indices_non_exc[
-                    current_state_index, sorted_index
-                ]
+                if sparse_transition_rows is None:
+                    sorted_index = np.searchsorted(
+                        cumsum_sorted_trm_non_exc[current_state_index],
+                        random_numbers[k - (m - 1) * size, 1],
+                    )
+                    next_transition = transition_matrix_sorted_indices_non_exc[
+                        current_state_index, sorted_index
+                    ]
+                else:
+                    next_transition = si._sample_sparse_transition(
+                        current_state_index,
+                        random_numbers[k - (m - 1) * size, 1],
+                        *sparse_transition_rows,
+                    )
                 if time > next_pulse_time:
                     remember = (int(next_transition), float(time))
                     break

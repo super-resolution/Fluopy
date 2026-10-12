@@ -12,11 +12,12 @@ from enum import StrEnum
 from itertools import product
 from numbers import Real
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, ClassVar, Self
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self, cast
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from scipy import sparse
 
 from . import _graphs as net
 from . import photophysics as fo
@@ -763,14 +764,18 @@ class TransitionSet:
         Dataframe of all retained transitions containing their id as second level index
         and their other attributes as columns. Name of fluorophores as first level
         index. Includes zero-rate transitions when keep_zero_rates is True.
-    transition_matrix : np.ndarray
+    transition_matrix : np.ndarray or scipy.sparse.csr_array
         Contains the normalized rate constants (i.e., point probabilities) for each
         possible combined_state_transition at the corresponding index pair.
+    matrix_format : {"dense", "sparse"}
+        Storage format of transition_matrix.
+    keep_zero_rates : bool
+        Whether zero-rate transition definitions are retained.
     """
 
     _combined_state_transitions_df: pd.DataFrame | None
     _row_sums: npt.NDArray[np.float64] | None
-    _transition_matrix: npt.NDArray[np.float64] | None
+    _transition_matrix: npt.NDArray[np.float64] | sparse.csr_array | None
     _terminal_state_combinations: frozenset[StateCombination] | None
     _absorbing_states: dict[int, npt.NDArray[np.int64]]
 
@@ -779,6 +784,7 @@ class TransitionSet:
         transitions: dict[str, list[Transition]],
         fluorophore_system: FluorophoreSystem,
         keep_zero_rates: bool = False,
+        matrix_format: Literal["dense", "sparse"] = "dense",
     ) -> None:
         """
         Parameters
@@ -794,12 +800,18 @@ class TransitionSet:
             Whether to retain transitions with rate 0. Retained zero-rate transitions
             remain part of the state space and structural absorbing-state detection,
             but do not contribute to the active transition rates.
+        matrix_format
+            Storage format used for the transition-probability matrix.
         """
+        if matrix_format not in ("dense", "sparse"):
+            raise ValueError("matrix_format must be 'dense' or 'sparse'.")
         transitions = {
             key: [copy.copy(transition) for transition in transition_collection]
             for key, transition_collection in transitions.items()
         }
         self.fluorophore_system = fluorophore_system
+        self.matrix_format = matrix_format
+        self.keep_zero_rates = keep_zero_rates
 
         self.transition_df = pd.DataFrame()
         retained_transitions: dict[str, list[Transition]] = {}
@@ -950,7 +962,9 @@ class TransitionSet:
         return result
 
     @property
-    def transition_matrix(self) -> npt.NDArray[np.float64]:
+    def transition_matrix(
+        self,
+    ) -> npt.NDArray[np.float64] | sparse.csr_array:
         """
         Transition-probability matrix, finalized on first access.
         """
@@ -968,6 +982,17 @@ class TransitionSet:
     def absorbing_states(self) -> Mapping[int, npt.NDArray[np.int64]]:
         """Individually absorbing state values indexed by fluorophore identity."""
         return MappingProxyType(self._absorbing_states)
+
+    def with_matrix_format(
+        self, matrix_format: Literal["dense", "sparse"]
+    ) -> TransitionSet:
+        """Return an equivalent transition set using the selected matrix format."""
+        return TransitionSet(
+            transitions=self.transitions,
+            fluorophore_system=self.fluorophore_system,
+            keep_zero_rates=self.keep_zero_rates,
+            matrix_format=matrix_format,
+        )
 
     @property
     def terminal_state_combinations(self) -> frozenset[StateCombination]:
@@ -1023,6 +1048,7 @@ class TransitionSet:
             transitions=filtered_transitions,
             fluorophore_system=self.fluorophore_system,
             keep_zero_rates=keep_zero_rates,
+            matrix_format=self.matrix_format,
         )
 
         return filtered
@@ -1071,6 +1097,7 @@ class TransitionSet:
             transitions=transitions,
             fluorophore_system=self.fluorophore_system,
             keep_zero_rates=keep_zero_rates,
+            matrix_format=self.matrix_format,
         )
 
         return adjusted
@@ -1091,6 +1118,7 @@ class TransitionSet:
             transitions=transitions,
             fluorophore_system=self.fluorophore_system,
             keep_zero_rates=False,
+            matrix_format=self.matrix_format,
         )
         return new_transition_set
 
@@ -1160,6 +1188,7 @@ class TransitionSet:
             transitions=keep_transitions,
             fluorophore_system=self.fluorophore_system,
             keep_zero_rates=keep_zero_rates,
+            matrix_format=self.matrix_format,
         )
 
         return no_abs
@@ -1194,6 +1223,7 @@ class TransitionSet:
             transitions=keep_transitions,
             fluorophore_system=self.fluorophore_system,
             keep_zero_rates=keep_zero_rates,
+            matrix_format=self.matrix_format,
         )
 
         return no_ets
@@ -1233,9 +1263,16 @@ class TransitionSet:
         )
         self._combined_state_transitions_df.index.name = "id"
 
-        self._transition_matrix, self._row_sums = construct_transition_matrix(
-            combined_state_transitions_df=self._combined_state_transitions_df
-        )
+        if self.matrix_format == "dense":
+            self._transition_matrix, self._row_sums = construct_transition_matrix(
+                combined_state_transitions_df=self._combined_state_transitions_df
+            )
+        else:
+            self._transition_matrix, self._row_sums = (
+                construct_sparse_transition_matrix(
+                    combined_state_transitions_df=self._combined_state_transitions_df
+                )
+            )
         terminal_indices = np.flatnonzero(self._row_sums == 0)
         self._terminal_state_combinations = frozenset(
             self._combined_state_transitions_df.iloc[terminal_indices]["final_state"]
@@ -1705,6 +1742,75 @@ def construct_transition_matrix(
         row_sums_exp,
         out=np.zeros_like(transition_rate_matrix),
         where=mask,
+    )
+
+    return transition_matrix, row_sums
+
+
+def construct_sparse_transition_matrix(
+    combined_state_transitions_df: pd.DataFrame,
+) -> tuple[sparse.csr_array, npt.NDArray[np.float64]]:
+    """
+    Construct the sparse transition matrix and its non-normalized row sums.
+
+    Parameters
+    ----------
+    combined_state_transitions_df
+        Contains realizable combined_state_transitions with their id as index and their
+        other attributes as columns.
+
+    Returns
+    -------
+    transition_matrix : scipy.sparse.csr_array
+        Sparse normalized transition probabilities.
+    row_sums : np.ndarray
+        Sum of the non-normalized transition rates for every row.
+    """
+    transition_count = combined_state_transitions_df.index.size
+    if any(not isinstance(index, int) for index in combined_state_transitions_df.index):
+        raise TypeError("combined transition index must be an integer.")
+    destinations_by_initial_state: dict[
+        StateCombination, tuple[npt.NDArray[np.int64], npt.NDArray[np.float64]]
+    ] = {}
+    for initial_state, group in combined_state_transitions_df.groupby(
+        "initial_state", sort=False
+    ):
+        destinations_by_initial_state[cast(StateCombination, initial_state)] = (
+            group.index.to_numpy(dtype=np.int64),
+            group["rate"].to_numpy(dtype=np.float64),
+        )
+
+    row_sums = np.zeros(transition_count, dtype=np.float64)
+    row_parts: list[npt.NDArray[np.int64]] = []
+    column_parts: list[npt.NDArray[np.int64]] = []
+    probability_parts: list[npt.NDArray[np.float64]] = []
+    for row, final_state in combined_state_transitions_df["final_state"].items():
+        row = cast(int, row)
+        destinations = destinations_by_initial_state.get(final_state)
+        if destinations is None:
+            continue
+        columns, rates = destinations
+        total_rate = rates.sum(dtype=np.float64)
+        row_sums[row] = total_rate
+        if total_rate == 0:
+            continue
+        positive_rates = rates > 0
+        row_parts.append(np.full(np.count_nonzero(positive_rates), row, dtype=np.int64))
+        column_parts.append(columns[positive_rates])
+        probability_parts.append(rates[positive_rates] / total_rate)
+
+    if row_parts:
+        rows = np.concatenate(row_parts)
+        columns = np.concatenate(column_parts)
+        probabilities = np.concatenate(probability_parts)
+    else:
+        rows = np.array([], dtype=np.int64)
+        columns = np.array([], dtype=np.int64)
+        probabilities = np.array([], dtype=np.float64)
+    transition_matrix = sparse.csr_array(
+        (probabilities, (rows, columns)),
+        shape=(transition_count, transition_count),
+        dtype=np.float64,
     )
 
     return transition_matrix, row_sums
