@@ -133,15 +133,17 @@ def test_emissions_extract(dirname, request, frame_time, channel, expected):
             # fmt: off
                 np.array(
                     [
-                        1, 0, 0, 5, 9, 7, 1, 3, 0, 2, 6, 4, 6, 8, 3, 4, 6,
+                        1, 0, 0, 5, 9, 7, 1, 3, 0, 2, 6, 4, 6, 8, 3, 4,
                 ],
                 dtype=np.int64,
             ),
             # fmt: on
-            index=np.linspace(0.00001, 0.00017, 17),
+            index=np.linspace(0.00001, 0.00016, 16),
         )
     else:
-        exp_event_time_series = pd.Series(np.array([2], dtype=np.int64), index=[0.005])
+        exp_event_time_series = pd.Series(
+            dtype=np.int64, index=np.array([], dtype=np.float64)
+        )
     assert emis.event_time_series is not None
     pd.testing.assert_series_equal(
         emis.event_time_series["detector"],
@@ -194,6 +196,7 @@ def test_assign_detection_channels_validates_inputs(
 
 def test_emissions_extract_assigns_each_photon_at_most_once(sim_tr_set_2f_diff):
     emis = em.Emissions(
+        frame_time="10us",
         channels={
             "green": em.DetectionChannel((500, 650)),
             "red": em.DetectionChannel((650, 800)),
@@ -207,12 +210,20 @@ def test_emissions_extract_assigns_each_photon_at_most_once(sim_tr_set_2f_diff):
     red = emis.event_time_points["red"]
     assert np.intersect1d(green, red).size == 0
     assert emis.event_time_series is not None
-    assert emis.event_time_series["green"].sum() == green.size
-    assert emis.event_time_series["red"].sum() == red.size
+    last_frame_end = emis.event_time_series.index[-1]
+    assert emis.event_time_series["green"].sum() == np.count_nonzero(
+        green <= last_frame_end
+    )
+    assert emis.event_time_series["red"].sum() == np.count_nonzero(
+        red <= last_frame_end
+    )
 
 
-def test_generated_event_time_series_starts_with_first_frame_end(em_tr_set_1f_bl):
-    assert em_tr_set_1f_bl.event_time_series.index[0] == pytest.approx(0.005)
+def test_generated_event_time_series_starts_with_first_frame_end(sim_tr_set_1f_bl):
+    emis = em.Emissions(frame_time="10us", seed=1)
+    emis.extract(sim_tr_set_1f_bl)
+
+    assert emis.event_time_series.index[0] == pytest.approx(0.00001)
 
 
 def test_construct_event_time_series_requires_completed_simulation():
@@ -242,6 +253,48 @@ def test_construct_event_time_series_preserves_photon_at_simulation_end():
     emis.construct_event_time_series(simulation=simulation, resample="5ms")
 
     np.testing.assert_array_equal(emis.event_time_series["all"], [1, 1])
+
+
+@pytest.mark.parametrize(
+    "end_time, frame_ends, red_counts, green_counts",
+    [
+        (0.004, [], [], []),
+        (0.012, [0.005, 0.01], [2, 0], [1, 1]),
+        (0.015, [0.005, 0.01, 0.015], [2, 0, 1], [1, 1, 0]),
+    ],
+)
+def test_construct_event_time_series_keeps_only_complete_frames(
+    end_time, frame_ends, red_counts, green_counts
+):
+    emis = em.Emissions(
+        channels={
+            "red": em.DetectionChannel(),
+            "green": em.DetectionChannel(),
+            "empty": em.DetectionChannel(),
+        }
+    )
+    red = np.array([0.002, 0.005, 0.012])
+    green = np.array([0.003, 0.01])
+    emis.event_time_points = {
+        "red": red[red <= end_time],
+        "green": green[green <= end_time],
+        "empty": np.array([], dtype=np.float64),
+    }
+    original_time_points = {
+        name: points.copy() for name, points in emis.event_time_points.items()
+    }
+    simulation = SimpleNamespace(time_series=np.array([0.0, end_time]))
+
+    emis.construct_event_time_series(simulation=simulation, resample="5ms")
+
+    expected = pd.DataFrame(
+        {"red": red_counts, "green": green_counts, "empty": np.zeros(len(frame_ends))},
+        index=np.asarray(frame_ends, dtype=np.float64),
+        dtype=np.int64,
+    )
+    pd.testing.assert_frame_equal(emis.event_time_series, expected)
+    for name, points in original_time_points.items():
+        np.testing.assert_array_equal(emis.event_time_points[name], points)
 
 
 def test_emissions_simulate(tr_set_1f_bl):

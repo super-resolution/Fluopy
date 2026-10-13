@@ -103,6 +103,113 @@ def test_sparse_self_transition_only_prediction(tr_set_self_cycle):
     np.testing.assert_array_equal(prediction.mean_lifetimes["testfluo_1"], [np.inf])
 
 
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("emission_rate", [0, 1])
+def test_prediction_handles_retained_zero_rate_transitions(
+    flu_sys_cy5, matrix_format, emission_rate
+):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(
+                    tr.TransitionType.EXCITATION, rate=0, fluorophore_ids=[0]
+                ),
+                tr.Transition(
+                    tr.TransitionType.FLUORESCENT_EMISSION,
+                    rate=emission_rate,
+                    fluorophore_ids=[0],
+                ),
+            ]
+        },
+        flu_sys_cy5,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+
+    prediction = pr.Prediction(transition_set)
+
+    emission_mean = 1 if emission_rate else np.inf
+    np.testing.assert_array_equal(
+        prediction.mean_transition_times, [np.inf, emission_mean]
+    )
+    np.testing.assert_array_equal(
+        prediction.mean_lifetimes["testfluo_1"], [np.inf, emission_mean]
+    )
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("absorbing", [False, True])
+def test_paired_state_frequencies_use_common_event_counts(
+    flu_sys_1xcy5_1xatto643, matrix_format, absorbing
+):
+    paired_excitation = tr.TransitionType(
+        "ACTIVATE",
+        tr.PairedState.S0_S0,
+        tr.PairedState("S0_S1", tr.SingleState.S0, tr.SingleState.S1),
+        False,
+        "CUSTOM",
+    )
+    paired_transitions = [
+        tr.Transition(paired_excitation, rate=1, fluorophore_ids=[(0, 1)])
+    ]
+    if absorbing:
+        paired_termination = tr.TransitionType(
+            "TERMINATE",
+            tr.PairedState.S0_S0,
+            tr.PairedState("B_B", tr.SingleState.B, tr.SingleState.B),
+            False,
+            "CUSTOM",
+        )
+        paired_transitions.append(
+            tr.Transition(paired_termination, rate=1, fluorophore_ids=[(0, 1)])
+        )
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(
+                    tr.TransitionType(
+                        "SELF", tr.SingleState.S0, tr.SingleState.S0, False
+                    ),
+                    rate=9,
+                    fluorophore_ids=[0],
+                )
+            ],
+            "testfluo_2": [
+                tr.Transition(
+                    tr.TransitionType.FLUORESCENT_EMISSION,
+                    rate=1,
+                    fluorophore_ids=[1],
+                )
+            ],
+            "D: testfluo_1, A: testfluo_2, dist: 2.0": paired_transitions,
+        },
+        flu_sys_1xcy5_1xatto643,
+        matrix_format=matrix_format,
+    )
+    combined_transitions = transition_set.combined_state_transitions_df
+    initial_index = int(
+        combined_transitions.index[combined_transitions["final_state"] == (0, 0)][0]
+    )
+
+    prediction = pr.Prediction(transition_set, initial_state_index=initial_index)
+
+    assert prediction.absorbing_chain is absorbing
+    acceptor_states = transition_set.single_states["testfluo_2"]
+    expected_state_frequencies = np.where(
+        acceptor_states == tr.SingleState.B.value, 0, 0.5
+    )
+    np.testing.assert_allclose(
+        prediction.frequency_states["testfluo_2"], expected_state_frequencies
+    )
+    paired_frequency = 1 / 20 if absorbing else 1 / 19
+    expected_transition_frequencies = [1 - paired_frequency, 1, paired_frequency]
+    if absorbing:
+        expected_transition_frequencies.append(0)
+    np.testing.assert_allclose(
+        prediction.frequency_transitions, expected_transition_frequencies
+    )
+
+
 def test_prediction_uses_only_the_reachable_subchain(flu_sys_cy5):
     intermediate = tr.SingleState("INTERMEDIATE_CUSTOM", 10)
     terminal = tr.SingleState("TERMINAL_CUSTOM", 11)
@@ -430,9 +537,11 @@ def test_prediction_2(tr_set_bl_et_2f_diff, caplog):
     )
     exp_freq_states = {
         "testfluo_1": np.array(
-            [5.015829e-01, 4.984108e-01, 2.518078e-07, 6.067659e-06, 0.000000e00]
+            [4.9999685023e-01, 4.9999685028e-01, 2.5101160787e-07, 6.0484724788e-06, 0]
         ),
-        "testfluo_2": np.array([4.984165e-01, 5.015785e-01, 4.987747e-06, 0.000000e00]),
+        "testfluo_2": np.array(
+            [4.9999749819e-01, 4.9999749824e-01, 5.0035678866e-06, 0]
+        ),
     }
     for fluorophore, freq in prediction.frequency_states.items():
         np.testing.assert_allclose(freq, exp_freq_states[fluorophore], rtol=1e-5)
@@ -528,9 +637,9 @@ def test_prediction_4(tr_set_et_2f_diff, caplog):
     )
     exp_freq_states = {
         "testfluo_1": np.array(
-            [5.001878e-01, 4.998067e-01, 2.164534e-07, 5.215744e-06]
+            [4.9999728494e-01, 4.9999728494e-01, 2.1637091256e-07, 5.2137569291e-06]
         ),
-        "testfluo_2": np.array([4.998092e-01, 5.001901e-01, 6.926155e-07]),
+        "testfluo_2": np.array([4.9999965356e-01, 4.9999965356e-01, 6.9287945081e-07]),
     }
     for fluorophore, freq in prediction.frequency_states.items():
         np.testing.assert_allclose(freq, exp_freq_states[fluorophore], rtol=1e-5)

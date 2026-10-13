@@ -431,6 +431,20 @@ def compute_tight_bbox(fig: mplFigure, pad_inches: float = 0.0) -> Bbox:
     """
     Compute tight bounding box of a figure with specified padding. The width is not
     changed.
+
+    Parameters
+    ----------
+    fig
+        Figure whose tight bounding box is calculated. Its canvas is drawn before
+        determining the bounds.
+    pad_inches
+        Padding added above and below the tight bounding box, in inches.
+
+    Returns
+    -------
+    matplotlib.transforms.Bbox
+        Bounding box retaining the figure width and enclosing its tight vertical
+        bounds with the specified padding.
     """
     fig.canvas.draw()
     renderer = cast(Any, fig.canvas).get_renderer()

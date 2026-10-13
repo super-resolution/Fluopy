@@ -59,21 +59,23 @@ class Simulation:
 
     Attributes
     ----------
-    transition_set : fluopy.transitions.TransitionSet
+    transition_set
         Collection of all relevant transitions and related attributes.
-    time_series : 1-D array_like
-        The simulated time points. At index i, they correspond to state_series[i] and
-        transition_series[i - 1]. If end_time was not None, includes end_time at index
-        -1 that does not correspond to any of state_series or transition_series.
+    time_series
+        The one-dimensional array of simulated time points. At index i, they correspond
+        to state_series[i] and transition_series[i - 1]. If end_time was not None,
+        includes end_time at index -1 that does not correspond to any of state_series
+        or transition_series.
         Can be memmap if use_memmap was set.
-    transition_series : 1-D array_like
-        The simulated transitions. At index i, they correspond to time_series[i + 1].
+    transition_series
+        The one-dimensional array of simulated transitions. At index i, they correspond
+        to time_series[i + 1].
         Can be memmap if use_memmap was set.
-    state_series : np.ndarray
+    state_series
         Contains 1-D array_like for each fluorophore representing its state at index i
         corresponding to time_series[i].
         Can be memmap if use_memmap was set.
-    memmap_path : str
+    memmap_path
         The path where memmaps are stored.
     """
 
@@ -122,16 +124,16 @@ class Simulation:
         end_time
             If not None, time at which simulation ends in s.
         kap_sq_var
-            If True, the first reaction method is used to simulate the data. This takes
-            much longer but allows to vary the dipole orientation factor for different
-            S1 states. If False, the direct method is used.
+            If True, the direct method samples the dipole orientation factor for each
+            simulation step and uses it to scale the FRET rates. If False, the direct
+            method uses the given transition rates.
         seed
             A seed to initialize the BitGenerator.
         use_memmap
             Determines the path where memmaps shall be stored. If empty str, saved in
             current working directory.
         kwargs
-            First reaction method arguments: include_kap_sq, minimum_rate.
+            direct_method_steps_kappa_squared argument: minimum_rate.
 
         """
         if start_at is None:
@@ -171,12 +173,12 @@ class Simulation:
                 use_memmap=use_memmap,
             )
         elif end_time is None and kap_sq_var:
-            first_reaction = (
-                first_reaction_method_sparse
+            direct_steps_kappa_squared = (
+                direct_method_steps_kappa_squared_sparse
                 if sparse.issparse(self.transition_set.transition_matrix)
-                else first_reaction_method
+                else direct_method_steps_kappa_squared
             )
-            self.time_series, self.transition_series = first_reaction(
+            self.time_series, self.transition_series = direct_steps_kappa_squared(
                 transition_matrix=self.transition_set.transition_matrix,
                 row_sums=self.transition_set.row_sums,
                 combined_state_transitions_df=df,
@@ -330,6 +332,28 @@ def _prepare_sparse_transition_rows(
     npt.NDArray[np.int64],
     npt.NDArray[np.float64],
 ]:
+    """
+    Prepare sparse transition rows for inverse transform sampling.
+
+    Explicit zero entries are removed before the cumulative probabilities are
+    calculated separately for each row.
+
+    Parameters
+    ----------
+    transition_matrix
+        Sparse matrix containing the normalized rate constants (i.e., point
+        probabilities) for each possible combined_state_transition.
+
+    Returns
+    -------
+    indptr : npt.NDArray[np.int64]
+        CSR row pointers. Entries for row i start at indptr[i] and end before
+        indptr[i + 1].
+    indices : npt.NDArray[np.int64]
+        Destination transition indices of the stored matrix entries.
+    cumulative_probabilities : npt.NDArray[np.float64]
+        Cumulative probabilities within each row, ordered as indices.
+    """
     matrix = sparse.csr_array(transition_matrix, dtype=np.float64)
     matrix.eliminate_zeros()
     indptr = np.asarray(matrix.indptr, dtype=np.int64)
@@ -352,6 +376,32 @@ def _sample_sparse_transition(
     indices: npt.NDArray[np.int64],
     cumulative_probabilities: npt.NDArray[np.float64],
 ) -> int:
+    """
+    Sample the next transition from a prepared sparse matrix row.
+
+    Parameters
+    ----------
+    current_state_index
+        Row of the current combined_state_transition.
+    random_number
+        Uniform random number in the half-open interval [0, 1).
+    indptr
+        CSR row pointers returned by _prepare_sparse_transition_rows.
+    indices
+        Destination transition indices returned by _prepare_sparse_transition_rows.
+    cumulative_probabilities
+        Cumulative probabilities returned by _prepare_sparse_transition_rows.
+
+    Returns
+    -------
+    int
+        Index of the sampled combined_state_transition.
+
+    Notes
+    -----
+    The selected row must contain at least one positive probability and its
+    probabilities must sum to 1.
+    """
     start = indptr[current_state_index]
     end = indptr[current_state_index + 1]
     offset = np.searchsorted(
@@ -368,7 +418,40 @@ def direct_method_steps_sparse(
     seed: RandomGeneratorSeed = None,
     use_memmap: str | Path | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.uint32]]:
-    """Sparse counterpart of direct_method_steps."""
+    """
+    The direct method of the gillespie algorithm for a sparse transition matrix.
+    Here, the propensities are equal to the rate constants because the
+    population is always 1. Additionally, the state change vector is redundant because
+    each transition leads to a shift in populations by 1. This version is based on a
+    maximum number of steps.
+
+    Parameters
+    ----------
+    transition_matrix
+        Contains the normalized rate constants (i.e., point probabilities) for each
+        possible combined_state_transition at the corresponding index pair.
+    row_sums
+        Contains the sum of each row of non-normalized transition rates, i.e., the sum
+        of rates of all possible combined_state_transitions.
+    start_index
+        Starting index. The final state of the transition indexed is the starting state
+        configuration.
+    size
+        Maximum number of simulation steps.
+    seed
+        A seed to initialize the BitGenerator.
+    use_memmap
+        Determines the path where memmaps shall be stored. If empty str, saved in
+        current working directory.
+
+    Returns
+    -------
+    time_series : npt.NDArray[np.float64]
+        The simulated time points. At index i, they correspond to
+        transition_series[i - 1].
+    transition_series : npt.NDArray[np.uint32]
+        The simulated transitions. At index i, they correspond to time_series[i + 1].
+    """
     rates = np.asarray(row_sums, dtype=np.float64)
     rng = np.random.default_rng(seed)
 
@@ -473,7 +556,7 @@ def direct_method_steps(
     use_memmap: str | Path | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.uint32]]:
     """
-    The direct method of the gillespie algorithm (i.e., stochastic simulation #
+    The direct method of the gillespie algorithm (i.e., stochastic simulation
     algorithm). Here, the propensities are equal to the rate constants because the
     population is always 1. Additionally, the state change vector is redundant because
     each transition leads to a shift in populations by 1. This version is based on a
@@ -619,7 +702,43 @@ def direct_method_time_sparse(
     seed: RandomGeneratorSeed = None,
     use_memmap: str | Path | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.uint32]]:
-    """Sparse counterpart of direct_method_time."""
+    """
+    The direct method of the gillespie algorithm for a sparse transition matrix.
+    Here, the propensities are equal to the rate constants because the
+    population is always 1. Additionally, the state change vector is redundant because
+    each transition leads to a shift in populations by 1. This version is based on a
+    maximum total time.
+
+    Parameters
+    ----------
+    transition_matrix
+        Contains the normalized rate constants (i.e., point probabilities) for each
+        possible combined_state_transition at the corresponding index pair.
+    row_sums
+        Contains the sum of each row of non-normalized transition rates, i.e., the sum
+        of rates of all possible combined_state_transitions.
+    start_index
+        Starting index. The final state of the transition indexed is the starting state
+        configuration.
+    size
+        Size of random_numbers drawn at once.
+    end_time
+        Time at which simulation ends in s.
+    seed
+        A seed to initialize the BitGenerator.
+    use_memmap
+        Determines the path where memmaps shall be stored. If empty str, saved in
+        current working directory.
+
+    Returns
+    -------
+    time_series : npt.NDArray[np.float64]
+        The simulated time points. At index i, they correspond to
+        transition_series[i - 1]. Includes end_time at index -1 that does not
+        correspond to any of transition_series.
+    transition_series : npt.NDArray[np.uint32]
+        The simulated transitions. At index i, they correspond to time_series[i + 1].
+    """
     rates = np.asarray(row_sums, dtype=np.float64)
     rng = np.random.default_rng(seed)
 
@@ -884,18 +1003,61 @@ def direct_method_time(
     return time_series, transition_series
 
 
-def first_reaction_method_sparse(
+def direct_method_steps_kappa_squared_sparse(
     transition_matrix: sparse.spmatrix | sparse.sparray,
     row_sums: npt.ArrayLike,
     combined_state_transitions_df: pd.DataFrame,
-    include_kap_sq: bool = True,
     minimum_rate: float = 0,
     start_index: int = 0,
     size: int = 10,
     seed: RandomGeneratorSeed = None,
     use_memmap: str | Path | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.uint32]]:
-    """Sparse counterpart of first_reaction_method."""
+    """
+    The direct method of the gillespie algorithm for a sparse transition matrix.
+    Here, the propensities are equal to the rate constants because the population is
+    always 1. Additionally, the state change vector is redundant because each transition
+    leads to a shift in populations by 1. This version is based on a maximum number of
+    steps.
+
+    Incorporates a variable dipole orientation factor kappa_squared. The variable
+    kappa_squared is sampled from the static regime for each simulation step and held
+    constant during the waiting time until the next transition.
+    The variable kappa_squared is only applied to FRET transitions that are above
+    minimum_rate. The FRET transitions should be given for kappa_squared = 2/3.
+
+    Parameters
+    ----------
+    transition_matrix
+        Contains the normalized rate constants (i.e., point probabilities) for each
+        possible combined_state_transition at the corresponding index pair.
+    row_sums
+        Contains the sum of each row of non-normalized transition rates, i.e., the sum
+        of rates of all possible combined_state_transitions.
+    combined_state_transitions_df
+        Contains realizable combined_state_transitions with their id as index and their
+        other attributes as columns.
+    minimum_rate
+        Minimum rate for a FRET transition to be considered following the static regime.
+    start_index
+        Starting index. The final state of the transition indexed is the starting state
+        configuration.
+    size
+        Maximum number of simulation steps.
+    seed
+        A seed to initialize the BitGenerator.
+    use_memmap
+        Determines the path where memmaps shall be stored. If empty str, saved in
+        current working directory.
+
+    Returns
+    -------
+    time_series : npt.NDArray[np.float64]
+        The simulated time points. At index i, they correspond to
+        transition_series[i - 1].
+    transition_series : npt.NDArray[np.uint32]
+        The simulated transitions. At index i, they correspond to time_series[i + 1].
+    """
     matrix = sparse.csr_array(transition_matrix, dtype=np.float64)
     matrix.eliminate_zeros()
     matrix.sort_indices()
@@ -943,7 +1105,7 @@ def first_reaction_method_sparse(
     fret_transition_mask = np.zeros(matrix.shape[1], dtype=bool)
     fret_transition_mask[fret_indices] = True
 
-    if include_kap_sq and fret_indices.size:
+    if fret_indices.size:
         N = 100000
         d = random_unit_vector(size=N, seed=rng)
         a = random_unit_vector(size=N, seed=rng)
@@ -1024,11 +1186,10 @@ def first_reaction_method_sparse(
     return time_series, transition_series
 
 
-def first_reaction_method(
+def direct_method_steps_kappa_squared(
     transition_matrix: npt.ArrayLike,
     row_sums: npt.ArrayLike,
     combined_state_transitions_df: pd.DataFrame,
-    include_kap_sq: bool = True,
     minimum_rate: float = 0,
     start_index: int = 0,
     size: int = 10,
@@ -1036,13 +1197,14 @@ def first_reaction_method(
     use_memmap: str | Path | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.uint32]]:
     """
-    The first reaction method of the gillespie algorithm. Here, the propensities are
+    The direct method of the gillespie algorithm. Here, the propensities are
     equal to the rate constants because the population is always 1. Additionally, the
     state change vector is redundant because each transition leads to a shift in
     populations by 1. This version is based on a maximum number of steps.
 
-    Needed to efficiently incorporate a variable dipole orientation factor
-    kappa_squared. The variable kappa_squared is sampled from the static regime.
+    Incorporates a variable dipole orientation factor kappa_squared. The variable
+    kappa_squared is sampled from the static regime for each simulation step and held
+    constant during the waiting time until the next transition.
     The variable kappa_squared is only applied to FRET transitions that are above
     minimum_rate. The FRET transitions should be given for kappa_squared = 2/3.
 
@@ -1057,9 +1219,6 @@ def first_reaction_method(
     combined_state_transitions_df
         Contains realizable combined_state_transitions with their id as index and their
         other attributes as columns.
-    include_kap_sq
-        If True, the dipole orientation factor kappa_squared is sampled from the static
-        regime and used to scale rates whose transition mechanism is FRET.
     minimum_rate
         Minimum rate for a FRET transition to be considered following the static regime.
     start_index
@@ -1135,7 +1294,7 @@ def first_reaction_method(
         fret_transition_mask[indices] for indices in outgoing_transition_indices
     ]
 
-    if include_kap_sq and fret_indices.size:
+    if fret_indices.size:
         # static orientation regime
         N = 100000
         d = random_unit_vector(size=N, seed=rng)
@@ -1369,6 +1528,7 @@ def approximation(
                 dtype=object,
             )
 
+        slot_weights = rng.exponential(size=slot_states.size)
         insertion_slots = []
         insertion_values = []
         for transition in self_transition_ids:
@@ -1379,8 +1539,12 @@ def approximation(
             compatible_slots = np.flatnonzero(slot_states == source_state)
             if compatible_slots.size == 0:
                 continue
+            weights = slot_weights[compatible_slots]
+            probabilities = weights / weights.sum()
             insertion_slots.append(
-                rng.choice(compatible_slots, size=occurrences, replace=True)
+                rng.choice(
+                    compatible_slots, size=occurrences, replace=True, p=probabilities
+                )
             )
             insertion_values.append(np.full(occurrences, transition, dtype=np.int64))
 
@@ -1437,7 +1601,49 @@ def simulate_experiment_sparse(
     store_time_points: bool = False,
     seed: RandomGeneratorSeed = None,
 ) -> tuple[dict[str, npt.NDArray[np.float64]] | None, pd.DataFrame]:
-    """Sparse counterpart of simulate_experiment."""
+    """
+    Simulates experimental data (i.e., number of photons per frame) using a sparse
+    transition matrix. Methodically the direct method of the gillespie algorithm.
+    Stores the number of photons per frame and optionally the time points at which
+    photons are detected.
+
+    Parameters
+    ----------
+    transition_matrix
+        Contains the normalized rate constants (i.e., point probabilities) for each
+        possible combined_state_transition at the corresponding index pair.
+    row_sums
+        Contains the sum of each row of non-normalized transition rates, i.e., the sum
+        of rates of all possible combined_state_transitions.
+    detection_probabilities
+        Detection probability for every combined transition and channel.
+    channel_names
+        Channel names in the order used by detection_probabilities.
+    start_index
+        Starting index. The final state of the transition indexed is the starting state
+        configuration.
+    size
+        Size of random_numbers drawn at once.
+    frames
+        Total number of frames to be simulated.
+    frame_time
+        For possible input values, see
+        https://pandas.pydata.org/docs/user_guide/timeseries.html -> Offset aliases.
+    store_time_points
+        Whether to also create an array which contains the time points at which photons
+        are detected.
+    seed
+        A seed to initialize the BitGenerator.
+
+    Returns
+    -------
+    event_time_points : dict[str, npt.NDArray[np.float64]] | None
+        The time points at which emissions are detected, grouped by channel.
+        If store_time_points is False, None is returned.
+    event_time_series : pd.DataFrame
+        Contains measured frames indexed by their end time and the number of detected
+        emissions in each channel as columns.
+    """
     matrix = sparse.csr_array(transition_matrix, dtype=np.float64)
     rates = np.asarray(row_sums, dtype=np.float64)
     probabilities = np.asarray(detection_probabilities, dtype=np.float64)
@@ -1582,8 +1788,8 @@ def simulate_experiment(
 ) -> tuple[dict[str, npt.NDArray[np.float64]] | None, pd.DataFrame]:
     """
     Simulates experimental data (i.e., number of photons per frame). Methodically the
-    direct method of the gillespie algorithm. Stores only the number of photons per
-    frame, making it memory-wise computationally easy.
+    direct method of the gillespie algorithm. Stores the number of photons per frame
+    and optionally the time points at which photons are detected.
 
     Parameters
     ----------
