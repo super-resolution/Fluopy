@@ -160,6 +160,11 @@ class PairedState:
     def value(self) -> tuple[SingleState, SingleState]:
         """
         Return the donor and acceptor states.
+
+        Returns
+        -------
+        tuple[SingleState, SingleState]
+            Component states in donor, acceptor order.
         """
         return self.donor, self.acceptor
 
@@ -167,6 +172,11 @@ class PairedState:
     def single_state_values(self) -> tuple[int, int]:
         """
         Return the numerical donor and acceptor state values.
+
+        Returns
+        -------
+        tuple[int, int]
+            Component state values in donor, acceptor order.
         """
         return self.donor.value, self.acceptor.value
 
@@ -606,6 +616,12 @@ class Transition:
     def to_dict(self) -> dict[str, object]:
         """
         Return the transition fields as a shallow dictionary.
+
+        Returns
+        -------
+        dict[str, object]
+            Dataclass field names as keys and their current values as values.
+            Referenced objects are not copied.
         """
         return {item.name: getattr(self, item.name) for item in fields(self)}
 
@@ -937,6 +953,14 @@ class TransitionSet:
     def combined_state_transitions_df(self) -> pd.DataFrame:
         """
         Combined-state transition table, finalized on first access.
+
+        Returns
+        -------
+        pd.DataFrame
+            Realizable combined_state_transitions indexed by their combined transition
+            identity, with initial and final state combinations, involved fluorophore
+            identities, transition abbreviation and identity, rate, photon flag, and
+            mechanism as columns.
         """
         if self._combined_state_transitions_df is None:
             self.finalize()
@@ -952,6 +976,12 @@ class TransitionSet:
     def row_sums(self) -> npt.NDArray[np.float64]:
         """
         Transition rates by combined state, finalized on first access.
+
+        Returns
+        -------
+        npt.NDArray[np.float64]
+            Total rate of transitions leaving the final state of each row in
+            combined_state_transitions_df. Entries are 0 for terminal combined states.
         """
         if self._row_sums is None:
             self.finalize()
@@ -967,6 +997,13 @@ class TransitionSet:
     ) -> npt.NDArray[np.float64] | sparse.csr_array:
         """
         Transition-probability matrix, finalized on first access.
+
+        Returns
+        -------
+        npt.NDArray[np.float64] | scipy.sparse.csr_array
+            Square matrix indexed by combined_state_transitions_df rows. Entry (i, j)
+            is the probability that transition j follows transition i. Terminal rows
+            contain only zeros. Storage follows matrix_format.
         """
         if self._transition_matrix is None:
             self.finalize()
@@ -980,13 +1017,35 @@ class TransitionSet:
 
     @property
     def absorbing_states(self) -> Mapping[int, npt.NDArray[np.int64]]:
-        """Individually absorbing state values indexed by fluorophore identity."""
+        """
+        Individually absorbing state values indexed by fluorophore identity.
+
+        Returns
+        -------
+        Mapping[int, npt.NDArray[np.int64]]
+            Read-only mapping from each physical fluorophore identity to its
+            structurally absorbing state values. Retained zero-rate transitions
+            contribute to the structural topology.
+        """
         return MappingProxyType(self._absorbing_states)
 
     def with_matrix_format(
         self, matrix_format: Literal["dense", "sparse"]
     ) -> TransitionSet:
-        """Return an equivalent transition set using the selected matrix format."""
+        """
+        Return an equivalent transition set using the selected matrix format.
+
+        Parameters
+        ----------
+        matrix_format
+            Storage format for the transition-probability matrix: 'dense' or 'sparse'.
+
+        Returns
+        -------
+        TransitionSet
+            Re-initialization with the same transitions, fluorophore system, and
+            keep_zero_rates setting, using the selected matrix format.
+        """
         return TransitionSet(
             transitions=self.transitions,
             fluorophore_system=self.fluorophore_system,
@@ -1003,6 +1062,12 @@ class TransitionSet:
         as pulsed excitation in TCSPC, are not represented by this collection while
         their retained zero-rate transition definitions may remain in the structural
         topology.
+
+        Returns
+        -------
+        frozenset[StateCombination]
+            Terminal final-state combinations from combined_state_transitions_df.
+            The transition set is finalized on first access.
         """
         if self._terminal_state_combinations is None:
             self.finalize()

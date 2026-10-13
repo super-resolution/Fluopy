@@ -31,7 +31,27 @@ def _prepare_detection_configuration(
     detection_probabilities: npt.ArrayLike,
     channel_names: Sequence[str],
 ) -> tuple[npt.NDArray[np.float64], tuple[str, ...]]:
-    """Validate and accumulate channel-resolved detection probabilities."""
+    """
+    Validate and accumulate channel-resolved detection probabilities.
+
+    Parameters
+    ----------
+    transition_count
+        Number of combined_state_transitions represented by the probability rows.
+    detection_probabilities
+        Detection probability for every combined transition and channel. Values must
+        be finite and between 0 and 1, and each row must sum to at most 1.
+    channel_names
+        Unique, non-empty channel names in detection_probabilities column order.
+
+    Returns
+    -------
+    cumulative_detection_probabilities : npt.NDArray[np.float64]
+        Detection probabilities accumulated across channels for each transition.
+        Has shape (transition_count, len(channel_names)).
+    names : tuple[str, ...]
+        Validated channel names in the supplied order.
+    """
     probabilities = np.asarray(detection_probabilities, dtype=np.float64)
     if channel_names is None or isinstance(channel_names, str):
         raise ValueError("channel_names must be a sequence of channel names.")
@@ -74,7 +94,46 @@ def _prepare_photon_outputs(
     dict[str, npt.NDArray[np.float64]],
     dict[str, npt.NDArray[np.float64]],
 ]:
-    """Convert collected photons to channel-resolved return values."""
+    """
+    Convert collected photons to channel-resolved return values.
+
+    Parameters
+    ----------
+    photon_collector
+        Detected photon counts with one row per frame and one column per channel.
+    time_stamps
+        End times of the measured frames in seconds.
+    time_points
+        Detected photon arrival times in seconds, grouped in channel_names order.
+        None if time-point storage was disabled.
+    lifetimes_DA
+        S1 durations of detected emissions when a paired transition involving the
+        emitter as its active component was available, grouped in channel_names order.
+    lifetimes_D
+        S1 durations of detected emissions when no paired transition was available,
+        grouped in channel_names order.
+    lifetimes_all
+        S1 durations of all detected emissions, grouped in channel_names order.
+        All lifetime values are in seconds and measured from the last laser pulse.
+    channel_names
+        Channel names in photon_collector column order and in the order used by the
+        photon arrival-time and lifetime collections.
+
+    Returns
+    -------
+    event_time_series : pd.DataFrame
+        Detected photon counts by channel, indexed by the frame end times.
+    event_time_points : dict[str, npt.NDArray[np.float64]] | None
+        Detected photon arrival times by channel. None if time_points is None.
+    lifetimes_DA : dict[str, npt.NDArray[np.float64]]
+        S1 durations of detected emissions with an available paired transition,
+        grouped by channel.
+    lifetimes_D : dict[str, npt.NDArray[np.float64]]
+        S1 durations of detected emissions without an available paired transition,
+        grouped by channel.
+    lifetimes_all : dict[str, npt.NDArray[np.float64]]
+        S1 durations of all detected emissions, grouped by channel.
+    """
     event_time_series = pd.DataFrame(
         photon_collector,
         index=time_stamps,

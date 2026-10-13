@@ -60,11 +60,13 @@ class Prediction:
         fluorophore.
     transition_time_distributions : npt.NDArray[object] | None
         Expected distributions of time until transition.
-        Contains objects of type scipy.stats.*.rv_frozen for each transition.
+        Contains objects of type scipy.stats.*.rv_frozen for each transition, or np.inf
+        when its source state has no positive-rate outgoing transitions.
         None if paired_transitions is True.
     lifetime_distributions : dict[str, npt.NDArray[object]] | None
         Name of fluorophores as keys and their state's expected lifetime distributions
-        (objects of type scipy.stats.*.rv_frozen) (array) as values.
+        (objects of type scipy.stats.*.rv_frozen) (array) as values. States without
+        positive-rate state-changing transitions have np.inf as their distribution.
         None if paired_transitions is True.
     mean_transition_times : npt.NDArray[np.float64] | None
         Expected means of time until transition.
@@ -322,7 +324,34 @@ class Prediction:
         )
 
     def predict_transition_occurrences_sparse(self) -> npt.NDArray[np.float64]:
-        """Sparse counterpart of predict_transition_occurrences."""
+        """
+        Predict transition frequencies in the reachable non-absorbing subchain using
+        a sparse transition matrix.
+
+        The calculation is restricted to transition rows reachable from
+        initial_state_index. Each different type of fluorophore's transition
+        frequencies sum to 1.
+
+        Each paired transition event is counted as one transition occurrence, including
+        events that change both the donor and acceptor states. For normalization, a
+        paired transition occurrence is assigned only to the donor's transition group;
+        ordinary transitions are assigned to their respective fluorophore groups.
+
+        Returns
+        -------
+        npt.NDArray[np.float64]
+            Expected relative frequencies of each transition. Frequencies remain 0 for
+            a fluorophore with no expected transitions.
+
+        Notes
+        -----
+        The stationary distribution is calculated by solving pi P = pi together with
+        the constraint that the entries of pi sum to 1. The reachable transition
+        matrix must have a unique stationary distribution. initial_state_index selects
+        the relevant component of a disconnected transition matrix. Starting rows with
+        the same reachable subchain produce the same stationary distribution. An
+        all-zero transition matrix returns zero frequencies.
+        """
         full_transition_matrix = sparse.csr_array(
             self.transition_set.transition_matrix, dtype=np.float64
         )
@@ -465,7 +494,34 @@ class Prediction:
     def predict_transition_occurrences_absorbing_sparse(
         self, initial_state_index: int = 0
     ) -> npt.NDArray[np.float64]:
-        """Sparse counterpart of predict_transition_occurrences_absorbing."""
+        """
+        Predict transition frequencies before absorption from a selected row using
+        a sparse transition matrix.
+
+        The calculation includes only transition rows reachable from
+        initial_state_index. A reachable row without positive-rate outgoing
+        transitions is terminal. Every reachable row must be able to reach a terminal
+        row, so that absorption is certain. Absorbing transitions have the value 0.
+
+        Each paired transition event is counted as one transition occurrence, including
+        events that change both the donor and acceptor states. For normalization, a
+        paired transition occurrence is assigned only to the donor's transition group;
+        ordinary transitions are assigned to their respective fluorophore groups.
+
+        Parameters
+        ----------
+        initial_state_index
+            Row of combined_state_transitions_df used as the initial visit. Its final
+            state represents the initial combined state. Different rows may produce
+            different results even when they have the same final state, because the
+            selected transition row itself is included in the expected visit counts.
+
+        Returns
+        -------
+        npt.NDArray[np.float64]
+            Expected relative frequencies of each transition. Frequencies remain 0 for
+            a fluorophore with no expected transitions.
+        """
         transition_abs = self.transition_set.transition_df["absorbing"]
         abs_indices = transition_abs[transition_abs].index.get_level_values(1)
         df = self.transition_set.combined_state_transitions_df
@@ -615,12 +671,15 @@ class Prediction:
 
         Returns
         -------
-        transition_time_distributions : npt.NDArray[np.float64]
+        transition_time_distributions : npt.NDArray[object]
             Expected distributions of time until transition.
-            Contains objects of type scipy.stats.*.rv_frozen for each transition.
-        lifetime_distributions : dict[str, npt.NDArray[np.float64]]
+            Contains objects of type scipy.stats.*.rv_frozen for each transition, or
+            np.inf when its source state has no positive-rate outgoing transitions.
+        lifetime_distributions : dict[str, npt.NDArray[object]]
             Name of fluorophores as keys and their state's expected lifetime
             distributions (objects of type scipy.stats.*.rv_frozen) (array) as values.
+            States without positive-rate state-changing transitions have np.inf as
+            their distribution.
         """
         lifetime_distributions = {
             key: np.empty(len(value), dtype=object)
@@ -948,7 +1007,26 @@ def _get_reachable_indices_sparse(
     transition_matrix: sparse.spmatrix | sparse.sparray,
     start_indices: int | npt.ArrayLike,
 ) -> npt.NDArray[np.int64]:
-    """Sparse counterpart of _get_reachable_indices."""
+    """
+    Return rows reachable through positive-probability matrix entries.
+
+    A positive entry at row i and column j defines a directed edge from i to j. The
+    search includes every supplied starting row and repeatedly follows these edges
+    until no unvisited rows remain. Passing a transposed transition matrix therefore
+    finds rows that can reach the supplied starting rows in the original matrix.
+
+    Parameters
+    ----------
+    transition_matrix
+        Sparse square matrix whose positive entries define directed edges between rows.
+    start_indices
+        Row or rows from which to start the search.
+
+    Returns
+    -------
+    npt.NDArray[np.int64]
+        Sorted reachable row indices, including start_indices.
+    """
     matrix = sparse.csr_array(transition_matrix, dtype=np.float64)
     matrix.eliminate_zeros()
     reachable = np.zeros(matrix.shape[0], dtype=bool)

@@ -189,13 +189,37 @@ class Emissions:
         self.event_time_series: pd.DataFrame | None = None
 
     def _require_event_time_series(self) -> pd.DataFrame:
-        """Return event_time_series after checking that it is available."""
+        """
+        Return event_time_series after checking that it is available.
+
+        Returns
+        -------
+        pd.DataFrame
+            Frame-based signal with one column per detection channel.
+
+        Raises
+        ------
+        ValueError
+            If event_time_series is unavailable.
+        """
         if self.event_time_series is None:
             raise ValueError("event time series is unavailable.")
         return self.event_time_series
 
     def _require_event_time_points(self) -> dict[str, npt.NDArray[np.float64]]:
-        """Return event_time_points after checking that they are available."""
+        """
+        Return event_time_points after checking that they are available.
+
+        Returns
+        -------
+        dict[str, npt.NDArray[np.float64]]
+            Detected photon arrival times in seconds, grouped by detection channel.
+
+        Raises
+        ------
+        ValueError
+            If event_time_points is unavailable.
+        """
         if self.event_time_points is None:
             raise ValueError("event time points are unavailable.")
         return self.event_time_points
@@ -876,7 +900,24 @@ def _resolve_channel_parameter(
     channel_names: pd.Index,
     parameter_name: str,
 ) -> npt.NDArray[np.float64]:
-    """Return one parameter value per event-time-series channel."""
+    """
+    Return one parameter value per event-time-series channel.
+
+    Parameters
+    ----------
+    value
+        Scalar applied to every channel or mapping containing exactly the channel
+        names as keys and their parameter values as values.
+    channel_names
+        Channel names in event_time_series column order.
+    parameter_name
+        Name of the parameter used in error messages.
+
+    Returns
+    -------
+    npt.NDArray[np.float64]
+        Parameter values in channel_names order.
+    """
     if not isinstance(value, Mapping):
         return np.full(len(channel_names), value, dtype=np.float64)
 

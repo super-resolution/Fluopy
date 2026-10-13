@@ -150,7 +150,15 @@ class FluorophoreSystem:
 
     @property
     def distances(self) -> Mapping[tuple[int, int], np.float64]:
-        """Distances between fluorophores, indexed by their system-local identities."""
+        """
+        Distances between fluorophores, indexed by their system-local identities.
+
+        Returns
+        -------
+        Mapping[tuple[int, int], np.float64]
+            Read-only mapping from pairs of fluorophore identities to their distances
+            in nm, rounded to 3 decimals.
+        """
         return MappingProxyType(self._distances)
 
     def get_identity(self, fluorophore: Fluorophore) -> int:
