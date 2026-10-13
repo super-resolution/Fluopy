@@ -1735,13 +1735,12 @@ def construct_transition_matrix(
         transition_rate_matrix[index, indices] = rates
 
     row_sums = transition_rate_matrix.sum(axis=1, dtype=np.float64)
-    row_sums_exp = np.tile(np.expand_dims(row_sums, axis=1), reps=row_sums.size)
-    mask = np.ma.make_mask(row_sums_exp)
+    row_sums_column = row_sums[:, np.newaxis]
     transition_matrix = np.divide(
         transition_rate_matrix,
-        row_sums_exp,
+        row_sums_column,
         out=np.zeros_like(transition_rate_matrix),
-        where=mask,
+        where=row_sums_column != 0,
     )
 
     return transition_matrix, row_sums

@@ -940,6 +940,8 @@ def first_reaction_method_sparse(
         )
     else:
         fret_indices = np.array([], dtype=np.int64)
+    fret_transition_mask = np.zeros(matrix.shape[1], dtype=bool)
+    fret_transition_mask[fret_indices] = True
 
     if include_kap_sq and fret_indices.size:
         N = 100000
@@ -968,7 +970,7 @@ def first_reaction_method_sparse(
         if fret_indices.size:
             non_zero_rates = non_zero_rates.copy()
             non_zero_rates[
-                np.isin(non_zero_indices, fret_indices)
+                fret_transition_mask[non_zero_indices]
             ] *= kappa_squared_ratio[i]
         waiting_time_scales = np.full(non_zero_rates.shape, np.inf)
         np.divide(
@@ -1111,8 +1113,10 @@ def first_reaction_method(
         transition_series = np.empty(size, dtype=np.uint32)
         time_series = np.empty(size + 1, dtype=np.float64)
 
-    row_sums_exp = np.tile(np.expand_dims(state_rates, axis=1), reps=state_rates.size)
-    transition_rate_matrix = matrix * row_sums_exp
+    transition_rate_matrix = matrix * state_rates[:, np.newaxis]
+    outgoing_transition_indices = [
+        np.flatnonzero(row) for row in transition_rate_matrix
+    ]
 
     time_step_series[0] = 0
 
@@ -1120,9 +1124,16 @@ def first_reaction_method(
         mask = (
             combined_state_transitions_df["mechanism"] == TransitionMechanism.FRET
         ) & (combined_state_transitions_df["rate"] > minimum_rate)
-        fret_indices = combined_state_transitions_df.index[mask]
+        fret_indices = combined_state_transitions_df.index[mask].to_numpy(
+            dtype=np.int64
+        )
     else:
-        fret_indices = combined_state_transitions_df.index[:0]
+        fret_indices = np.array([], dtype=np.int64)
+    fret_transition_mask = np.zeros(matrix.shape[1], dtype=bool)
+    fret_transition_mask[fret_indices] = True
+    outgoing_fret_masks = [
+        fret_transition_mask[indices] for indices in outgoing_transition_indices
+    ]
 
     if include_kap_sq and fret_indices.size:
         # static orientation regime
@@ -1147,10 +1158,16 @@ def first_reaction_method(
             # the Markov chain has encountered an absorbing state
             absorbing_state_reached = True
             break
-        transition_rates = transition_rate_matrix[current_state_index, :].copy()
-        transition_rates[fret_indices] *= kappa_squared_ratio[i]
-        non_zero_indices = np.nonzero(transition_rates)[0]
-        non_zero_rates = transition_rates[non_zero_indices]
+        non_zero_indices = outgoing_transition_indices[current_state_index]
+        non_zero_rates = transition_rate_matrix[
+            current_state_index, non_zero_indices
+        ].copy()
+        non_zero_rates[outgoing_fret_masks[current_state_index]] *= kappa_squared_ratio[
+            i
+        ]
+        retained_mask = non_zero_rates != 0
+        non_zero_indices = non_zero_indices[retained_mask]
+        non_zero_rates = non_zero_rates[retained_mask]
         times = rng.exponential(scale=1 / non_zero_rates)
         min_index = np.argmin(times)
         transition_series[i] = current_state_index = non_zero_indices[min_index]
