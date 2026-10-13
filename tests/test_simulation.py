@@ -300,12 +300,11 @@ def test_direct_method_time_with_memmap(tr_set_1f, sparse_backend, tmp_path):
 def test_first_reaction_method(monkeypatch, sparse_backend):
     class FixedGenerator:
         def __init__(self):
-            self.responses = iter((np.array([0.4, 0.2]), np.array([0.3])))
-            self.scales = []
+            self.uniform_arguments = None
 
-        def exponential(self, scale):
-            self.scales.append(scale)
-            return next(self.responses)
+        def uniform(self, low, high, size):
+            self.uniform_arguments = (low, high, size)
+            return np.array([[np.exp(-0.8), 0.5], [np.exp(-0.3), 0.5]])
 
     generator = FixedGenerator()
     monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
@@ -328,8 +327,7 @@ def test_first_reaction_method(monkeypatch, sparse_backend):
 
     np.testing.assert_allclose(time_series, [0.0, 0.2, 0.5])
     np.testing.assert_array_equal(transition_series, [2, 0])
-    np.testing.assert_allclose(generator.scales[0], [1.0, 1 / 3])
-    np.testing.assert_allclose(generator.scales[1], [1.0])
+    assert generator.uniform_arguments == (0, 1, (2, 2))
 
 
 @pytest.mark.parametrize("sparse_backend", [False, True])

@@ -955,6 +955,7 @@ def first_reaction_method_sparse(
         kappa_squared_ratio = kappa_squared_sampled / (2 / 3)
     else:
         kappa_squared_ratio = np.ones(size)
+    random_numbers = rng.uniform(low=0, high=1, size=(size, 2))
 
     current_state_index = start_index
     absorbing_state_reached = False
@@ -972,17 +973,16 @@ def first_reaction_method_sparse(
             non_zero_rates[
                 fret_transition_mask[non_zero_indices]
             ] *= kappa_squared_ratio[i]
-        waiting_time_scales = np.full(non_zero_rates.shape, np.inf)
-        np.divide(
-            1,
-            non_zero_rates,
-            out=waiting_time_scales,
-            where=non_zero_rates > 0,
+        cumulative_rates = np.cumsum(non_zero_rates, dtype=np.float64)
+        total_rate = cumulative_rates[-1]
+        transition_time = (1 / total_rate) * np.log(1 / random_numbers[i, 0])
+        transition_offset = np.searchsorted(
+            cumulative_rates,
+            random_numbers[i, 1] * total_rate,
+            side="right",
         )
-        times = rng.exponential(scale=waiting_time_scales)
-        min_index = np.argmin(times)
-        transition_series[i] = current_state_index = non_zero_indices[min_index]
-        time_step_series[i + 1] = times[min_index]
+        transition_series[i] = current_state_index = non_zero_indices[transition_offset]
+        time_step_series[i + 1] = transition_time
 
     if absorbing_state_reached:
         if use_memmap is not None:
@@ -1151,6 +1151,7 @@ def first_reaction_method(
         kappa_squared_ratio = kappa_squared_sampled / (2 / 3)
     else:
         kappa_squared_ratio = np.ones(size)
+    random_numbers = rng.uniform(low=0, high=1, size=(size, 2))
     current_state_index = start_index
     absorbing_state_reached = False
     for i in range(size):
@@ -1168,10 +1169,15 @@ def first_reaction_method(
         retained_mask = non_zero_rates != 0
         non_zero_indices = non_zero_indices[retained_mask]
         non_zero_rates = non_zero_rates[retained_mask]
-        times = rng.exponential(scale=1 / non_zero_rates)
-        min_index = np.argmin(times)
-        transition_series[i] = current_state_index = non_zero_indices[min_index]
-        transition_time = times[min_index]
+        cumulative_rates = np.cumsum(non_zero_rates, dtype=np.float64)
+        total_rate = cumulative_rates[-1]
+        transition_time = (1 / total_rate) * np.log(1 / random_numbers[i, 0])
+        transition_offset = np.searchsorted(
+            cumulative_rates,
+            random_numbers[i, 1] * total_rate,
+            side="right",
+        )
+        transition_series[i] = current_state_index = non_zero_indices[transition_offset]
         time_step_series[i + 1] = transition_time
 
     if absorbing_state_reached:
