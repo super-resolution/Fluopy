@@ -413,7 +413,7 @@ def direct_method_steps_sparse(
         if current_state_lambda == 0:
             absorbing_state_reached = True
             break
-        transition_time = 1 / current_state_lambda * np.log(1 / random_numbers[i, 0])
+        transition_time = -np.log(random_numbers[i, 0]) / current_state_lambda
         next_transition = _sample_sparse_transition(
             current_state_index,
             random_numbers[i, 1],
@@ -558,7 +558,7 @@ def direct_method_steps(
             break
         # inverse transform sampling using the quantile function of the exponential
         # distribution
-        transition_time = 1 / current_state_lambda * np.log(1 / random_numbers[i, 0])
+        transition_time = -np.log(random_numbers[i, 0]) / current_state_lambda
 
         next_transition = np.searchsorted(
             cumulative_transition_probabilities[current_state_index],
@@ -660,7 +660,7 @@ def direct_method_time_sparse(
             break
         random_index = i - (j - 1) * size
         transition_time = (
-            1 / current_state_lambda * np.log(1 / random_numbers[random_index, 0])
+            -np.log(random_numbers[random_index, 0]) / current_state_lambda
         )
         next_transition = _sample_sparse_transition(
             current_state_index,
@@ -818,7 +818,7 @@ def direct_method_time(
             abso = 1
             break
         transition_time = (
-            1 / current_state_lambda * np.log(1 / random_numbers[i - (j - 1) * size, 0])
+            -np.log(random_numbers[i - (j - 1) * size, 0]) / current_state_lambda
         )
 
         next_transition = np.searchsorted(
@@ -975,7 +975,7 @@ def first_reaction_method_sparse(
             ] *= kappa_squared_ratio[i]
         cumulative_rates = np.cumsum(non_zero_rates, dtype=np.float64)
         total_rate = cumulative_rates[-1]
-        transition_time = (1 / total_rate) * np.log(1 / random_numbers[i, 0])
+        transition_time = -np.log(random_numbers[i, 0]) / total_rate
         transition_offset = np.searchsorted(
             cumulative_rates,
             random_numbers[i, 1] * total_rate,
@@ -1171,7 +1171,7 @@ def first_reaction_method(
         non_zero_rates = non_zero_rates[retained_mask]
         cumulative_rates = np.cumsum(non_zero_rates, dtype=np.float64)
         total_rate = cumulative_rates[-1]
-        transition_time = (1 / total_rate) * np.log(1 / random_numbers[i, 0])
+        transition_time = -np.log(random_numbers[i, 0]) / total_rate
         transition_offset = np.searchsorted(
             cumulative_rates,
             random_numbers[i, 1] * total_rate,
@@ -1513,9 +1513,7 @@ def simulate_experiment_sparse(
 
                 random_index = i - (j - 1) * size
                 transition_time = (
-                    1
-                    / current_state_lambda
-                    * np.log(1 / random_numbers[random_index, 0])
+                    -np.log(random_numbers[random_index, 0]) / current_state_lambda
                 )
                 time += transition_time
                 if time > seconds_per_frame:
@@ -1700,9 +1698,8 @@ def simulate_experiment(
                     return event_time_points, event_time_series
 
                 transition_time = (
-                    1
+                    -np.log(random_numbers[i - (j - 1) * size, 0])
                     / current_state_lambda
-                    * np.log(1 / random_numbers[i - (j - 1) * size, 0])
                 )
                 time += transition_time
                 if time > seconds_per_frame:

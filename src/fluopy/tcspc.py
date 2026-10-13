@@ -400,8 +400,9 @@ def simulate_TCSPC(
                     remember = (0, np.inf)
                     break
                 not_broken = True
-                transition_time = (1 / current_state_lambda) * np.log(
-                    1 / random_numbers[k - (m - 1) * size, 0]
+                transition_time = (
+                    -np.log(random_numbers[k - (m - 1) * size, 0])
+                    / current_state_lambda
                 )
                 time += transition_time
                 if sparse_transition_rows is None:
@@ -774,8 +775,9 @@ def simulate_TCSPC_detailed(
                     remember = (0, np.inf)
                     break
                 not_broken = True
-                transition_time = (1 / current_state_lambda) * np.log(
-                    1 / random_numbers[k - (m - 1) * size, 0]
+                transition_time = (
+                    -np.log(random_numbers[k - (m - 1) * size, 0])
+                    / current_state_lambda
                 )
                 time += transition_time
                 if sparse_transition_rows is None:
