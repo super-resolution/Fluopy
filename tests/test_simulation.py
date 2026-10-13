@@ -124,6 +124,33 @@ def test_direct_method_steps(monkeypatch, sparse_backend):
 
 
 @pytest.mark.parametrize("sparse_backend", [False, True])
+def test_direct_method_steps_uses_matrix_column_order(monkeypatch, sparse_backend):
+    class FixedGenerator:
+        def uniform(self, low, high, size):
+            assert (low, high, size) == (0, 1, (1, 2))
+            return np.array([[np.exp(-1), 0.1]])
+
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: FixedGenerator())
+    transition_matrix = np.array(
+        [[0, 0.8, 0.2], [1, 0, 0], [1, 0, 0]], dtype=np.float64
+    )
+    method = si.direct_method_steps
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        method = si.direct_method_steps_sparse
+
+    _, transition_series = method(
+        transition_matrix=transition_matrix,
+        row_sums=[1, 1, 1],
+        start_index=0,
+        size=1,
+        seed=42,
+    )
+
+    np.testing.assert_array_equal(transition_series, [1])
+
+
+@pytest.mark.parametrize("sparse_backend", [False, True])
 @pytest.mark.parametrize("use_memmap", [False, True])
 def test_direct_method_steps_stops_at_absorbing_state(
     use_memmap, sparse_backend, tmp_path
@@ -273,12 +300,11 @@ def test_direct_method_time_with_memmap(tr_set_1f, sparse_backend, tmp_path):
 def test_first_reaction_method(monkeypatch, sparse_backend):
     class FixedGenerator:
         def __init__(self):
-            self.responses = iter((np.array([0.4, 0.2]), np.array([0.3])))
-            self.scales = []
+            self.uniform_arguments = None
 
-        def exponential(self, scale):
-            self.scales.append(scale)
-            return next(self.responses)
+        def uniform(self, low, high, size):
+            self.uniform_arguments = (low, high, size)
+            return np.array([[np.exp(-0.8), 0.5], [np.exp(-0.3), 0.5]])
 
     generator = FixedGenerator()
     monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
@@ -301,8 +327,7 @@ def test_first_reaction_method(monkeypatch, sparse_backend):
 
     np.testing.assert_allclose(time_series, [0.0, 0.2, 0.5])
     np.testing.assert_array_equal(transition_series, [2, 0])
-    np.testing.assert_allclose(generator.scales[0], [1.0, 1 / 3])
-    np.testing.assert_allclose(generator.scales[1], [1.0])
+    assert generator.uniform_arguments == (0, 1, (2, 2))
 
 
 @pytest.mark.parametrize("sparse_backend", [False, True])
@@ -576,9 +601,7 @@ def test_simulate_experiment(
     if expected is None:
         assert event_time_points is None
         exp_event_time_series = pd.Series(
-            np.array(
-                [768, 511, 666, 249, 206, 323, 207, 468, 356, 456], dtype=np.int64
-            ),
+            np.array([712, 429, 657, 349, 439, 344, 7, 512, 514, 565], dtype=np.int64),
             index=np.array(
                 [
                     0.001,
@@ -600,9 +623,7 @@ def test_simulate_experiment(
         )
     else:
         exp_event_time_series = pd.Series(
-            np.array(
-                [705, 461, 596, 224, 189, 298, 190, 419, 325, 412], dtype=np.int64
-            ),
+            np.array([653, 376, 583, 311, 388, 310, 6, 463, 457, 505], dtype=np.int64),
             index=np.array(
                 [
                     0.001,

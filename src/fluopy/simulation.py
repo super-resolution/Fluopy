@@ -338,10 +338,8 @@ def _prepare_sparse_transition_rows(
     for row in range(matrix.shape[0]):
         start = indptr[row]
         end = indptr[row + 1]
-        order = np.argsort(cumulative_probabilities[start:end])
-        indices[start:end] = indices[start:end][order]
         cumulative_probabilities[start:end] = np.cumsum(
-            cumulative_probabilities[start:end][order]
+            cumulative_probabilities[start:end]
         )
 
     return indptr, indices, cumulative_probabilities
@@ -356,7 +354,9 @@ def _sample_sparse_transition(
 ) -> int:
     start = indptr[current_state_index]
     end = indptr[current_state_index + 1]
-    offset = np.searchsorted(cumulative_probabilities[start:end], random_number)
+    offset = np.searchsorted(
+        cumulative_probabilities[start:end], random_number, side="right"
+    )
     return int(indices[start + offset])
 
 
@@ -413,7 +413,7 @@ def direct_method_steps_sparse(
         if current_state_lambda == 0:
             absorbing_state_reached = True
             break
-        transition_time = 1 / current_state_lambda * np.log(1 / random_numbers[i, 0])
+        transition_time = -np.log(random_numbers[i, 0]) / current_state_lambda
         next_transition = _sample_sparse_transition(
             current_state_index,
             random_numbers[i, 1],
@@ -546,11 +546,7 @@ def direct_method_steps(
     # transition equals start_at
     current_state_index = start_index
 
-    transition_matrix_sorted_indices = np.argsort(matrix, axis=1)
-    sorted_transition_matrix = np.take_along_axis(
-        arr=matrix, indices=transition_matrix_sorted_indices, axis=1
-    )
-    cumsum_sorted_trm = np.cumsum(sorted_transition_matrix, axis=1)
+    cumulative_transition_probabilities = np.cumsum(matrix, axis=1)
     absorbing_state_reached = False
 
     for i in range(size):
@@ -562,15 +558,13 @@ def direct_method_steps(
             break
         # inverse transform sampling using the quantile function of the exponential
         # distribution
-        transition_time = 1 / current_state_lambda * np.log(1 / random_numbers[i, 0])
+        transition_time = -np.log(random_numbers[i, 0]) / current_state_lambda
 
-        sorted_index = np.searchsorted(
-            cumsum_sorted_trm[current_state_index], random_numbers[i, 1]
+        next_transition = np.searchsorted(
+            cumulative_transition_probabilities[current_state_index],
+            random_numbers[i, 1],
+            side="right",
         )
-
-        next_transition = transition_matrix_sorted_indices[
-            current_state_index, sorted_index
-        ]
 
         transition_series[i] = current_state_index = next_transition
 
@@ -666,7 +660,7 @@ def direct_method_time_sparse(
             break
         random_index = i - (j - 1) * size
         transition_time = (
-            1 / current_state_lambda * np.log(1 / random_numbers[random_index, 0])
+            -np.log(random_numbers[random_index, 0]) / current_state_lambda
         )
         next_transition = _sample_sparse_transition(
             current_state_index,
@@ -812,11 +806,7 @@ def direct_method_time(
     )  # never a memmap, is initialized on RAM anyways
 
     time_series[0] = 0
-    transition_matrix_sorted_indices = np.argsort(matrix, axis=1)
-    sorted_transition_matrix = np.take_along_axis(
-        arr=matrix, indices=transition_matrix_sorted_indices, axis=1
-    )
-    cumsum_sorted_trm = np.cumsum(sorted_transition_matrix, axis=1)
+    cumulative_transition_probabilities = np.cumsum(matrix, axis=1)
 
     abso = 0
     i = 0
@@ -828,17 +818,14 @@ def direct_method_time(
             abso = 1
             break
         transition_time = (
-            1 / current_state_lambda * np.log(1 / random_numbers[i - (j - 1) * size, 0])
+            -np.log(random_numbers[i - (j - 1) * size, 0]) / current_state_lambda
         )
 
-        sorted_index = np.searchsorted(
-            cumsum_sorted_trm[current_state_index],
+        next_transition = np.searchsorted(
+            cumulative_transition_probabilities[current_state_index],
             random_numbers[i - (j - 1) * size, 1],
+            side="right",
         )
-
-        next_transition = transition_matrix_sorted_indices[
-            current_state_index, sorted_index
-        ]
 
         transition_series[i] = next_transition
         time_series[i + 1] = time_series[i] + transition_time
@@ -953,6 +940,8 @@ def first_reaction_method_sparse(
         )
     else:
         fret_indices = np.array([], dtype=np.int64)
+    fret_transition_mask = np.zeros(matrix.shape[1], dtype=bool)
+    fret_transition_mask[fret_indices] = True
 
     if include_kap_sq and fret_indices.size:
         N = 100000
@@ -966,6 +955,7 @@ def first_reaction_method_sparse(
         kappa_squared_ratio = kappa_squared_sampled / (2 / 3)
     else:
         kappa_squared_ratio = np.ones(size)
+    random_numbers = rng.uniform(low=0, high=1, size=(size, 2))
 
     current_state_index = start_index
     absorbing_state_reached = False
@@ -981,19 +971,18 @@ def first_reaction_method_sparse(
         if fret_indices.size:
             non_zero_rates = non_zero_rates.copy()
             non_zero_rates[
-                np.isin(non_zero_indices, fret_indices)
+                fret_transition_mask[non_zero_indices]
             ] *= kappa_squared_ratio[i]
-        waiting_time_scales = np.full(non_zero_rates.shape, np.inf)
-        np.divide(
-            1,
-            non_zero_rates,
-            out=waiting_time_scales,
-            where=non_zero_rates > 0,
+        cumulative_rates = np.cumsum(non_zero_rates, dtype=np.float64)
+        total_rate = cumulative_rates[-1]
+        transition_time = -np.log(random_numbers[i, 0]) / total_rate
+        transition_offset = np.searchsorted(
+            cumulative_rates,
+            random_numbers[i, 1] * total_rate,
+            side="right",
         )
-        times = rng.exponential(scale=waiting_time_scales)
-        min_index = np.argmin(times)
-        transition_series[i] = current_state_index = non_zero_indices[min_index]
-        time_step_series[i + 1] = times[min_index]
+        transition_series[i] = current_state_index = non_zero_indices[transition_offset]
+        time_step_series[i + 1] = transition_time
 
     if absorbing_state_reached:
         if use_memmap is not None:
@@ -1124,8 +1113,10 @@ def first_reaction_method(
         transition_series = np.empty(size, dtype=np.uint32)
         time_series = np.empty(size + 1, dtype=np.float64)
 
-    row_sums_exp = np.tile(np.expand_dims(state_rates, axis=1), reps=state_rates.size)
-    transition_rate_matrix = matrix * row_sums_exp
+    transition_rate_matrix = matrix * state_rates[:, np.newaxis]
+    outgoing_transition_indices = [
+        np.flatnonzero(row) for row in transition_rate_matrix
+    ]
 
     time_step_series[0] = 0
 
@@ -1133,9 +1124,16 @@ def first_reaction_method(
         mask = (
             combined_state_transitions_df["mechanism"] == TransitionMechanism.FRET
         ) & (combined_state_transitions_df["rate"] > minimum_rate)
-        fret_indices = combined_state_transitions_df.index[mask]
+        fret_indices = combined_state_transitions_df.index[mask].to_numpy(
+            dtype=np.int64
+        )
     else:
-        fret_indices = combined_state_transitions_df.index[:0]
+        fret_indices = np.array([], dtype=np.int64)
+    fret_transition_mask = np.zeros(matrix.shape[1], dtype=bool)
+    fret_transition_mask[fret_indices] = True
+    outgoing_fret_masks = [
+        fret_transition_mask[indices] for indices in outgoing_transition_indices
+    ]
 
     if include_kap_sq and fret_indices.size:
         # static orientation regime
@@ -1153,6 +1151,7 @@ def first_reaction_method(
         kappa_squared_ratio = kappa_squared_sampled / (2 / 3)
     else:
         kappa_squared_ratio = np.ones(size)
+    random_numbers = rng.uniform(low=0, high=1, size=(size, 2))
     current_state_index = start_index
     absorbing_state_reached = False
     for i in range(size):
@@ -1160,14 +1159,25 @@ def first_reaction_method(
             # the Markov chain has encountered an absorbing state
             absorbing_state_reached = True
             break
-        transition_rates = transition_rate_matrix[current_state_index, :].copy()
-        transition_rates[fret_indices] *= kappa_squared_ratio[i]
-        non_zero_indices = np.nonzero(transition_rates)[0]
-        non_zero_rates = transition_rates[non_zero_indices]
-        times = rng.exponential(scale=1 / non_zero_rates)
-        min_index = np.argmin(times)
-        transition_series[i] = current_state_index = non_zero_indices[min_index]
-        transition_time = times[min_index]
+        non_zero_indices = outgoing_transition_indices[current_state_index]
+        non_zero_rates = transition_rate_matrix[
+            current_state_index, non_zero_indices
+        ].copy()
+        non_zero_rates[outgoing_fret_masks[current_state_index]] *= kappa_squared_ratio[
+            i
+        ]
+        retained_mask = non_zero_rates != 0
+        non_zero_indices = non_zero_indices[retained_mask]
+        non_zero_rates = non_zero_rates[retained_mask]
+        cumulative_rates = np.cumsum(non_zero_rates, dtype=np.float64)
+        total_rate = cumulative_rates[-1]
+        transition_time = -np.log(random_numbers[i, 0]) / total_rate
+        transition_offset = np.searchsorted(
+            cumulative_rates,
+            random_numbers[i, 1] * total_rate,
+            side="right",
+        )
+        transition_series[i] = current_state_index = non_zero_indices[transition_offset]
         time_step_series[i + 1] = transition_time
 
     if absorbing_state_reached:
@@ -1503,9 +1513,7 @@ def simulate_experiment_sparse(
 
                 random_index = i - (j - 1) * size
                 transition_time = (
-                    1
-                    / current_state_lambda
-                    * np.log(1 / random_numbers[random_index, 0])
+                    -np.log(random_numbers[random_index, 0]) / current_state_lambda
                 )
                 time += transition_time
                 if time > seconds_per_frame:
@@ -1641,11 +1649,7 @@ def simulate_experiment(
             "detection probabilities must sum to at most 1 per transition."
         )
     cumulative_detection_probabilities = np.cumsum(probabilities, axis=1)
-    transition_matrix_sorted_indices = np.argsort(matrix, axis=1)
-    sorted_transition_matrix = np.take_along_axis(
-        arr=matrix, indices=transition_matrix_sorted_indices, axis=1
-    )
-    cumsum_sorted_trm = np.cumsum(sorted_transition_matrix, axis=1)
+    cumulative_transition_probabilities = np.cumsum(matrix, axis=1)
 
     rng = np.random.default_rng(seed)
     current_state_index = start_index
@@ -1694,9 +1698,8 @@ def simulate_experiment(
                     return event_time_points, event_time_series
 
                 transition_time = (
-                    1
+                    -np.log(random_numbers[i - (j - 1) * size, 0])
                     / current_state_lambda
-                    * np.log(1 / random_numbers[i - (j - 1) * size, 0])
                 )
                 time += transition_time
                 if time > seconds_per_frame:
@@ -1706,13 +1709,11 @@ def simulate_experiment(
                     break
 
             skip = False
-            sorted_index = np.searchsorted(
-                cumsum_sorted_trm[current_state_index],
+            next_transition = np.searchsorted(
+                cumulative_transition_probabilities[current_state_index],
                 random_numbers[i - (j - 1) * size, 1],
+                side="right",
             )
-            next_transition = transition_matrix_sorted_indices[
-                current_state_index, sorted_index
-            ]
             cumulative_probabilities = cumulative_detection_probabilities[
                 next_transition
             ]

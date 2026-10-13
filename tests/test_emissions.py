@@ -112,7 +112,7 @@ def test_emissions_extract_requires_completed_simulation():
 @pytest.mark.parametrize(
     "dirname, frame_time, channel, expected",
     [
-        ["sim_tr_set_1f_bl", "10us", em.DetectionChannel((650, 680)), 77],
+        ["sim_tr_set_1f_bl", "10us", em.DetectionChannel((650, 680)), 65],
         ["sim_tr_set_et_2f_diff", "5ms", em.DetectionChannel(), 2],
     ],
 )
@@ -133,14 +133,12 @@ def test_emissions_extract(dirname, request, frame_time, channel, expected):
             # fmt: off
                 np.array(
                     [
-                        12, 5, 4, 8, 7, 3, 12, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 3, 5, 4,
-                        7,
+                        1, 0, 0, 5, 9, 7, 1, 3, 0, 2, 6, 4, 6, 8, 3, 4, 6,
                 ],
                 dtype=np.int64,
             ),
             # fmt: on
-            index=np.linspace(0.00001, 0.00045, 45),
+            index=np.linspace(0.00001, 0.00017, 17),
         )
     else:
         exp_event_time_series = pd.Series(np.array([2], dtype=np.int64), index=[0.005])
@@ -261,9 +259,9 @@ def test_emissions_simulate(tr_set_1f_bl):
         store_time_points=True,
     )
     assert emis.event_time_points is not None
-    assert emis.event_time_points["red"].size == 204
+    assert emis.event_time_points["red"].size == 493
     exp_event_time_series = pd.Series(
-        np.array([80, 0, 0, 0, 0, 0, 16, 51, 7, 50], dtype=np.int64),
+        np.array([17, 49, 64, 27, 56, 66, 51, 43, 73, 47], dtype=np.int64),
         index=np.linspace(0.0001, 0.001, 10),
     )
     assert emis.event_time_series is not None
