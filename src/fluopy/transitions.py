@@ -753,39 +753,39 @@ class TransitionSet:
 
     Attributes
     ----------
-    transitions : dict[str, list[Transition]]
+    transitions
         Contains lists of retained transitions of type Transition as values and
         fluorophores or fluorophore-combinations as keys. Fluorophore-combination keys
         require the format 'D: {name of donor}, A: {name of acceptor}, dist: {distance
         between them in nm}'.
-    fluorophore_system : fluopy.fluorophores.FluorophoreSystem
+    fluorophore_system
         Container for attributes of multiple, interrelated fluorophores.
-    combined_state_transitions_df : pd.DataFrame
+    combined_state_transitions_df
         Contains realizable combined_state_transitions with their id as index and their
         other attributes as columns.
-    row_sums : np.ndarray
+    row_sums
         Contains the sum of each row of non-normalized transition rates, i.e., the sum
         of rates of all possible combined_state_transitions.
     single_states : dict[str, npt.NDArray[np.int64]]
         Contains the values of all relevant SingleStates as values. Name of
         fluorophores as keys.
-    absorbing_states : Mapping[int, npt.NDArray[np.int64]]
+    absorbing_states
         Individually absorbing state values indexed by fluorophore identity. These are
         derived from the retained transition topology, including transitions retained
         with rate 0.
-    terminal_state_combinations : frozenset[tuple[int, ...]]
+    terminal_state_combinations
         Combined states without a positive-rate outgoing transition. Unlike
         absorbing_states, this collection is derived from the active rates.
     transition_df : pd.DataFrame
         Dataframe of all retained transitions containing their id as second level index
         and their other attributes as columns. Name of fluorophores as first level
         index. Includes zero-rate transitions when keep_zero_rates is True.
-    transition_matrix : np.ndarray or scipy.sparse.csr_array
+    transition_matrix
         Contains the normalized rate constants (i.e., point probabilities) for each
         possible combined_state_transition at the corresponding index pair.
-    matrix_format : {"dense", "sparse"}
-        Storage format of transition_matrix.
-    keep_zero_rates : bool
+    matrix_format
+        Storage format of transition_matrix: 'dense' or 'sparse'.
+    keep_zero_rates
         Whether zero-rate transition definitions are retained.
     """
 

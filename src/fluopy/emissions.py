@@ -126,16 +126,16 @@ class Emissions:
 
     Attributes
     ----------
-    parameters : dict[str, Any]
+    parameters
         Contains the parameters with which the instance was initialized.
-    event_time_points : dict[str, npt.NDArray[np.float64]]
+    event_time_points
         Detected photon time points grouped by detection channel. Bandpass filtering and
         detection efficiency are represented consistently in event_time_points and
         event_time_series. Frame-based detector processing such as gain, noise, and
         thresholding modifies only event_time_series. None until extract() has been
         called, or until simulate() or tcspc() has been called with time-point storage
         enabled.
-    event_time_series : pd.DataFrame
+    event_time_series
         Contains the time points (increasing by a defined time interval) as index and
         one event-count column per detection channel. Gain, noise, and thresholding are
         frame-based operations and do not modify event_time_points. Internally generated

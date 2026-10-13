@@ -59,21 +59,23 @@ class Simulation:
 
     Attributes
     ----------
-    transition_set : fluopy.transitions.TransitionSet
+    transition_set
         Collection of all relevant transitions and related attributes.
-    time_series : 1-D array_like
-        The simulated time points. At index i, they correspond to state_series[i] and
-        transition_series[i - 1]. If end_time was not None, includes end_time at index
-        -1 that does not correspond to any of state_series or transition_series.
+    time_series
+        The one-dimensional array of simulated time points. At index i, they correspond
+        to state_series[i] and transition_series[i - 1]. If end_time was not None,
+        includes end_time at index -1 that does not correspond to any of state_series
+        or transition_series.
         Can be memmap if use_memmap was set.
-    transition_series : 1-D array_like
-        The simulated transitions. At index i, they correspond to time_series[i + 1].
+    transition_series
+        The one-dimensional array of simulated transitions. At index i, they correspond
+        to time_series[i + 1].
         Can be memmap if use_memmap was set.
-    state_series : np.ndarray
+    state_series
         Contains 1-D array_like for each fluorophore representing its state at index i
         corresponding to time_series[i].
         Can be memmap if use_memmap was set.
-    memmap_path : str
+    memmap_path
         The path where memmaps are stored.
     """
 

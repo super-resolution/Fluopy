@@ -44,7 +44,7 @@ class Prediction:
         combined state and the prediction was carried out on an absorbing Markov chain.
         Absorbing states have a lifetime of inf and a frequency / occupation of 0.
         Absorbing transitions have a frequency of 0.
-    transition_set : fluopy.transitions.TransitionSet
+    transition_set
         Collection of all relevant transitions and related attributes.
     initial_state_index : int
         Row of transition_set.combined_state_transitions_df whose final state defines
@@ -58,24 +58,24 @@ class Prediction:
     frequency_states : dict[str, npt.NDArray[np.float64]]
         Relative expected number of visits to each state, normalized separately for each
         fluorophore.
-    transition_time_distributions : npt.NDArray[object] | None
+    transition_time_distributions
         Expected distributions of time until transition.
         Contains objects of type scipy.stats.*.rv_frozen for each transition, or np.inf
         when its source state has no positive-rate outgoing transitions.
         None if paired_transitions is True.
-    lifetime_distributions : dict[str, npt.NDArray[object]] | None
+    lifetime_distributions
         Name of fluorophores as keys and their state's expected lifetime distributions
         (objects of type scipy.stats.*.rv_frozen) (array) as values. States without
         positive-rate state-changing transitions have np.inf as their distribution.
         None if paired_transitions is True.
-    mean_transition_times : npt.NDArray[np.float64] | None
+    mean_transition_times
         Expected means of time until transition.
         None if paired_transitions is True.
-    mean_lifetimes : dict[str, npt.NDArray[np.float64]] | None
+    mean_lifetimes
         Name of fluorophores as keys and their state's expected lifetime means (array)
         as values.
         None if paired_transitions is True.
-    state_occupations : dict[str, npt.NDArray[np.float64]] | None
+    state_occupations
         Relative time spent in each state, normalized separately for each fluorophore.
         None if paired_transitions is True.
 

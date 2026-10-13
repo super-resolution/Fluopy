@@ -35,13 +35,13 @@ class FCS:
 
     Attributes
     ----------
-    emissions : fluopy.emissions.Emissions
+    emissions
         Container for emission-associated attributes.
     channel : str
         Detection channel used for autocorrelation.
-    autocorrelation : npt.NDArray[np.float64]
+    autocorrelation
         Autocorrelation values.
-    tau : npt.NDArray[np.float64]
+    tau
         Time differences (i.e., τ, lag times).
     """
 

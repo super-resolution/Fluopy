@@ -38,27 +38,27 @@ class Analysis:
 
     Attributes
     ----------
-    simulation : fluopy.simulation.Simulation
+    simulation
         Container for simulation-associated attributes.
-    frequency_transitions : npt.NDArray[np.float64]
+    frequency_transitions
         Relative number of simulated transition occurrences, normalized separately for
         each fluorophore. Paired-transition occurrences are assigned to the donor's
         transition group.
-    frequency_states : dict[str, npt.NDArray[np.float64]]
+    frequency_states
         Relative simulated number of visits to each state, normalized separately for
         each fluorophore.
-    transition_time_distributions : Collection
+    transition_time_distributions
         Contains 1-D array_like for each transition (time until the transition).
-    lifetime_distributions : dict
+    lifetime_distributions
         Name of fluorophores as keys and collections of their state's simulated
         lifetimes (1-D array_like) as values. The final residence may be right-censored
         by the observation limit and is not included.
-    mean_transition_times : 1-D array_like
-        Simulated means of time until transition.
-    mean_lifetimes : dict
+    mean_transition_times
+        One-dimensional array of simulated means of time until transition.
+    mean_lifetimes
         Name of fluorophores as keys and their state's simulated lifetime means (array)
         as values.
-    state_occupations : dict[str, npt.NDArray[np.float64]]
+    state_occupations
         Relative time spent in each state, normalized separately for each fluorophore.
     """
 

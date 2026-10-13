@@ -30,7 +30,7 @@ class Blinking:
 
     Attributes
     ----------
-    emissions : fluopy.emissions.Emissions
+    emissions
         Container for emission-associated attributes.
     channel : str
         Detection channel used to determine blinking periods.
