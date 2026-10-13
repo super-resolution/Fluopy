@@ -539,6 +539,40 @@ def test_approximation_handles_only_self_transitions(tr_set_self_cycle):
     assert np.all(np.diff(time_series) > 0)
 
 
+@pytest.mark.parametrize("self_rates", [(9,), (3, 6)])
+def test_approximation_preserves_residence_time_distribution(
+    tr_set_self_cycle, self_rates
+):
+    self_transitions = [
+        tr.Transition(
+            tr.TransitionType(f"SELF_{i}", tr.SingleState.S0, tr.SingleState.S0, False),
+            rate=rate,
+            fluorophore_ids=[0],
+        )
+        for i, rate in enumerate(self_rates)
+    ]
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": self_transitions
+            + tr_set_self_cycle.transitions["testfluo_1"][1:]
+        },
+        tr_set_self_cycle.fluorophore_system,
+    )
+    prediction = pr.Prediction(transition_set)
+    simulation = si.Simulation(transition_set)
+    simulation.approximate(prediction, size=110_000, seed=42)
+
+    states = simulation.state_series[0]
+    change_indices = np.flatnonzero(np.diff(states) != 0)
+    change_times = simulation.time_series[change_indices + 1]
+    residence_times = np.diff(np.insert(change_times, 0, 0))
+    s0_lifetimes = residence_times[states[change_indices] == tr.SingleState.S0.value]
+
+    assert np.mean(s0_lifetimes) == pytest.approx(1, rel=0.05)
+    assert np.var(s0_lifetimes) == pytest.approx(1, rel=0.08)
+    assert np.mean(s0_lifetimes < 0.1) == pytest.approx(1 - np.exp(-0.1), abs=0.01)
+
+
 def test_approximation_skips_unusable_self_transitions(tr_set_self_cycle):
     class FixedLifetimeDistribution:
         def rvs(self, size, random_state):

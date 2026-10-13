@@ -1369,6 +1369,7 @@ def approximation(
                 dtype=object,
             )
 
+        slot_weights = rng.exponential(size=slot_states.size)
         insertion_slots = []
         insertion_values = []
         for transition in self_transition_ids:
@@ -1379,8 +1380,12 @@ def approximation(
             compatible_slots = np.flatnonzero(slot_states == source_state)
             if compatible_slots.size == 0:
                 continue
+            weights = slot_weights[compatible_slots]
+            probabilities = weights / weights.sum()
             insertion_slots.append(
-                rng.choice(compatible_slots, size=occurrences, replace=True)
+                rng.choice(
+                    compatible_slots, size=occurrences, replace=True, p=probabilities
+                )
             )
             insertion_values.append(np.full(occurrences, transition, dtype=np.int64))
 
