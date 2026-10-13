@@ -273,6 +273,7 @@ class Prediction:
         """
         full_transition_matrix = self.transition_set.transition_matrix
         frequency_transitions = np.zeros(self.transition_set.transition_df.shape[0])
+        self._transition_occurrences = frequency_transitions
         if not np.any(full_transition_matrix):
             return frequency_transitions
 
@@ -323,6 +324,7 @@ class Prediction:
             self.transition_set.transition_matrix, dtype=np.float64
         )
         frequency_transitions = np.zeros(self.transition_set.transition_df.shape[0])
+        self._transition_occurrences = frequency_transitions
         if full_transition_matrix.nnz == 0:
             return frequency_transitions
 
@@ -418,6 +420,7 @@ class Prediction:
             reachable_indices, terminal_indices, assume_unique=True
         )
         frequency_transitions = np.zeros(transition_abs.size)
+        self._transition_occurrences = frequency_transitions
         if initial_state_index in drop_transitions:
             return frequency_transitions
         if not drop_transitions.size:
@@ -475,6 +478,7 @@ class Prediction:
             reachable_indices, terminal_indices, assume_unique=True
         )
         frequency_transitions = np.zeros(transition_abs.size)
+        self._transition_occurrences = frequency_transitions
         if initial_state_index in drop_transitions:
             return frequency_transitions
         if not drop_transitions.size:
@@ -545,6 +549,7 @@ class Prediction:
         self_frequency_states = {
             key: np.zeros(len(value)) for key, value in single_states.items()
         }
+        transition_occurrences = self._transition_occurrences
         grouped = self.transition_set.transition_df.groupby(level=0)
         for fluorophore_comb_raw, f_transitions in grouped:
             fluorophore_comb = cast(str, fluorophore_comb_raw)
@@ -553,7 +558,6 @@ class Prediction:
                 d, a, _ = paired_transition
                 single_states_a = single_states[a]
                 single_states_d = single_states[d]
-                factor = 1.0
                 for row_index, transition in f_transitions.iterrows():
                     identity = int(cast(tuple[Any, int], row_index)[1])
                     donor_i, acceptor_i = transition[
@@ -566,19 +570,15 @@ class Prediction:
                         if donor_i != donor_f
                         else self_frequency_states
                     )
-                    donor_frequencies[d][index_1] += (
-                        self.frequency_transitions[identity] * factor
-                    )
+                    donor_frequencies[d][index_1] += transition_occurrences[identity]
                     if acceptor_i != acceptor_f:
                         index_2 = np.where(single_states_a == acceptor_f)[0][0]
-                        frequency_states[a][index_2] += (
-                            self.frequency_transitions[identity] * factor
-                        )
+                        frequency_states[a][index_2] += transition_occurrences[identity]
                     else:
                         index_2 = np.where(single_states_a == acceptor_f)[0][0]
-                        self_frequency_states[a][index_2] += (
-                            self.frequency_transitions[identity] * factor
-                        )
+                        self_frequency_states[a][index_2] += transition_occurrences[
+                            identity
+                        ]
 
             else:
                 single_states_f = single_states[fluorophore_comb]
@@ -592,9 +592,7 @@ class Prediction:
                         if transition["initial_state"] != transition["final_state"]
                         else self_frequency_states
                     )
-                    target[fluorophore_comb][index] += self.frequency_transitions[
-                        identity
-                    ]
+                    target[fluorophore_comb][index] += transition_occurrences[identity]
         for fluorophore, state_frequencies in frequency_states.items():
             total = state_frequencies.sum()
             if total == 0:
