@@ -77,7 +77,7 @@ class TestSimulation:
             sparse_simulation.state_series, dense_simulation.state_series
         )
 
-    def test_sparse_first_reaction_with_fret_matches_dense(self, tr_set_bl_et_2f_diff):
+    def test_sparse_kappa_squared_with_fret_matches_dense(self, tr_set_bl_et_2f_diff):
         sparse_transition_set = tr_set_bl_et_2f_diff.with_matrix_format("sparse")
         dense_simulation = si.Simulation(tr_set_bl_et_2f_diff)
         sparse_simulation = si.Simulation(sparse_transition_set)
@@ -297,7 +297,7 @@ def test_direct_method_time_with_memmap(tr_set_1f, sparse_backend, tmp_path):
 
 
 @pytest.mark.parametrize("sparse_backend", [False, True])
-def test_first_reaction_method(monkeypatch, sparse_backend):
+def test_direct_method_steps_kappa_squared(monkeypatch, sparse_backend):
     class FixedGenerator:
         def __init__(self):
             self.uniform_arguments = None
@@ -310,15 +310,14 @@ def test_first_reaction_method(monkeypatch, sparse_backend):
     monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
 
     transition_matrix = np.array([[0, 0.25, 0.75], [1, 0, 0], [1, 0, 0]])
-    method = si.first_reaction_method
+    method = si.direct_method_steps_kappa_squared
     if sparse_backend:
         transition_matrix = sparse.csr_array(transition_matrix)
-        method = si.first_reaction_method_sparse
+        method = si.direct_method_steps_kappa_squared_sparse
     time_series, transition_series = method(
         transition_matrix=transition_matrix,
         row_sums=[4, 2, 1],
         combined_state_transitions_df=pd.DataFrame(index=np.arange(3)),
-        include_kap_sq=False,
         start_index=0,
         size=2,
         seed=42,
@@ -331,7 +330,7 @@ def test_first_reaction_method(monkeypatch, sparse_backend):
 
 
 @pytest.mark.parametrize("sparse_backend", [False, True])
-def test_first_reaction_method_applies_kappa_squared_only_to_fret(
+def test_direct_method_steps_kappa_squared_applies_only_to_fret(
     monkeypatch, sparse_backend
 ):
     transitions = pd.DataFrame(
@@ -351,15 +350,14 @@ def test_first_reaction_method_applies_kappa_squared_only_to_fret(
     )
 
     transition_matrix = np.array([[0, 0.5, 0.5], [0, 0, 0], [0, 0, 0]])
-    method = si.first_reaction_method
+    method = si.direct_method_steps_kappa_squared
     if sparse_backend:
         transition_matrix = sparse.csr_array(transition_matrix)
-        method = si.first_reaction_method_sparse
+        method = si.direct_method_steps_kappa_squared_sparse
     _, transition_series = method(
         transition_matrix=transition_matrix,
         row_sums=[2, 0, 0],
         combined_state_transitions_df=transitions,
-        include_kap_sq=True,
         start_index=0,
         size=1,
         seed=42,
@@ -369,14 +367,14 @@ def test_first_reaction_method_applies_kappa_squared_only_to_fret(
 
 
 @pytest.mark.parametrize("sparse_backend", [False, True])
-def test_first_reaction_method_with_memmap(
+def test_direct_method_steps_kappa_squared_with_memmap(
     tr_set_bl_et_2f_diff, sparse_backend, tmp_path
 ):
     transition_matrix = tr_set_bl_et_2f_diff.transition_matrix
-    method = si.first_reaction_method
+    method = si.direct_method_steps_kappa_squared
     if sparse_backend:
         transition_matrix = sparse.csr_array(transition_matrix)
-        method = si.first_reaction_method_sparse
+        method = si.direct_method_steps_kappa_squared_sparse
     expected_times, expected_transitions = method(
         transition_matrix=transition_matrix,
         row_sums=tr_set_bl_et_2f_diff.row_sums,
@@ -409,7 +407,7 @@ def test_first_reaction_method_with_memmap(
 
 @pytest.mark.parametrize("sparse_backend", [False, True])
 @pytest.mark.parametrize("use_memmap", [False, True])
-def test_first_reaction_method_stops_at_absorbing_state(
+def test_direct_method_steps_kappa_squared_stops_at_absorbing_state(
     use_memmap, sparse_backend, tmp_path
 ):
     transitions = pd.DataFrame(
@@ -420,16 +418,15 @@ def test_first_reaction_method_stops_at_absorbing_state(
     )
     memmap_path = tmp_path if use_memmap else None
     transition_matrix = np.array([[0, 1], [0, 0]])
-    method = si.first_reaction_method
+    method = si.direct_method_steps_kappa_squared
     if sparse_backend:
         transition_matrix = sparse.csr_array(transition_matrix)
-        method = si.first_reaction_method_sparse
+        method = si.direct_method_steps_kappa_squared_sparse
 
     time_series, transition_series = method(
         transition_matrix=transition_matrix,
         row_sums=[1, 0],
         combined_state_transitions_df=transitions,
-        include_kap_sq=False,
         start_index=0,
         size=3,
         seed=42,

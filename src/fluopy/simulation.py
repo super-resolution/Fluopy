@@ -122,16 +122,16 @@ class Simulation:
         end_time
             If not None, time at which simulation ends in s.
         kap_sq_var
-            If True, the first reaction method is used to simulate the data. This takes
-            much longer but allows to vary the dipole orientation factor for different
-            S1 states. If False, the direct method is used.
+            If True, the direct method samples the dipole orientation factor for each
+            simulation step and uses it to scale the FRET rates. If False, the direct
+            method uses the given transition rates.
         seed
             A seed to initialize the BitGenerator.
         use_memmap
             Determines the path where memmaps shall be stored. If empty str, saved in
             current working directory.
         kwargs
-            First reaction method arguments: include_kap_sq, minimum_rate.
+            direct_method_steps_kappa_squared argument: minimum_rate.
 
         """
         if start_at is None:
@@ -171,12 +171,12 @@ class Simulation:
                 use_memmap=use_memmap,
             )
         elif end_time is None and kap_sq_var:
-            first_reaction = (
-                first_reaction_method_sparse
+            direct_steps = (
+                direct_method_steps_kappa_squared_sparse
                 if sparse.issparse(self.transition_set.transition_matrix)
-                else first_reaction_method
+                else direct_method_steps_kappa_squared
             )
-            self.time_series, self.transition_series = first_reaction(
+            self.time_series, self.transition_series = direct_steps(
                 transition_matrix=self.transition_set.transition_matrix,
                 row_sums=self.transition_set.row_sums,
                 combined_state_transitions_df=df,
@@ -884,18 +884,17 @@ def direct_method_time(
     return time_series, transition_series
 
 
-def first_reaction_method_sparse(
+def direct_method_steps_kappa_squared_sparse(
     transition_matrix: sparse.spmatrix | sparse.sparray,
     row_sums: npt.ArrayLike,
     combined_state_transitions_df: pd.DataFrame,
-    include_kap_sq: bool = True,
     minimum_rate: float = 0,
     start_index: int = 0,
     size: int = 10,
     seed: RandomGeneratorSeed = None,
     use_memmap: str | Path | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.uint32]]:
-    """Sparse counterpart of first_reaction_method."""
+    """Sparse counterpart of direct_method_steps_kappa_squared."""
     matrix = sparse.csr_array(transition_matrix, dtype=np.float64)
     matrix.eliminate_zeros()
     matrix.sort_indices()
@@ -943,7 +942,7 @@ def first_reaction_method_sparse(
     fret_transition_mask = np.zeros(matrix.shape[1], dtype=bool)
     fret_transition_mask[fret_indices] = True
 
-    if include_kap_sq and fret_indices.size:
+    if fret_indices.size:
         N = 100000
         d = random_unit_vector(size=N, seed=rng)
         a = random_unit_vector(size=N, seed=rng)
@@ -1024,11 +1023,10 @@ def first_reaction_method_sparse(
     return time_series, transition_series
 
 
-def first_reaction_method(
+def direct_method_steps_kappa_squared(
     transition_matrix: npt.ArrayLike,
     row_sums: npt.ArrayLike,
     combined_state_transitions_df: pd.DataFrame,
-    include_kap_sq: bool = True,
     minimum_rate: float = 0,
     start_index: int = 0,
     size: int = 10,
@@ -1036,13 +1034,14 @@ def first_reaction_method(
     use_memmap: str | Path | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.uint32]]:
     """
-    The first reaction method of the gillespie algorithm. Here, the propensities are
+    The direct method of the gillespie algorithm. Here, the propensities are
     equal to the rate constants because the population is always 1. Additionally, the
     state change vector is redundant because each transition leads to a shift in
     populations by 1. This version is based on a maximum number of steps.
 
-    Needed to efficiently incorporate a variable dipole orientation factor
-    kappa_squared. The variable kappa_squared is sampled from the static regime.
+    Incorporates a variable dipole orientation factor kappa_squared. The variable
+    kappa_squared is sampled from the static regime for each simulation step and held
+    constant during the waiting time until the next transition.
     The variable kappa_squared is only applied to FRET transitions that are above
     minimum_rate. The FRET transitions should be given for kappa_squared = 2/3.
 
@@ -1057,9 +1056,6 @@ def first_reaction_method(
     combined_state_transitions_df
         Contains realizable combined_state_transitions with their id as index and their
         other attributes as columns.
-    include_kap_sq
-        If True, the dipole orientation factor kappa_squared is sampled from the static
-        regime and used to scale rates whose transition mechanism is FRET.
     minimum_rate
         Minimum rate for a FRET transition to be considered following the static regime.
     start_index
@@ -1135,7 +1131,7 @@ def first_reaction_method(
         fret_transition_mask[indices] for indices in outgoing_transition_indices
     ]
 
-    if include_kap_sq and fret_indices.size:
+    if fret_indices.size:
         # static orientation regime
         N = 100000
         d = random_unit_vector(size=N, seed=rng)
