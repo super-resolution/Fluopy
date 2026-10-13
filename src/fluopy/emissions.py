@@ -141,6 +141,8 @@ class Emissions:
         frame-based operations and do not modify event_time_points. Internally generated
         series are indexed by the end time of each measured frame. None until extract(),
         simulate() or tcspc() has been called.
+        Extraction from a Simulation includes only complete frames; photons in an
+        incomplete final frame remain available in event_time_points.
     """
 
     def __init__(
@@ -537,6 +539,11 @@ class Emissions:
         """
         Count events within right-closed time intervals labeled by their end time.
 
+        Only frames ending at or before simulation.time_series[-1] are included in
+        event_time_series, consistently across all channels. An incomplete final frame
+        is discarded even when it contains photons. If no complete frame was observed,
+        event_time_series is empty. event_time_points retains all detected photons.
+
         Parameters
         ----------
         simulation
@@ -545,11 +552,19 @@ class Emissions:
             For possible input values, see https://pandas.pydata.org/docs/user_guide/
             timeseries.html -> Offset aliases.
 
+        Notes
+        -----
+        A simulation ending at 12 ms with 5 ms frames produces rows at 5 and 10 ms.
+        Photons arriving after 10 ms remain in event_time_points but are omitted from
+        event_time_series. A photon arriving exactly at 10 ms belongs to the frame
+        ending at 10 ms.
+
         """
         event_time_points_by_channel = self._require_event_time_points()
         time_series = simulation.time_series
         if time_series is None:
             raise ValueError("event time series requires a completed simulation.")
+        observation_end = pd.to_timedelta(time_series[-1], unit="s")
 
         collected_series = {}
         for channel_name, channel_time_points in event_time_points_by_channel.items():
@@ -570,14 +585,10 @@ class Emissions:
             event_time_series_r = event_time_series.resample(
                 resample, closed="right", label="right"
             ).sum()
-            if (
-                event_time_series_r.index[-1] > event_time_series.index[-1]
-                and event_time_series_r.values[-1] == 0
-            ):
-                event_time_series_r = event_time_series_r.drop(
-                    event_time_series_r.index[-1]
-                )
             event_time_series_r = event_time_series_r.iloc[1:]
+            event_time_series_r = event_time_series_r[
+                event_time_series_r.index <= observation_end
+            ]
             resampled_index = event_time_series_r.index
             in_seconds = np.asarray(
                 resampled_index.to_numpy() / np.timedelta64(1, "s"),
