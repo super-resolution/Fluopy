@@ -766,7 +766,7 @@ class TransitionSet:
     row_sums
         Contains the sum of each row of non-normalized transition rates, i.e., the sum
         of rates of all possible combined_state_transitions.
-    single_states : dict[str, npt.NDArray[np.int64]]
+    single_states
         Contains the values of all relevant SingleStates as values. Name of
         fluorophores as keys.
     absorbing_states
@@ -776,7 +776,7 @@ class TransitionSet:
     terminal_state_combinations
         Combined states without a positive-rate outgoing transition. Unlike
         absorbing_states, this collection is derived from the active rates.
-    transition_df : pd.DataFrame
+    transition_df
         Dataframe of all retained transitions containing their id as second level index
         and their other attributes as columns. Name of fluorophores as first level
         index. Includes zero-rate transitions when keep_zero_rates is True.
@@ -829,7 +829,7 @@ class TransitionSet:
         self.matrix_format = matrix_format
         self.keep_zero_rates = keep_zero_rates
 
-        self.transition_df = pd.DataFrame()
+        self.transition_df: pd.DataFrame = pd.DataFrame()
         retained_transitions: dict[str, list[Transition]] = {}
         i = 0
         for fluorophore_comb, f_transitions in transitions.items():
@@ -919,7 +919,7 @@ class TransitionSet:
                 index=pd.MultiIndex.from_tuples([], names=["Fluorophore", "identity"]),
             )
         self.states_by_value = get_states_by_value(self.transitions)
-        self.single_states = get_single_states(
+        self.single_states: dict[str, npt.NDArray[np.int64]] = get_single_states(
             self.transitions,
             self.fluorophore_system,
         )

@@ -37,25 +37,25 @@ class Prediction:
 
     Attributes
     ----------
-    paired_transitions : bool
+    paired_transitions
         Whether the prediction includes paired transitions.
-    absorbing_chain : bool
+    absorbing_chain
         Whether the subchain reachable from initial_state_index contains a terminal
         combined state and the prediction was carried out on an absorbing Markov chain.
         Absorbing states have a lifetime of inf and a frequency / occupation of 0.
         Absorbing transitions have a frequency of 0.
     transition_set
         Collection of all relevant transitions and related attributes.
-    initial_state_index : int
+    initial_state_index
         Row of transition_set.combined_state_transitions_df whose final state defines
         the initial combined state. The row determines the reachable subchain used for
         both absorbing and non-absorbing predictions. In an absorbing prediction, the
         row itself is also counted as the initial visit.
-    frequency_transitions : npt.NDArray[np.float64]
+    frequency_transitions
         Relative number of expected transition occurrences, normalized separately for
         each fluorophore. Paired-transition occurrences are assigned to the donor's
         transition group.
-    frequency_states : dict[str, npt.NDArray[np.float64]]
+    frequency_states
         Relative expected number of visits to each state, normalized separately for each
         fluorophore.
     transition_time_distributions
@@ -122,8 +122,8 @@ class Prediction:
             counted as the initial visit, so different rows may produce different
             results even when they have the same final state.
         """
-        self.paired_transitions = False
-        self.absorbing_chain = False
+        self.paired_transitions: bool = False
+        self.absorbing_chain: bool = False
         if transition_set.fluorophore_system.count > 2:
             raise ValueError("prediction not available for more than 2 fluorophores.")
         self.transition_set = transition_set
@@ -133,7 +133,7 @@ class Prediction:
             raise ValueError(
                 "initial_state_index must identify a row of the transition matrix."
             )
-        self.initial_state_index = int(initial_state_index)
+        self.initial_state_index: int = int(initial_state_index)
         self._terminal_state_combinations = self._get_terminal_state_combinations()
         transition_matrix = transition_set.transition_matrix
         if sparse.issparse(transition_matrix):
@@ -190,6 +190,8 @@ class Prediction:
                     stacklevel=2,
                 )
 
+        self.frequency_transitions: npt.NDArray[np.float64]
+        self.frequency_states: dict[str, npt.NDArray[np.float64]]
         self.transition_time_distributions: npt.NDArray[Any] | None
         self.lifetime_distributions: dict[str, npt.NDArray[Any]] | None
         self.mean_transition_times: npt.NDArray[np.float64] | None

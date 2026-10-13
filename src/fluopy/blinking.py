@@ -32,15 +32,15 @@ class Blinking:
     ----------
     emissions
         Container for emission-associated attributes.
-    channel : str
+    channel
         Detection channel used to determine blinking periods.
-    on_periods : npt.NDArray[np.int64]
+    on_periods
         Contains the durations of each ON period (in frames).
-    off_periods : npt.NDArray[np.int64]
+    off_periods
         Contains the durations of each OFF period (in frames).
-    on_periods_frames : npt.NDArray[np.int64]
+    on_periods_frames
         Contains the first frame of each ON period.
-    off_periods_frames : npt.NDArray[np.int64]
+    off_periods_frames
         Contains the first frame of each OFF period.
     """
 
@@ -67,10 +67,14 @@ class Blinking:
         if memory < 0:
             raise ValueError("memory must be non-negative.")
         self.emissions = emissions
-        self.channel = emissions.resolve_channel(channel)
+        self.channel: str = emissions.resolve_channel(channel)
         if self.emissions.event_time_series is None:
             raise ValueError("blinking statistics require extracted emissions.")
         event_time_series = self.emissions.select_event_time_series(self.channel)
+        self.on_periods: npt.NDArray[np.int64]
+        self.off_periods: npt.NDArray[np.int64]
+        self.on_periods_frames: npt.NDArray[np.int64]
+        self.off_periods_frames: npt.NDArray[np.int64]
         (
             self.on_periods,
             self.off_periods,

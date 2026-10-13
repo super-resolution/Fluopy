@@ -37,7 +37,7 @@ class FCS:
     ----------
     emissions
         Container for emission-associated attributes.
-    channel : str
+    channel
         Detection channel used for autocorrelation.
     autocorrelation
         Autocorrelation values.
@@ -56,7 +56,7 @@ class FCS:
             channel is used.
         """
         self.emissions = emissions
-        self.channel = emissions.resolve_channel(channel)
+        self.channel: str = emissions.resolve_channel(channel)
         self.autocorrelation: npt.NDArray[np.float64] | None = None
         self.tau: npt.NDArray[np.float64] | None = None
 
