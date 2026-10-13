@@ -173,12 +173,12 @@ class Simulation:
                 use_memmap=use_memmap,
             )
         elif end_time is None and kap_sq_var:
-            direct_steps = (
+            direct_steps_kappa_squared = (
                 direct_method_steps_kappa_squared_sparse
                 if sparse.issparse(self.transition_set.transition_matrix)
                 else direct_method_steps_kappa_squared
             )
-            self.time_series, self.transition_series = direct_steps(
+            self.time_series, self.transition_series = direct_steps_kappa_squared(
                 transition_matrix=self.transition_set.transition_matrix,
                 row_sums=self.transition_set.row_sums,
                 combined_state_transitions_df=df,
