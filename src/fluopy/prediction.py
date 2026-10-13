@@ -220,7 +220,10 @@ class Prediction:
                 self.lifetime_distributions,
             ) = self.predict_lifetimes()
             self.mean_transition_times = np.array(
-                [distr.mean() for distr in self.transition_time_distributions]
+                [
+                    distr.mean() if distr != np.inf else np.inf
+                    for distr in self.transition_time_distributions
+                ]
             )
             self.mean_lifetimes, self.state_occupations = self.infer_stats()
         else:

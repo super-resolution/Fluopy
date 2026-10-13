@@ -104,6 +104,40 @@ def test_sparse_self_transition_only_prediction(tr_set_self_cycle):
 
 
 @pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("emission_rate", [0, 1])
+def test_prediction_handles_retained_zero_rate_transitions(
+    flu_sys_cy5, matrix_format, emission_rate
+):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(
+                    tr.TransitionType.EXCITATION, rate=0, fluorophore_ids=[0]
+                ),
+                tr.Transition(
+                    tr.TransitionType.FLUORESCENT_EMISSION,
+                    rate=emission_rate,
+                    fluorophore_ids=[0],
+                ),
+            ]
+        },
+        flu_sys_cy5,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+
+    prediction = pr.Prediction(transition_set)
+
+    emission_mean = 1 if emission_rate else np.inf
+    np.testing.assert_array_equal(
+        prediction.mean_transition_times, [np.inf, emission_mean]
+    )
+    np.testing.assert_array_equal(
+        prediction.mean_lifetimes["testfluo_1"], [np.inf, emission_mean]
+    )
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
 @pytest.mark.parametrize("absorbing", [False, True])
 def test_paired_state_frequencies_use_common_event_counts(
     flu_sys_1xcy5_1xatto643, matrix_format, absorbing
