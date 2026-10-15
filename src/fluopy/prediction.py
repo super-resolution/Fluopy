@@ -478,14 +478,19 @@ class Prediction:
             ~np.isin(reachable_indices, drop_transitions)
         ]
         Q = transition_matrix[np.ix_(transient_indices, transient_indices)]
-        N = get_N(
-            I_t=get_I_t(Q=Q),
-            Q=Q,
-        )
         initial_transient_index = int(
             np.flatnonzero(transient_indices == initial_state_index)[0]
         )
-        expected_transient_visits = N[initial_transient_index]
+        initial_visit = np.zeros(transient_indices.size)
+        initial_visit[initial_transient_index] = 1
+        try:
+            expected_transient_visits = np.linalg.solve(
+                (np.eye(Q.shape[0]) - Q).T, initial_visit
+            )
+        except np.linalg.LinAlgError as exception:
+            raise ValueError("the transient subchain is singular.") from exception
+        if not np.all(np.isfinite(expected_transient_visits)):
+            raise ValueError("the transient subchain is singular.")
         self._transient_visits[transient_indices] = expected_transient_visits
         expected_visits = self._transient_visits.copy()
         expected_visits[drop_diff] = 0
@@ -1121,77 +1126,3 @@ def _get_reachable_indices(
         reachable[frontier] = True
 
     return np.flatnonzero(reachable)
-
-
-def get_Q(
-    P: npt.ArrayLike, drop_transitions: int | npt.ArrayLike
-) -> npt.NDArray[np.float64]:
-    """
-    Q describes the probability of transitioning from some transient state to another.
-
-    Parameters
-    ----------
-    P
-        Transition matrix with transient states t and absorbing state r.
-    drop_transitions
-        Index of absorbing state (i.e., photophysical transition with no return).
-
-    Returns
-    -------
-    npt.NDArray[np.float64]
-        Transition matrix Q with transient states t.
-    """
-    # Q takes the original transition matrix into account, because within Q the state
-    # that leads to the absorbing state has to take on the probability GIVEN the
-    # possibility of the transition to the absorbing state.
-    matrix = np.asarray(P, dtype=np.float64)
-    indices = np.asarray(drop_transitions, dtype=np.int64)
-    Q = np.delete(matrix, indices, axis=0)
-    Q = np.delete(Q, indices, axis=1)
-
-    return Q
-
-
-def get_I_t(Q: npt.ArrayLike) -> npt.NDArray[np.float64]:
-    """
-    I_t is the identity matrix of Q.
-
-    Parameters
-    ----------
-    Q
-        Transition matrix with transient states t.
-
-    Returns
-    -------
-    npt.NDArray[np.float64]
-        Identity matrix I_t of Q.
-    """
-    matrix = np.asarray(Q, dtype=np.float64)
-    I_t = np.identity(matrix.shape[0])
-
-    return I_t
-
-
-def get_N(I_t: npt.ArrayLike, Q: npt.ArrayLike) -> npt.NDArray[np.float64]:
-    """
-    N is the fundamental matrix. At entry (i, j) it contains the expected number
-    of visits to a transient state j starting from transient state i before being
-    absorbed.
-
-    Parameters
-    ----------
-    I_t
-        Identity matrix of Q.
-    Q
-        Transition matrix with transient states t.
-
-    Returns
-    -------
-    npt.NDArray[np.float64]
-        Fundamental matrix N of absorbing Markov chain.
-    """
-    identity = np.asarray(I_t, dtype=np.float64)
-    transition_matrix = np.asarray(Q, dtype=np.float64)
-    N = np.linalg.inv(identity - transition_matrix)
-
-    return np.asarray(N, dtype=np.float64)
