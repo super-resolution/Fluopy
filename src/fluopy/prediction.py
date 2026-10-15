@@ -197,6 +197,7 @@ class Prediction:
         self.mean_transition_times: npt.NDArray[np.float64] | None
         self.mean_lifetimes: dict[str, npt.NDArray[np.float64]] | None
         self.state_occupations: dict[str, npt.NDArray[np.float64]] | None
+        self._stationary_distribution: npt.NDArray[np.float64] | None = None
         if self.absorbing_chain:
             if sparse.issparse(transition_matrix):
                 self.frequency_transitions = (
@@ -281,6 +282,7 @@ class Prediction:
         full_transition_matrix = self.transition_set.transition_matrix
         frequency_transitions = np.zeros(self.transition_set.transition_df.shape[0])
         self._transition_occurrences = frequency_transitions
+        self._stationary_distribution = np.zeros(full_transition_matrix.shape[0])
         if not np.any(full_transition_matrix):
             return frequency_transitions
 
@@ -307,8 +309,8 @@ class Prediction:
                 "the reachable non-absorbing subchain does not have a unique "
                 "stationary distribution."
             ) from exception
-        stationary_distribution_combined_state_transitions = np.zeros(
-            full_transition_matrix.shape[0]
+        stationary_distribution_combined_state_transitions = (
+            self._stationary_distribution
         )
         stationary_distribution_combined_state_transitions[reachable_indices] = (
             reachable_stationary_distribution
@@ -359,6 +361,7 @@ class Prediction:
         )
         frequency_transitions = np.zeros(self.transition_set.transition_df.shape[0])
         self._transition_occurrences = frequency_transitions
+        self._stationary_distribution = np.zeros(full_transition_matrix.shape[0])
         if full_transition_matrix.nnz == 0:
             return frequency_transitions
 
@@ -393,8 +396,8 @@ class Prediction:
                 "the reachable non-absorbing subchain does not have a unique "
                 "stationary distribution."
             )
-        stationary_distribution_combined_state_transitions = np.zeros(
-            full_transition_matrix.shape[0]
+        stationary_distribution_combined_state_transitions = (
+            self._stationary_distribution
         )
         stationary_distribution_combined_state_transitions[reachable_indices] = (
             reachable_stationary_distribution
@@ -657,7 +660,28 @@ class Prediction:
         for fluorophore, state_frequencies in frequency_states.items():
             total = state_frequencies.sum()
             if total == 0:
-                state_frequencies = self_frequency_states[fluorophore]
+                stationary_distribution = self._stationary_distribution
+                if (
+                    stationary_distribution is not None
+                    and stationary_distribution.sum() > 0
+                ):
+                    fluorophore_ids = (
+                        self.transition_set.fluorophore_system.get_identities(
+                            fluorophore
+                        )
+                    )
+                    combined_states = np.asarray(
+                        self.transition_set.combined_state_transitions_df[
+                            "final_state"
+                        ].tolist()
+                    )[:, fluorophore_ids]
+                    state_counts = np.count_nonzero(
+                        combined_states[:, :, None] == single_states[fluorophore],
+                        axis=1,
+                    )
+                    state_frequencies = stationary_distribution @ state_counts
+                else:
+                    state_frequencies = self_frequency_states[fluorophore]
                 total = state_frequencies.sum()
             if total > 0:
                 frequency_states[fluorophore] = state_frequencies / total

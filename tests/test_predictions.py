@@ -104,6 +104,49 @@ def test_sparse_self_transition_only_prediction(tr_set_self_cycle):
 
 
 @pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("self_rates", [(1, 9), (9, 1), (1, 0)])
+@pytest.mark.parametrize("initial_states", [(0, 1), (1, 0)])
+def test_persistent_state_statistics_do_not_depend_on_self_event_rates(
+    flu_sys_2xcy5, matrix_format, self_rates, initial_states
+):
+    transitions = [
+        tr.Transition(
+            tr.TransitionType("SELF0", tr.SingleState.S0, tr.SingleState.S0, False),
+            rate=self_rates[0],
+            fluorophore_ids=[0, 1],
+        ),
+        tr.Transition(
+            tr.TransitionType("SELF1", tr.SingleState.S1, tr.SingleState.S1, False),
+            rate=self_rates[1],
+            fluorophore_ids=[0, 1],
+        ),
+    ]
+    transition_set = tr.TransitionSet(
+        {"testfluo_1": transitions},
+        flu_sys_2xcy5,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    combined_transitions = transition_set.combined_state_transitions_df
+    initial_index = int(
+        combined_transitions.index[
+            combined_transitions["final_state"] == initial_states
+        ][0]
+    )
+
+    prediction = pr.Prediction(transition_set, initial_state_index=initial_index)
+
+    np.testing.assert_allclose(
+        prediction.frequency_transitions, np.asarray(self_rates) / sum(self_rates)
+    )
+    np.testing.assert_allclose(prediction.frequency_states["testfluo_1"], [0.5, 0.5])
+    np.testing.assert_array_equal(
+        prediction.mean_lifetimes["testfluo_1"], [np.inf, np.inf]
+    )
+    np.testing.assert_allclose(prediction.state_occupations["testfluo_1"], [0.5, 0.5])
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
 @pytest.mark.parametrize("emission_rate", [0, 1])
 def test_prediction_handles_retained_zero_rate_transitions(
     flu_sys_cy5, matrix_format, emission_rate
