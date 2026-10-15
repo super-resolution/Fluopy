@@ -466,14 +466,12 @@ class Emissions:
         Simulation | None,
     ]:
         """
-        Simulates experimental TCSPC data (i.e., pulsed excitation for fluorescence
-        lifetime measurements). The return value lifetimes_DA contains the S1 durations
-        of detected emissions by channel when a positive-rate paired transition is
-        available immediately before emission and the emitting fluorophore is its first,
-        active component. This does not discriminate between the number or mechanism of
-        paired transitions. A paired transition may become available during the S1
-        duration of the emitting fluorophore. The S1 durations are the time differences
-        between photon emission and the last laser pulse.
+        Simulates pulsed excitation and measures photon delays from the latest laser
+        pulse. The return value pulse_delays_paired contains delays of detected photons
+        when a positive-rate paired transition is available immediately before emission
+        and the emitting fluorophore is its first, active component. This classification
+        describes availability, not whether a paired transition occurred. Pulse delays
+        are not the fluorophore's residence times in S1.
         For processes other than S0 excitation that are also dependent on the
         irradiance, the given rates should correspond to the mean irradiance. They will
         not be adjusted to pulsed excitation.
@@ -503,15 +501,16 @@ class Emissions:
 
         Returns
         -------
-        lifetimes_DA : dict[str, npt.NDArray[np.float64]]
-            S1 durations of detected emissions when a positive-rate paired transition
+        pulse_delays_paired : dict[str, npt.NDArray[np.float64]]
+            Pulse-relative delays when a positive-rate paired transition
             involving the emitter as its active component was available immediately
             before emission, grouped by detection channel.
-        lifetimes_D : dict[str, npt.NDArray[np.float64]]
-            S1 durations of detected emissions when no paired transition was available,
+        pulse_delays_unpaired : dict[str, npt.NDArray[np.float64]]
+            Pulse-relative delays when no paired transition was available,
             grouped by detection channel.
-        lifetimes_all : dict[str, npt.NDArray[np.float64]]
-            S1 durations of all detected emissions, grouped by detection channel.
+        pulse_delays_all : dict[str, npt.NDArray[np.float64]]
+            Delays in seconds from all detected photons to the latest laser pulse,
+            grouped by detection channel.
         simulation_object : fluopy.simulation.Simulation
             Container for simulation-associated attributes and methods. Only returned if
             details is True.
@@ -584,11 +583,16 @@ class Emissions:
             )
             self.event_time_series = detailed_result[0]
             self.event_time_points = detailed_result[1]
-            lifetimes_DA = detailed_result[2]
-            lifetimes_D = detailed_result[3]
-            lifetimes_all = detailed_result[4]
+            pulse_delays_paired = detailed_result[2]
+            pulse_delays_unpaired = detailed_result[3]
+            pulse_delays_all = detailed_result[4]
             simulation_object = detailed_result[5]
-            return lifetimes_DA, lifetimes_D, lifetimes_all, simulation_object
+            return (
+                pulse_delays_paired,
+                pulse_delays_unpaired,
+                pulse_delays_all,
+                simulation_object,
+            )
         else:
             basic_result = simulate_TCSPC(
                 transition_set=transition_set,
@@ -606,10 +610,10 @@ class Emissions:
             )
             self.event_time_series = basic_result[0]
             self.event_time_points = basic_result[1]
-            lifetimes_DA = basic_result[2]
-            lifetimes_D = basic_result[3]
-            lifetimes_all = basic_result[4]
-            return lifetimes_DA, lifetimes_D, lifetimes_all, None
+            pulse_delays_paired = basic_result[2]
+            pulse_delays_unpaired = basic_result[3]
+            pulse_delays_all = basic_result[4]
+            return pulse_delays_paired, pulse_delays_unpaired, pulse_delays_all, None
 
     def construct_event_time_series(
         self, simulation: Simulation, resample: str = "5ms"

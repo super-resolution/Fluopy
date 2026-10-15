@@ -136,9 +136,9 @@ def test_compare_simulate_TCSPC_and_simulate_TCSPC_detailed(tr_set_1f):
     (
         event_time_series,
         event_time_points,
-        lifetimes_DA,
-        lifetimes_D,
-        lifetimes_all,
+        pulse_delays_paired,
+        pulse_delays_unpaired,
+        pulse_delays_all,
     ) = _unwrap_single_channel(result)
 
     rng = np.random.default_rng(42)
@@ -158,18 +158,18 @@ def test_compare_simulate_TCSPC_and_simulate_TCSPC_detailed(tr_set_1f):
     (
         event_time_series_,
         event_time_points_,
-        lifetimes_DA_,
-        lifetimes_D_,
-        lifetimes_all_,
+        pulse_delays_paired_,
+        pulse_delays_unpaired_,
+        pulse_delays_all_,
         simulation,
     ) = _unwrap_single_channel(detailed_result)
 
     assert len(event_time_series) == 2
     assert event_time_series.equals(event_time_series_)
     assert np.array_equal(event_time_points, event_time_points_)
-    assert np.array_equal(lifetimes_DA, lifetimes_DA_)
-    assert np.array_equal(lifetimes_D, lifetimes_D_)
-    assert np.array_equal(lifetimes_all, lifetimes_all_)
+    assert np.array_equal(pulse_delays_paired, pulse_delays_paired_)
+    assert np.array_equal(pulse_delays_unpaired, pulse_delays_unpaired_)
+    assert np.array_equal(pulse_delays_all, pulse_delays_all_)
     assert len(simulation.time_series) == 5371
     assert np.all(np.diff(simulation.time_series) > 0)
     assert simulation.time_series[-1] < 41000 * 25e-9
@@ -238,16 +238,16 @@ def test_tcspc_routes_detected_photons_to_channels(call, store_time_points, tr_s
         seed=42,
     )
 
-    event_time_series, event_time_points, _, _, lifetimes_all = result[:5]
+    event_time_series, event_time_points, _, _, pulse_delays_all = result[:5]
     assert list(event_time_series.columns) == ["green", "red"]
-    assert set(lifetimes_all) == {"green", "red"}
+    assert set(pulse_delays_all) == {"green", "red"}
     if not store_time_points:
         assert event_time_points is None
     for channel in ("green", "red"):
         if event_time_points is not None:
-            assert event_time_points[channel].size == lifetimes_all[channel].size
-        assert event_time_series[channel].sum() == lifetimes_all[channel].size
-        assert lifetimes_all[channel].size > 0
+            assert event_time_points[channel].size == pulse_delays_all[channel].size
+        assert event_time_series[channel].sum() == pulse_delays_all[channel].size
+        assert pulse_delays_all[channel].size > 0
 
 
 @pytest.mark.parametrize(
@@ -368,7 +368,7 @@ def test_tcspc_stops_at_absorbing_state(call, tr_set_1f_bl, caplog):
 @pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
 @pytest.mark.parametrize("two_fluorophores", [False, True])
 @pytest.mark.parametrize(
-    "transition_delay, expected_times, expected_lifetimes",
+    "transition_delay, expected_times, expected_pulse_delays",
     [
         (1.5, [1.5, 2.25, 3.25], [0.5, 0.25, 0.25]),
         (2.5, [2.5, 3.25], [0.5, 0.25]),
@@ -381,7 +381,7 @@ def test_tcspc_resuming_transition_preserves_pulse_timing(
     two_fluorophores,
     transition_delay,
     expected_times,
-    expected_lifetimes,
+    expected_pulse_delays,
     flu_sys_cy5,
     flu_sys_2xcy5,
     monkeypatch,
@@ -426,7 +426,7 @@ def test_tcspc_resuming_transition_preserves_pulse_timing(
     )
 
     np.testing.assert_allclose(result[1]["all"], expected_times)
-    np.testing.assert_allclose(result[4]["all"], expected_lifetimes)
+    np.testing.assert_allclose(result[4]["all"], expected_pulse_delays)
     assert result[0]["all"].sum() == len(expected_times)
     if call is si.simulate_TCSPC_detailed:
         assert np.all(np.diff(result[5].time_series) > 0)
@@ -577,8 +577,8 @@ def test_tcspc_rejects_excitation_at_or_beyond_acquisition_end(
     )
 
     assert result[0].to_numpy().sum() == 0
-    for lifetimes in result[2:5]:
-        assert lifetimes["all"].size == 0
+    for pulse_delays in result[2:5]:
+        assert pulse_delays["all"].size == 0
     if call is si.simulate_TCSPC_detailed:
         assert result[5].transition_series.size == 0
         np.testing.assert_array_equal(result[5].time_series, [0.0])
@@ -644,9 +644,9 @@ def test_simulate_TCSPC_single_fluorophore(tr_set_1f, caplog):
         (
             event_time_series,
             event_time_points,
-            lifetimes_DA,
-            lifetimes_D,
-            lifetimes_all,
+            pulse_delays_paired,
+            pulse_delays_unpaired,
+            pulse_delays_all,
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
             emitting_transition_ids={1: 1},
@@ -665,16 +665,16 @@ def test_simulate_TCSPC_single_fluorophore(tr_set_1f, caplog):
     assert (
         event_time_series.values.sum()
         == event_time_points.size
-        == lifetimes_DA.size + lifetimes_D.size
-        == lifetimes_all.size
+        == pulse_delays_paired.size + pulse_delays_unpaired.size
+        == pulse_delays_all.size
     )
     assert (
         event_time_series.size
         == 2
         == int(np.ceil(number_pulses * time_between_pulses / 1e-3))
     )
-    assert lifetimes_DA.size == 0
-    np.testing.assert_allclose(lifetimes_D.mean(), 1.0405e-09, rtol=1e-2)
+    assert pulse_delays_paired.size == 0
+    np.testing.assert_allclose(pulse_delays_unpaired.mean(), 1.0405e-09, rtol=1e-2)
 
 
 @pytest.mark.slow
@@ -688,8 +688,8 @@ def test_simulate_TCSPC_bleaching_without_stored_time_points(tr_set_1f_bl, caplo
         (
             event_time_series,
             event_time_points,
-            lifetimes_DA,
-            lifetimes_D,
+            pulse_delays_paired,
+            pulse_delays_unpaired,
             _,
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
@@ -709,10 +709,10 @@ def test_simulate_TCSPC_bleaching_without_stored_time_points(tr_set_1f_bl, caplo
     assert event_time_series.size == int(
         np.ceil(number_pulses * time_between_pulses / 1e-3)
     )
-    assert event_time_series.values.sum() == lifetimes_D.size
+    assert event_time_series.values.sum() == pulse_delays_unpaired.size
     assert event_time_points is None
-    assert lifetimes_DA.size == 0
-    np.testing.assert_allclose(lifetimes_D.mean(), 9.96e-10, rtol=2e-2)
+    assert pulse_delays_paired.size == 0
+    np.testing.assert_allclose(pulse_delays_unpaired.mean(), 9.96e-10, rtol=2e-2)
 
 
 @pytest.mark.slow
@@ -726,8 +726,8 @@ def test_simulate_TCSPC_warns_when_frame_requires_more_pulses(tr_set_1f, caplog)
         (
             event_time_series,
             event_time_points,
-            lifetimes_DA,
-            lifetimes_D,
+            pulse_delays_paired,
+            pulse_delays_unpaired,
             _,
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
@@ -753,13 +753,13 @@ def test_simulate_TCSPC_warns_when_frame_requires_more_pulses(tr_set_1f, caplog)
     )
     assert (
         event_time_series.values.sum()
-        == lifetimes_D.size + lifetimes_DA.size
+        == pulse_delays_unpaired.size + pulse_delays_paired.size
         == event_time_points.size
     )
 
 
 @pytest.mark.slow
-def test_simulate_TCSPC_homofret_lifetimes_with_relaxed_pulses(
+def test_simulate_TCSPC_homofret_pulse_delays_with_relaxed_pulses(
     tr_set_bl_et_2f_same, caplog
 ):
     transition_set = tr_set_bl_et_2f_same.filter_by_identity([9])
@@ -775,8 +775,8 @@ def test_simulate_TCSPC_homofret_lifetimes_with_relaxed_pulses(
         (
             event_time_series,
             event_time_points,
-            lifetimes_DA,
-            lifetimes_D,
+            pulse_delays_paired,
+            pulse_delays_unpaired,
             _,
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
@@ -797,18 +797,20 @@ def test_simulate_TCSPC_homofret_lifetimes_with_relaxed_pulses(
     assert event_time_series.size == 4_000
     assert (
         event_time_series.values.sum()
-        == lifetimes_D.size + lifetimes_DA.size
+        == pulse_delays_unpaired.size + pulse_delays_paired.size
         == event_time_points.size
     )
     np.testing.assert_allclose(
-        np.mean(np.concatenate([lifetimes_DA, lifetimes_D])), 1.0147e-9, rtol=1.1e-2
+        np.mean(np.concatenate([pulse_delays_paired, pulse_delays_unpaired])),
+        1.0147e-9,
+        rtol=1.1e-2,
     )
-    np.testing.assert_allclose(np.mean(lifetimes_D), 0.5e-9, rtol=1e-1)
-    np.testing.assert_allclose(np.mean(lifetimes_DA), 1.5e-9, rtol=1e-1)
+    np.testing.assert_allclose(np.mean(pulse_delays_unpaired), 0.5e-9, rtol=1e-1)
+    np.testing.assert_allclose(np.mean(pulse_delays_paired), 1.5e-9, rtol=1e-1)
 
 
 @pytest.mark.slow
-def test_simulate_TCSPC_homofret_lifetimes_with_overlapping_pulses(
+def test_simulate_TCSPC_homofret_pulse_delays_with_overlapping_pulses(
     tr_set_bl_et_2f_same, caplog
 ):
     transition_set = tr_set_bl_et_2f_same.adjust_rates(
@@ -825,8 +827,8 @@ def test_simulate_TCSPC_homofret_lifetimes_with_overlapping_pulses(
         (
             event_time_series,
             event_time_points,
-            lifetimes_DA,
-            lifetimes_D,
+            pulse_delays_paired,
+            pulse_delays_unpaired,
             _,
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
@@ -845,19 +847,19 @@ def test_simulate_TCSPC_homofret_lifetimes_with_overlapping_pulses(
     )
     assert (
         event_time_series.values.sum()
-        == lifetimes_D.size + lifetimes_DA.size
+        == pulse_delays_unpaired.size + pulse_delays_paired.size
         == event_time_points.size
     )
     assert np.all(np.diff(event_time_points) > 0)
     assert np.all(event_time_points < number_pulses * time_between_pulses)
-    lifetimes = np.concatenate([lifetimes_DA, lifetimes_D])
-    assert np.all((lifetimes >= 0) & (lifetimes < time_between_pulses))
-    np.testing.assert_allclose(np.mean(lifetimes_D), 3.7317e-10, rtol=1e-1)
-    np.testing.assert_allclose(np.mean(lifetimes_DA), 6.3831e-10, rtol=1e-1)
+    pulse_delays = np.concatenate([pulse_delays_paired, pulse_delays_unpaired])
+    assert np.all((pulse_delays >= 0) & (pulse_delays < time_between_pulses))
+    np.testing.assert_allclose(np.mean(pulse_delays_unpaired), 3.7317e-10, rtol=1e-1)
+    np.testing.assert_allclose(np.mean(pulse_delays_paired), 6.3831e-10, rtol=1e-1)
 
 
 @pytest.mark.slow
-def test_simulate_TCSPC_fret_shortens_donor_lifetime(tr_set_bl_et_2f_diff, caplog):
+def test_simulate_TCSPC_fret_shortens_donor_pulse_delay(tr_set_bl_et_2f_diff, caplog):
     transition_set = tr_set_bl_et_2f_diff.adjust_rates(
         {0: 0, 8: 1e10, 9: 0, 15: 0}, keep_zero_rates=True
     )
@@ -869,8 +871,8 @@ def test_simulate_TCSPC_fret_shortens_donor_lifetime(tr_set_bl_et_2f_diff, caplo
         (
             event_time_series,
             event_time_points,
-            lifetimes_DA,
-            lifetimes_D,
+            pulse_delays_paired,
+            pulse_delays_unpaired,
             _,
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
@@ -888,11 +890,11 @@ def test_simulate_TCSPC_fret_shortens_donor_lifetime(tr_set_bl_et_2f_diff, caplo
     assert event_time_series.size == 4_000
     assert (
         event_time_series.values.sum()
-        == lifetimes_D.size + lifetimes_DA.size
+        == pulse_delays_unpaired.size + pulse_delays_paired.size
         == event_time_points.size
     )
-    assert lifetimes_D.size == 0
-    np.testing.assert_allclose(np.mean(lifetimes_DA), 8.9e-11, rtol=1e-1)
+    assert pulse_delays_unpaired.size == 0
+    np.testing.assert_allclose(np.mean(pulse_delays_paired), 8.9e-11, rtol=1e-1)
 
 
 @pytest.mark.slow
@@ -910,8 +912,8 @@ def test_simulate_TCSPC_photon_count_tracks_excitation_probability(tr_set_1f, ca
         (
             event_time_series,
             event_time_points,
-            lifetimes_DA,
-            lifetimes_D,
+            pulse_delays_paired,
+            pulse_delays_unpaired,
             _,
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
@@ -929,7 +931,7 @@ def test_simulate_TCSPC_photon_count_tracks_excitation_probability(tr_set_1f, ca
     assert event_time_series.size == 4_000
     assert (
         event_time_series.values.sum()
-        == lifetimes_D.size + lifetimes_DA.size
+        == pulse_delays_unpaired.size + pulse_delays_paired.size
         == event_time_points.size
         == 4e4
     )
