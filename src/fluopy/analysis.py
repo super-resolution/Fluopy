@@ -360,12 +360,12 @@ class Analysis:
             for name, states in transition_set.single_states.items()
         }
         residence_times = np.diff(self.time_series)
-        for identity, fluorophore in enumerate(
+        for identity, fluorophore_obj in enumerate(
             transition_set.fluorophore_system.fluorophores
         ):
-            states = transition_set.single_states[fluorophore.name]
+            states = transition_set.single_states[fluorophore_obj.name]
             occupied_states = self.state_series[identity, : residence_times.size]
-            state_occupations[fluorophore.name] += residence_times @ (
+            state_occupations[fluorophore_obj.name] += residence_times @ (
                 occupied_states[:, None] == states
             )
         for occupations in state_occupations.values():
