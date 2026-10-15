@@ -16,7 +16,6 @@ from scipy.stats import expon
 
 from . import plotting
 from ._statistics import (
-    calculate_state_occupations,
     normalize_transition_frequencies,
     parse_paired_transition_label,
 )
@@ -772,48 +771,30 @@ class Prediction:
             )
         visits = self._stationary_distribution
         if visits is None:
-            visits = self._transient_visits
-        if visits is not None:
-            row_sums = self.transition_set.row_sums
-            time_weights = np.divide(
-                visits,
-                row_sums,
-                out=np.zeros_like(row_sums),
-                where=row_sums > 0,
-            )
-            combined_states = np.asarray(
-                self.transition_set.combined_state_transitions_df[
-                    "final_state"
-                ].tolist()
-            )
-            state_occupations = {}
-            for fluorophore, states in self.transition_set.single_states.items():
-                identities = self.transition_set.fluorophore_system.get_identities(
-                    fluorophore
-                )
-                state_counts = np.count_nonzero(
-                    combined_states[:, identities, None] == states, axis=1
-                )
-                occupations = time_weights @ state_counts
-                total = occupations.sum()
-                if total > 0:
-                    occupations /= total
-                state_occupations[fluorophore] = occupations
-            return mean_lifetimes, state_occupations
-
-        state_occupations = calculate_state_occupations(
-            self.frequency_states, mean_lifetimes
+            visits = cast(npt.NDArray[np.float64], self._transient_visits)
+        row_sums = self.transition_set.row_sums
+        time_weights = np.divide(
+            visits,
+            row_sums,
+            out=np.zeros_like(row_sums),
+            where=row_sums > 0,
         )
-        for fluorophore, occupations in state_occupations.items():
-            if occupations.sum() == 0:
-                persistent_states = np.isinf(mean_lifetimes[fluorophore]) & (
-                    self.frequency_states[fluorophore] > 0
-                )
-                if np.any(persistent_states):
-                    frequencies = self.frequency_states[fluorophore][persistent_states]
-                    state_occupations[fluorophore][persistent_states] = (
-                        frequencies / frequencies.sum()
-                    )
+        combined_states = np.asarray(
+            self.transition_set.combined_state_transitions_df["final_state"].tolist()
+        )
+        state_occupations = {}
+        for fluorophore, states in self.transition_set.single_states.items():
+            identities = self.transition_set.fluorophore_system.get_identities(
+                fluorophore
+            )
+            state_counts = np.count_nonzero(
+                combined_states[:, identities, None] == states, axis=1
+            )
+            occupations = time_weights @ state_counts
+            total = occupations.sum()
+            if total > 0:
+                occupations /= total
+            state_occupations[fluorophore] = occupations
 
         return mean_lifetimes, state_occupations
 

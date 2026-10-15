@@ -501,12 +501,9 @@ def simulate_TCSPC(
                     lifetimes_D[channel_index].append(lifetime)
                 lifetimes_all[channel_index].append(lifetime)
                 frame = int(np.ceil(time / seconds_per_frame))
-                try:
-                    photon_collector[frame - 1, channel_index] += 1
-                    if time_points is not None:
-                        time_points[channel_index].append(time)
-                except IndexError:
-                    pass
+                photon_collector[frame - 1, channel_index] += 1
+                if time_points is not None:
+                    time_points[channel_index].append(time)
 
     return _prepare_photon_outputs(
         photon_collector=photon_collector,
@@ -879,12 +876,9 @@ def simulate_TCSPC_detailed(
                     lifetimes_D[channel_index].append(lifetime)
                 lifetimes_all[channel_index].append(lifetime)
                 frame = int(np.ceil(time / seconds_per_frame))
-                try:
-                    photon_collector[frame - 1, channel_index] += 1
-                    if time_points is not None:
-                        time_points[channel_index].append(time)
-                except IndexError:
-                    pass
+                photon_collector[frame - 1, channel_index] += 1
+                if time_points is not None:
+                    time_points[channel_index].append(time)
 
     return_values = prepare_return_values(
         photon_collector=photon_collector,

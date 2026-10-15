@@ -547,16 +547,22 @@ def test_tcspc_resumes_remembered_transition(
     assert np.all(result[2] < interval)
 
 
-def test_tcspc_detailed_removes_excitation_beyond_last_pulse(tr_set_1f, monkeypatch):
+@pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("excitation_pulse", [2, 10])
+def test_tcspc_rejects_excitation_at_or_beyond_acquisition_end(
+    call, matrix_format, excitation_pulse, tr_set_1f, monkeypatch
+):
     transition_set = _without_continuous_excitation(deepcopy(tr_set_1f))
+    transition_set = transition_set.with_matrix_format(matrix_format)
     generator = FixedTCSPCGenerator(
         excitation_random=np.ones((2, 1)),
         transition_random=np.full((2, 3), 0.5),
-        geometric=[10],
+        geometric=[excitation_pulse],
     )
     monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
 
-    result = si.simulate_TCSPC_detailed(
+    result = call(
         transition_set=transition_set,
         detection_probabilities=_single_channel_probabilities(transition_set, {}),
         channel_names=("all",),
@@ -570,7 +576,12 @@ def test_tcspc_detailed_removes_excitation_beyond_last_pulse(tr_set_1f, monkeypa
         seed=42,
     )
 
-    assert result[-1].transition_series.size == 0
+    assert result[0].to_numpy().sum() == 0
+    for lifetimes in result[2:5]:
+        assert lifetimes["all"].size == 0
+    if call is si.simulate_TCSPC_detailed:
+        assert result[5].transition_series.size == 0
+        np.testing.assert_array_equal(result[5].time_series, [0.0])
 
 
 def _simulate_single_channel_tcspc(
