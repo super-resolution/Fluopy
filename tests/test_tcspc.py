@@ -63,6 +63,54 @@ class FixedTCSPCGenerator:
         return np.resize(self.geometric_values, np.asarray(p).shape)
 
 
+@pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+def test_tcspc_handles_cumulative_rounding(
+    call, matrix_format, flu_sys_cy5, monkeypatch
+):
+    transitions = [tr.Transition(tr.TransitionType.EXCITATION, 0, [0])]
+    transitions += [
+        tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0]) for _ in range(10)
+    ]
+    transitions.append(
+        tr.Transition(
+            tr.TransitionType("DISABLED", tr.SingleState.S1, tr.SingleState.S0, False),
+            0,
+            [0],
+        )
+    )
+    transition_set = tr.TransitionSet(
+        {"testfluo_1": transitions},
+        flu_sys_cy5,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    generator = FixedTCSPCGenerator(
+        excitation_random=np.zeros((10, 1)),
+        transition_random=np.array([[np.exp(-2.5), np.nextafter(1.0, 0.0), 0.5]]),
+        geometric=[1],
+    )
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
+
+    result = call(
+        transition_set=transition_set,
+        detection_probabilities=_single_channel_probabilities(transition_set, {10: 1}),
+        channel_names=("all",),
+        number_pulses=1,
+        pulse_duration=0.1,
+        time_between_pulses=1,
+        excitation_rates={"testfluo_1": 1000},
+        frame_time="1s",
+        size=10,
+        store_time_points=True,
+        seed=42,
+    )
+
+    np.testing.assert_array_equal(result[0]["all"], [1])
+    np.testing.assert_allclose(result[1]["all"], [0.25])
+    np.testing.assert_allclose(result[4]["all"], [0.25])
+
+
 def test_compare_simulate_TCSPC_and_simulate_TCSPC_detailed(tr_set_1f):
     tr_set = deepcopy(tr_set_1f)
     tr_set = tr_set.adjust_rates({0: 0}, keep_zero_rates=True)
@@ -88,9 +136,9 @@ def test_compare_simulate_TCSPC_and_simulate_TCSPC_detailed(tr_set_1f):
     (
         event_time_series,
         event_time_points,
-        lifetimes_DA,
-        lifetimes_D,
-        lifetimes_all,
+        pulse_delays_paired,
+        pulse_delays_unpaired,
+        pulse_delays_all,
     ) = _unwrap_single_channel(result)
 
     rng = np.random.default_rng(42)
@@ -110,19 +158,21 @@ def test_compare_simulate_TCSPC_and_simulate_TCSPC_detailed(tr_set_1f):
     (
         event_time_series_,
         event_time_points_,
-        lifetimes_DA_,
-        lifetimes_D_,
-        lifetimes_all_,
+        pulse_delays_paired_,
+        pulse_delays_unpaired_,
+        pulse_delays_all_,
         simulation,
     ) = _unwrap_single_channel(detailed_result)
 
     assert len(event_time_series) == 2
     assert event_time_series.equals(event_time_series_)
     assert np.array_equal(event_time_points, event_time_points_)
-    assert np.array_equal(lifetimes_DA, lifetimes_DA_)
-    assert np.array_equal(lifetimes_D, lifetimes_D_)
-    assert np.array_equal(lifetimes_all, lifetimes_all_)
-    assert len(simulation.time_series) == 5372
+    assert np.array_equal(pulse_delays_paired, pulse_delays_paired_)
+    assert np.array_equal(pulse_delays_unpaired, pulse_delays_unpaired_)
+    assert np.array_equal(pulse_delays_all, pulse_delays_all_)
+    assert len(simulation.time_series) == 5371
+    assert np.all(np.diff(simulation.time_series) > 0)
+    assert simulation.time_series[-1] < 41000 * 25e-9
 
 
 @pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
@@ -188,16 +238,16 @@ def test_tcspc_routes_detected_photons_to_channels(call, store_time_points, tr_s
         seed=42,
     )
 
-    event_time_series, event_time_points, _, _, lifetimes_all = result[:5]
+    event_time_series, event_time_points, _, _, pulse_delays_all = result[:5]
     assert list(event_time_series.columns) == ["green", "red"]
-    assert set(lifetimes_all) == {"green", "red"}
+    assert set(pulse_delays_all) == {"green", "red"}
     if not store_time_points:
         assert event_time_points is None
     for channel in ("green", "red"):
         if event_time_points is not None:
-            assert event_time_points[channel].size == lifetimes_all[channel].size
-        assert event_time_series[channel].sum() == lifetimes_all[channel].size
-        assert lifetimes_all[channel].size > 0
+            assert event_time_points[channel].size == pulse_delays_all[channel].size
+        assert event_time_series[channel].sum() == pulse_delays_all[channel].size
+        assert pulse_delays_all[channel].size > 0
 
 
 @pytest.mark.parametrize(
@@ -315,6 +365,125 @@ def test_tcspc_stops_at_absorbing_state(call, tr_set_1f_bl, caplog):
 
 
 @pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("two_fluorophores", [False, True])
+@pytest.mark.parametrize(
+    "transition_delay, expected_times, expected_pulse_delays",
+    [
+        (1.5, [1.5, 2.25, 3.25], [0.5, 0.25, 0.25]),
+        (2.5, [2.5, 3.25], [0.5, 0.25]),
+        (4.5, [], []),
+    ],
+)
+def test_tcspc_resuming_transition_preserves_pulse_timing(
+    call,
+    matrix_format,
+    two_fluorophores,
+    transition_delay,
+    expected_times,
+    expected_pulse_delays,
+    flu_sys_cy5,
+    flu_sys_2xcy5,
+    monkeypatch,
+):
+    system = flu_sys_2xcy5 if two_fluorophores else flu_sys_cy5
+    identities = list(range(system.count))
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 0, identities),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, identities),
+            ]
+        },
+        system,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    excitation_random = np.ones((10, system.count))
+    excitation_random[:, 0] = 0
+    transition_random = np.full((10, 3), 0.5)
+    transition_random[:, 0] = np.exp(-0.25)
+    transition_random[1, 0] = np.exp(-transition_delay)
+    generator = FixedTCSPCGenerator(excitation_random, transition_random, [100])
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
+    combined_transitions = transition_set.combined_state_transitions_df
+    emission_ids = combined_transitions.index[combined_transitions["photon"]]
+
+    result = call(
+        transition_set=transition_set,
+        detection_probabilities=_single_channel_probabilities(
+            transition_set, {identity: 1 for identity in emission_ids}
+        ),
+        channel_names=("all",),
+        number_pulses=4,
+        pulse_duration=0.1,
+        time_between_pulses=1,
+        excitation_rates={"testfluo_1": 1000},
+        frame_time="1s",
+        size=10,
+        store_time_points=True,
+        seed=42,
+    )
+
+    np.testing.assert_allclose(result[1]["all"], expected_times)
+    np.testing.assert_allclose(result[4]["all"], expected_pulse_delays)
+    assert result[0]["all"].sum() == len(expected_times)
+    if call is si.simulate_TCSPC_detailed:
+        assert np.all(np.diff(result[5].time_series) > 0)
+        assert result[5].time_series[-1] < 4
+
+
+@pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+def test_tcspc_waits_for_next_pulse_after_dark_state(
+    call, matrix_format, flu_sys_cy5, monkeypatch
+):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 0, [0]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0]),
+                tr.Transition(tr.TransitionType.INTERSYSTEM_CROSSING_ST, 1, [0]),
+                tr.Transition(tr.TransitionType.INTERSYSTEM_CROSSING_TS, 1, [0]),
+            ]
+        },
+        flu_sys_cy5,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    transition_random = np.full((10, 3), 0.25)
+    transition_random[:, 0] = np.exp(-0.5)
+    transition_random[1, 1] = 0.75
+    transition_random[2, 0] = np.exp(-1.5)
+    generator = FixedTCSPCGenerator(np.zeros((10, 1)), transition_random, [100])
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
+
+    result = call(
+        transition_set=transition_set,
+        detection_probabilities=_single_channel_probabilities(transition_set, {1: 1}),
+        channel_names=("all",),
+        number_pulses=3,
+        pulse_duration=0.1,
+        time_between_pulses=1,
+        excitation_rates={"testfluo_1": 1000},
+        frame_time="1s",
+        size=10,
+        store_time_points=True,
+        seed=42,
+    )
+
+    np.testing.assert_allclose(result[1]["all"], [2.25])
+    np.testing.assert_allclose(result[4]["all"], [0.25])
+    assert result[0]["all"].sum() == 1
+    if call is si.simulate_TCSPC_detailed:
+        np.testing.assert_array_equal(result[5].transition_series, [0, 2, 3, 0, 1])
+        np.testing.assert_allclose(
+            result[5].time_series, [0.0, 0.0, 0.25, 1.75, 2.0, 2.25], atol=1e-15
+        )
+        assert np.all(np.diff(result[5].time_series) > 0)
+
+
+@pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
 @pytest.mark.parametrize("transition_delay", [1.5, 2.5])
 def test_tcspc_resumes_remembered_transition(
     call,
@@ -372,21 +541,28 @@ def test_tcspc_resumes_remembered_transition(
         )
     )
 
-    assert result[2].size == 1
-    if transition_delay > 2:
-        assert result[0].sum() == 0
+    expected_count = int(transition_delay < 2)
+    assert result[2].size == expected_count
+    assert result[0].sum() == expected_count
+    assert np.all(result[2] < interval)
 
 
-def test_tcspc_detailed_removes_excitation_beyond_last_pulse(tr_set_1f, monkeypatch):
+@pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("excitation_pulse", [2, 10])
+def test_tcspc_rejects_excitation_at_or_beyond_acquisition_end(
+    call, matrix_format, excitation_pulse, tr_set_1f, monkeypatch
+):
     transition_set = _without_continuous_excitation(deepcopy(tr_set_1f))
+    transition_set = transition_set.with_matrix_format(matrix_format)
     generator = FixedTCSPCGenerator(
         excitation_random=np.ones((2, 1)),
         transition_random=np.full((2, 3), 0.5),
-        geometric=[10],
+        geometric=[excitation_pulse],
     )
     monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
 
-    result = si.simulate_TCSPC_detailed(
+    result = call(
         transition_set=transition_set,
         detection_probabilities=_single_channel_probabilities(transition_set, {}),
         channel_names=("all",),
@@ -400,7 +576,12 @@ def test_tcspc_detailed_removes_excitation_beyond_last_pulse(tr_set_1f, monkeypa
         seed=42,
     )
 
-    assert result[-1].transition_series.size == 0
+    assert result[0].to_numpy().sum() == 0
+    for pulse_delays in result[2:5]:
+        assert pulse_delays["all"].size == 0
+    if call is si.simulate_TCSPC_detailed:
+        assert result[5].transition_series.size == 0
+        np.testing.assert_array_equal(result[5].time_series, [0.0])
 
 
 def _simulate_single_channel_tcspc(
@@ -463,9 +644,9 @@ def test_simulate_TCSPC_single_fluorophore(tr_set_1f, caplog):
         (
             event_time_series,
             event_time_points,
-            lifetimes_DA,
-            lifetimes_D,
-            lifetimes_all,
+            pulse_delays_paired,
+            pulse_delays_unpaired,
+            pulse_delays_all,
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
             emitting_transition_ids={1: 1},
@@ -484,16 +665,16 @@ def test_simulate_TCSPC_single_fluorophore(tr_set_1f, caplog):
     assert (
         event_time_series.values.sum()
         == event_time_points.size
-        == lifetimes_DA.size + lifetimes_D.size
-        == lifetimes_all.size
+        == pulse_delays_paired.size + pulse_delays_unpaired.size
+        == pulse_delays_all.size
     )
     assert (
         event_time_series.size
         == 2
         == int(np.ceil(number_pulses * time_between_pulses / 1e-3))
     )
-    assert lifetimes_DA.size == 0
-    np.testing.assert_allclose(lifetimes_D.mean(), 1.0405e-09, rtol=1e-2)
+    assert pulse_delays_paired.size == 0
+    np.testing.assert_allclose(pulse_delays_unpaired.mean(), 1.0405e-09, rtol=1e-2)
 
 
 @pytest.mark.slow
@@ -507,8 +688,8 @@ def test_simulate_TCSPC_bleaching_without_stored_time_points(tr_set_1f_bl, caplo
         (
             event_time_series,
             event_time_points,
-            lifetimes_DA,
-            lifetimes_D,
+            pulse_delays_paired,
+            pulse_delays_unpaired,
             _,
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
@@ -528,10 +709,10 @@ def test_simulate_TCSPC_bleaching_without_stored_time_points(tr_set_1f_bl, caplo
     assert event_time_series.size == int(
         np.ceil(number_pulses * time_between_pulses / 1e-3)
     )
-    assert event_time_series.values.sum() == lifetimes_D.size
+    assert event_time_series.values.sum() == pulse_delays_unpaired.size
     assert event_time_points is None
-    assert lifetimes_DA.size == 0
-    np.testing.assert_allclose(lifetimes_D.mean(), 9.96e-10, rtol=2e-2)
+    assert pulse_delays_paired.size == 0
+    np.testing.assert_allclose(pulse_delays_unpaired.mean(), 9.96e-10, rtol=2e-2)
 
 
 @pytest.mark.slow
@@ -545,8 +726,8 @@ def test_simulate_TCSPC_warns_when_frame_requires_more_pulses(tr_set_1f, caplog)
         (
             event_time_series,
             event_time_points,
-            lifetimes_DA,
-            lifetimes_D,
+            pulse_delays_paired,
+            pulse_delays_unpaired,
             _,
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
@@ -572,13 +753,13 @@ def test_simulate_TCSPC_warns_when_frame_requires_more_pulses(tr_set_1f, caplog)
     )
     assert (
         event_time_series.values.sum()
-        == lifetimes_D.size + lifetimes_DA.size
+        == pulse_delays_unpaired.size + pulse_delays_paired.size
         == event_time_points.size
     )
 
 
 @pytest.mark.slow
-def test_simulate_TCSPC_homofret_lifetimes_with_relaxed_pulses(
+def test_simulate_TCSPC_homofret_pulse_delays_with_relaxed_pulses(
     tr_set_bl_et_2f_same, caplog
 ):
     transition_set = tr_set_bl_et_2f_same.filter_by_identity([9])
@@ -594,8 +775,8 @@ def test_simulate_TCSPC_homofret_lifetimes_with_relaxed_pulses(
         (
             event_time_series,
             event_time_points,
-            lifetimes_DA,
-            lifetimes_D,
+            pulse_delays_paired,
+            pulse_delays_unpaired,
             _,
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
@@ -610,24 +791,26 @@ def test_simulate_TCSPC_homofret_lifetimes_with_relaxed_pulses(
         )
 
     assert (
-        "the last frame (of index 4000.0) has 0.00e+00 times the pulses of other frames."
+        "the last frame (of index 4000.0) has 1.00e+00 times the pulses of other frames."
         in caplog.text
     )
     assert event_time_series.size == 4_000
     assert (
         event_time_series.values.sum()
-        == lifetimes_D.size + lifetimes_DA.size
+        == pulse_delays_unpaired.size + pulse_delays_paired.size
         == event_time_points.size
     )
     np.testing.assert_allclose(
-        np.mean(np.concatenate([lifetimes_DA, lifetimes_D])), 1.0147e-9, rtol=1.1e-2
+        np.mean(np.concatenate([pulse_delays_paired, pulse_delays_unpaired])),
+        1.0147e-9,
+        rtol=1.1e-2,
     )
-    np.testing.assert_allclose(np.mean(lifetimes_D), 0.5e-9, rtol=1e-1)
-    np.testing.assert_allclose(np.mean(lifetimes_DA), 1.5e-9, rtol=1e-1)
+    np.testing.assert_allclose(np.mean(pulse_delays_unpaired), 0.5e-9, rtol=1e-1)
+    np.testing.assert_allclose(np.mean(pulse_delays_paired), 1.5e-9, rtol=1e-1)
 
 
 @pytest.mark.slow
-def test_simulate_TCSPC_homofret_lifetimes_with_overlapping_pulses(
+def test_simulate_TCSPC_homofret_pulse_delays_with_overlapping_pulses(
     tr_set_bl_et_2f_same, caplog
 ):
     transition_set = tr_set_bl_et_2f_same.adjust_rates(
@@ -644,8 +827,8 @@ def test_simulate_TCSPC_homofret_lifetimes_with_overlapping_pulses(
         (
             event_time_series,
             event_time_points,
-            lifetimes_DA,
-            lifetimes_D,
+            pulse_delays_paired,
+            pulse_delays_unpaired,
             _,
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
@@ -664,15 +847,19 @@ def test_simulate_TCSPC_homofret_lifetimes_with_overlapping_pulses(
     )
     assert (
         event_time_series.values.sum()
-        == lifetimes_D.size + lifetimes_DA.size
+        == pulse_delays_unpaired.size + pulse_delays_paired.size
         == event_time_points.size
     )
-    np.testing.assert_allclose(np.mean(lifetimes_D), 5.2349e-10, rtol=1e-1)
-    np.testing.assert_allclose(np.mean(lifetimes_DA), 6.3831e-10, rtol=1e-1)
+    assert np.all(np.diff(event_time_points) > 0)
+    assert np.all(event_time_points < number_pulses * time_between_pulses)
+    pulse_delays = np.concatenate([pulse_delays_paired, pulse_delays_unpaired])
+    assert np.all((pulse_delays >= 0) & (pulse_delays < time_between_pulses))
+    np.testing.assert_allclose(np.mean(pulse_delays_unpaired), 3.7317e-10, rtol=1e-1)
+    np.testing.assert_allclose(np.mean(pulse_delays_paired), 6.3831e-10, rtol=1e-1)
 
 
 @pytest.mark.slow
-def test_simulate_TCSPC_fret_shortens_donor_lifetime(tr_set_bl_et_2f_diff, caplog):
+def test_simulate_TCSPC_fret_shortens_donor_pulse_delay(tr_set_bl_et_2f_diff, caplog):
     transition_set = tr_set_bl_et_2f_diff.adjust_rates(
         {0: 0, 8: 1e10, 9: 0, 15: 0}, keep_zero_rates=True
     )
@@ -684,8 +871,8 @@ def test_simulate_TCSPC_fret_shortens_donor_lifetime(tr_set_bl_et_2f_diff, caplo
         (
             event_time_series,
             event_time_points,
-            lifetimes_DA,
-            lifetimes_D,
+            pulse_delays_paired,
+            pulse_delays_unpaired,
             _,
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
@@ -703,11 +890,11 @@ def test_simulate_TCSPC_fret_shortens_donor_lifetime(tr_set_bl_et_2f_diff, caplo
     assert event_time_series.size == 4_000
     assert (
         event_time_series.values.sum()
-        == lifetimes_D.size + lifetimes_DA.size
+        == pulse_delays_unpaired.size + pulse_delays_paired.size
         == event_time_points.size
     )
-    assert lifetimes_D.size == 0
-    np.testing.assert_allclose(np.mean(lifetimes_DA), 8.9e-11, rtol=1e-1)
+    assert pulse_delays_unpaired.size == 0
+    np.testing.assert_allclose(np.mean(pulse_delays_paired), 8.9e-11, rtol=1e-1)
 
 
 @pytest.mark.slow
@@ -725,8 +912,8 @@ def test_simulate_TCSPC_photon_count_tracks_excitation_probability(tr_set_1f, ca
         (
             event_time_series,
             event_time_points,
-            lifetimes_DA,
-            lifetimes_D,
+            pulse_delays_paired,
+            pulse_delays_unpaired,
             _,
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
@@ -744,7 +931,7 @@ def test_simulate_TCSPC_photon_count_tracks_excitation_probability(tr_set_1f, ca
     assert event_time_series.size == 4_000
     assert (
         event_time_series.values.sum()
-        == lifetimes_D.size + lifetimes_DA.size
+        == pulse_delays_unpaired.size + pulse_delays_paired.size
         == event_time_points.size
         == 4e4
     )

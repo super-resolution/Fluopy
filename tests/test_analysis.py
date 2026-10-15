@@ -105,7 +105,7 @@ def test_analysis_1(tr_set_1f_bl, tr_set_1f_bl_2, caplog):
         )
     exp_state_occ = {
         "testfluo_1": np.array(
-            [0.50671376, 0.0028360853449130286, 0.0, 0.49045015, 0.0]
+            [0.5062093063386812, 0.0028389856535901, 0.0, 0.4909517080077286, 0.0]
         )
     }
     for fluorophore, state_occ in analysis.state_occupations.items():
@@ -284,6 +284,60 @@ def test_self_transition_only_analysis(tr_set_self_cycle):
     assert analysis.lifetime_distributions["testfluo_1"][0].size == 0
     assert np.isnan(analysis.mean_lifetimes["testfluo_1"][0])
     np.testing.assert_array_equal(analysis.state_occupations["testfluo_1"], [1.0])
+
+
+@pytest.mark.parametrize("self_rate", [0, 9])
+@pytest.mark.parametrize(
+    "observation_end, expected", [(2.0, [0.75, 0.25]), (3.0, [5 / 6, 1 / 6])]
+)
+def test_state_occupations_include_persistent_molecules_and_final_residence(
+    flu_sys_2xcy5, self_rate, observation_end, expected
+):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 1, [0]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0]),
+                tr.Transition(
+                    tr.TransitionType(
+                        "SELF", tr.SingleState.S0, tr.SingleState.S0, False
+                    ),
+                    self_rate,
+                    [1],
+                ),
+            ]
+        },
+        flu_sys_2xcy5,
+        keep_zero_rates=True,
+    )
+    if self_rate:
+        times = [0.0, 0.5, 1.0, 1.5, 2.0]
+        states = np.array([[0, 0, 1, 1, 0], [0, 0, 0, 0, 0]])
+        transition_ids = [2, 0, 2, 1]
+    else:
+        times = [0.0, 1.0, 2.0]
+        states = np.array([[0, 1, 0], [0, 0, 0]])
+        transition_ids = [0, 1]
+    combined_transitions = transition_set.combined_state_transitions_df
+    simulated_transitions = [
+        combined_transitions.index[
+            (combined_transitions["transition_id"] == transition_id)
+            & (combined_transitions["initial_state"] == tuple(initial_state))
+        ][0]
+        for transition_id, initial_state in zip(transition_ids, states.T[:-1])
+    ]
+    if observation_end > times[-1]:
+        times.append(observation_end)
+    simulation = SimpleNamespace(
+        transition_set=transition_set,
+        transition_series=np.asarray(simulated_transitions),
+        state_series=states,
+        time_series=np.asarray(times),
+    )
+
+    analysis = an.Analysis(simulation)
+
+    np.testing.assert_allclose(analysis.state_occupations["testfluo_1"], expected)
 
 
 def test_energy_transfer_time_is_recorded_only_for_donor_with_equal_source_states():
@@ -603,8 +657,8 @@ def test_analysis_2(tr_set_et_2f_diff):
             mean_lifetimes, exp_mean_lifetimes[fluorophore], rtol=1e-6
         )
     exp_state_occ = {
-        "testfluo_1": np.array([0.99593057, 0.00406942563323615, 0.0, 0.0]),
-        "testfluo_2": np.array([0.99624451, 0.00375549, 0.0]),
+        "testfluo_1": np.array([0.9961901620390533, 0.0038098379609468, 0.0, 0.0]),
+        "testfluo_2": np.array([0.9964840720202729, 0.0035159279797271, 0.0]),
     }
     for fluorophore, state_occ in analysis.state_occupations.items():
         np.testing.assert_allclose(state_occ, exp_state_occ[fluorophore], rtol=1e-6)
@@ -681,8 +735,10 @@ def test_analysis_3(tr_set_2f_diff):
             mean_lifetimes, exp_mean_lifetimes[fluorophore], rtol=1e-6
         )
     exp_state_occ = {
-        "testfluo_1": np.array([0.50089435, 0.00256045, 0.0, 0.4965452]),
-        "testfluo_2": np.array([0.98857705, 0.01142295, 0.0]),
+        "testfluo_1": np.array(
+            [0.4996348975778782, 0.0025669132844381, 0.0, 0.4977981891376837]
+        ),
+        "testfluo_2": np.array([0.9885597701926258, 0.0114402298073743, 0.0]),
     }
     for fluorophore, state_occ in analysis.state_occupations.items():
         np.testing.assert_allclose(state_occ, exp_state_occ[fluorophore], rtol=1e-6)

@@ -181,6 +181,104 @@ def test_prediction_handles_retained_zero_rate_transitions(
 
 
 @pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("self_rate", [0, 1, 9])
+@pytest.mark.parametrize("persistent_state", [tr.SingleState.S0, tr.SingleState.S1])
+def test_state_occupations_include_persistent_molecules_of_the_same_type(
+    flu_sys_2xcy5, matrix_format, self_rate, persistent_state
+):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 1, [0]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0]),
+                tr.Transition(
+                    tr.TransitionType(
+                        "SELF", persistent_state, persistent_state, False
+                    ),
+                    self_rate,
+                    [1],
+                ),
+            ]
+        },
+        flu_sys_2xcy5,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    combined_transitions = transition_set.combined_state_transitions_df
+    initial_index = int(
+        combined_transitions.index[
+            combined_transitions["final_state"] == (0, persistent_state.value)
+        ][0]
+    )
+
+    prediction = pr.Prediction(transition_set, initial_state_index=initial_index)
+
+    expected = [0.75, 0.25] if persistent_state == tr.SingleState.S0 else [0.25, 0.75]
+    np.testing.assert_allclose(prediction.state_occupations["testfluo_1"], expected)
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+def test_state_occupations_include_persistent_molecules_before_absorption(
+    flu_sys_2xcy5, matrix_format
+):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 1, [0]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0]),
+                tr.Transition(
+                    tr.TransitionType(
+                        "SELF", tr.SingleState.S0, tr.SingleState.S0, False
+                    ),
+                    0,
+                    [1],
+                ),
+                tr.Transition(
+                    tr.TransitionType(
+                        "BLEACH", tr.SingleState.S1, tr.SingleState.B, False
+                    ),
+                    1,
+                    [0],
+                ),
+            ]
+        },
+        flu_sys_2xcy5,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    combined_transitions = transition_set.combined_state_transitions_df
+    initial_index = int(
+        combined_transitions.index[combined_transitions["final_state"] == (0, 0)][0]
+    )
+
+    prediction = pr.Prediction(transition_set, initial_state_index=initial_index)
+
+    assert prediction.absorbing_chain
+    np.testing.assert_allclose(
+        prediction.state_occupations["testfluo_1"], [5 / 6, 1 / 6, 0]
+    )
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+def test_state_occupations_use_identity_specific_rates(flu_sys_2xcy5, matrix_format):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 1, [0]),
+                tr.Transition(tr.TransitionType.EXCITATION, 9, [1]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0, 1]),
+            ]
+        },
+        flu_sys_2xcy5,
+        matrix_format=matrix_format,
+    )
+
+    prediction = pr.Prediction(transition_set)
+
+    np.testing.assert_allclose(prediction.state_occupations["testfluo_1"], [0.3, 0.7])
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
 @pytest.mark.parametrize("absorbing", [False, True])
 def test_paired_state_frequencies_use_common_event_counts(
     flu_sys_1xcy5_1xatto643, matrix_format, absorbing
@@ -387,39 +485,82 @@ def test_sparse_prediction_rejects_stationary_solver_failure(
         pr.Prediction(tr_set_1f.with_matrix_format("sparse"))
 
 
-@pytest.mark.parametrize("solver_failure", [RuntimeError, np.nan])
-def test_sparse_absorbing_prediction_rejects_solver_failure(
-    tr_set_1f_bl, monkeypatch, solver_failure
+@pytest.mark.parametrize(
+    "matrix_format, solver_failure",
+    [
+        ("dense", np.linalg.LinAlgError),
+        ("dense", np.nan),
+        ("sparse", RuntimeError),
+        ("sparse", np.nan),
+    ],
+)
+def test_absorbing_prediction_rejects_solver_failure(
+    tr_set_1f_bl, monkeypatch, matrix_format, solver_failure
 ):
     prediction = pr.Prediction.__new__(pr.Prediction)
-    prediction.transition_set = tr_set_1f_bl.with_matrix_format("sparse")
+    prediction.transition_set = tr_set_1f_bl.with_matrix_format(matrix_format)
 
     def fail_or_return_nan(*args):
-        if solver_failure is RuntimeError:
-            raise RuntimeError
+        if isinstance(solver_failure, type):
+            raise solver_failure
         return np.full(args[1].shape, np.nan)
 
-    monkeypatch.setattr(pr, "spsolve", fail_or_return_nan)
+    method = prediction.predict_transition_occurrences_absorbing
+    if matrix_format == "dense":
+        monkeypatch.setattr(pr.np.linalg, "solve", fail_or_return_nan)
+    else:
+        monkeypatch.setattr(pr, "spsolve", fail_or_return_nan)
+        method = prediction.predict_transition_occurrences_absorbing_sparse
 
     with pytest.raises(ValueError, match="transient subchain is singular"):
-        prediction.predict_transition_occurrences_absorbing_sparse()
+        method()
 
 
-def test_absorbing_prediction_uses_initial_state_index(tr_set_1f_bl):
-    prediction = pr.Prediction.__new__(pr.Prediction)
-    prediction.transition_set = tr_set_1f_bl
-    prediction._terminal_state_combinations = (
-        prediction._get_terminal_state_combinations()
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize(
+    "initial_transition_id, expected_frequencies, expected_occupations",
+    [
+        (0, [2 / 3, 1 / 3, 0], [1 / 2, 1 / 2, 0]),
+        (1, [1 / 2, 1 / 2, 0], [2 / 3, 1 / 3, 0]),
+    ],
+)
+def test_absorbing_prediction_uses_initial_state_index(
+    flu_sys_cy5,
+    matrix_format,
+    initial_transition_id,
+    expected_frequencies,
+    expected_occupations,
+):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 1, [0]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0]),
+                tr.Transition(
+                    tr.TransitionType(
+                        "BLEACH", tr.SingleState.S1, tr.SingleState.B, False
+                    ),
+                    1,
+                    [0],
+                ),
+            ]
+        },
+        flu_sys_cy5,
+        matrix_format=matrix_format,
+    )
+    combined_transitions = transition_set.combined_state_transitions_df
+    initial_index = int(
+        combined_transitions.index[
+            combined_transitions["transition_id"] == initial_transition_id
+        ][0]
     )
 
-    frequencies_0 = prediction.predict_transition_occurrences_absorbing(
-        initial_state_index=0
-    )
-    frequencies_1 = prediction.predict_transition_occurrences_absorbing(
-        initial_state_index=1
-    )
+    prediction = pr.Prediction(transition_set, initial_state_index=initial_index)
 
-    assert not np.array_equal(frequencies_0, frequencies_1)
+    np.testing.assert_allclose(prediction.frequency_transitions, expected_frequencies)
+    np.testing.assert_allclose(
+        prediction.state_occupations["testfluo_1"], expected_occupations
+    )
 
 
 @pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
@@ -1083,44 +1224,3 @@ def test_prediction_plots_reject_missing_statistics(
 
     with pytest.raises(ValueError, match=message):
         getattr(prediction, method)(**arguments)
-
-
-@pytest.mark.parametrize(
-    "drop_transitions, exp_Q",
-    [
-        [np.array([0, 1]), np.array([[0.0, 0.8], [0.4, 0.0]])],
-        [0, np.array([[0.0, 0.05, 0.05], [0.1, 0.0, 0.8], [0.3, 0.4, 0.0]])],
-    ],
-)
-def test_get_Q(drop_transitions, exp_Q):
-    P = np.array(
-        [
-            [0, 0.3, 0.4, 0.3],
-            [0.9, 0, 0.05, 0.05],
-            [0.1, 0.1, 0, 0.8],
-            [0.3, 0.3, 0.4, 0],
-        ]
-    )
-    Q = pr.get_Q(P=P, drop_transitions=drop_transitions)
-    np.testing.assert_array_equal(Q, exp_Q)
-
-
-def test_get_I_t():
-    Q = np.array([[0.0, 0.05, 0.05], [0.1, 0.0, 0.8], [0.3, 0.4, 0.0]])
-    I_t = pr.get_I_t(Q=Q)
-    exp_I_t = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-    np.testing.assert_array_equal(I_t, exp_I_t)
-
-
-def test_get_N():
-    Q = np.array([[0.0, 0.05, 0.05], [0.1, 0.0, 0.8], [0.3, 0.4, 0.0]])
-    I_t = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-    N = pr.get_N(I_t=I_t, Q=Q)
-    exp_N = np.array(
-        [
-            [1.05263158, 0.10835913, 0.13931889],
-            [0.52631579, 1.5247678, 1.24613003],
-            [0.52631579, 0.64241486, 1.54024768],
-        ]
-    )
-    np.testing.assert_allclose(N, exp_N, rtol=1e-7)

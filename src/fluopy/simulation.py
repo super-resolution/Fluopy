@@ -325,6 +325,35 @@ class Simulation:
         (Path(self.memmap_path) / "state_series").unlink(missing_ok=True)
 
 
+def _prepare_dense_transition_rows(
+    transition_matrix: npt.ArrayLike,
+) -> npt.NDArray[np.float64]:
+    """
+    Prepare cumulative transition probabilities with non-empty rows ending at 1.
+
+    Parameters
+    ----------
+    transition_matrix
+        Normalized transition probabilities, with zero rows for terminal states.
+
+    Returns
+    -------
+    npt.NDArray[np.float64]
+        Cumulative probabilities normalized by each row's computed endpoint.
+    """
+    cumulative_probabilities = np.cumsum(
+        np.asarray(transition_matrix, dtype=np.float64), axis=1
+    )
+    row_totals = cumulative_probabilities[:, -1:].copy()
+    np.divide(
+        cumulative_probabilities,
+        row_totals,
+        out=cumulative_probabilities,
+        where=row_totals > 0,
+    )
+    return cumulative_probabilities
+
+
 def _prepare_sparse_transition_rows(
     transition_matrix: sparse.spmatrix | sparse.sparray,
 ) -> tuple[
@@ -365,6 +394,8 @@ def _prepare_sparse_transition_rows(
         cumulative_probabilities[start:end] = np.cumsum(
             cumulative_probabilities[start:end]
         )
+        if start < end:
+            cumulative_probabilities[start:end] /= cumulative_probabilities[end - 1]
 
     return indptr, indices, cumulative_probabilities
 
@@ -629,7 +660,7 @@ def direct_method_steps(
     # transition equals start_at
     current_state_index = start_index
 
-    cumulative_transition_probabilities = np.cumsum(matrix, axis=1)
+    cumulative_transition_probabilities = _prepare_dense_transition_rows(matrix)
     absorbing_state_reached = False
 
     for i in range(size):
@@ -925,7 +956,7 @@ def direct_method_time(
     )  # never a memmap, is initialized on RAM anyways
 
     time_series[0] = 0
-    cumulative_transition_probabilities = np.cumsum(matrix, axis=1)
+    cumulative_transition_probabilities = _prepare_dense_transition_rows(matrix)
 
     abso = 0
     i = 0
@@ -1413,12 +1444,14 @@ def approximation(
         The simulated (approximated) transitions. At index i, they correspond to
         time_series[i + 1].
     """
+    transition_df = prediction.transition_set.transition_df
+    active_transition_mask = transition_df["rate"].to_numpy() > 0
     transition_occurrences = prediction.frequency_transitions * size
     transition_occurrences = transition_occurrences.astype(np.int64)
+    transition_occurrences[~active_transition_mask] = 0
     if not np.any(transition_occurrences > 0):
         raise ValueError("size is too small to produce any transition occurrences.")
     fluorophore = prediction.transition_set.fluorophore_system.fluorophores[0].name
-    transition_df = prediction.transition_set.transition_df
     self_transition_mask = np.fromiter(
         (
             initial_state == final_state
@@ -1445,7 +1478,7 @@ def approximation(
         )
         state_changing_df = transition_df.loc[
             ~self_transition_mask
-            & (transition_df["rate"] > 0)
+            & active_transition_mask
             & np.isin(transition_ids, reachable_transition_ids)
         ]
         G = net.construct_transition_graph(transition_df=state_changing_df)
@@ -1691,7 +1724,7 @@ def simulate_experiment_sparse(
     time_stamps = np.linspace(seconds_per_frame, seconds_per_frame * frames, frames)
     time_stamps = np.round(time_stamps, decimals=12)
     photon_collector = np.zeros((time_stamps.size, len(channel_names)), dtype=np.int64)
-    time = 0
+    time = 0.0
     if store_time_points:
         time_points: list[list[float]] = [[] for _ in channel_names]
     else:
@@ -1705,7 +1738,7 @@ def simulate_experiment_sparse(
         random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
         i = 0
         j = 1
-        while time < seconds_per_frame:
+        while time <= seconds_per_frame:
             if not skip:
                 current_state_lambda = rates[current_state_index]
                 if current_state_lambda == 0:
@@ -1737,6 +1770,9 @@ def simulate_experiment_sparse(
                 if time > seconds_per_frame:
                     frame_diff = int(np.floor(time / seconds_per_frame)) - 1
                     time -= (frame_diff + 1) * seconds_per_frame
+                    if time == 0:
+                        frame_diff -= 1
+                        time = seconds_per_frame
                     skip = True
                     break
 
@@ -1867,7 +1903,7 @@ def simulate_experiment(
             "detection probabilities must sum to at most 1 per transition."
         )
     cumulative_detection_probabilities = np.cumsum(probabilities, axis=1)
-    cumulative_transition_probabilities = np.cumsum(matrix, axis=1)
+    cumulative_transition_probabilities = _prepare_dense_transition_rows(matrix)
 
     rng = np.random.default_rng(seed)
     current_state_index = start_index
@@ -1876,7 +1912,7 @@ def simulate_experiment(
     time_stamps = np.linspace(seconds_per_frame, seconds_per_frame * frames, frames)
     time_stamps = np.round(time_stamps, decimals=12)
     photon_collector = np.zeros((time_stamps.size, len(channel_names)), dtype=np.int64)
-    time = 0
+    time = 0.0
     if store_time_points:
         time_points: list[list[float]] = [[] for _ in channel_names]
     else:
@@ -1890,7 +1926,7 @@ def simulate_experiment(
         random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
         i = 0
         j = 1
-        while time < seconds_per_frame:
+        while time <= seconds_per_frame:
             if not skip:
                 current_state_lambda = rates[current_state_index]
 
@@ -1923,6 +1959,9 @@ def simulate_experiment(
                 if time > seconds_per_frame:
                     frame_diff = int(np.floor(time / seconds_per_frame)) - 1
                     time -= (frame_diff + 1) * seconds_per_frame
+                    if time == 0:
+                        frame_diff -= 1
+                        time = seconds_per_frame
                     skip = True
                     break
 

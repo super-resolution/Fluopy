@@ -151,6 +151,65 @@ def test_direct_method_steps_uses_matrix_column_order(monkeypatch, sparse_backen
 
 
 @pytest.mark.parametrize("sparse_backend", [False, True])
+@pytest.mark.parametrize("start_index", [1, 11])
+@pytest.mark.parametrize("uniform_draw", [0.0, np.nextafter(1.0, 0.0)])
+@pytest.mark.parametrize(
+    "method_name", ["direct_method_steps", "direct_method_time", "simulate_experiment"]
+)
+def test_transition_sampling_handles_cumulative_rounding(
+    monkeypatch, sparse_backend, start_index, uniform_draw, method_name
+):
+    class FixedGenerator:
+        def uniform(self, low, high, size):
+            values = np.full(size, 0.5)
+            values[:, 0] = np.exp(-0.6)
+            values[:, 1] = uniform_draw
+            return values
+
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: FixedGenerator())
+    transition_matrix = np.zeros((12, 12))
+    transition_matrix[1:, 1:11] = 0.1
+    assert np.cumsum(transition_matrix[start_index])[-1] < 1
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        method_name += "_sparse"
+    method = getattr(si, method_name)
+    kwargs = {
+        "transition_matrix": transition_matrix,
+        "row_sums": np.r_[0, np.ones(11)],
+        "start_index": start_index,
+        "size": 2,
+        "seed": 42,
+    }
+    expected_transition = 1 if uniform_draw == 0 else 10
+
+    if method_name.startswith("simulate_experiment"):
+        detection_probabilities = np.zeros((12, 1))
+        detection_probabilities[expected_transition] = 1
+        time_points, counts = method(
+            **kwargs,
+            detection_probabilities=detection_probabilities,
+            channel_names=("detector",),
+            frames=2,
+            frame_time="1s",
+            store_time_points=True,
+        )
+
+        np.testing.assert_array_equal(counts["detector"], [1, 2])
+        np.testing.assert_allclose(time_points["detector"], [0.6, 1.2, 1.8])
+    else:
+        if method_name.startswith("direct_method_time"):
+            kwargs["end_time"] = 1.5
+        time_series, transition_series = method(**kwargs)
+
+        np.testing.assert_array_equal(
+            transition_series, [expected_transition, expected_transition]
+        )
+        assert np.isfinite(time_series).all()
+        assert np.all(np.diff(time_series) > 0)
+
+
+@pytest.mark.parametrize("sparse_backend", [False, True])
 @pytest.mark.parametrize("use_memmap", [False, True])
 def test_direct_method_steps_stops_at_absorbing_state(
     use_memmap, sparse_backend, tmp_path
@@ -584,6 +643,79 @@ def test_approximation_skips_unused_infinite_transition_distribution(
     np.testing.assert_array_equal(simulation.time_series, expected_times)
 
 
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("size", [1000, 10_000, 20_000])
+@pytest.mark.parametrize("disabled_self_transition", [False, True])
+def test_approximation_omits_zero_rate_initial_visits(
+    flu_sys_cy5, matrix_format, size, disabled_self_transition
+):
+    disabled_type = (
+        tr.TransitionType("DISABLED", tr.SingleState.S1, tr.SingleState.S1, False)
+        if disabled_self_transition
+        else tr.TransitionType.EXCITATION
+    )
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(disabled_type, 0, [0]),
+                tr.Transition(
+                    tr.TransitionType(
+                        "SELF", tr.SingleState.S1, tr.SingleState.S1, True
+                    ),
+                    9,
+                    [0],
+                ),
+                tr.Transition(
+                    tr.TransitionType(
+                        "BLEACH", tr.SingleState.S1, tr.SingleState.B, False
+                    ),
+                    0.001,
+                    [0],
+                ),
+            ]
+        },
+        flu_sys_cy5,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    prediction = pr.Prediction(transition_set)
+    assert prediction.frequency_transitions[0] > 0
+    simulation = si.Simulation(transition_set)
+
+    simulation.approximate(prediction, size=size, seed=42)
+
+    expected_count = int(prediction.frequency_transitions[1] * size)
+    np.testing.assert_array_equal(
+        simulation.transition_series, np.ones(expected_count, dtype=np.int64)
+    )
+    np.testing.assert_array_equal(
+        simulation.state_series, np.ones((1, expected_count + 1), dtype=np.int8)
+    )
+    assert simulation.time_series.size == expected_count + 1
+    assert np.isfinite(simulation.time_series).all()
+    assert np.all(np.diff(simulation.time_series) > 0)
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+def test_approximation_rejects_only_zero_rate_occurrences(flu_sys_cy5, matrix_format):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 0, [0]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0]),
+            ]
+        },
+        flu_sys_cy5,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    prediction = pr.Prediction(transition_set)
+    np.testing.assert_array_equal(prediction.frequency_transitions, [1, 0])
+
+    with pytest.raises(ValueError, match="size is too small to produce any transition"):
+        si.approximation(prediction, size=100, seed=42)
+
+
 def test_approximation_inserts_self_transitions_in_matching_states(tr_set_self_cycle):
     prediction = pr.Prediction(tr_set_self_cycle)
 
@@ -660,6 +792,7 @@ def test_approximation_skips_unusable_self_transitions(tr_set_self_cycle):
         {
             "initial_state": [(0,), (1,), (2,)],
             "final_state": [(0,), (1,), (2,)],
+            "rate": [1.0, 1.0, 1.0],
         },
         index=pd.MultiIndex.from_product(
             [["testfluo_1"], range(3)], names=["fluorophore", "identity"]
@@ -1181,6 +1314,54 @@ def test_approximation_rejects_unrealizable_internal_order(pred_tr_set_1f, monke
 
     with pytest.raises(RuntimeError, match="did not produce a realizable sequence"):
         si.approximation(pred_tr_set_1f, size=20, seed=42)
+
+
+@pytest.mark.parametrize("sparse_backend", [False, True])
+@pytest.mark.parametrize("store_time_points", [False, True])
+@pytest.mark.parametrize(
+    "waiting_time, expected_points, expected_counts",
+    [
+        (0.5, [0.5, 1, 1.5, 2, 2.5, 3], [2, 2, 2]),
+        (1, [1, 2, 3], [1, 1, 1]),
+        (2, [2], [0, 1, 0]),
+    ],
+)
+def test_simulate_experiment_handles_exact_frame_boundaries(
+    monkeypatch,
+    sparse_backend,
+    store_time_points,
+    waiting_time,
+    expected_points,
+    expected_counts,
+):
+    class FixedGenerator:
+        def uniform(self, low, high, size):
+            return np.full(size, 0.5)
+
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: FixedGenerator())
+    transition_matrix = np.array([[1]])
+    simulator = si.simulate_experiment
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        simulator = si.simulate_experiment_sparse
+
+    event_time_points, event_time_series = simulator(
+        transition_matrix=transition_matrix,
+        row_sums=[np.log(2) / waiting_time],
+        detection_probabilities=[[1]],
+        channel_names=("detector",),
+        size=2,
+        frames=3,
+        frame_time="1s",
+        store_time_points=store_time_points,
+        seed=42,
+    )
+
+    np.testing.assert_array_equal(event_time_series["detector"], expected_counts)
+    if store_time_points:
+        np.testing.assert_array_equal(event_time_points["detector"], expected_points)
+    else:
+        assert event_time_points is None
 
 
 @pytest.mark.parametrize("sparse_backend", [False, True])

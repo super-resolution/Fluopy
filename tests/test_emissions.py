@@ -491,7 +491,7 @@ def test_emissions_tcspc(dirname, request, excitation_rates, expected, caplog):
         seed=rng,
     )
     with caplog.at_level(logging.WARNING):
-        lifetimes_DA, _, _, _ = emis.tcspc(
+        pulse_delays_paired, _, _, _ = emis.tcspc(
             transition_set=tr_set,
             number_pulses=1e4,
             pulse_duration=1e-9,
@@ -504,9 +504,9 @@ def test_emissions_tcspc(dirname, request, excitation_rates, expected, caplog):
     caplog.clear()
 
     if expected == 1:
-        assert lifetimes_DA["red"].size > 0
+        assert pulse_delays_paired["red"].size > 0
     else:
-        assert lifetimes_DA["red"].size == 0
+        assert pulse_delays_paired["red"].size == 0
 
 
 def test_emissions_tcspc_parameters(tr_set_bl_et_2f_diff):
@@ -589,9 +589,9 @@ def test_emissions_tcspc_details_infers_excitation_rates(tr_set_1f_bl, caplog):
     emis = em.Emissions(seed=1)
     event_time_series = pd.DataFrame({"all": [1]}, index=[0.005])
     event_time_points = {"all": np.array([0.001])}
-    lifetimes_da = {"all": np.array([1.0])}
-    lifetimes_d = {"all": np.array([2.0])}
-    lifetimes_all = {"all": np.array([1.0, 2.0])}
+    pulse_delays_paired = {"all": np.array([1.0])}
+    pulse_delays_unpaired = {"all": np.array([2.0])}
+    pulse_delays_all = {"all": np.array([1.0, 2.0])}
     simulation_object = object()
     excitation_rate = tr_set_1f_bl.transition_df.loc[
         tr_set_1f_bl.transition_df["abbreviation"] == "EXC", "rate"
@@ -603,9 +603,9 @@ def test_emissions_tcspc_details_infers_excitation_rates(tr_set_1f_bl, caplog):
             return_value=(
                 event_time_series,
                 event_time_points,
-                lifetimes_da,
-                lifetimes_d,
-                lifetimes_all,
+                pulse_delays_paired,
+                pulse_delays_unpaired,
+                pulse_delays_all,
                 simulation_object,
             ),
         ) as mock_tcspc,
@@ -622,7 +622,7 @@ def test_emissions_tcspc_details_infers_excitation_rates(tr_set_1f_bl, caplog):
 
     assert "assumed to be the mean irradiance" in caplog.text
     assert result[3] is simulation_object
-    np.testing.assert_array_equal(result[0]["all"], lifetimes_da["all"])
+    np.testing.assert_array_equal(result[0]["all"], pulse_delays_paired["all"])
     actual_rate = mock_tcspc.call_args.kwargs["excitation_rates"]["testfluo_1"]
     assert actual_rate == pytest.approx(excitation_rate * 1000)
 
