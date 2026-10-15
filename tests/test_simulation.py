@@ -481,6 +481,55 @@ def test_approximation_sparse_prediction_matches_dense(pred_tr_set_1f):
     np.testing.assert_array_equal(sparse_result[1], dense_result[1])
 
 
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("branch", ["disabled", "disconnected", "active"])
+def test_approximation_checks_only_active_reachable_branches(
+    flu_sys_cy5, matrix_format, branch
+):
+    transitions = [
+        tr.Transition(tr.TransitionType.EXCITATION, rate=1, fluorophore_ids=[0]),
+        tr.Transition(
+            tr.TransitionType.FLUORESCENT_EMISSION, rate=1, fluorophore_ids=[0]
+        ),
+    ]
+    baseline = tr.TransitionSet(
+        {"testfluo_1": transitions}, flu_sys_cy5, matrix_format=matrix_format
+    )
+    source = tr.SingleState.OFF if branch == "disconnected" else tr.SingleState.S0
+    transitions += [
+        tr.Transition(
+            tr.TransitionType("BRANCH", source, tr.SingleState.T1, False),
+            rate=0 if branch == "disabled" else 1,
+            fluorophore_ids=[0],
+        ),
+        tr.Transition(
+            tr.TransitionType("RETURN", tr.SingleState.T1, source, False),
+            rate=1,
+            fluorophore_ids=[0],
+        ),
+    ]
+    transition_set = tr.TransitionSet(
+        {"testfluo_1": transitions},
+        flu_sys_cy5,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    prediction = pr.Prediction(transition_set, initial_state_index=0)
+
+    if branch == "active":
+        with pytest.raises(ValueError, match="graph not suited for approximation"):
+            si.approximation(prediction, size=100, seed=42)
+        return
+
+    expected_times, expected_transitions = si.approximation(
+        pr.Prediction(baseline), size=100, seed=42
+    )
+    time_series, transition_series = si.approximation(prediction, size=100, seed=42)
+
+    np.testing.assert_array_equal(transition_series, expected_transitions)
+    np.testing.assert_array_equal(time_series, expected_times)
+
+
 def test_approximation_uses_transition_lifetimes(pred_tr_set_1f):
     class FixedLifetimeDistribution:
         def __init__(self, lifetime):

@@ -1392,7 +1392,8 @@ def approximation(
     transitions are omitted under the assumption that they are too rare to affect the
     approximate sequence. If a transition has no non-absorbing successor, the sequence
     ends at its first occurrence. Each simple cycle should contain the most occurring
-    state-changing transition.
+    state-changing transition. Graph suitability depends only on positive-rate
+    branches reachable from the prediction's initial state.
 
     Parameters
     ----------
@@ -1437,7 +1438,16 @@ def approximation(
     rng = np.random.default_rng(seed)
     if np.any(state_changing_occurrences > 0):
         starting_transition = int(np.argmax(state_changing_occurrences))
-        state_changing_df = transition_df.loc[~self_transition_mask]
+        reachable_transition_ids = (
+            prediction.transition_set.combined_state_transitions_df.iloc[
+                prediction._reachable_transition_indices
+            ]["transition_id"].to_numpy()
+        )
+        state_changing_df = transition_df.loc[
+            ~self_transition_mask
+            & (transition_df["rate"] > 0)
+            & np.isin(transition_ids, reachable_transition_ids)
+        ]
         G = net.construct_transition_graph(transition_df=state_changing_df)
         graph_suited, _ = net.check_graph_suitable(
             G=G, starting_node=starting_transition
