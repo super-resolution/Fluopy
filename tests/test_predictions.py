@@ -181,6 +181,104 @@ def test_prediction_handles_retained_zero_rate_transitions(
 
 
 @pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("self_rate", [0, 1, 9])
+@pytest.mark.parametrize("persistent_state", [tr.SingleState.S0, tr.SingleState.S1])
+def test_state_occupations_include_persistent_molecules_of_the_same_type(
+    flu_sys_2xcy5, matrix_format, self_rate, persistent_state
+):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 1, [0]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0]),
+                tr.Transition(
+                    tr.TransitionType(
+                        "SELF", persistent_state, persistent_state, False
+                    ),
+                    self_rate,
+                    [1],
+                ),
+            ]
+        },
+        flu_sys_2xcy5,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    combined_transitions = transition_set.combined_state_transitions_df
+    initial_index = int(
+        combined_transitions.index[
+            combined_transitions["final_state"] == (0, persistent_state.value)
+        ][0]
+    )
+
+    prediction = pr.Prediction(transition_set, initial_state_index=initial_index)
+
+    expected = [0.75, 0.25] if persistent_state == tr.SingleState.S0 else [0.25, 0.75]
+    np.testing.assert_allclose(prediction.state_occupations["testfluo_1"], expected)
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+def test_state_occupations_include_persistent_molecules_before_absorption(
+    flu_sys_2xcy5, matrix_format
+):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 1, [0]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0]),
+                tr.Transition(
+                    tr.TransitionType(
+                        "SELF", tr.SingleState.S0, tr.SingleState.S0, False
+                    ),
+                    0,
+                    [1],
+                ),
+                tr.Transition(
+                    tr.TransitionType(
+                        "BLEACH", tr.SingleState.S1, tr.SingleState.B, False
+                    ),
+                    1,
+                    [0],
+                ),
+            ]
+        },
+        flu_sys_2xcy5,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    combined_transitions = transition_set.combined_state_transitions_df
+    initial_index = int(
+        combined_transitions.index[combined_transitions["final_state"] == (0, 0)][0]
+    )
+
+    prediction = pr.Prediction(transition_set, initial_state_index=initial_index)
+
+    assert prediction.absorbing_chain
+    np.testing.assert_allclose(
+        prediction.state_occupations["testfluo_1"], [5 / 6, 1 / 6, 0]
+    )
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+def test_state_occupations_use_identity_specific_rates(flu_sys_2xcy5, matrix_format):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 1, [0]),
+                tr.Transition(tr.TransitionType.EXCITATION, 9, [1]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0, 1]),
+            ]
+        },
+        flu_sys_2xcy5,
+        matrix_format=matrix_format,
+    )
+
+    prediction = pr.Prediction(transition_set)
+
+    np.testing.assert_allclose(prediction.state_occupations["testfluo_1"], [0.3, 0.7])
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
 @pytest.mark.parametrize("absorbing", [False, True])
 def test_paired_state_frequencies_use_common_event_counts(
     flu_sys_1xcy5_1xatto643, matrix_format, absorbing

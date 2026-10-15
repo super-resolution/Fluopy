@@ -14,7 +14,6 @@ import pandas as pd
 
 from . import plotting
 from ._statistics import (
-    calculate_state_occupations,
     normalize_transition_frequencies,
     parse_paired_transition_label,
 )
@@ -355,28 +354,24 @@ class Analysis:
                     for distr in distributions
                 ]
             )
-        state_occupations = calculate_state_occupations(
-            self.frequency_states, mean_lifetimes
-        )
-        if self.transition_series.size:
-            combined_transition_df = (
-                self.simulation.transition_set.combined_state_transitions_df
+        transition_set = self.simulation.transition_set
+        state_occupations = {
+            name: np.zeros(states.size)
+            for name, states in transition_set.single_states.items()
+        }
+        residence_times = np.diff(self.time_series)
+        for identity, fluorophore in enumerate(
+            transition_set.fluorophore_system.fluorophores
+        ):
+            states = transition_set.single_states[fluorophore.name]
+            occupied_states = self.state_series[identity, : residence_times.size]
+            state_occupations[fluorophore.name] += residence_times @ (
+                occupied_states[:, None] == states
             )
-            observed_transitions = combined_transition_df.iloc[self.transition_series]
-            has_self_event = any(
-                initial_state == final_state
-                for initial_state, final_state in zip(
-                    observed_transitions["initial_state"],
-                    observed_transitions["final_state"],
-                    strict=True,
-                )
-            )
-            if has_self_event:
-                for fluorophore, occupations in state_occupations.items():
-                    if occupations.sum() == 0:
-                        state_occupations[fluorophore] = self.frequency_states[
-                            fluorophore
-                        ].copy()
+        for occupations in state_occupations.values():
+            total = occupations.sum()
+            if total > 0:
+                occupations /= total
 
         return mean_lifetimes, state_occupations
 

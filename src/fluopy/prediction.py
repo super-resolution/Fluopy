@@ -198,6 +198,7 @@ class Prediction:
         self.mean_lifetimes: dict[str, npt.NDArray[np.float64]] | None
         self.state_occupations: dict[str, npt.NDArray[np.float64]] | None
         self._stationary_distribution: npt.NDArray[np.float64] | None = None
+        self._transient_visits: npt.NDArray[np.float64] | None = None
         if self.absorbing_chain:
             if sparse.issparse(transition_matrix):
                 self.frequency_transitions = (
@@ -458,6 +459,7 @@ class Prediction:
         )
         frequency_transitions = np.zeros(transition_abs.size)
         self._transition_occurrences = frequency_transitions
+        self._transient_visits = np.zeros(transition_matrix.shape[0])
         if initial_state_index in drop_transitions:
             return frequency_transitions
         if not drop_transitions.size:
@@ -485,8 +487,8 @@ class Prediction:
             np.flatnonzero(transient_indices == initial_state_index)[0]
         )
         expected_transient_visits = N[initial_transient_index]
-        expected_visits = np.zeros(transition_matrix.shape[0])
-        expected_visits[transient_indices] = expected_transient_visits
+        self._transient_visits[transient_indices] = expected_transient_visits
+        expected_visits = self._transient_visits.copy()
         expected_visits[drop_diff] = 0
         for _, i in self.transition_set.transition_df.index:
             indices = df.index[df["transition_id"] == i].tolist()
@@ -543,6 +545,7 @@ class Prediction:
         )
         frequency_transitions = np.zeros(transition_abs.size)
         self._transition_occurrences = frequency_transitions
+        self._transient_visits = np.zeros(transition_matrix.shape[0])
         if initial_state_index in drop_transitions:
             return frequency_transitions
         if not drop_transitions.size:
@@ -578,8 +581,8 @@ class Prediction:
             raise ValueError("the transient subchain is singular.") from exception
         if not np.all(np.isfinite(expected_transient_visits)):
             raise ValueError("the transient subchain is singular.")
-        expected_visits = np.zeros(transition_matrix.shape[0])
-        expected_visits[transient_indices] = expected_transient_visits
+        self._transient_visits[transient_indices] = expected_transient_visits
+        expected_visits = self._transient_visits.copy()
         expected_visits[drop_diff] = 0
         for _, i in self.transition_set.transition_df.index:
             indices = df.index[df["transition_id"] == i].tolist()
@@ -767,6 +770,37 @@ class Prediction:
             mean_lifetimes[fluorophore] = np.array(
                 [distr.mean() if distr != np.inf else np.inf for distr in distributions]
             )
+        visits = self._stationary_distribution
+        if visits is None:
+            visits = self._transient_visits
+        if visits is not None:
+            row_sums = self.transition_set.row_sums
+            time_weights = np.divide(
+                visits,
+                row_sums,
+                out=np.zeros_like(row_sums),
+                where=row_sums > 0,
+            )
+            combined_states = np.asarray(
+                self.transition_set.combined_state_transitions_df[
+                    "final_state"
+                ].tolist()
+            )
+            state_occupations = {}
+            for fluorophore, states in self.transition_set.single_states.items():
+                identities = self.transition_set.fluorophore_system.get_identities(
+                    fluorophore
+                )
+                state_counts = np.count_nonzero(
+                    combined_states[:, identities, None] == states, axis=1
+                )
+                occupations = time_weights @ state_counts
+                total = occupations.sum()
+                if total > 0:
+                    occupations /= total
+                state_occupations[fluorophore] = occupations
+            return mean_lifetimes, state_occupations
+
         state_occupations = calculate_state_occupations(
             self.frequency_states, mean_lifetimes
         )
