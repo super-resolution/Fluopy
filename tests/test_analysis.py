@@ -534,7 +534,10 @@ def test_analysis_transition_plots_can_collapse_transfer_distances():
             "initial_state": ["S0", "S1_S0", "S1_S0", "S1_S0", "S1_S0", "S1"],
             "final_state": ["S1", "S0_S1", "S0_S1", "S0_S1", "S0_S1", "S0"],
             "photon": [False, False, False, False, False, True],
-            "mechanism": [None, "FRET", "PET", "FRET", "PET", None],
+            "transition_type": [
+                SimpleNamespace(mechanism=mechanism)
+                for mechanism in [None, "FRET", "PET", "FRET", "PET", None]
+            ],
         },
         index=pd.MultiIndex.from_tuples(
             [
@@ -574,6 +577,27 @@ def test_analysis_transition_plots_can_collapse_transfer_distances():
     np.testing.assert_allclose(
         [patch.get_height() for patch in mean_ax.patches],
         [1.0, 4.0, 5.0, np.nan],
+        equal_nan=True,
+    )
+
+
+@pytest.mark.parametrize(
+    "method, values",
+    [
+        ("plot_frequency_transitions", "frequency_transitions"),
+        ("plot_mean_transition_times", "mean_transition_times"),
+    ],
+)
+def test_analysis_transition_plots_use_transition_set_schema(
+    sim_tr_set_et_2f_diff, method, values
+):
+    analysis = an.Analysis(sim_tr_set_et_2f_diff)
+
+    ax = getattr(analysis, method)(diff_dist=False, yscale="linear")
+
+    np.testing.assert_allclose(
+        [patch.get_height() for patch in ax.patches],
+        getattr(analysis, values),
         equal_nan=True,
     )
 
@@ -887,7 +911,10 @@ def test_no_diff_dist():
     df["initial_state"] = "initial"
     df["final_state"] = "final"
     df["photon"] = False
-    df["mechanism"] = [None] * 3 + ["FRET"] * 6 + [None] * 3 + ["FRET"] * 4
+    df["transition_type"] = [
+        SimpleNamespace(mechanism=mechanism)
+        for mechanism in [None] * 3 + ["FRET"] * 6 + [None] * 3 + ["FRET"] * 4
+    ]
 
     df2, dict2, dict2_vals = an.no_diff_dist(df, ["Cy5", "H"])
     assert df2.shape[0] == 10
@@ -922,7 +949,7 @@ def test_no_diff_dist_keeps_single_distance_pair():
             "initial_state": ["S0", "S1_S0"],
             "final_state": ["S1", "S0_S1"],
             "photon": [False, False],
-            "mechanism": [None, "FRET"],
+            "transition_type": [tr.TransitionType.EXCITATION, tr.TransitionType.FRET],
         },
         index=index,
     )
@@ -959,7 +986,10 @@ def test_no_diff_dist_matches_transition_signature_across_distances():
             "initial_state": ["S1_S0"] * 5,
             "final_state": ["S0_S1"] * 5,
             "photon": [False] * 5,
-            "mechanism": ["FRET", "PET", "PET", "FRET", "FRET"],
+            "transition_type": [
+                SimpleNamespace(mechanism=mechanism)
+                for mechanism in ["FRET", "PET", "PET", "FRET", "FRET"]
+            ],
         },
         index=index,
     )
@@ -968,7 +998,7 @@ def test_no_diff_dist_matches_transition_signature_across_distances():
         transition_df, ["A", "B"]
     )
 
-    assert collapsed["mechanism"].tolist() == ["FRET", "PET"]
+    assert [item.mechanism for item in collapsed["transition_type"]] == ["FRET", "PET"]
     assert collapsed.index.get_level_values(0).tolist() == [
         "D: A, A: B, dist: 1",
         "D: A, A: B, dist: 1",
@@ -1010,7 +1040,7 @@ def test_no_diff_dist_keeps_pair_with_unknown_donor():
             "initial_state": ["S1_S0"],
             "final_state": ["S0_S1"],
             "photon": [False],
-            "mechanism": ["CUSTOM"],
+            "transition_type": [SimpleNamespace(mechanism="CUSTOM")],
         },
         index=index,
     )
