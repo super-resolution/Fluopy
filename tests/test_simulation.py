@@ -584,6 +584,79 @@ def test_approximation_skips_unused_infinite_transition_distribution(
     np.testing.assert_array_equal(simulation.time_series, expected_times)
 
 
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("size", [1000, 10_000, 20_000])
+@pytest.mark.parametrize("disabled_self_transition", [False, True])
+def test_approximation_omits_zero_rate_initial_visits(
+    flu_sys_cy5, matrix_format, size, disabled_self_transition
+):
+    disabled_type = (
+        tr.TransitionType("DISABLED", tr.SingleState.S1, tr.SingleState.S1, False)
+        if disabled_self_transition
+        else tr.TransitionType.EXCITATION
+    )
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(disabled_type, 0, [0]),
+                tr.Transition(
+                    tr.TransitionType(
+                        "SELF", tr.SingleState.S1, tr.SingleState.S1, True
+                    ),
+                    9,
+                    [0],
+                ),
+                tr.Transition(
+                    tr.TransitionType(
+                        "BLEACH", tr.SingleState.S1, tr.SingleState.B, False
+                    ),
+                    0.001,
+                    [0],
+                ),
+            ]
+        },
+        flu_sys_cy5,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    prediction = pr.Prediction(transition_set)
+    assert prediction.frequency_transitions[0] > 0
+    simulation = si.Simulation(transition_set)
+
+    simulation.approximate(prediction, size=size, seed=42)
+
+    expected_count = int(prediction.frequency_transitions[1] * size)
+    np.testing.assert_array_equal(
+        simulation.transition_series, np.ones(expected_count, dtype=np.int64)
+    )
+    np.testing.assert_array_equal(
+        simulation.state_series, np.ones((1, expected_count + 1), dtype=np.int8)
+    )
+    assert simulation.time_series.size == expected_count + 1
+    assert np.isfinite(simulation.time_series).all()
+    assert np.all(np.diff(simulation.time_series) > 0)
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+def test_approximation_rejects_only_zero_rate_occurrences(flu_sys_cy5, matrix_format):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 0, [0]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0]),
+            ]
+        },
+        flu_sys_cy5,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    prediction = pr.Prediction(transition_set)
+    np.testing.assert_array_equal(prediction.frequency_transitions, [1, 0])
+
+    with pytest.raises(ValueError, match="size is too small to produce any transition"):
+        si.approximation(prediction, size=100, seed=42)
+
+
 def test_approximation_inserts_self_transitions_in_matching_states(tr_set_self_cycle):
     prediction = pr.Prediction(tr_set_self_cycle)
 
@@ -660,6 +733,7 @@ def test_approximation_skips_unusable_self_transitions(tr_set_self_cycle):
         {
             "initial_state": [(0,), (1,), (2,)],
             "final_state": [(0,), (1,), (2,)],
+            "rate": [1.0, 1.0, 1.0],
         },
         index=pd.MultiIndex.from_product(
             [["testfluo_1"], range(3)], names=["fluorophore", "identity"]

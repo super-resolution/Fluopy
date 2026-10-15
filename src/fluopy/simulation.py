@@ -1413,12 +1413,14 @@ def approximation(
         The simulated (approximated) transitions. At index i, they correspond to
         time_series[i + 1].
     """
+    transition_df = prediction.transition_set.transition_df
+    active_transition_mask = transition_df["rate"].to_numpy() > 0
     transition_occurrences = prediction.frequency_transitions * size
     transition_occurrences = transition_occurrences.astype(np.int64)
+    transition_occurrences[~active_transition_mask] = 0
     if not np.any(transition_occurrences > 0):
         raise ValueError("size is too small to produce any transition occurrences.")
     fluorophore = prediction.transition_set.fluorophore_system.fluorophores[0].name
-    transition_df = prediction.transition_set.transition_df
     self_transition_mask = np.fromiter(
         (
             initial_state == final_state
@@ -1445,7 +1447,7 @@ def approximation(
         )
         state_changing_df = transition_df.loc[
             ~self_transition_mask
-            & (transition_df["rate"] > 0)
+            & active_transition_mask
             & np.isin(transition_ids, reachable_transition_ids)
         ]
         G = net.construct_transition_graph(transition_df=state_changing_df)
