@@ -1162,6 +1162,24 @@ def test_get_detection_probabilities_routes_without_spectral_data(transmission):
     np.testing.assert_allclose(probabilities, np.array([[0.6, 0.4]]) * transmission)
 
 
+@pytest.mark.parametrize("transmission", [1.0, 0.8])
+@pytest.mark.parametrize("detection_efficiency", [1.0, 0.1])
+def test_get_detection_probabilities_rejects_excess_constant_routing(
+    routing_transition_set, transmission, detection_efficiency
+):
+    channels = {
+        name: em.DetectionChannel(
+            bandpass=transmission,
+            routing_probability=0.5,
+            detection_efficiency=detection_efficiency,
+        )
+        for name in ("first", "second", "third")
+    }
+
+    with pytest.raises(ValueError, match="at each wavelength"):
+        em.get_detection_probabilities(routing_transition_set, channels)
+
+
 @pytest.mark.parametrize(
     "bandpass, expected",
     [(1.0, 2 / 3), ((525, 575), 13 / 48), ((700, 800), 0), ((450, 650), 2 / 3)],
