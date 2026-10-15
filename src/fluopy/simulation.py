@@ -1588,6 +1588,8 @@ def approximation(
         raise ValueError("transition-time distributions are unavailable.")
     for i, transition_time_distribution in enumerate(transition_time_distributions):
         indices = np.where(transition_series == i)[0]
+        if indices.size == 0:
+            continue
         drawn_lifetimes = transition_time_distribution.rvs(
             indices.size, random_state=rng
         )

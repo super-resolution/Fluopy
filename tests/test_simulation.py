@@ -552,6 +552,38 @@ def test_approximation_uses_transition_lifetimes(pred_tr_set_1f):
     np.testing.assert_array_equal(np.diff(time_series), lifetimes[transition_series])
 
 
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+def test_approximation_skips_unused_infinite_transition_distribution(
+    tr_set_self_cycle, matrix_format
+):
+    transitions = tr_set_self_cycle.transitions["testfluo_1"] + [
+        tr.Transition(
+            tr.TransitionType("RECOVER", tr.SingleState.B, tr.SingleState.S0, False),
+            rate=0,
+            fluorophore_ids=[0],
+        )
+    ]
+    transition_set = tr.TransitionSet(
+        {"testfluo_1": transitions},
+        tr_set_self_cycle.fluorophore_system,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    prediction = pr.Prediction(transition_set)
+    assert prediction.transition_time_distributions[-1] == np.inf
+    assert prediction.frequency_transitions[-1] == 0
+
+    simulation = si.Simulation(transition_set)
+    simulation.approximate(prediction, size=110, seed=42)
+    baseline = tr_set_self_cycle.with_matrix_format(matrix_format)
+    expected_times, expected_transitions = si.approximation(
+        pr.Prediction(baseline), size=110, seed=42
+    )
+
+    np.testing.assert_array_equal(simulation.transition_series, expected_transitions)
+    np.testing.assert_array_equal(simulation.time_series, expected_times)
+
+
 def test_approximation_inserts_self_transitions_in_matching_states(tr_set_self_cycle):
     prediction = pr.Prediction(tr_set_self_cycle)
 
