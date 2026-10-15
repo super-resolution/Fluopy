@@ -325,6 +325,35 @@ class Simulation:
         (Path(self.memmap_path) / "state_series").unlink(missing_ok=True)
 
 
+def _prepare_dense_transition_rows(
+    transition_matrix: npt.ArrayLike,
+) -> npt.NDArray[np.float64]:
+    """
+    Prepare cumulative transition probabilities with non-empty rows ending at 1.
+
+    Parameters
+    ----------
+    transition_matrix
+        Normalized transition probabilities, with zero rows for terminal states.
+
+    Returns
+    -------
+    npt.NDArray[np.float64]
+        Cumulative probabilities normalized by each row's computed endpoint.
+    """
+    cumulative_probabilities = np.cumsum(
+        np.asarray(transition_matrix, dtype=np.float64), axis=1
+    )
+    row_totals = cumulative_probabilities[:, -1:].copy()
+    np.divide(
+        cumulative_probabilities,
+        row_totals,
+        out=cumulative_probabilities,
+        where=row_totals > 0,
+    )
+    return cumulative_probabilities
+
+
 def _prepare_sparse_transition_rows(
     transition_matrix: sparse.spmatrix | sparse.sparray,
 ) -> tuple[
@@ -365,6 +394,8 @@ def _prepare_sparse_transition_rows(
         cumulative_probabilities[start:end] = np.cumsum(
             cumulative_probabilities[start:end]
         )
+        if start < end:
+            cumulative_probabilities[start:end] /= cumulative_probabilities[end - 1]
 
     return indptr, indices, cumulative_probabilities
 
@@ -629,7 +660,7 @@ def direct_method_steps(
     # transition equals start_at
     current_state_index = start_index
 
-    cumulative_transition_probabilities = np.cumsum(matrix, axis=1)
+    cumulative_transition_probabilities = _prepare_dense_transition_rows(matrix)
     absorbing_state_reached = False
 
     for i in range(size):
@@ -925,7 +956,7 @@ def direct_method_time(
     )  # never a memmap, is initialized on RAM anyways
 
     time_series[0] = 0
-    cumulative_transition_probabilities = np.cumsum(matrix, axis=1)
+    cumulative_transition_probabilities = _prepare_dense_transition_rows(matrix)
 
     abso = 0
     i = 0
@@ -1869,7 +1900,7 @@ def simulate_experiment(
             "detection probabilities must sum to at most 1 per transition."
         )
     cumulative_detection_probabilities = np.cumsum(probabilities, axis=1)
-    cumulative_transition_probabilities = np.cumsum(matrix, axis=1)
+    cumulative_transition_probabilities = _prepare_dense_transition_rows(matrix)
 
     rng = np.random.default_rng(seed)
     current_state_index = start_index

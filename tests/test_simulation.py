@@ -151,6 +151,65 @@ def test_direct_method_steps_uses_matrix_column_order(monkeypatch, sparse_backen
 
 
 @pytest.mark.parametrize("sparse_backend", [False, True])
+@pytest.mark.parametrize("start_index", [1, 11])
+@pytest.mark.parametrize("uniform_draw", [0.0, np.nextafter(1.0, 0.0)])
+@pytest.mark.parametrize(
+    "method_name", ["direct_method_steps", "direct_method_time", "simulate_experiment"]
+)
+def test_transition_sampling_handles_cumulative_rounding(
+    monkeypatch, sparse_backend, start_index, uniform_draw, method_name
+):
+    class FixedGenerator:
+        def uniform(self, low, high, size):
+            values = np.full(size, 0.5)
+            values[:, 0] = np.exp(-0.6)
+            values[:, 1] = uniform_draw
+            return values
+
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: FixedGenerator())
+    transition_matrix = np.zeros((12, 12))
+    transition_matrix[1:, 1:11] = 0.1
+    assert np.cumsum(transition_matrix[start_index])[-1] < 1
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        method_name += "_sparse"
+    method = getattr(si, method_name)
+    kwargs = {
+        "transition_matrix": transition_matrix,
+        "row_sums": np.r_[0, np.ones(11)],
+        "start_index": start_index,
+        "size": 2,
+        "seed": 42,
+    }
+    expected_transition = 1 if uniform_draw == 0 else 10
+
+    if method_name.startswith("simulate_experiment"):
+        detection_probabilities = np.zeros((12, 1))
+        detection_probabilities[expected_transition] = 1
+        time_points, counts = method(
+            **kwargs,
+            detection_probabilities=detection_probabilities,
+            channel_names=("detector",),
+            frames=2,
+            frame_time="1s",
+            store_time_points=True,
+        )
+
+        np.testing.assert_array_equal(counts["detector"], [1, 2])
+        np.testing.assert_allclose(time_points["detector"], [0.6, 1.2, 1.8])
+    else:
+        if method_name.startswith("direct_method_time"):
+            kwargs["end_time"] = 1.5
+        time_series, transition_series = method(**kwargs)
+
+        np.testing.assert_array_equal(
+            transition_series, [expected_transition, expected_transition]
+        )
+        assert np.isfinite(time_series).all()
+        assert np.all(np.diff(time_series) > 0)
+
+
+@pytest.mark.parametrize("sparse_backend", [False, True])
 @pytest.mark.parametrize("use_memmap", [False, True])
 def test_direct_method_steps_stops_at_absorbing_state(
     use_memmap, sparse_backend, tmp_path

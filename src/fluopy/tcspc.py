@@ -263,8 +263,8 @@ def simulate_TCSPC(
             transition_matrix_non_exc
         )
     else:
-        cumulative_transition_probabilities_non_exc = np.cumsum(
-            transition_matrix_non_exc, axis=1
+        cumulative_transition_probabilities_non_exc = si._prepare_dense_transition_rows(
+            transition_matrix_non_exc
         )
     number_fluorophores = transition_set.fluorophore_system.count
     if excitation_rates is None:
@@ -618,8 +618,8 @@ def simulate_TCSPC_detailed(
             transition_matrix_non_exc
         )
     else:
-        cumulative_transition_probabilities_non_exc = np.cumsum(
-            transition_matrix_non_exc, axis=1
+        cumulative_transition_probabilities_non_exc = si._prepare_dense_transition_rows(
+            transition_matrix_non_exc
         )
     number_fluorophores = transition_set.fluorophore_system.count
     if excitation_rates is None:

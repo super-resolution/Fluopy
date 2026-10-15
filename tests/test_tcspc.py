@@ -63,6 +63,54 @@ class FixedTCSPCGenerator:
         return np.resize(self.geometric_values, np.asarray(p).shape)
 
 
+@pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+def test_tcspc_handles_cumulative_rounding(
+    call, matrix_format, flu_sys_cy5, monkeypatch
+):
+    transitions = [tr.Transition(tr.TransitionType.EXCITATION, 0, [0])]
+    transitions += [
+        tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0]) for _ in range(10)
+    ]
+    transitions.append(
+        tr.Transition(
+            tr.TransitionType("DISABLED", tr.SingleState.S1, tr.SingleState.S0, False),
+            0,
+            [0],
+        )
+    )
+    transition_set = tr.TransitionSet(
+        {"testfluo_1": transitions},
+        flu_sys_cy5,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    generator = FixedTCSPCGenerator(
+        excitation_random=np.zeros((10, 1)),
+        transition_random=np.array([[np.exp(-2.5), np.nextafter(1.0, 0.0), 0.5]]),
+        geometric=[1],
+    )
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
+
+    result = call(
+        transition_set=transition_set,
+        detection_probabilities=_single_channel_probabilities(transition_set, {10: 1}),
+        channel_names=("all",),
+        number_pulses=1,
+        pulse_duration=0.1,
+        time_between_pulses=1,
+        excitation_rates={"testfluo_1": 1000},
+        frame_time="1s",
+        size=10,
+        store_time_points=True,
+        seed=42,
+    )
+
+    np.testing.assert_array_equal(result[0]["all"], [1])
+    np.testing.assert_allclose(result[1]["all"], [0.25])
+    np.testing.assert_allclose(result[4]["all"], [0.25])
+
+
 def test_compare_simulate_TCSPC_and_simulate_TCSPC_detailed(tr_set_1f):
     tr_set = deepcopy(tr_set_1f)
     tr_set = tr_set.adjust_rates({0: 0}, keep_zero_rates=True)
