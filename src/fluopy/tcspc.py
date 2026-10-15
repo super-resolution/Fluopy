@@ -392,6 +392,8 @@ def simulate_TCSPC(
                     # if the next excitation event(s) is before a remembered transition takes
                     # place, the excitation(s) is realized at the calculated pulse
                     if potential_i * time_between_pulses < remember[1]:
+                        if potential_i >= number_pulses:
+                            break
                         current_states[excitable_indices[S0s[indices_minimum]]] = S1
                         current_state_index = df[
                             df["final_state"] == tuple(current_states)
@@ -405,10 +407,6 @@ def simulate_TCSPC(
                         skip = True
                         next_transition = remember[0]
                         time = remember[1]
-                        # here the calculation is necessary since the time is larger than
-                        # current next_pulse_time
-                        i = int(np.floor(time / time_between_pulses))
-                        next_pulse_time = (i + 1) * time_between_pulses
             # if there are no S0 states, no excitations can occur. If something is
             # remembered, the simulation continues from there
             else:
@@ -440,13 +438,15 @@ def simulate_TCSPC(
                     skip = True
                     next_transition = remember[0]
                     time = remember[1]
-                    # here the calculation can be necessary or result is the same number as
-                    # current next_pulse_time
-                    i = int(np.floor(time / time_between_pulses))
-                    next_pulse_time = (i + 1) * time_between_pulses
                 not_broken = False
 
         checked = False
+        if skip:
+            i = int(np.floor(time / time_between_pulses)) + 1
+            if i > number_pulses:
+                break
+            last_pulse_time = (i - 1) * time_between_pulses
+            next_pulse_time = i * time_between_pulses
         current_state_index = df[df["final_state"] == tuple(current_states)].index[0]
         while time < next_pulse_time:
             if not skip:
@@ -754,6 +754,8 @@ def simulate_TCSPC_detailed(
                     # if the next excitation event(s) is before a remembered transition takes
                     # place, the excitation(s) is realized at the calculated pulse
                     if potential_i * time_between_pulses < remember[1]:
+                        if potential_i >= number_pulses:
+                            break
                         current_states[excitable_indices[S0s[indices_minimum]]] = S1
                         excitation_series.extend(
                             excitable_indices[S0s[indices_minimum]].tolist()
@@ -773,10 +775,6 @@ def simulate_TCSPC_detailed(
                         skip = True
                         next_transition = remember[0]
                         time = remember[1]
-                        # here the calculation is necessary since the time is larger than
-                        # current next_pulse_time
-                        i = int(np.floor(time / time_between_pulses))
-                        next_pulse_time = (i + 1) * time_between_pulses
             # if there are no S0 states, no excitations can occur. If something is
             # remembered, the simulation continues from there
             else:
@@ -815,13 +813,15 @@ def simulate_TCSPC_detailed(
                     skip = True
                     next_transition = remember[0]
                     time = remember[1]
-                    # here the calculation can be necessary or result is the same number as
-                    # current next_pulse_time
-                    i = int(np.floor(time / time_between_pulses))
-                    next_pulse_time = (i + 1) * time_between_pulses
                 not_broken = False
 
         checked = False
+        if skip:
+            i = int(np.floor(time / time_between_pulses)) + 1
+            if i > number_pulses:
+                break
+            last_pulse_time = (i - 1) * time_between_pulses
+            next_pulse_time = i * time_between_pulses
         current_state_index = df[df["final_state"] == tuple(current_states)].index[0]
         while time < next_pulse_time:
             if not skip:
@@ -886,10 +886,6 @@ def simulate_TCSPC_detailed(
                 except IndexError:
                     pass
 
-    # if checked, the last simulated pulse is past the last existing pulse
-    if checked:
-        time_series = time_series[:-1]
-        excitation_series = excitation_series[:-1]
     return_values = prepare_return_values(
         photon_collector=photon_collector,
         time_stamps=time_stamps,
