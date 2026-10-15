@@ -301,7 +301,7 @@ def simulate_TCSPC(
             stacklevel=2,
         )
     logger.warning(
-        f"the last frame (of index {last_frame_end}) has {frames - int(frames):.2e} "
+        f"the last frame (of index {last_frame_end}) has {frames - number_frames + 1:.2e} "
         "times the pulses of other frames.",
         stacklevel=2,
     )
@@ -646,7 +646,7 @@ def simulate_TCSPC_detailed(
             stacklevel=2,
         )
     logger.warning(
-        f"the last frame (of index {last_frame_end}) has {frames - int(frames):.2e} "
+        f"the last frame (of index {last_frame_end}) has {frames - number_frames + 1:.2e} "
         "times the pulses of other frames.",
         stacklevel=2,
     )
@@ -898,6 +898,9 @@ def space_multiple_excitations(time_series: npt.NDArray[np.float64]) -> None:
     """
     if not np.issubdtype(time_series.dtype, np.floating):
         raise ValueError("time_series must be of float type.")
+    indices = np.unique(time_series, return_index=True)[1]
+    if indices.size == time_series.size:
+        return
     logger.warning(
         "Multiple excitations at the same time point are spaced by a minimal "
         "amount. This also spaces other transitions whose time was too small "
@@ -908,7 +911,6 @@ def space_multiple_excitations(time_series: npt.NDArray[np.float64]) -> None:
     )
     # Repeated passes are acceptable because simultaneous excitations are limited by
     # the typically small number of fluorophores, so duplicate groups remain small.
-    indices = np.unique(time_series, return_index=True)[1]
     while indices.size != time_series.size:
         mask = np.ones(time_series.shape, dtype=bool)
         mask[indices] = False

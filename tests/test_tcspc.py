@@ -791,7 +791,7 @@ def test_simulate_TCSPC_homofret_pulse_delays_with_relaxed_pulses(
         )
 
     assert (
-        "the last frame (of index 4000.0) has 0.00e+00 times the pulses of other frames."
+        "the last frame (of index 4000.0) has 1.00e+00 times the pulses of other frames."
         in caplog.text
     )
     assert event_time_series.size == 4_000
