@@ -5,9 +5,10 @@ Work with observable photon emission time series.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from numbers import Real
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -44,9 +45,9 @@ class DetectionChannel:
     Attributes
     ----------
     bandpass
-        The lowest and highest wavelength in nm passed by the channel. If None, no
-        wavelength filter is applied. Bandpasses of channels accepting photons from the
-        same fluorophore must not overlap.
+        Filter transmission as a scalar, a Spectrum, or a tuple of the lowest and
+        highest passed wavelength in nm. A tuple represents unit transmission inside
+        the band and zero outside. The default 1.0 passes every wavelength.
     fluorophore_ids
         Physical fluorophore identifiers whose photons may enter the channel. If None,
         photons from every fluorophore may enter it. Restricting fluorophore_ids is
@@ -55,18 +56,62 @@ class DetectionChannel:
         may enter any channel whose bandpass accepts its wavelength, regardless of
         which fluorophore emitted it.
     detection_efficiency
-        Combined probability that a photon passing the bandpass is detected. This can
-        combine independent scalar losses such as objective photon collection, optical
-        transmittance, and detector quantum efficiency.
+        Probability that a photon passing the optical response is detected, as a
+        scalar or a Spectrum. This can combine collection losses and detector quantum
+        efficiency. Optical routing and filter transmission belong in
+        routing_probability and bandpass, respectively.
+    routing_probability
+        Fraction of photons routed into the channel before detection losses. A scalar
+        represents a constant beamsplitter fraction. A Spectrum represents a
+        wavelength-dependent routing or optical transmission probability, with
+        wavelengths in nm and values between 0 and 1. Values are linearly interpolated
+        within the supplied wavelength range and are zero outside it. The response is
+        multiplied by the bandpass transmission and detection_efficiency.
+
+    Notes
+    -----
+    Optical responses of channels accepting photons from the same fluorophore must
+    sum to at most 1 at each wavelength, before applying detection_efficiency.
+    Each emitted photon can be detected in at most one channel. Multiple optical
+    components can be represented by their combined response along each detection path.
+    All scalar and spectral probabilities must be between 0 and 1. Spectra use nm,
+    linear interpolation, and zero response outside their supplied wavelength range.
+    Routing, filtering, and detection responses are multiplied before integration
+    against the emission spectrum.
+
+    Examples
+    --------
+    Two channels with identical bandpasses behind a 50/50 beamsplitter:
+
+    >>> channels = {
+    ...     "first": DetectionChannel((650, 700), routing_probability=0.5),
+    ...     "second": DetectionChannel((650, 700), routing_probability=0.5),
+    ... }
+
+    A wavelength-dependent routing response:
+
+    >>> response = Spectrum.from_arrays([600, 650, 700], [0, 0.5, 1])
+    >>> channel = DetectionChannel(routing_probability=response)
+
+    A measured filter response and detector efficiency behind a 50/50 beamsplitter:
+
+    >>> transmission = Spectrum.from_arrays([600, 650, 700], [0, 0.9, 0])
+    >>> efficiency = Spectrum.from_arrays([600, 650, 700], [0.6, 0.7, 0.5])
+    >>> channel = DetectionChannel(
+    ...     bandpass=transmission,
+    ...     detection_efficiency=efficiency,
+    ...     routing_probability=0.5,
+    ... )
     """
 
-    bandpass: tuple[float, float] | None = None
+    bandpass: float | Spectrum | tuple[float, float] = 1.0
     fluorophore_ids: frozenset[int] | None = None
-    detection_efficiency: float = 1.0
+    detection_efficiency: float | Spectrum = 1.0
+    routing_probability: float | Spectrum = 1.0
 
     def __post_init__(self) -> None:
         """Validate the channel configuration."""
-        if self.bandpass is not None:
+        if isinstance(self.bandpass, tuple):
             lower, upper = self.bandpass
             if not np.isfinite(lower) or not np.isfinite(upper):
                 raise ValueError("bandpass limits must be finite.")
@@ -74,11 +119,20 @@ class DetectionChannel:
                 raise ValueError(
                     "The lower bandpass limit has to be smaller than the upper limit."
                 )
-        if (
-            not np.isfinite(self.detection_efficiency)
-            or not 0 <= self.detection_efficiency <= 1
-        ):
-            raise ValueError("detection_efficiency must be finite and between 0 and 1.")
+        responses = {
+            "routing_probability": self.routing_probability,
+            "detection_efficiency": self.detection_efficiency,
+        }
+        if not isinstance(self.bandpass, tuple):
+            responses["bandpass"] = self.bandpass
+        for name, response in responses.items():
+            if isinstance(response, Spectrum):
+                if np.any(response.values > 1):
+                    raise ValueError(f"{name} spectrum values must be at most 1.")
+            elif not isinstance(response, Real):
+                raise TypeError(f"{name} must be a scalar or Spectrum.")
+            elif not np.isfinite(response) or not 0 <= response <= 1:
+                raise ValueError(f"{name} must be finite and between 0 and 1.")
 
 
 def _get_paired_emission_ids(
@@ -973,6 +1027,141 @@ def get_p_filter(
     return p_passed
 
 
+def _validate_channel_routing(channels: Sequence[DetectionChannel]) -> None:
+    """
+    Check that channel optical responses sum to at most 1 at each wavelength.
+
+    Parameters
+    ----------
+    channels
+        Channels accepting photons from the same physical fluorophore. Their optical
+        responses combine routing_probability with the bandpass transmission, before
+        applying detection_efficiency.
+    """
+    error_message = (
+        "channel routing probabilities must sum to at most 1 at each wavelength "
+        "for the same fluorophore."
+    )
+    unfiltered_probability = sum(
+        float(channel.routing_probability) * float(channel.bandpass)
+        for channel in channels
+        if not isinstance(channel.bandpass, (tuple, Spectrum))
+        and not isinstance(channel.routing_probability, Spectrum)
+    )
+    if unfiltered_probability > 1 + 1e-12:
+        raise ValueError(error_message)
+
+    boundaries: list[npt.NDArray[np.float64]] = []
+    for channel in channels:
+        if isinstance(channel.bandpass, tuple):
+            boundaries.append(np.asarray(channel.bandpass, dtype=np.float64))
+        for response in (channel.routing_probability, channel.bandpass):
+            if isinstance(response, Spectrum):
+                boundaries.append(response.wavelengths)
+    if not boundaries:
+        return
+    wavelengths = np.unique(np.concatenate(boundaries))
+    coefficients = np.zeros((3, wavelengths.size - 1), dtype=np.float64)
+    for channel in channels:
+        active = np.ones(wavelengths.size - 1, dtype=bool)
+        if isinstance(channel.bandpass, tuple):
+            lower, upper = channel.bandpass
+            active &= (wavelengths[:-1] >= lower) & (wavelengths[1:] <= upper)
+        endpoint_values = []
+        for response in (channel.routing_probability, channel.bandpass):
+            if isinstance(response, Spectrum):
+                active &= (wavelengths[:-1] >= response.wavelengths[0]) & (
+                    wavelengths[1:] <= response.wavelengths[-1]
+                )
+                values = np.interp(wavelengths, response.wavelengths, response.values)
+            elif isinstance(response, tuple):
+                values = np.ones(wavelengths.size, dtype=np.float64)
+            else:
+                values = np.full(wavelengths.size, response, dtype=np.float64)
+            endpoint_values.append(values)
+        routing, transmission = endpoint_values
+        routing_change = np.diff(routing)
+        transmission_change = np.diff(transmission)
+        coefficients[0, active] += (routing[:-1] * transmission[:-1])[active]
+        coefficients[1, active] += (
+            routing[:-1] * transmission_change + transmission[:-1] * routing_change
+        )[active]
+        coefficients[2, active] += (routing_change * transmission_change)[active]
+    constant, linear, quadratic = coefficients
+    peak_positions = np.zeros_like(constant)
+    np.divide(-linear, 2 * quadratic, out=peak_positions, where=quadratic < 0)
+    peak_positions = np.clip(peak_positions, 0, 1)
+    peak_values = constant + peak_positions * (linear + peak_positions * quadratic)
+    if (
+        np.any(constant > 1 + 1e-12)
+        or np.any(coefficients.sum(axis=0) > 1 + 1e-12)
+        or np.any(peak_values > 1 + 1e-12)
+    ):
+        raise ValueError(error_message)
+
+
+def _get_p_detection(
+    emission_spectrum: Spectrum,
+    channel: DetectionChannel,
+) -> float:
+    """
+    Integrate the product of channel responses over an emission spectrum.
+
+    Parameters
+    ----------
+    emission_spectrum
+        Relative photon emission values as a function of wavelength in nm.
+    channel
+        Channel defining routing, filter transmission, and detector efficiency.
+        Spectral responses are linearly interpolated and zero outside their range.
+
+    Returns
+    -------
+    float
+        Fraction of emitted photons detected in the channel.
+    """
+    total_emission = emission_spectrum.integral()
+    if total_emission == 0:
+        raise ValueError("emission spectrum has zero total intensity.")
+    lower = float(emission_spectrum.wavelengths[0])
+    upper = float(emission_spectrum.wavelengths[-1])
+    boundaries = [emission_spectrum.wavelengths]
+    responses = (
+        channel.routing_probability,
+        channel.bandpass,
+        channel.detection_efficiency,
+    )
+    for response in responses:
+        if isinstance(response, Spectrum):
+            lower = max(lower, float(response.wavelengths[0]))
+            upper = min(upper, float(response.wavelengths[-1]))
+            boundaries.append(response.wavelengths)
+        elif isinstance(response, tuple):
+            lower = max(lower, response[0])
+            upper = min(upper, response[1])
+    if lower >= upper:
+        return 0.0
+    boundaries.append(np.asarray([lower, upper]))
+    wavelengths = np.unique(np.concatenate(boundaries))
+    wavelengths = wavelengths[(wavelengths >= lower) & (wavelengths <= upper)]
+    half_widths = np.diff(wavelengths) / 2
+    midpoints = (wavelengths[:-1] + wavelengths[1:]) / 2
+    nodes, weights = np.polynomial.legendre.leggauss(3)
+    sample_wavelengths = midpoints[:, None] + half_widths[:, None] * nodes
+    products = np.interp(
+        sample_wavelengths, emission_spectrum.wavelengths, emission_spectrum.values
+    )
+    for response in responses:
+        if isinstance(response, Spectrum):
+            products *= np.interp(
+                sample_wavelengths, response.wavelengths, response.values
+            )
+        elif not isinstance(response, tuple):
+            products *= response
+    detected_emission = np.sum(half_widths * (products @ weights))
+    return float(np.clip(detected_emission / total_emission, 0, 1))
+
+
 def get_detection_probabilities(
     transition_set: TransitionSet,
     channels: Mapping[str, DetectionChannel],
@@ -980,9 +1169,11 @@ def get_detection_probabilities(
     """
     Get the detection probability of each transition in each channel.
 
-    An emitting transition can contribute to multiple channels when their bandpasses
-    are non-overlapping. Overlapping bandpasses are only allowed when the channels apply
-    to disjoint fluorophores because routing within the overlap is otherwise undefined.
+    Channels may have overlapping bandpasses when their combined optical routing
+    response sums to at most 1 at each wavelength. Routing is checked before applying
+    detection_efficiency, separately for each physical fluorophore. Spectral responses
+    are integrated against the fluorophore's emission spectrum and cached for all its
+    emitting transitions. Each photon is assigned to at most one channel.
 
     Parameters
     ----------
@@ -1021,40 +1212,43 @@ def get_detection_probabilities(
             if channel.fluorophore_ids is None
             or fluorophore_id in channel.fluorophore_ids
         ]
+        _validate_channel_routing(eligible_channels)
         for channel_index, channel in enumerate(channels.values()):
             if channel not in eligible_channels:
                 continue
-            if channel.bandpass is None:
-                p_passed = 1.0
-            else:
+            spectral_response = any(
+                isinstance(response, Spectrum)
+                for response in (
+                    channel.routing_probability,
+                    channel.bandpass,
+                    channel.detection_efficiency,
+                )
+            )
+            if spectral_response or isinstance(channel.bandpass, tuple):
                 constants = fluorophore.constants
                 if constants is None or constants.emission_spectrum is None:
                     raise ValueError(
-                        "bandpass not None but emission data not available for "
-                        f"this kind of fluorophore: {fluorophore.name}"
+                        "wavelength-dependent detection but emission data not available "
+                        f"for this kind of fluorophore: {fluorophore.name}"
                     )
-                p_passed = get_p_filter(
-                    emission_spectrum=constants.emission_spectrum,
-                    bandpass=channel.bandpass,
+                if spectral_response:
+                    p_detected = _get_p_detection(constants.emission_spectrum, channel)
+                else:
+                    p_detected = (
+                        cast(float, channel.routing_probability)
+                        * get_p_filter(
+                            emission_spectrum=constants.emission_spectrum,
+                            bandpass=cast(tuple[float, float], channel.bandpass),
+                        )
+                        * cast(float, channel.detection_efficiency)
+                    )
+            else:
+                p_detected = (
+                    cast(float, channel.routing_probability)
+                    * cast(float, channel.bandpass)
+                    * cast(float, channel.detection_efficiency)
                 )
-            fluorophore_probabilities[channel_index] = (
-                p_passed * channel.detection_efficiency
-            )
-
-        for channel_index, channel in enumerate(eligible_channels):
-            for other_channel in eligible_channels[channel_index + 1 :]:
-                if channel.bandpass is None or other_channel.bandpass is None:
-                    raise ValueError(
-                        "detection channel bandpasses must not overlap for the same "
-                        "fluorophore."
-                    )
-                lower = max(channel.bandpass[0], other_channel.bandpass[0])
-                upper = min(channel.bandpass[1], other_channel.bandpass[1])
-                if lower < upper:
-                    raise ValueError(
-                        "detection channel bandpasses must not overlap for the same "
-                        "fluorophore."
-                    )
+            fluorophore_probabilities[channel_index] = p_detected
 
         probabilities_by_fluorophore[fluorophore_id] = fluorophore_probabilities
         probabilities[transition_id] = fluorophore_probabilities

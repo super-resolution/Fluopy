@@ -8,7 +8,9 @@ import pytest
 
 from fluopy import emissions as em
 from fluopy import fluo_data as fd
+from fluopy import fluorophores as fl
 from fluopy import simulation as si
+from fluopy import transitions as tr
 
 
 def test_emissions():
@@ -36,6 +38,41 @@ def test_detection_channel_rejects_invalid_detection_efficiency(
 def test_detection_channel_rejects_invalid_bandpass(bandpass):
     with pytest.raises(ValueError, match="bandpass"):
         em.DetectionChannel(bandpass=bandpass)
+
+
+@pytest.mark.parametrize("routing_probability", [-0.1, 1.1, np.nan, np.inf])
+def test_detection_channel_rejects_invalid_routing_probability(routing_probability):
+    with pytest.raises(ValueError, match="routing_probability"):
+        em.DetectionChannel(routing_probability=routing_probability)
+
+
+def test_detection_channel_rejects_invalid_routing_spectrum():
+    response = fd.Spectrum([500, 600], [0, 1.1])
+
+    with pytest.raises(ValueError, match="routing_probability spectrum"):
+        em.DetectionChannel(routing_probability=response)
+
+
+def test_detection_channel_requires_scalar_or_spectrum_routing():
+    with pytest.raises(TypeError, match="scalar or Spectrum"):
+        em.DetectionChannel(routing_probability=[0.5, 0.5])
+
+
+@pytest.mark.parametrize("name", ["bandpass", "detection_efficiency"])
+@pytest.mark.parametrize("value", [-0.1, 1.1, np.nan, np.inf])
+def test_detection_channel_rejects_invalid_scalar_response(name, value):
+    with pytest.raises(ValueError, match=name):
+        em.DetectionChannel(**{name: value})
+
+
+@pytest.mark.parametrize("name", ["bandpass", "detection_efficiency"])
+def test_detection_channel_rejects_invalid_spectral_response(name):
+    with pytest.raises(ValueError, match=f"{name} spectrum"):
+        em.DetectionChannel(**{name: fd.Spectrum([500, 600], [0, 1.1])})
+
+    for value in ("invalid", None):
+        with pytest.raises(TypeError, match=name):
+            em.DetectionChannel(**{name: value})
 
 
 def test_emissions_requires_channels():
@@ -1004,11 +1041,20 @@ def test_get_detection_probabilities_rejects_overlapping_channels(
         "second": em.DetectionChannel((650, 750)),
     }
 
-    with pytest.raises(ValueError, match="must not overlap"):
+    with pytest.raises(ValueError, match="routing probabilities must sum to at most 1"):
         em.get_detection_probabilities(tr_set_bl_et_2f_diff, channels)
 
 
-def test_get_detection_probabilities_requires_spectral_data_for_bandpass():
+@pytest.mark.parametrize(
+    "channel",
+    [
+        em.DetectionChannel((500, 600)),
+        em.DetectionChannel(routing_probability=fd.Spectrum([500, 600], [0, 1])),
+        em.DetectionChannel(bandpass=fd.Spectrum([500, 600], [0, 1])),
+        em.DetectionChannel(detection_efficiency=fd.Spectrum([500, 600], [0, 1])),
+    ],
+)
+def test_get_detection_probabilities_requires_spectral_data(channel):
     transition_set = SimpleNamespace(
         combined_state_transitions_df=pd.DataFrame(
             {"photon": [True], "fluorophore_ids": [[0]]}
@@ -1021,7 +1067,7 @@ def test_get_detection_probabilities_requires_spectral_data_for_bandpass():
     with pytest.raises(ValueError, match="emission data not available"):
         em.get_detection_probabilities(
             transition_set=transition_set,
-            channels={"detector": em.DetectionChannel((500, 600))},
+            channels={"detector": channel},
         )
 
 
@@ -1048,7 +1094,7 @@ def test_get_detection_probabilities_rejects_unfiltered_shared_channels(
         "second": em.DetectionChannel((600, 650)),
     }
 
-    with pytest.raises(ValueError, match="must not overlap"):
+    with pytest.raises(ValueError, match="routing probabilities must sum to at most 1"):
         em.get_detection_probabilities(tr_set_1f, channels)
 
 
@@ -1061,3 +1107,296 @@ def test_get_detection_probabilities_rejects_sum_above_one(tr_set_1f, monkeypatc
 
     with pytest.raises(ValueError, match="sum to at most 1"):
         em.get_detection_probabilities(tr_set_1f, channels)
+
+
+@pytest.fixture
+def routing_transition_set():
+    constants = fd.FluorophoreData(emission_spectrum=fd.Spectrum([500, 600], [0, 1]))
+    fluorophore = fl.Fluorophore("routing", [0, 0], constants)
+    system = fl.FluorophoreSystem([fluorophore])
+    return tr.TransitionSet(
+        {
+            "routing": [
+                tr.Transition(tr.TransitionType.EXCITATION, 1, [0]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0]),
+            ]
+        },
+        system,
+    )
+
+
+def test_get_detection_probabilities_allows_beamsplitter_overlap(
+    routing_transition_set,
+):
+    channels = {
+        "first": em.DetectionChannel(
+            (500, 600), detection_efficiency=0.5, routing_probability=0.5
+        ),
+        "second": em.DetectionChannel(
+            (500, 600), detection_efficiency=0.5, routing_probability=0.5
+        ),
+    }
+
+    probabilities = em.get_detection_probabilities(routing_transition_set, channels)
+
+    np.testing.assert_allclose(probabilities, [[0, 0], [0.25, 0.25]])
+
+
+@pytest.mark.parametrize("transmission", [1.0, 0.5])
+def test_get_detection_probabilities_routes_without_spectral_data(transmission):
+    transition_set = SimpleNamespace(
+        combined_state_transitions_df=pd.DataFrame(
+            {"photon": [True], "fluorophore_ids": [[0]]}
+        ),
+        fluorophore_system=SimpleNamespace(
+            fluorophores=[SimpleNamespace(name="unknown", constants=None)]
+        ),
+    )
+    channels = {
+        "first": em.DetectionChannel(transmission, routing_probability=0.6),
+        "second": em.DetectionChannel(transmission, routing_probability=0.4),
+    }
+
+    probabilities = em.get_detection_probabilities(transition_set, channels)
+
+    np.testing.assert_allclose(probabilities, np.array([[0.6, 0.4]]) * transmission)
+
+
+@pytest.mark.parametrize("transmission", [1.0, 0.8])
+@pytest.mark.parametrize("detection_efficiency", [1.0, 0.1])
+def test_get_detection_probabilities_rejects_excess_constant_routing(
+    routing_transition_set, transmission, detection_efficiency
+):
+    channels = {
+        name: em.DetectionChannel(
+            bandpass=transmission,
+            routing_probability=0.5,
+            detection_efficiency=detection_efficiency,
+        )
+        for name in ("first", "second", "third")
+    }
+
+    with pytest.raises(ValueError, match="at each wavelength"):
+        em.get_detection_probabilities(routing_transition_set, channels)
+
+
+@pytest.mark.parametrize(
+    "bandpass, expected",
+    [(1.0, 2 / 3), ((525, 575), 13 / 48), ((700, 800), 0), ((450, 650), 2 / 3)],
+)
+def test_get_detection_probabilities_integrates_spectral_routing(
+    routing_transition_set, bandpass, expected
+):
+    response = fd.Spectrum([500, 525, 600], [0, 0.25, 1])
+    channels = {"detector": em.DetectionChannel(bandpass, routing_probability=response)}
+
+    probabilities = em.get_detection_probabilities(routing_transition_set, channels)
+
+    np.testing.assert_allclose(probabilities, [[0], [expected]])
+
+
+def test_get_detection_probabilities_allows_complementary_routing(
+    routing_transition_set,
+):
+    channels = {
+        "transmitted": em.DetectionChannel(
+            routing_probability=fd.Spectrum([500, 600], [0, 1])
+        ),
+        "reflected": em.DetectionChannel(
+            routing_probability=fd.Spectrum([500, 550, 600], [1, 0.5, 0])
+        ),
+    }
+
+    probabilities = em.get_detection_probabilities(routing_transition_set, channels)
+
+    np.testing.assert_allclose(probabilities, [[0, 0], [2 / 3, 1 / 3]])
+
+
+def test_get_detection_probabilities_does_not_extrapolate_routing(
+    routing_transition_set,
+):
+    channels = {
+        "detector": em.DetectionChannel(
+            routing_probability=fd.Spectrum([525, 575], [1, 1])
+        )
+    }
+
+    probabilities = em.get_detection_probabilities(routing_transition_set, channels)
+
+    np.testing.assert_allclose(probabilities, [[0], [0.5]])
+
+
+def test_get_detection_probabilities_allows_touching_bandpasses(routing_transition_set):
+    channels = {
+        "first": em.DetectionChannel((500, 550)),
+        "second": em.DetectionChannel((550, 600)),
+    }
+
+    probabilities = em.get_detection_probabilities(routing_transition_set, channels)
+
+    np.testing.assert_allclose(probabilities, [[0, 0], [0.25, 0.75]])
+
+
+def test_spectral_routing_rejects_zero_emission_spectrum():
+    with pytest.raises(ValueError, match="zero total intensity"):
+        em._get_p_detection(
+            fd.Spectrum([500, 600], [0, 0]),
+            em.DetectionChannel(routing_probability=fd.Spectrum([500, 600], [0, 1])),
+        )
+
+
+@pytest.mark.parametrize(
+    "response_names, expected",
+    [
+        (("bandpass",), 2 / 3),
+        (("detection_efficiency",), 2 / 3),
+        (("bandpass", "detection_efficiency"), 1 / 2),
+        (("routing_probability", "bandpass", "detection_efficiency"), 2 / 5),
+    ],
+)
+def test_get_detection_probabilities_integrates_product_of_spectral_responses(
+    routing_transition_set, response_names, expected
+):
+    grids = {
+        "routing_probability": ([500, 525, 600], [0, 0.25, 1]),
+        "bandpass": ([500, 550, 600], [0, 0.5, 1]),
+        "detection_efficiency": ([500, 575, 600], [0, 0.75, 1]),
+    }
+    responses = {name: fd.Spectrum(*grids[name]) for name in response_names}
+    channels = {"detector": em.DetectionChannel(**responses)}
+
+    probabilities = em.get_detection_probabilities(routing_transition_set, channels)
+
+    np.testing.assert_allclose(probabilities, [[0], [expected]])
+
+
+@pytest.mark.parametrize("name", ["bandpass", "detection_efficiency"])
+@pytest.mark.parametrize("limits, expected", [([525, 575], 0.5), ([700, 800], 0)])
+def test_get_detection_probabilities_does_not_extrapolate_spectral_responses(
+    routing_transition_set, name, limits, expected
+):
+    channels = {"detector": em.DetectionChannel(**{name: fd.Spectrum(limits, [1, 1])})}
+
+    probabilities = em.get_detection_probabilities(routing_transition_set, channels)
+
+    np.testing.assert_allclose(probabilities, [[0], [expected]])
+
+
+def test_get_detection_probabilities_combines_bandpass_and_spectral_efficiency(
+    routing_transition_set,
+):
+    channels = {
+        "detector": em.DetectionChannel(
+            (525, 575),
+            routing_probability=0.5,
+            detection_efficiency=fd.Spectrum([500, 600], [0, 1]),
+        )
+    }
+
+    probabilities = em.get_detection_probabilities(routing_transition_set, channels)
+
+    np.testing.assert_allclose(probabilities, [[0], [13 / 96]])
+
+
+@pytest.mark.parametrize("baseline", [0.75, 0.8])
+@pytest.mark.parametrize("spectral_efficiency", [False, True])
+def test_get_detection_probabilities_checks_optical_maxima_between_knots(
+    routing_transition_set, baseline, spectral_efficiency
+):
+    efficiency = fd.Spectrum([500, 600], [0.1, 0.1]) if spectral_efficiency else 0.1
+    channels = {
+        "first": em.DetectionChannel(
+            bandpass=fd.Spectrum([500, 600], [1, 0]),
+            routing_probability=fd.Spectrum([500, 600], [0, 1]),
+            detection_efficiency=efficiency,
+        ),
+        "second": em.DetectionChannel(
+            bandpass=baseline, detection_efficiency=efficiency
+        ),
+    }
+
+    if baseline > 0.75:
+        with pytest.raises(ValueError, match="at each wavelength"):
+            em.get_detection_probabilities(routing_transition_set, channels)
+    else:
+        probabilities = em.get_detection_probabilities(routing_transition_set, channels)
+        np.testing.assert_allclose(probabilities, [[0, 0], [1 / 60, 0.075]])
+
+
+@pytest.mark.parametrize("detection_efficiency", [1, 0.1])
+def test_get_detection_probabilities_rejects_pointwise_excess_routing(
+    routing_transition_set, detection_efficiency
+):
+    channels = {
+        "first": em.DetectionChannel(
+            detection_efficiency=detection_efficiency,
+            routing_probability=fd.Spectrum([500, 550, 600], [0, 0.6, 0]),
+        ),
+        "second": em.DetectionChannel(
+            detection_efficiency=detection_efficiency, routing_probability=0.6
+        ),
+    }
+
+    with pytest.raises(ValueError, match="at each wavelength"):
+        em.get_detection_probabilities(routing_transition_set, channels)
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("method", ["extract", "simulate", "tcspc", "tcspc_detailed"])
+@pytest.mark.parametrize("spectral_response", [False, True])
+def test_beamsplitter_routes_each_photon_at_most_once(
+    routing_transition_set, matrix_format, method, spectral_response
+):
+    transition_set = routing_transition_set.with_matrix_format(matrix_format)
+    if spectral_response:
+        efficiency = fd.Spectrum([500, 600], [1, 1])
+        channels = {
+            "first": em.DetectionChannel(
+                fd.Spectrum([500, 600], [0, 1]), detection_efficiency=efficiency
+            ),
+            "second": em.DetectionChannel(
+                fd.Spectrum([500, 600], [1, 0]), detection_efficiency=efficiency
+            ),
+        }
+    else:
+        channels = {
+            "first": em.DetectionChannel(routing_probability=0.5),
+            "second": em.DetectionChannel(routing_probability=0.5),
+        }
+    emissions = em.Emissions(
+        frame_time="1s",
+        channels=channels,
+        seed=42,
+    )
+    if method == "extract":
+        simulation = si.Simulation(transition_set)
+        simulation.run(size=200, seed=1)
+        emissions.extract(simulation)
+        expected_times = simulation.time_series[1:][simulation.transition_series == 1]
+        detected_times = np.sort(
+            np.concatenate(list(emissions.event_time_points.values()))
+        )
+        np.testing.assert_array_equal(detected_times, expected_times)
+    elif method == "simulate":
+        emissions.simulate(transition_set, frames=30, size=50, store_time_points=True)
+    else:
+        emissions.tcspc(
+            transition_set,
+            number_pulses=30,
+            pulse_duration=0.1,
+            time_between_pulses=1,
+            excitation_rates={"routing": 100},
+            size=50,
+            store_time_points=True,
+            details=method == "tcspc_detailed",
+        )
+
+    first = emissions.event_time_points["first"]
+    second = emissions.event_time_points["second"]
+    assert first.size + second.size > 0
+    assert np.intersect1d(first, second).size == 0
+    last_frame_end = emissions.event_time_series.index[-1]
+    for name, times in emissions.event_time_points.items():
+        assert emissions.event_time_series[name].sum() == np.count_nonzero(
+            times <= last_frame_end
+        )
