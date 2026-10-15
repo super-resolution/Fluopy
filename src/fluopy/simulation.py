@@ -1724,7 +1724,7 @@ def simulate_experiment_sparse(
     time_stamps = np.linspace(seconds_per_frame, seconds_per_frame * frames, frames)
     time_stamps = np.round(time_stamps, decimals=12)
     photon_collector = np.zeros((time_stamps.size, len(channel_names)), dtype=np.int64)
-    time = 0
+    time = 0.0
     if store_time_points:
         time_points: list[list[float]] = [[] for _ in channel_names]
     else:
@@ -1738,7 +1738,7 @@ def simulate_experiment_sparse(
         random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
         i = 0
         j = 1
-        while time < seconds_per_frame:
+        while time <= seconds_per_frame:
             if not skip:
                 current_state_lambda = rates[current_state_index]
                 if current_state_lambda == 0:
@@ -1770,6 +1770,9 @@ def simulate_experiment_sparse(
                 if time > seconds_per_frame:
                     frame_diff = int(np.floor(time / seconds_per_frame)) - 1
                     time -= (frame_diff + 1) * seconds_per_frame
+                    if time == 0:
+                        frame_diff -= 1
+                        time = seconds_per_frame
                     skip = True
                     break
 
@@ -1909,7 +1912,7 @@ def simulate_experiment(
     time_stamps = np.linspace(seconds_per_frame, seconds_per_frame * frames, frames)
     time_stamps = np.round(time_stamps, decimals=12)
     photon_collector = np.zeros((time_stamps.size, len(channel_names)), dtype=np.int64)
-    time = 0
+    time = 0.0
     if store_time_points:
         time_points: list[list[float]] = [[] for _ in channel_names]
     else:
@@ -1923,7 +1926,7 @@ def simulate_experiment(
         random_numbers = rng.uniform(low=0, high=1, size=(size, 3))
         i = 0
         j = 1
-        while time < seconds_per_frame:
+        while time <= seconds_per_frame:
             if not skip:
                 current_state_lambda = rates[current_state_index]
 
@@ -1956,6 +1959,9 @@ def simulate_experiment(
                 if time > seconds_per_frame:
                     frame_diff = int(np.floor(time / seconds_per_frame)) - 1
                     time -= (frame_diff + 1) * seconds_per_frame
+                    if time == 0:
+                        frame_diff -= 1
+                        time = seconds_per_frame
                     skip = True
                     break
 

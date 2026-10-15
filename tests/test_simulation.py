@@ -1318,6 +1318,54 @@ def test_approximation_rejects_unrealizable_internal_order(pred_tr_set_1f, monke
 
 @pytest.mark.parametrize("sparse_backend", [False, True])
 @pytest.mark.parametrize("store_time_points", [False, True])
+@pytest.mark.parametrize(
+    "waiting_time, expected_points, expected_counts",
+    [
+        (0.5, [0.5, 1, 1.5, 2, 2.5, 3], [2, 2, 2]),
+        (1, [1, 2, 3], [1, 1, 1]),
+        (2, [2], [0, 1, 0]),
+    ],
+)
+def test_simulate_experiment_handles_exact_frame_boundaries(
+    monkeypatch,
+    sparse_backend,
+    store_time_points,
+    waiting_time,
+    expected_points,
+    expected_counts,
+):
+    class FixedGenerator:
+        def uniform(self, low, high, size):
+            return np.full(size, 0.5)
+
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: FixedGenerator())
+    transition_matrix = np.array([[1]])
+    simulator = si.simulate_experiment
+    if sparse_backend:
+        transition_matrix = sparse.csr_array(transition_matrix)
+        simulator = si.simulate_experiment_sparse
+
+    event_time_points, event_time_series = simulator(
+        transition_matrix=transition_matrix,
+        row_sums=[np.log(2) / waiting_time],
+        detection_probabilities=[[1]],
+        channel_names=("detector",),
+        size=2,
+        frames=3,
+        frame_time="1s",
+        store_time_points=store_time_points,
+        seed=42,
+    )
+
+    np.testing.assert_array_equal(event_time_series["detector"], expected_counts)
+    if store_time_points:
+        np.testing.assert_array_equal(event_time_points["detector"], expected_points)
+    else:
+        assert event_time_points is None
+
+
+@pytest.mark.parametrize("sparse_backend", [False, True])
+@pytest.mark.parametrize("store_time_points", [False, True])
 def test_simulate_experiment_stops_at_absorbing_state(
     caplog, sparse_backend, store_time_points
 ):
