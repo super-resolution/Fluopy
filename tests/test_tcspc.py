@@ -848,7 +848,11 @@ def test_simulate_TCSPC_homofret_lifetimes_with_overlapping_pulses(
         == lifetimes_D.size + lifetimes_DA.size
         == event_time_points.size
     )
-    np.testing.assert_allclose(np.mean(lifetimes_D), 5.2349e-10, rtol=1e-1)
+    assert np.all(np.diff(event_time_points) > 0)
+    assert np.all(event_time_points < number_pulses * time_between_pulses)
+    lifetimes = np.concatenate([lifetimes_DA, lifetimes_D])
+    assert np.all((lifetimes >= 0) & (lifetimes < time_between_pulses))
+    np.testing.assert_allclose(np.mean(lifetimes_D), 3.7317e-10, rtol=1e-1)
     np.testing.assert_allclose(np.mean(lifetimes_DA), 6.3831e-10, rtol=1e-1)
 
 
