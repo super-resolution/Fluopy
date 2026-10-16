@@ -440,6 +440,58 @@ def test_fcs_time_point_autocorrelation_requires_photons():
         fcs_obj.autocorrelate_time_points()
 
 
+@pytest.mark.parametrize("normalize", [False, True])
+@pytest.mark.parametrize("start_time, end_time", [(1.0, 3.0), (0.0, 3.0), (1.0, None)])
+def test_fcs_time_points_ignores_photons_outside_measurement_window(
+    normalize, start_time, end_time
+):
+    arrival_times = np.array([0.1, 0.25, 1.0, 1.25, 1.75, 2.0, 2.25, 3.0, 3.25])
+    emissions = em.Emissions()
+    emissions.event_time_points = {"all": arrival_times}
+    cropped_emissions = em.Emissions()
+    upper = arrival_times[-1] if end_time is None else end_time
+    cropped_emissions.event_time_points = {
+        "all": arrival_times[(arrival_times >= start_time) & (arrival_times <= upper)]
+    }
+    kwargs = dict(
+        exp_min=-1,
+        exp_max=0,
+        points_per_base=2,
+        normalize=normalize,
+        start_time=start_time,
+        end_time=end_time,
+    )
+
+    actual = fcs_p.FCS(emissions).autocorrelate_time_points(**kwargs)
+    expected = fcs_p.FCS(cropped_emissions).autocorrelate_time_points(**kwargs)
+
+    np.testing.assert_array_equal(actual.tau, expected.tau)
+    np.testing.assert_allclose(actual.autocorrelation, expected.autocorrelation)
+
+
+def test_fcs_time_points_includes_measurement_window_endpoints():
+    emissions = em.Emissions()
+    emissions.event_time_points = {"all": np.array([-0.1, 0.0, 0.5, 1.0, 1.1])}
+
+    correlation = fcs_p.FCS(emissions).autocorrelate_time_points(
+        exp_min=-1,
+        exp_max=0,
+        points_per_base=1,
+        normalize=False,
+        start_time=0.0,
+        end_time=1.0,
+    )
+
+    np.testing.assert_allclose(correlation.autocorrelation, [2 / 0.9])
+
+
+def test_fcs_time_points_requires_photons_in_measurement_window(small_emissions):
+    with pytest.raises(ValueError, match="measurement interval contains no photon"):
+        fcs_p.FCS(small_emissions).autocorrelate_time_points(
+            exp_min=-1, exp_max=0, start_time=2.0, end_time=4.0
+        )
+
+
 def test_fit_dark():
     exp_autocorrelation = np.array([0.485225, 0.294304, 0.178504])
     exp_norm = 0.2

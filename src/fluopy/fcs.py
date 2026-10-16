@@ -124,6 +124,11 @@ class FCS:
         duration = end_time - start_time
         if not np.isfinite(duration) or duration <= 0:
             raise ValueError("measurement duration must be positive and finite.")
+        first = np.searchsorted(event_time_points, start_time, side="left")
+        last = np.searchsorted(event_time_points, end_time, side="right")
+        event_time_points = event_time_points[first:last]
+        if event_time_points.size == 0:
+            raise ValueError("measurement interval contains no photon arrival times.")
 
         if base**exp_max > duration:
             exp_max_adjusted = np.int64(np.floor(np.log(duration) / np.log(base)))
