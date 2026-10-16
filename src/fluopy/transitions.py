@@ -836,6 +836,7 @@ class TransitionSet:
             keep_transitions = []
             df_constructor = []
             for transition in f_transitions:
+                transition.identity = None
                 if isinstance(transition.initial_state, PairedState):
                     paired_label = parse_paired_transition_label(fluorophore_comb)
                     if paired_label is None:
@@ -877,7 +878,8 @@ class TransitionSet:
                                 f"{dist} nm indicated, {actual_dist} nm found."
                             )
                 else:
-                    for fluorophore_id in transition.get_single_fluorophore_ids():
+                    fluorophore_ids = transition.get_single_fluorophore_ids()
+                    for fluorophore_id in fluorophore_ids:
                         if not 0 <= fluorophore_id < self.fluorophore_system.count:
                             raise ValueError(
                                 f"fluorophore identity {fluorophore_id} is outside "
@@ -891,6 +893,15 @@ class TransitionSet:
                                 f"{fluorophore_comb} indicated to be at identity {fluorophore_id}, "
                                 f"{self.fluorophore_system.fluorophores[fluorophore_id].name} found."
                             )
+                    if set(fluorophore_ids) != set(
+                        self.fluorophore_system.get_identities(fluorophore_comb)
+                    ):
+                        raise ValueError(
+                            "fluorophores with the same name must share single-state "
+                            "transitions and rates; each transition must target all "
+                            f"identities of {fluorophore_comb}. Use distinct names for "
+                            "different kinetics."
+                        )
                 if not keep_zero_rates:
                     if transition.rate != 0:
                         transition.identity = i
@@ -911,6 +922,29 @@ class TransitionSet:
                 )
                 self.transition_df = pd.concat([self.transition_df, transition_df])
         self.transitions = retained_transitions
+        self._defined_transitions = transitions
+        paired_types: dict[tuple[int, int], set[TransitionType]] = {}
+        for transition_collection in transitions.values():
+            for transition in transition_collection:
+                if isinstance(transition.initial_state, PairedState):
+                    for pair in transition.get_fluorophore_pairs():
+                        paired_types.setdefault(pair, set()).add(
+                            transition.transition_type
+                        )
+        types_by_names: dict[tuple[str, str], set[TransitionType]] = {}
+        for donor, acceptor in self.fluorophore_system.distances:
+            names = (
+                self.fluorophore_system.fluorophores[donor].name,
+                self.fluorophore_system.fluorophores[acceptor].name,
+            )
+            types = paired_types.get((donor, acceptor), set())
+            reference = types_by_names.setdefault(names, types)
+            if types != reference:
+                raise ValueError(
+                    "ordered fluorophore pairs with the same names must share paired "
+                    f"transition types: {names}. Include zero-rate definitions for "
+                    "inactive pairs, or use distinct names for different transition types."
+                )
         if self.transition_df.empty:
             self.transition_df = pd.DataFrame(
                 columns=[
@@ -1047,7 +1081,7 @@ class TransitionSet:
             keep_zero_rates setting, using the selected matrix format.
         """
         return TransitionSet(
-            transitions=self.transitions,
+            transitions=self._defined_transitions,
             fluorophore_system=self.fluorophore_system,
             keep_zero_rates=self.keep_zero_rates,
             matrix_format=matrix_format,
@@ -1096,16 +1130,34 @@ class TransitionSet:
         TransitionSet
             Re-initialization of the object with the modified transition collection.
         """
-        transitions = copy.deepcopy(self.transitions)
+        transitions = copy.deepcopy(self._defined_transitions)
 
         if remove_list is None:
             remove_list = []
 
         filtered_transitions: dict[str, list[Transition]] = {}
+        removed_pair_types: dict[tuple[str, str], set[TransitionType]] = {}
+        for fluorophore, f_transitions in transitions.items():
+            paired_label = parse_paired_transition_label(fluorophore)
+            if paired_label is not None:
+                removed_pair_types.setdefault(paired_label[:2], set()).update(
+                    transition.transition_type
+                    for transition in f_transitions
+                    if transition.identity in remove_list
+                )
 
         for fluorophore, f_transitions in transitions.items():
+            paired_label = parse_paired_transition_label(fluorophore)
+            removed_types = (
+                set()
+                if paired_label is None
+                else removed_pair_types.get(paired_label[:2], set())
+            )
             for transition in f_transitions:
-                if transition.get_identity() in remove_list:
+                if (
+                    transition.identity in remove_list
+                    or transition.transition_type in removed_types
+                ):
                     continue
                 filtered_transitions.setdefault(fluorophore, []).append(transition)
 
@@ -1138,13 +1190,13 @@ class TransitionSet:
         TransitionSet
             Re-initialization of the object with the modified transition collection.
         """
-        transitions = copy.deepcopy(self.transitions)
+        transitions = copy.deepcopy(self._defined_transitions)
 
         if change_dict is None:
             change_dict = {}
         for _, f_transitions in transitions.items():
             for transition in f_transitions:
-                identity = transition.get_identity()
+                identity = transition.identity
                 if identity not in change_dict:
                     continue
                 rate = change_dict[identity]
@@ -1177,7 +1229,7 @@ class TransitionSet:
         TransitionSet
             Re-initialization of the object with the modified transition collection.
         """
-        transitions = copy.deepcopy(self.transitions)
+        transitions = copy.deepcopy(self._defined_transitions)
 
         new_transition_set = TransitionSet(
             transitions=transitions,
@@ -1203,51 +1255,26 @@ class TransitionSet:
         """
         keep_transitions: dict[str, list[Transition]] = {}
         absorbing_states = self.absorbing_states
+        removed_types: dict[str | tuple[str, str], set[TransitionType]] = {}
         for fluorophore, f_transitions in self.transitions.items():
+            paired_label = parse_paired_transition_label(fluorophore)
+            group = fluorophore if paired_label is None else paired_label[:2]
             for transition in f_transitions:
-                initial_state = transition.initial_state
-                final_state = transition.final_state
-                if isinstance(initial_state, PairedState):
-                    if not isinstance(final_state, PairedState):
-                        raise TypeError(
-                            "a paired transition must have a PairedState final state."
-                        )
-                    fluorophore_ids: Sequence[int] | Sequence[tuple[int, int]] = [
-                        (donor_id, acceptor_id)
-                        for donor_id, acceptor_id in transition.get_fluorophore_pairs()
-                        if not (
-                            initial_state.donor != final_state.donor
-                            and final_state.donor.value in absorbing_states[donor_id]
-                        )
-                        and not (
-                            initial_state.acceptor != final_state.acceptor
-                            and final_state.acceptor.value
-                            in absorbing_states[acceptor_id]
-                        )
-                    ]
-                else:
-                    if not isinstance(final_state, SingleState):
-                        raise TypeError(
-                            "a non-paired transition must have a SingleState final "
-                            "state."
-                        )
-                    fluorophore_ids = [
-                        identity
-                        for identity in transition.get_single_fluorophore_ids()
-                        if not (
-                            initial_state != final_state
-                            and final_state.value in absorbing_states[identity]
-                        )
-                    ]
-
-                if fluorophore_ids:
-                    keep_transitions.setdefault(fluorophore, []).append(
-                        Transition(
-                            transition_type=transition.transition_type,
-                            rate=transition.rate,
-                            fluorophore_ids=fluorophore_ids,
-                        )
+                if get_absorbing_fluorophore_ids(transition, absorbing_states):
+                    removed_types.setdefault(group, set()).add(
+                        transition.transition_type
                     )
+
+        for fluorophore, f_transitions in self._defined_transitions.items():
+            paired_label = parse_paired_transition_label(fluorophore)
+            group = fluorophore if paired_label is None else paired_label[:2]
+            retained = [
+                transition
+                for transition in f_transitions
+                if transition.transition_type not in removed_types.get(group, set())
+            ]
+            if retained:
+                keep_transitions[fluorophore] = retained
 
         no_abs = TransitionSet(
             transitions=keep_transitions,
@@ -1272,7 +1299,7 @@ class TransitionSet:
         TransitionSet
             Re-initialization of the object with the modified transition collection.
         """
-        transitions = copy.deepcopy(self.transitions)
+        transitions = copy.deepcopy(self._defined_transitions)
 
         keep_transitions: dict[str, list[Transition]] = {}
         for fluorophore, f_transitions in transitions.items():

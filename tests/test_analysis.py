@@ -290,20 +290,20 @@ def test_self_transition_only_analysis(tr_set_self_cycle):
 @pytest.mark.parametrize(
     "observation_end, expected", [(2.0, [0.75, 0.25]), (3.0, [5 / 6, 1 / 6])]
 )
-def test_state_occupations_include_persistent_molecules_and_final_residence(
+def test_state_occupations_include_unvisited_molecules_and_final_residence(
     flu_sys_2xcy5, self_rate, observation_end, expected
 ):
     transition_set = tr.TransitionSet(
         {
             "testfluo_1": [
-                tr.Transition(tr.TransitionType.EXCITATION, 1, [0]),
-                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0]),
+                tr.Transition(tr.TransitionType.EXCITATION, 1, [0, 1]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0, 1]),
                 tr.Transition(
                     tr.TransitionType(
                         "SELF", tr.SingleState.S0, tr.SingleState.S0, False
                     ),
                     self_rate,
-                    [1],
+                    [0, 1],
                 ),
             ]
         },
@@ -969,47 +969,47 @@ def test_no_diff_dist_keeps_single_distance_pair():
     np.testing.assert_array_equal(discarded, np.array([], dtype=np.int64))
 
 
-def test_no_diff_dist_matches_transition_signature_across_distances():
-    index = pd.MultiIndex.from_tuples(
-        [
-            ("D: A, A: B, dist: 1", 0),
-            ("D: A, A: B, dist: 1", 1),
-            ("D: A, A: B, dist: 2", 2),
-            ("D: A, A: B, dist: 2", 3),
-            ("D: A, A: B, dist: 3", 4),
-        ],
-        names=["Group", "Number"],
+@pytest.mark.parametrize("second_pet_rate", [0, 2])
+def test_no_diff_dist_matches_active_types_across_distances(
+    flu_sys_2xcy5_1xatto643, second_pet_rate
+):
+    pet = tr.TransitionType(
+        "FRET", tr.PairedState.S1_S0, tr.PairedState.S0_S1, False, "PET"
     )
-    transition_df = pd.DataFrame(
+    transition_set = tr.TransitionSet(
         {
-            "abbreviation": ["PAIR"] * 5,
-            "initial_state": ["S1_S0"] * 5,
-            "final_state": ["S0_S1"] * 5,
-            "photon": [False] * 5,
-            "transition_type": [
-                SimpleNamespace(mechanism=mechanism)
-                for mechanism in ["FRET", "PET", "PET", "FRET", "FRET"]
+            "D: testfluo_1, A: testfluo_2, dist: 2.0": [
+                tr.Transition(tr.TransitionType.FRET, 1, [(0, 2)]),
+                tr.Transition(pet, 2, [(0, 2)]),
+            ],
+            "D: testfluo_1, A: testfluo_2, dist: 1.0": [
+                tr.Transition(pet, second_pet_rate, [(1, 2)]),
+                tr.Transition(tr.TransitionType.FRET, 9, [(1, 2)]),
             ],
         },
-        index=index,
+        flu_sys_2xcy5_1xatto643,
     )
 
     collapsed, discarded_by_position, discarded = an.no_diff_dist(
-        transition_df, ["A", "B"]
+        transition_set.transition_df, ["testfluo_1", "testfluo_2"]
     )
 
-    assert [item.mechanism for item in collapsed["transition_type"]] == ["FRET", "PET"]
+    assert collapsed["transition_type"].tolist() == [tr.TransitionType.FRET, pet]
     assert collapsed.index.get_level_values(0).tolist() == [
-        "D: A, A: B, dist: 1",
-        "D: A, A: B, dist: 1",
+        "D: testfluo_1, A: testfluo_2, dist: 2.0",
+        "D: testfluo_1, A: testfluo_2, dist: 2.0",
     ]
     pd.testing.assert_index_equal(
-        discarded_by_position[0], pd.Index([3, 4], name="Number")
+        discarded_by_position[0],
+        pd.Index([3 if second_pet_rate else 2], name="identity"),
     )
-    pd.testing.assert_index_equal(
-        discarded_by_position[1], pd.Index([2], name="Number")
+    if second_pet_rate:
+        pd.testing.assert_index_equal(
+            discarded_by_position[1], pd.Index([2], name="identity")
+        )
+    np.testing.assert_array_equal(
+        np.sort(discarded), [2, 3] if second_pet_rate else [2]
     )
-    np.testing.assert_array_equal(discarded, np.array([2, 3, 4]))
 
 
 @pytest.mark.parametrize(
