@@ -495,6 +495,52 @@ def test_coincidence_backends_agree_for_controlled_events():
     np.testing.assert_array_equal(numpy_hist, [1.0, 1.0, 1.0])
 
 
+@pytest.mark.parametrize("end_time", [1.0, 1.1])
+@pytest.mark.parametrize("normalize", [False, True])
+def test_fcs_time_points_handles_unsupported_lag_bins(end_time, normalize):
+    emissions = em.Emissions()
+    emissions.event_time_points = {"all": np.array([0.1, 0.4, 0.9])}
+    correlation = fcs_p.FCS(emissions).autocorrelate_time_points(
+        exp_min=-2,
+        exp_max=0,
+        points_per_base=1,
+        normalize=normalize,
+        end_time=end_time,
+    )
+
+    expected = [0, np.nan] if normalize else [0, 10 / 3]
+    np.testing.assert_allclose(correlation.autocorrelation, expected)
+    np.testing.assert_allclose(correlation.tau, [0.055, 0.55])
+
+
+@pytest.mark.parametrize("compiled", [False, True])
+@pytest.mark.parametrize(
+    "first, second, maximum_lag",
+    [
+        ([0.1, 0.4, 0.6], [0.2, 0.3, 0.4], 0.5),
+        ([0.6, 0.7, 0.8], [0.6, 0.7, 0.9], 0.5),
+        ([0, 0.25, 0.75, 1], [0, 0.25, 0.75, 1], 1.0),
+    ],
+)
+def test_event_time_correlation_marks_undefined_normalization(
+    compiled, first, second, maximum_lag
+):
+    correlate = fcs_p._event_time_correlation
+    if not compiled:
+        correlate = correlate.py_func
+    correlation = correlate(
+        np.asarray(first, dtype=np.float64),
+        np.asarray(second, dtype=np.float64),
+        np.array([0, 0.1, maximum_lag]),
+        True,
+        0.0,
+        1.0,
+    )
+
+    assert np.isfinite(correlation[0])
+    assert np.isnan(correlation[1])
+
+
 def test_event_time_correlation_python_implementation():
     first = np.array([0.0, 2.0])
     second = np.array([0.5, 1.5, 3.0])

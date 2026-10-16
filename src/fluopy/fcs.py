@@ -540,7 +540,10 @@ def _event_time_correlation(
         tau = bins[bin_index + 1]
         usable_u = u.size - np.searchsorted(u, start_time + tau, side="left")
         usable_t = np.searchsorted(t, end_time - tau, side="right")
-        correlation[bin_index] *= (duration - tau) / (usable_u * usable_t)
+        if usable_u == 0 or usable_t == 0 or tau >= duration:
+            correlation[bin_index] = np.nan
+        else:
+            correlation[bin_index] *= (duration - tau) / (usable_u * usable_t)
 
     return correlation
 
