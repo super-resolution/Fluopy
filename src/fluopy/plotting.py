@@ -523,7 +523,20 @@ def plot_data(
         Type of the plot. One of "hist", "multiple_hist", "2d_hist", "bar", "line",
         "multiple_line", "scatter", "errorbar", "step", "stair", "boxplot".
     data
-        Data to be plotted. Required formation depends on input parameter type_.
+        Data to be plotted. The format depends on type_:
+
+        - "line", "scatter", "step", "2d_hist": [x, y], with matching lengths.
+        - "multiple_line": [[x1, y1], [x2, y2], ...], one coordinate pair per line.
+        - "bar": [x, y] for one series, or [x, [y1, y2, ...]] for multiple series
+          sharing x positions. Each y array has the same length as x.
+        - "errorbar": [x, y, yerr]. The yerr values may be a scalar, an array of
+          symmetric errors, or an array of shape (2, N) for lower and upper errors.
+        - "stair": [edges, values], with one more edge than values.
+        - "hist": a one-dimensional array of samples.
+        - "multiple_hist": a sequence of sample arrays, one per histogram.
+        - "boxplot": a one-dimensional sample array for one box, a sequence of sample
+          arrays for multiple boxes, or a two-dimensional NumPy array with one
+          dataset per column.
     label
         Label to pass to legend. For multiple_line, multiple_hist, and bar, a list of
         labels.
