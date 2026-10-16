@@ -272,12 +272,15 @@ class FluorophoreData:
         energy-transfer calculations.
     absorption_spectra
         Absorption spectra indexed by lowercase acceptor-state names, for example
-        's0', 't1', 'cis' or 'off'. The S0 spectrum is also used to infer the excitation
-        rate.
+        's0', 't1', 'cis' or 'off'. Spectrum values are molar extinction coefficients
+        in 1/(M cm), with wavelengths in nm. The S0 spectrum is also used to infer
+        the excitation rate.
     QUANTUM_YIELD
         The fluorescence quantum yield of the fluorophore. Should be between 0 and 1.
     FLUORESCENCE_LIFETIME
         The fluorescence lifetime of the fluorophore in s.
+    S1_QUENCH_RATE
+        A general singlet quenching rate from S1 to S0 in 1/s.
     ISC_ST_RATE
         The intersystem crossing rate from S1 to T1 in 1/s.
     ISC_TS_RATE
@@ -332,6 +335,19 @@ class FluorophoreData:
         of the acceptor state: S1|cis -> S0|cis* -> S0|S0. The step in between (S0|cis*)
         is not explicitly modeled, but the overall efficiency of the process is captured
         in this constant. Should be between 0 and 1.
+    H2O_ATTACK_S
+        The water-induced reaction rate from S1 to OFF in 1/s.
+    H2O_ATTACK_T
+        The water-induced reaction rate from T1 to OFF in 1/s.
+    BACK_REACTION
+        The back-reaction rate from OFF to S0 in 1/s.
+
+    Notes
+    -----
+    S1_QUENCH_RATE, H2O_ATTACK_S, H2O_ATTACK_T, and BACK_REACTION are not used
+    automatically by FluorophoreSystem.load_transitions or derive_transitions.
+    Construct the corresponding Transition objects manually using these rates and
+    add them to the transition collection before creating a TransitionSet.
     """
 
     # spectra
