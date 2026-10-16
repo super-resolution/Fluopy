@@ -120,11 +120,11 @@ def simulate_rotational_motion(
     Returns
     -------
     traj1 : npt.NDArray[np.float64]
-        Dipole orientations over time for the first dipole. Has length
-        int(tau_life / dt).
+        Dipole orientations over time for the first dipole, with shape
+        (int(tau_life / dt) + 1, 3), including the initial orientation at time zero.
     traj2 : npt.NDArray[np.float64]
-        Dipole orientations over time for the second dipole. Has length
-        int(tau_life / dt).
+        Dipole orientations over time for the second dipole, with shape
+        (int(tau_life / dt) + 1, 3), including the initial orientation at time zero.
     """
     if not np.isfinite(tau_rot) or tau_rot <= 0:
         raise ValueError("tau_rot must be positive and finite.")
