@@ -245,6 +245,10 @@ class Simulation:
         occupied. Each simple cycle should contain the most occurring state-changing
         transition.
 
+        prediction.start_at selects the reachable subchain used for approximation.
+        The trajectory starts in the initial state of its first generated transition,
+        which may differ from prediction.start_at.
+
         Parameters
         ----------
         prediction
@@ -1415,6 +1419,10 @@ def approximation(
     ends at its first occurrence. Each simple cycle should contain the most occurring
     state-changing transition. Graph suitability depends only on positive-rate
     branches reachable from the prediction's initial state.
+
+    prediction.start_at selects the reachable subchain used for approximation.
+    The trajectory starts in the initial state of its first generated transition,
+    which may differ from prediction.start_at.
 
     Parameters
     ----------
