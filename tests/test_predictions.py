@@ -6,6 +6,7 @@ import pytest
 import scipy.stats as stats
 
 from fluopy import prediction as pr
+from fluopy import simulation as si
 from fluopy import transitions as tr
 
 # test_prediction_# includes testing of...
@@ -24,26 +25,42 @@ def test_prediction_1(tr_set_bl_et_3f):
         pr.Prediction(transition_set=tr_set_bl_et_3f)
 
 
-@pytest.mark.parametrize("initial_state_index", [-1, 1000, 1.5])
-def test_prediction_rejects_invalid_initial_state_index(tr_set_1f, initial_state_index):
-    with pytest.raises(ValueError, match="initial_state_index must"):
-        pr.Prediction(
-            transition_set=tr_set_1f,
-            initial_state_index=initial_state_index,
-        )
+@pytest.mark.parametrize(
+    "start_at, message",
+    [
+        ((), "number of starting states"),
+        ((0, 1), "number of starting states"),
+        ((-1,), "not a valid combined state"),
+        ((1000,), "not a valid combined state"),
+        ((1.5,), "not a valid combined state"),
+    ],
+)
+def test_prediction_rejects_invalid_start_at(tr_set_1f, start_at, message):
+    with pytest.raises(ValueError, match=message):
+        pr.Prediction(tr_set_1f, start_at=start_at)
 
 
-def test_connected_non_absorbing_prediction_is_independent_of_initial_index(
+def test_connected_non_absorbing_prediction_is_independent_of_start_at(
     tr_set_1f,
 ):
     frequencies_0 = pr.Prediction(
-        transition_set=tr_set_1f, initial_state_index=0
+        transition_set=tr_set_1f, start_at=(0,)
     ).frequency_transitions
     frequencies_1 = pr.Prediction(
-        transition_set=tr_set_1f, initial_state_index=1
+        transition_set=tr_set_1f, start_at=(1,)
     ).frequency_transitions
 
     np.testing.assert_array_equal(frequencies_0, frequencies_1)
+
+
+def test_prediction_defaults_to_same_ground_state_as_simulation(tr_set_1f_bl):
+    prediction = pr.Prediction(tr_set_1f_bl)
+    simulation = si.Simulation(tr_set_1f_bl)
+
+    simulation.run(size=1, seed=42)
+
+    assert prediction.start_at == (0,)
+    np.testing.assert_array_equal(simulation.state_series[:, 0], prediction.start_at)
 
 
 @pytest.mark.parametrize(
@@ -127,14 +144,7 @@ def test_persistent_state_statistics_do_not_depend_on_self_event_rates(
         keep_zero_rates=True,
         matrix_format=matrix_format,
     )
-    combined_transitions = transition_set.combined_state_transitions_df
-    initial_index = int(
-        combined_transitions.index[
-            combined_transitions["final_state"] == initial_states
-        ][0]
-    )
-
-    prediction = pr.Prediction(transition_set, initial_state_index=initial_index)
+    prediction = pr.Prediction(transition_set, start_at=initial_states)
 
     np.testing.assert_allclose(
         prediction.frequency_transitions, np.asarray(self_rates) / sum(self_rates)
@@ -275,12 +285,7 @@ def test_paired_state_frequencies_use_common_event_counts(
         flu_sys_1xcy5_1xatto643,
         matrix_format=matrix_format,
     )
-    combined_transitions = transition_set.combined_state_transitions_df
-    initial_index = int(
-        combined_transitions.index[combined_transitions["final_state"] == (0, 0)][0]
-    )
-
-    prediction = pr.Prediction(transition_set, initial_state_index=initial_index)
+    prediction = pr.Prediction(transition_set, start_at=(0, 0))
 
     assert prediction.absorbing_chain is absorbing
     acceptor_states = transition_set.single_states["testfluo_2"]
@@ -290,7 +295,7 @@ def test_paired_state_frequencies_use_common_event_counts(
     np.testing.assert_allclose(
         prediction.frequency_states["testfluo_2"], expected_state_frequencies
     )
-    paired_frequency = 1 / 20 if absorbing else 1 / 19
+    paired_frequency = 1 / 19
     expected_transition_frequencies = [1 - paired_frequency, 1, paired_frequency]
     if absorbing:
         expected_transition_frequencies.append(0)
@@ -324,8 +329,8 @@ def test_prediction_uses_only_the_reachable_subchain(flu_sys_cy5):
         flu_sys_cy5,
     )
 
-    cycle_prediction = pr.Prediction(transition_set, initial_state_index=0)
-    terminal_prediction = pr.Prediction(transition_set, initial_state_index=2)
+    cycle_prediction = pr.Prediction(transition_set, start_at=(0,))
+    terminal_prediction = pr.Prediction(transition_set, start_at=(intermediate.value,))
 
     assert not cycle_prediction.absorbing_chain
     np.testing.assert_array_equal(
@@ -333,7 +338,7 @@ def test_prediction_uses_only_the_reachable_subchain(flu_sys_cy5):
     )
     assert terminal_prediction.absorbing_chain
     np.testing.assert_array_equal(
-        terminal_prediction.frequency_transitions, [0, 0, 1, 0]
+        terminal_prediction.frequency_transitions, [0, 0, 0, 0]
     )
 
 
@@ -365,7 +370,7 @@ def test_prediction_rejects_reachable_terminal_and_closed_class(
     )
 
     with pytest.raises(ValueError, match="closed nonterminal class"):
-        pr.Prediction(transition_set, initial_state_index=0)
+        pr.Prediction(transition_set, start_at=(branch.value,))
 
     prediction = pr.Prediction.__new__(pr.Prediction)
     prediction.transition_set = transition_set
@@ -373,7 +378,7 @@ def test_prediction_rejects_reachable_terminal_and_closed_class(
     if matrix_format == "sparse":
         method = prediction.predict_transition_occurrences_absorbing_sparse
     with pytest.raises(ValueError, match="closed nonterminal class"):
-        method(initial_state_index=0)
+        method(start_at=(branch.value,))
 
 
 @pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
@@ -387,7 +392,7 @@ def test_absorbing_prediction_requires_reachable_terminal_state(
         method = prediction.predict_transition_occurrences_absorbing_sparse
 
     with pytest.raises(ValueError, match="no terminal state is reachable"):
-        method(initial_state_index=0)
+        method(start_at=(0,))
 
 
 @pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
@@ -415,7 +420,7 @@ def test_prediction_rejects_multiple_recurrent_classes(flu_sys_cy5, matrix_forma
     )
 
     with pytest.raises(ValueError, match="unique stationary distribution"):
-        pr.Prediction(transition_set, initial_state_index=0)
+        pr.Prediction(transition_set, start_at=(branch.value,))
 
 
 @pytest.mark.parametrize("solver_failure", [RuntimeError, np.nan])
@@ -466,16 +471,16 @@ def test_absorbing_prediction_rejects_solver_failure(
 
 @pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
 @pytest.mark.parametrize(
-    "initial_transition_id, expected_frequencies, expected_occupations",
+    "start_at, expected_frequencies, expected_occupations",
     [
-        (0, [2 / 3, 1 / 3, 0], [1 / 2, 1 / 2, 0]),
-        (1, [1 / 2, 1 / 2, 0], [2 / 3, 1 / 3, 0]),
+        ((0,), [2 / 3, 1 / 3, 0], [2 / 3, 1 / 3, 0]),
+        ((1,), [1 / 2, 1 / 2, 0], [1 / 2, 1 / 2, 0]),
     ],
 )
-def test_absorbing_prediction_uses_initial_state_index(
+def test_absorbing_prediction_uses_start_at(
     flu_sys_cy5,
     matrix_format,
-    initial_transition_id,
+    start_at,
     expected_frequencies,
     expected_occupations,
 ):
@@ -496,14 +501,7 @@ def test_absorbing_prediction_uses_initial_state_index(
         flu_sys_cy5,
         matrix_format=matrix_format,
     )
-    combined_transitions = transition_set.combined_state_transitions_df
-    initial_index = int(
-        combined_transitions.index[
-            combined_transitions["transition_id"] == initial_transition_id
-        ][0]
-    )
-
-    prediction = pr.Prediction(transition_set, initial_state_index=initial_index)
+    prediction = pr.Prediction(transition_set, start_at=start_at)
 
     np.testing.assert_allclose(prediction.frequency_transitions, expected_frequencies)
     np.testing.assert_allclose(
@@ -512,27 +510,65 @@ def test_absorbing_prediction_uses_initial_state_index(
 
 
 @pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("reverse_incoming_order", [False, True])
+@pytest.mark.parametrize("start_at", [None, (1,)])
+def test_absorbing_prediction_does_not_count_arbitrary_incoming_transition(
+    flu_sys_cy5, matrix_format, reverse_incoming_order, start_at
+):
+    bleach = tr.TransitionType("BLEACH", tr.SingleState.S1, tr.SingleState.B, False)
+    incoming = [
+        tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0]),
+        tr.Transition(tr.TransitionType.SINGLET_QUENCHING, 3, [0]),
+    ]
+    if reverse_incoming_order:
+        incoming.reverse()
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 1, [0]),
+                *incoming,
+                tr.Transition(bleach, 1, [0]),
+            ]
+        },
+        flu_sys_cy5,
+        matrix_format=matrix_format,
+    )
+
+    prediction = pr.Prediction(transition_set, start_at=start_at)
+
+    excitation_count = 5 if start_at is None else 4
+    expected_counts = {
+        tr.TransitionType.EXCITATION: excitation_count,
+        tr.TransitionType.FLUORESCENT_EMISSION: 1,
+        tr.TransitionType.SINGLET_QUENCHING: 3,
+        bleach: 0,
+    }
+    expected = np.array(
+        [
+            expected_counts[kind]
+            for kind in transition_set.transition_df["transition_type"]
+        ]
+    )
+    np.testing.assert_allclose(
+        prediction.frequency_transitions, expected / expected.sum()
+    )
+    np.testing.assert_allclose(
+        prediction.state_occupations["testfluo_1"],
+        np.array([excitation_count, 1, 0]) / (excitation_count + 1),
+    )
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
 def test_absorbing_prediction_started_in_absorbing_state_is_zero(
     tr_set_1f_bl, matrix_format
 ):
-    prediction = pr.Prediction.__new__(pr.Prediction)
-    prediction.transition_set = tr_set_1f_bl.with_matrix_format(matrix_format)
-    prediction._terminal_state_combinations = (
-        prediction._get_terminal_state_combinations()
-    )
-    combined_transitions = tr_set_1f_bl.combined_state_transitions_df
-    terminal_states = set(prediction._terminal_state_combinations)
-    absorbing_indices = combined_transitions.index[
-        combined_transitions["final_state"].isin(terminal_states)
-    ]
+    transition_set = tr_set_1f_bl.with_matrix_format(matrix_format)
+    start_at = sorted(transition_set.terminal_state_combinations)[0]
 
-    method = prediction.predict_transition_occurrences_absorbing
-    if matrix_format == "sparse":
-        method = prediction.predict_transition_occurrences_absorbing_sparse
-    frequencies = method(initial_state_index=int(absorbing_indices[0]))
+    prediction = pr.Prediction(transition_set, start_at=start_at)
 
     np.testing.assert_array_equal(
-        frequencies, np.zeros(tr_set_1f_bl.transition_df.shape[0])
+        prediction.frequency_transitions, np.zeros(tr_set_1f_bl.transition_df.shape[0])
     )
 
 
@@ -548,7 +584,7 @@ def test_prediction_warns_for_multiple_terminal_state_combinations(
     monkeypatch.setattr(
         pr.Prediction,
         "predict_transition_occurrences_absorbing",
-        lambda self, initial_state_index=0: np.zeros(
+        lambda self, start_at=None: np.zeros(
             self.transition_set.transition_df.shape[0]
         ),
     )
@@ -566,7 +602,7 @@ def test_prediction_warns_for_multiple_terminal_state_combinations(
 
     assert (
         "multiple terminal state combinations are available; predicted transition "
-        "frequencies depend on initial_state_index."
+        "frequencies depend on start_at."
     ) in caplog.text
 
 
