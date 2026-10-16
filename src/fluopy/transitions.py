@@ -1197,7 +1197,7 @@ class TransitionSet:
         for _, f_transitions in transitions.items():
             for transition in f_transitions:
                 identity = transition.identity
-                if identity not in change_dict:
+                if identity is None or identity not in change_dict:
                     continue
                 rate = change_dict[identity]
 
