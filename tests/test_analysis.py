@@ -270,7 +270,7 @@ def test_self_transition_resets_event_time_but_not_state_lifetime(
 
 
 def test_self_transition_only_analysis(tr_set_self_cycle):
-    transition_set = tr_set_self_cycle.filter_by_identity([1, 2])
+    transition_set = tr_set_self_cycle.remove_transitions([1, 2])
     simulation = SimpleNamespace(
         transition_set=transition_set,
         transition_series=np.array([0, 0]),

@@ -42,7 +42,7 @@ class TestSimulation:
         assert simulation.memmap_path is None
 
     def test_run_self_transition(self, tr_set_self_cycle):
-        transition_set = tr_set_self_cycle.filter_by_identity([1, 2])
+        transition_set = tr_set_self_cycle.remove_transitions([1, 2])
         simulation = si.Simulation(transition_set)
 
         simulation.run(size=4, seed=42)
@@ -739,7 +739,7 @@ def test_approximation_inserts_self_transitions_in_matching_states(tr_set_self_c
 
 
 def test_approximation_handles_only_self_transitions(tr_set_self_cycle):
-    transition_set = tr_set_self_cycle.filter_by_identity([1, 2])
+    transition_set = tr_set_self_cycle.remove_transitions([1, 2])
     prediction = pr.Prediction(transition_set)
 
     time_series, transition_series = si.approximation(

@@ -65,6 +65,136 @@ class FixedTCSPCGenerator:
 
 @pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
 @pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("excitation_draw, excitation_time", [(0.0, 0.0), (0.75, 1.0)])
+def test_tcspc_starts_in_irreversible_chain(
+    call,
+    matrix_format,
+    excitation_draw,
+    excitation_time,
+    tr_set_irreversible,
+    monkeypatch,
+):
+    transition_set = _without_continuous_excitation(
+        tr_set_irreversible.with_matrix_format(matrix_format)
+    )
+    generator = FixedTCSPCGenerator(
+        excitation_random=np.full((10, 1), excitation_draw),
+        transition_random=np.array([[np.exp(-0.5), 0.5, 0.5]]),
+        geometric=[1],
+    )
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
+
+    result = call(
+        transition_set=transition_set,
+        detection_probabilities=_single_channel_probabilities(transition_set, {1: 1}),
+        channel_names=("all",),
+        number_pulses=3,
+        pulse_duration=0.1,
+        time_between_pulses=1,
+        excitation_rates={"testfluo_1": np.log(2) / 0.1},
+        frame_time="1s",
+        size=10,
+        store_time_points=True,
+        seed=42,
+    )
+
+    expected_counts = np.zeros(3, dtype=np.int64)
+    expected_counts[int(excitation_time)] = 1
+    np.testing.assert_array_equal(result[0]["all"], expected_counts)
+    np.testing.assert_allclose(result[1]["all"], [excitation_time + 0.125])
+    np.testing.assert_allclose(result[3]["all"], [0.125])
+    np.testing.assert_allclose(result[4]["all"], [0.125])
+    assert transition_set.transition_matrix.shape == (3, 3)
+    assert len(transition_set.combined_state_transitions_df) == 3
+    if call is si.simulate_TCSPC_detailed:
+        simulation = result[-1]
+        np.testing.assert_array_equal(simulation.transition_series, [0, 1, 2])
+        np.testing.assert_array_equal(simulation.state_series, [[0, 1, 3, 5]])
+        np.testing.assert_allclose(
+            simulation.time_series,
+            [0, excitation_time, excitation_time + 0.125, excitation_time + 0.1875],
+            atol=1e-15,
+        )
+        assert np.all(np.diff(simulation.time_series) > 0)
+
+
+@pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize(
+    "first_transition_delay, excite_second_pulse, expected_times, expected_transitions",
+    [
+        (0.375, False, [0.375, 0.75, 1.125, 1.5, 1.875], [2, 2, 2, 2, 2]),
+        (1.375, False, [1.375, 1.75], [2, 2]),
+        (2.375, False, [], []),
+        (2.375, True, [1.375, 1.75], [0, 1, 2]),
+    ],
+)
+def test_tcspc_samples_autonomous_events_before_skipping_pulses(
+    call,
+    matrix_format,
+    first_transition_delay,
+    excite_second_pulse,
+    expected_times,
+    expected_transitions,
+    flu_sys_cy5,
+    monkeypatch,
+):
+    ground_emission = tr.TransitionType(
+        "GROUND_PHOTON", tr.SingleState.S0, tr.SingleState.S0, True
+    )
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 0, [0]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0]),
+                tr.Transition(ground_emission, 1, [0]),
+            ]
+        },
+        flu_sys_cy5,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    excitation_random = np.full((10, 1), 0.75)
+    if excite_second_pulse:
+        excitation_random[2, 0] = 0
+    transition_random = np.full((10, 3), 0.5)
+    transition_random[:, 0] = np.exp(-0.375)
+    transition_random[1, 0] = np.exp(-first_transition_delay)
+    generator = FixedTCSPCGenerator(excitation_random, transition_random, [100])
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
+
+    result = call(
+        transition_set=transition_set,
+        detection_probabilities=_single_channel_probabilities(
+            transition_set, {1: 1, 2: 1}
+        ),
+        channel_names=("all",),
+        number_pulses=2,
+        pulse_duration=0.1,
+        time_between_pulses=1,
+        excitation_rates={"testfluo_1": np.log(2) / 0.1},
+        frame_time="1s",
+        size=10,
+        store_time_points=True,
+        seed=42,
+    )
+
+    np.testing.assert_allclose(result[1]["all"], expected_times)
+    np.testing.assert_array_equal(
+        result[0]["all"], np.histogram(expected_times, bins=[0, 1, 2])[0]
+    )
+    np.testing.assert_allclose(result[4]["all"], np.remainder(expected_times, 1))
+    if call is si.simulate_TCSPC_detailed:
+        simulation = result[-1]
+        np.testing.assert_array_equal(
+            simulation.transition_series, expected_transitions
+        )
+        expected_event_times = ([1.0] if excite_second_pulse else []) + expected_times
+        np.testing.assert_allclose(simulation.time_series, [0.0] + expected_event_times)
+
+
+@pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
 def test_tcspc_handles_cumulative_rounding(
     call, matrix_format, flu_sys_cy5, monkeypatch
 ):
@@ -771,7 +901,7 @@ def test_simulate_TCSPC_warns_when_frame_requires_more_pulses(tr_set_1f, caplog)
 def test_simulate_TCSPC_homofret_pulse_delays_with_relaxed_pulses(
     tr_set_bl_et_2f_same, caplog
 ):
-    transition_set = tr_set_bl_et_2f_same.filter_by_identity([9])
+    transition_set = tr_set_bl_et_2f_same.remove_transitions([9])
     transition_set = transition_set.adjust_rates({0: 0, 8: 2e10}, keep_zero_rates=True)
     transition_set.finalize()
     number_pulses = 4e4
@@ -970,7 +1100,7 @@ def test_simulate_TCSPC_photon_count_tracks_excitation_probability(tr_set_1f, ca
 def test_simulate_TCSPC_counts_independent_fluorophore_emissions(
     tr_set_bl_et_2f_diff, caplog
 ):
-    transition_set = tr_set_bl_et_2f_diff.filter_by_identity(
+    transition_set = tr_set_bl_et_2f_diff.remove_transitions(
         [2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15]
     )
     transition_set = transition_set.adjust_rates({0: 0, 2: 0}, keep_zero_rates=True)
@@ -999,7 +1129,7 @@ def test_simulate_TCSPC_counts_independent_fluorophore_emissions(
 @pytest.mark.slow
 def test_simulate_TCSPC_detailed(tr_set_bl_et_2f_diff, caplog):
     rng = np.random.default_rng(42)
-    transition_set = tr_set_bl_et_2f_diff.filter_by_identity(
+    transition_set = tr_set_bl_et_2f_diff.remove_transitions(
         [2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15]
     )
     transition_set = transition_set.adjust_rates({0: 0, 2: 0}, keep_zero_rates=True)

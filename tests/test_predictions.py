@@ -168,7 +168,7 @@ def test_self_transition_affects_events_but_not_state_statistics(
 
 
 def test_self_transition_only_prediction(tr_set_self_cycle):
-    transition_set = tr_set_self_cycle.filter_by_identity([1, 2])
+    transition_set = tr_set_self_cycle.remove_transitions([1, 2])
 
     prediction = pr.Prediction(transition_set)
 
@@ -180,7 +180,7 @@ def test_self_transition_only_prediction(tr_set_self_cycle):
 
 
 def test_sparse_self_transition_only_prediction(tr_set_self_cycle):
-    transition_set = tr_set_self_cycle.filter_by_identity([1, 2])
+    transition_set = tr_set_self_cycle.remove_transitions([1, 2])
 
     prediction = pr.Prediction(transition_set.with_matrix_format("sparse"))
 

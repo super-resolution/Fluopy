@@ -659,7 +659,7 @@ class TestTransitionSet:
         assert len(transition_set.transition_df) == 8
         assert transition_set.transition_matrix.shape == (64, 64)
 
-    def test_transition_set_filter_by_identity(self, tr_set_bl_et_3f):
+    def test_transition_set_remove_transitions(self, tr_set_bl_et_3f):
         assert (
             tr_set_bl_et_3f.transition_df.index.get_level_values(1).tolist()
             == (np.arange(0, 22, 1, dtype=int)).tolist()
@@ -668,7 +668,9 @@ class TestTransitionSet:
             "D: testfluo_1, A: testfluo_2, dist: 2.0"
             in tr_set_bl_et_3f.transition_df.index.get_level_values(0).tolist()
         )
-        tr_set_bl_et_filtered = tr_set_bl_et_3f.filter_by_identity(remove_list=[4, 10])
+        tr_set_bl_et_filtered = tr_set_bl_et_3f.remove_transitions(
+            transition_ids=[4, 10]
+        )
         assert (
             tr_set_bl_et_filtered.transition_df.index.get_level_values(1).tolist()
             == (np.arange(0, 19, 1, dtype=int)).tolist()
@@ -716,7 +718,7 @@ class TestTransitionSet:
     def test_default_filter_and_rate_adjustment_leave_transitions_unchanged(
         self, tr_set_1f
     ):
-        filtered = tr_set_1f.filter_by_identity()
+        filtered = tr_set_1f.remove_transitions()
         adjusted = tr_set_1f.adjust_rates()
 
         assert (
@@ -1209,7 +1211,7 @@ def test_transition_set_pair_specific_rates_follow_zero_rate_policy(
 
 
 @pytest.mark.parametrize(
-    "method", ["adjust_rates", "filter_by_identity", "remove_zero_rates"]
+    "method", ["adjust_rates", "remove_transitions", "remove_zero_rates"]
 )
 def test_transition_set_rejects_filtering_only_one_matching_pair(
     flu_sys_2xcy5_1xatto643, same_type_pair_transitions, method
@@ -1239,7 +1241,7 @@ def test_adjust_rates_requires_keeping_zero_or_removing_all_matching_types(
     retained = transition_set.adjust_rates({1: 0}, keep_zero_rates=True)
     assert retained.transition_df["rate"].tolist() == [1, 0]
     assert retained.adjust_rates({1: 9}).transition_df["rate"].tolist() == [1, 9]
-    assert retained.filter_by_identity([1]).transition_df.empty
+    assert retained.remove_transitions([1]).transition_df.empty
     removed = transition_set.adjust_rates({0: 0, 1: 0})
     assert removed.transition_df.empty
     assert removed.adjust_rates(keep_zero_rates=True).transition_df.empty
@@ -1250,7 +1252,7 @@ def test_adjust_rates_requires_keeping_zero_or_removing_all_matching_types(
     "method, kwargs",
     [
         ("adjust_rates", {"keep_zero_rates": True}),
-        ("filter_by_identity", {"keep_zero_rates": True}),
+        ("remove_transitions", {"keep_zero_rates": True}),
         ("remove_absorbing_states", {"keep_zero_rates": True}),
         ("remove_paired_transitions", {"keep_zero_rates": True}),
         ("with_matrix_format", {"matrix_format": "sparse"}),
@@ -1334,7 +1336,7 @@ def test_adjust_rates_changes_fluorescence_only_for_selected_name(
     assert transition_set.transition_df.loc["testfluo_1", "rate"].tolist() == [1, 2]
 
 
-def test_filter_by_identity_removes_paired_type_from_all_matching_pairs(
+def test_remove_transitions_removes_paired_type_from_all_matching_pairs(
     flu_sys_2xcy5_1xatto643, same_type_pair_transitions
 ):
     other_type = tr.TransitionType(
@@ -1346,7 +1348,7 @@ def test_filter_by_identity_removes_paired_type_from_all_matching_pairs(
         same_type_pair_transitions, flu_sys_2xcy5_1xatto643
     )
 
-    filtered = transition_set.filter_by_identity([0])
+    filtered = transition_set.remove_transitions([0])
 
     assert filtered.transition_df["transition_type"].tolist() == [
         other_type,
@@ -1864,7 +1866,7 @@ def test_transition_set_sparse_backend_matches_dense(tr_set_1f):
         tr_set_1f.transition_matrix,
     )
     np.testing.assert_array_equal(sparse_transition_set.row_sums, tr_set_1f.row_sums)
-    assert sparse_transition_set.filter_by_identity().matrix_format == "sparse"
+    assert sparse_transition_set.remove_transitions().matrix_format == "sparse"
     assert sparse_transition_set.with_matrix_format("dense").matrix_format == "dense"
 
 
