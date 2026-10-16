@@ -970,7 +970,7 @@ def test_no_diff_dist_keeps_single_distance_pair():
 
 
 @pytest.mark.parametrize("second_pet_rate", [0, 2])
-def test_no_diff_dist_matches_active_types_across_distances(
+def test_no_diff_dist_matches_retained_types_across_distances(
     flu_sys_2xcy5_1xatto643, second_pet_rate
 ):
     pet = tr.TransitionType(
@@ -988,6 +988,7 @@ def test_no_diff_dist_matches_active_types_across_distances(
             ],
         },
         flu_sys_2xcy5_1xatto643,
+        keep_zero_rates=True,
     )
 
     collapsed, discarded_by_position, discarded = an.no_diff_dist(
@@ -1001,15 +1002,12 @@ def test_no_diff_dist_matches_active_types_across_distances(
     ]
     pd.testing.assert_index_equal(
         discarded_by_position[0],
-        pd.Index([3 if second_pet_rate else 2], name="identity"),
+        pd.Index([3], name="identity"),
     )
-    if second_pet_rate:
-        pd.testing.assert_index_equal(
-            discarded_by_position[1], pd.Index([2], name="identity")
-        )
-    np.testing.assert_array_equal(
-        np.sort(discarded), [2, 3] if second_pet_rate else [2]
+    pd.testing.assert_index_equal(
+        discarded_by_position[1], pd.Index([2], name="identity")
     )
+    np.testing.assert_array_equal(np.sort(discarded), [2, 3])
 
 
 @pytest.mark.parametrize(

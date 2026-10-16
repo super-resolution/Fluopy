@@ -786,7 +786,9 @@ class TransitionSet:
     matrix_format
         Storage format of transition_matrix: 'dense' or 'sparse'.
     keep_zero_rates
-        Whether zero-rate transition definitions are retained.
+        Whether zero-rate transitions are retained in transitions and transition_df.
+        Retained zero-rate transitions contribute to the state space and structural
+        absorbing-state detection, but cannot occur in the autonomous simulation.
     """
 
     _combined_state_transitions_df: pd.DataFrame | None
@@ -809,13 +811,21 @@ class TransitionSet:
             Contains lists of transitions of type Transition as values and fluorophores
             or fluorophore-combinations as keys. Fluorophore-combination keys require
             the format 'D: {name of donor}, A: {name of acceptor}, dist: {distance
-            between them in nm}'.
+            between them in nm}'. Each single-state transition must target all
+            fluorophores with its name, sharing its type and rate. Ordered pairs with
+            matching donor and acceptor names must retain the same paired transition
+            types after zero-rate filtering, but may have different rates.
         fluorophore_system
             Container for attributes of multiple, interrelated fluorophores.
         keep_zero_rates
             Whether to retain transitions with rate 0. Retained zero-rate transitions
             remain part of the state space and structural absorbing-state detection,
-            but do not contribute to the active transition rates.
+            but do not contribute to the active transition rates. If False, zero-rate
+            transitions are removed before validating the shared paired types. If
+            filtering leaves different types on matching ordered name pairs, a
+            ValueError is raised. Retain inactive transitions with
+            keep_zero_rates=True, or explicitly remove that type from all matching
+            pairs. Subsequent operations do not restore removed transitions.
         matrix_format
             Storage format used for the transition-probability matrix.
         """
@@ -922,9 +932,8 @@ class TransitionSet:
                 )
                 self.transition_df = pd.concat([self.transition_df, transition_df])
         self.transitions = retained_transitions
-        self._defined_transitions = transitions
         paired_types: dict[tuple[int, int], set[TransitionType]] = {}
-        for transition_collection in transitions.values():
+        for transition_collection in self.transitions.values():
             for transition in transition_collection:
                 if isinstance(transition.initial_state, PairedState):
                     for pair in transition.get_fluorophore_pairs():
@@ -942,8 +951,9 @@ class TransitionSet:
             if types != reference:
                 raise ValueError(
                     "ordered fluorophore pairs with the same names must share paired "
-                    f"transition types: {names}. Include zero-rate definitions for "
-                    "inactive pairs, or use distinct names for different transition types."
+                    f"transition types after zero-rate filtering: {names}. Retain "
+                    "inactive transitions with keep_zero_rates=True, or explicitly "
+                    "remove unmatched types from all matching pairs."
                 )
         if self.transition_df.empty:
             self.transition_df = pd.DataFrame(
@@ -1077,11 +1087,12 @@ class TransitionSet:
         Returns
         -------
         TransitionSet
-            Re-initialization with the same transitions, fluorophore system, and
-            keep_zero_rates setting, using the selected matrix format.
+            Re-initialization with the same retained transitions, fluorophore system,
+            and keep_zero_rates setting, using the selected matrix format. Previously
+            removed zero-rate transitions are not restored.
         """
         return TransitionSet(
-            transitions=self._defined_transitions,
+            transitions=self.transitions,
             fluorophore_system=self.fluorophore_system,
             keep_zero_rates=self.keep_zero_rates,
             matrix_format=matrix_format,
@@ -1121,16 +1132,23 @@ class TransitionSet:
         Parameters
         ----------
         remove_list
-            Contains identities of type int.
+            Contains identities from the current transition_df. Selecting a paired
+            transition removes its type from all ordered pairs with matching donor
+            and acceptor names. Set its rate to zero with keep_zero_rates=True to
+            deactivate only that record.
         keep_zero_rates
-            Whether to retain transitions with rate 0 in the structural topology.
+            Whether to retain remaining zero-rate transitions from this set in the
+            structural topology. If False, they are removed. Previously removed
+            transitions are not restored. Removal must preserve matching paired
+            transition types; otherwise, a ValueError is raised.
 
         Returns
         -------
         TransitionSet
-            Re-initialization of the object with the modified transition collection.
+            Re-initialization with the filtered transitions.
+            Transition identities are reassigned in the returned set.
         """
-        transitions = copy.deepcopy(self._defined_transitions)
+        transitions = copy.deepcopy(self.transitions)
 
         if remove_list is None:
             remove_list = []
@@ -1181,23 +1199,33 @@ class TransitionSet:
         Parameters
         ----------
         change_dict
-            Contains identities of transitions as key and rates as values.
+            Contains identities from the current transition_df as keys and rates as
+            values. Only the selected records are changed. A single-state record
+            applies to all fluorophores with its name; records for other names keep
+            their rates. Identities absent from this set are ignored.
         keep_zero_rates
-            Whether to retain transitions with rate 0 in the structural topology.
+            Whether to retain existing transitions whose rate is zero after the
+            adjustment. If False, they are removed. If True, they remain part of the
+            state space and structural absorbing-state detection without contributing
+            to active rates. Previously removed transitions are not restored. If
+            filtering leaves different paired types on matching ordered name pairs,
+            a ValueError is raised. Retain the zeros or explicitly remove the type
+            from all matching pairs.
 
         Returns
         -------
         TransitionSet
-            Re-initialization of the object with the modified transition collection.
+            Re-initialization using only this set's retained transitions with modified
+            rates. Transition identities are reassigned in the returned set.
         """
-        transitions = copy.deepcopy(self._defined_transitions)
+        transitions = copy.deepcopy(self.transitions)
 
         if change_dict is None:
             change_dict = {}
         for _, f_transitions in transitions.items():
             for transition in f_transitions:
-                identity = transition.identity
-                if identity is None or identity not in change_dict:
+                identity = transition.get_identity()
+                if identity not in change_dict:
                     continue
                 rate = change_dict[identity]
 
@@ -1227,9 +1255,13 @@ class TransitionSet:
         Returns
         -------
         TransitionSet
-            Re-initialization of the object with the modified transition collection.
+            Re-initialization without zero-rate transitions. Their records and any
+            states represented only by them are removed. Subsequent operations do
+            not restore the records. If removal leaves different paired types on
+            matching ordered name pairs, a ValueError is raised. Retain the zeros
+            or explicitly remove the type from all matching pairs.
         """
-        transitions = copy.deepcopy(self._defined_transitions)
+        transitions = copy.deepcopy(self.transitions)
 
         new_transition_set = TransitionSet(
             transitions=transitions,
@@ -1241,12 +1273,20 @@ class TransitionSet:
 
     def remove_absorbing_states(self, keep_zero_rates: bool = False) -> TransitionSet:
         """
-        Returns another TransitionSet that contains no Markovian absorbing states.
+        Returns another TransitionSet without types entering an absorbing state.
+
+        If a retained transition enters an individually absorbing state for any of
+        its targets, its type is removed for the whole fluorophore name or ordered
+        name pair. Absorbing states are evaluated before removal using the retained
+        topology, including retained zero-rate transitions.
 
         Parameters
         ----------
         keep_zero_rates
-            Whether to retain transitions with rate 0 in the structural topology.
+            Whether to retain remaining zero-rate transitions from this set in the
+            structural topology. If False, they are removed. Previously removed
+            transitions are not restored. Removal must preserve matching paired
+            transition types; otherwise, a ValueError is raised.
 
         Returns
         -------
@@ -1265,7 +1305,7 @@ class TransitionSet:
                         transition.transition_type
                     )
 
-        for fluorophore, f_transitions in self._defined_transitions.items():
+        for fluorophore, f_transitions in self.transitions.items():
             paired_label = parse_paired_transition_label(fluorophore)
             group = fluorophore if paired_label is None else paired_label[:2]
             retained = [
@@ -1292,14 +1332,16 @@ class TransitionSet:
         Parameters
         ----------
         keep_zero_rates
-            Whether to retain transitions with rate 0 in the structural topology.
+            Whether to retain remaining zero-rate transitions from this set in the
+            structural topology. If False, they are removed. Previously removed
+            transitions are not restored.
 
         Returns
         -------
         TransitionSet
             Re-initialization of the object with the modified transition collection.
         """
-        transitions = copy.deepcopy(self._defined_transitions)
+        transitions = copy.deepcopy(self.transitions)
 
         keep_transitions: dict[str, list[Transition]] = {}
         for fluorophore, f_transitions in transitions.items():
