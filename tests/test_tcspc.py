@@ -613,11 +613,12 @@ def _simulate_single_channel_tcspc(
     return _unwrap_single_channel(result)
 
 
-def _get_emission_and_fret_donor_ids(transition_set):
+def _get_emission_and_fret_donor_ids(transition_set, detection_efficiencies=None):
     transition_df = transition_set.combined_state_transitions_df
     emissions = transition_df[transition_df["photon"]]
     paired_transitions = transition_df[
-        transition_df["abbreviation"] == tr.TransitionType.FRET.abbreviation
+        (transition_df["abbreviation"] == tr.TransitionType.FRET.abbreviation)
+        & (transition_df["rate"] > 0)
     ]
     paired_sources = {
         (row["initial_state"], row["fluorophore_ids"][0])
@@ -628,7 +629,15 @@ def _get_emission_and_fret_donor_ids(transition_set):
         for identity, row in emissions.iterrows()
         if (row["initial_state"], row["fluorophore_ids"][0]) in paired_sources
     ]
-    return {identity: 1 for identity in emissions.index}, paired_emission_ids
+    emitting_transition_ids = {
+        identity: (
+            1
+            if detection_efficiencies is None
+            else detection_efficiencies[row["fluorophore_ids"][0]]
+        )
+        for identity, row in emissions.iterrows()
+    }
+    return emitting_transition_ids, paired_emission_ids
 
 
 @pytest.mark.slow
@@ -866,6 +875,9 @@ def test_simulate_TCSPC_fret_shortens_donor_pulse_delay(tr_set_bl_et_2f_diff, ca
     transition_set.finalize()
     number_pulses = 4e4
     time_between_pulses = 1e-1
+    emitting_transition_ids, paired_emission_ids = _get_emission_and_fret_donor_ids(
+        transition_set, detection_efficiencies={0: 1, 1: 0}
+    )
 
     with caplog.at_level(logging.WARNING):
         (
@@ -876,8 +888,8 @@ def test_simulate_TCSPC_fret_shortens_donor_pulse_delay(tr_set_bl_et_2f_diff, ca
             _,
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
-            emitting_transition_ids={4: 1, 5: 1, 6: 1, 7: 1},
-            paired_emission_ids=[4],
+            emitting_transition_ids=emitting_transition_ids,
+            paired_emission_ids=paired_emission_ids,
             number_pulses=number_pulses,
             time_between_pulses=time_between_pulses,
             excitation_rates={"testfluo_1": 1e11, "testfluo_2": 1e1},
@@ -963,12 +975,15 @@ def test_simulate_TCSPC_counts_independent_fluorophore_emissions(
     )
     transition_set = transition_set.adjust_rates({0: 0, 2: 0}, keep_zero_rates=True)
     transition_set.finalize()
+    emitting_transition_ids, paired_emission_ids = _get_emission_and_fret_donor_ids(
+        transition_set, detection_efficiencies={0: 1, 1: 0.5}
+    )
 
     with caplog.at_level(logging.WARNING):
         event_time_series, _, _, _, _ = _simulate_single_channel_tcspc(
             transition_set=transition_set,
-            emitting_transition_ids={2: 1, 3: 1, 6: 0.5, 7: 0.5},
-            paired_emission_ids=[4],
+            emitting_transition_ids=emitting_transition_ids,
+            paired_emission_ids=paired_emission_ids,
             number_pulses=4e4,
             time_between_pulses=1e-1,
             excitation_rates={"testfluo_1": 1e12, "testfluo_2": 1.4e10},
@@ -989,8 +1004,9 @@ def test_simulate_TCSPC_detailed(tr_set_bl_et_2f_diff, caplog):
     )
     transition_set = transition_set.adjust_rates({0: 0, 2: 0}, keep_zero_rates=True)
     transition_set.finalize()
-    emitting_transition_ids = {2: 1, 3: 1, 6: 0.5, 7: 0.5}
-    paired_emission_ids = [4]
+    emitting_transition_ids, paired_emission_ids = _get_emission_and_fret_donor_ids(
+        transition_set, detection_efficiencies={0: 1, 1: 0.5}
+    )
     number_pulses = 4e4
     pulse_duration = 5e-11
     time_between_pulses = 1e-1
@@ -1061,9 +1077,12 @@ def test_space_multiple_excitations_requires_float_dtype(dtype):
         si.space_multiple_excitations(time_series)
 
 
-def test_insert_excitations(tr_set_bl_et_3f):
+@pytest.mark.parametrize("trailing_excitations", [[], [0], [1], [0, 1], [1, 0]])
+def test_insert_excitations(tr_set_bl_et_3f, trailing_excitations):
     excitation_series = np.array(
         [1, 2, 0, -1, -1, -1, 2, -1, 1, -1, -1, 2, 1, -1, -1, -1]
+        + trailing_excitations,
+        dtype=np.int16,
     )
     transition_df = tr_set_bl_et_3f.combined_state_transitions_df
     transition_descriptions = [
@@ -1092,6 +1111,7 @@ def test_insert_excitations(tr_set_bl_et_3f):
     )
     excitation_mask = excitation_series != -1
 
+    assert transition_series_adj.size == excitation_series.size
     np.testing.assert_array_equal(
         transition_series_adj[~excitation_mask], transition_series
     )
@@ -1101,6 +1121,70 @@ def test_insert_excitations(tr_set_bl_et_3f):
         [fluorophore_ids[0] for fluorophore_ids in inserted["fluorophore_ids"]],
         excitation_series[excitation_mask],
     )
+    np.testing.assert_array_equal(
+        transition_df["final_state"].iloc[transition_series_adj[:-1]].tolist(),
+        transition_df["initial_state"].iloc[transition_series_adj[1:]].tolist(),
+    )
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("two_fluorophores", [False, True])
+def test_tcspc_detailed_preserves_trailing_excitations(
+    matrix_format, two_fluorophores, flu_sys_cy5, flu_sys_2xcy5, monkeypatch
+):
+    system = flu_sys_2xcy5 if two_fluorophores else flu_sys_cy5
+    identities = list(range(system.count))
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 0, identities),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, identities),
+            ]
+        },
+        system,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    transition_random = np.full((10, 3), 0.5)
+    transition_random[:, 0] = np.exp(-0.5)
+    transition_random[system.count + 1 :, 0] = np.exp(-10)
+    generator = FixedTCSPCGenerator(
+        np.zeros((10, system.count)), transition_random, [1]
+    )
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
+    transitions = transition_set.combined_state_transitions_df
+    emission_ids = transitions.index[transitions["photon"]]
+
+    result = si.simulate_TCSPC_detailed(
+        transition_set=transition_set,
+        detection_probabilities=_single_channel_probabilities(
+            transition_set, {identity: 1 for identity in emission_ids}
+        ),
+        channel_names=("all",),
+        number_pulses=2,
+        pulse_duration=0.1,
+        time_between_pulses=1,
+        excitation_rates={"testfluo_1": 1000},
+        frame_time="1s",
+        size=10,
+        store_time_points=True,
+        seed=42,
+    )
+
+    simulation = result[-1]
+    assert result[0]["all"].sum() == system.count
+    assert simulation.transition_series.size == 3 * system.count
+    assert simulation.time_series.size == simulation.transition_series.size + 1
+    assert simulation.state_series.shape == (system.count, simulation.time_series.size)
+    np.testing.assert_array_equal(simulation.state_series[:, -1], np.ones(system.count))
+    assert (
+        transitions["abbreviation"]
+        .iloc[simulation.transition_series[-system.count :]]
+        .eq("EXC")
+        .all()
+    )
+    assert np.all(np.diff(simulation.time_series) > 0)
+    assert simulation.time_series[-1] < 2
 
 
 def test_insert_excitations_without_non_excitation(tr_set_bl_et_2f_diff):

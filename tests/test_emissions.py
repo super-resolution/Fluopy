@@ -542,12 +542,19 @@ def test_emissions_tcspc_parameters(tr_set_bl_et_2f_diff):
             store_time_points=True,
         )
         args, kwargs = mock_tcspc.call_args
-        np.testing.assert_array_equal(
-            kwargs["paired_emission_ids"], np.array([4, 38, 40])
-        )
+        transitions = tr_set.combined_state_transitions_df
+        paired_emissions = transitions.iloc[kwargs["paired_emission_ids"]]
+        assert list(
+            zip(
+                paired_emissions["initial_state"],
+                paired_emissions["fluorophore_ids"].map(tuple),
+                strict=True,
+            )
+        ) == [((1, 0), (0,)), ((0, 1), (1,)), ((3, 1), (1,))]
         expected = np.zeros_like(kwargs["detection_probabilities"])
-        expected[[4, 5, 6, 7], 0] = 0.6820037131347214
-        expected[[38, 39, 40, 41, 42], 1] = 0.5847564420110373
+        emitters = transitions["fluorophore_ids"].map(lambda ids: ids[0])
+        expected[transitions["photon"] & (emitters == 0), 0] = 0.6820037131347214
+        expected[transitions["photon"] & (emitters == 1), 1] = 0.5847564420110373
         np.testing.assert_allclose(kwargs["detection_probabilities"], expected)
         assert kwargs["channel_names"] == ("donor", "acceptor")
         assert list(emis.event_time_series.columns) == ["donor", "acceptor"]

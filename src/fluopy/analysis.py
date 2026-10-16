@@ -1020,7 +1020,7 @@ def no_diff_dist(transition_df: pd.DataFrame, fluorophores: Iterable[str]) -> tu
             transition["initial_state"],
             transition["final_state"],
             transition["photon"],
-            transition["mechanism"],
+            transition["transition_type"].mechanism,
         )
         if transition_key not in retained_id_by_transition:
             retained_id_by_transition[transition_key] = transition_id

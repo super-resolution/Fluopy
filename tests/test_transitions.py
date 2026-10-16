@@ -578,6 +578,13 @@ class TestTransitionSet:
                     fluorophore_ids=[(0, 2)],
                 )
             ],
+            "D: testfluo_1, A: testfluo_2, dist: 1.0": [
+                tr.Transition(
+                    transition_type=tr.TransitionType.FRET,
+                    rate=1,
+                    fluorophore_ids=[(1, 2)],
+                )
+            ],
             "testfluo_2": [
                 tr.Transition(
                     transition_type=tr.TransitionType.EXCITATION,
@@ -646,11 +653,11 @@ class TestTransitionSet:
             )
 
         assert isinstance(transition_set.combined_state_transitions_df, pd.DataFrame)
-        assert len(transition_set.row_sums) == 61
+        assert len(transition_set.row_sums) == 64
         assert list(transition_set.single_states.keys()) == ["testfluo_1", "testfluo_2"]
         assert isinstance(transition_set.transition_df, pd.DataFrame)
-        assert len(transition_set.transition_df) == 7
-        assert transition_set.transition_matrix.shape == (61, 61)
+        assert len(transition_set.transition_df) == 8
+        assert transition_set.transition_matrix.shape == (64, 64)
 
     def test_transition_set_filter_by_identity(self, tr_set_bl_et_3f):
         assert (
@@ -664,7 +671,7 @@ class TestTransitionSet:
         tr_set_bl_et_filtered = tr_set_bl_et_3f.filter_by_identity(remove_list=[4, 10])
         assert (
             tr_set_bl_et_filtered.transition_df.index.get_level_values(1).tolist()
-            == (np.arange(0, 20, 1, dtype=int)).tolist()
+            == (np.arange(0, 19, 1, dtype=int)).tolist()
         )
         assert (
             "D: testfluo_1, A: testfluo_2, dist: 2.0"
@@ -871,7 +878,7 @@ class TestTransitionSet:
         assert not tr_set_et.transition_df["absorbing"].any()
 
     def test_remove_absorbing_states_keeps_nonabsorbing_fluorophore_ids(
-        self, flu_sys_2xcy5
+        self, flu_sys_1xcy5_1xatto643
     ):
         dark = tr.SingleState("DARK_CUSTOM", 10)
         enter_dark = tr.TransitionType("ENTER_DARK", tr.SingleState.S0, dark, False)
@@ -879,11 +886,22 @@ class TestTransitionSet:
         transition_set = tr.TransitionSet(
             {
                 "testfluo_1": [
-                    tr.Transition(enter_dark, rate=1, fluorophore_ids=[0, 1]),
+                    tr.Transition(enter_dark, rate=1, fluorophore_ids=[0]),
+                    tr.Transition(
+                        tr.TransitionType.EXCITATION, rate=1, fluorophore_ids=[0]
+                    ),
+                    tr.Transition(
+                        tr.TransitionType.FLUORESCENT_EMISSION,
+                        rate=1,
+                        fluorophore_ids=[0],
+                    ),
+                ],
+                "testfluo_2": [
+                    tr.Transition(enter_dark, rate=1, fluorophore_ids=[1]),
                     tr.Transition(leave_dark, rate=1, fluorophore_ids=[1]),
-                ]
+                ],
             },
-            flu_sys_2xcy5,
+            flu_sys_1xcy5_1xatto643,
         )
 
         without_absorbing = transition_set.remove_absorbing_states()
@@ -891,10 +909,10 @@ class TestTransitionSet:
         assert transition_set.transition_df.loc[
             ("testfluo_1", 0), "absorbing_fluorophore_ids"
         ] == (0,)
-        assert without_absorbing.transitions["testfluo_1"][0].fluorophore_ids == (1,)
+        assert without_absorbing.transitions["testfluo_2"][0].fluorophore_ids == (1,)
         assert without_absorbing.terminal_state_combinations == frozenset()
 
-    def test_remove_absorbing_states_keeps_nonabsorbing_fluorophore_pairs(
+    def test_remove_absorbing_states_removes_paired_types_for_all_matching_pairs(
         self, flu_sys_2xcy5
     ):
         dark = tr.SingleState("DARK_CUSTOM", 10)
@@ -902,7 +920,6 @@ class TestTransitionSet:
         enter_dark = tr.TransitionType(
             "ENTER_DARK", tr.PairedState.S1_S0, paired_dark, False, "custom"
         )
-        leave_dark = tr.TransitionType("LEAVE_DARK", dark, tr.SingleState.S0, False)
         distance = flu_sys_2xcy5.distances[(0, 1)]
         transition_set = tr.TransitionSet(
             {
@@ -911,15 +928,19 @@ class TestTransitionSet:
                         enter_dark,
                         rate=1,
                         fluorophore_ids=[(0, 1), (1, 0)],
-                    )
+                    ),
+                    tr.Transition(
+                        tr.TransitionType.FRET,
+                        rate=1,
+                        fluorophore_ids=[(0, 1), (1, 0)],
+                    ),
                 ],
                 "testfluo_1": [
                     tr.Transition(
                         tr.TransitionType.EXCITATION,
                         rate=1,
-                        fluorophore_ids=[1],
+                        fluorophore_ids=[0, 1],
                     ),
-                    tr.Transition(leave_dark, rate=1, fluorophore_ids=[1]),
                 ],
             },
             flu_sys_2xcy5,
@@ -927,13 +948,48 @@ class TestTransitionSet:
 
         without_absorbing = transition_set.remove_absorbing_states()
 
+        assert (
+            enter_dark
+            not in without_absorbing.transition_df["transition_type"].tolist()
+        )
         paired_transition = next(
             transition
             for transitions in without_absorbing.transitions.values()
             for transition in transitions
             if isinstance(transition.initial_state, tr.PairedState)
         )
-        assert paired_transition.fluorophore_ids == ((1, 0),)
+        assert paired_transition.transition_type == tr.TransitionType.FRET
+        assert paired_transition.fluorophore_ids == ((0, 1), (1, 0))
+
+    def test_remove_absorbing_states_keeps_single_definitions_shared(
+        self, flu_sys_2xcy5
+    ):
+        dark = tr.SingleState("DARK_CUSTOM", 10)
+        enter_dark = tr.TransitionType("ENTER_DARK", tr.SingleState.S0, dark, False)
+        transition_set = tr.TransitionSet(
+            {
+                "testfluo_1": [
+                    tr.Transition(enter_dark, 1, [0, 1]),
+                    tr.Transition(tr.TransitionType.EXCITATION, 1, [0, 1]),
+                    tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0, 1]),
+                ],
+            },
+            flu_sys_2xcy5,
+        )
+
+        without_absorbing = transition_set.remove_absorbing_states()
+
+        assert transition_set.transition_df.loc[
+            ("testfluo_1", 0), "absorbing_fluorophore_ids"
+        ] == (0, 1)
+        assert (
+            enter_dark
+            not in without_absorbing.transition_df["transition_type"].tolist()
+        )
+        assert all(
+            transition.fluorophore_ids == (0, 1)
+            for transition in without_absorbing.transitions["testfluo_1"]
+        )
 
     def test_transition_set_remove_paired_transitions(self, tr_set_bl_et_3f):
         assert any(
@@ -1030,6 +1086,301 @@ def test_transition_set_zero_rate_filter_does_not_mutate_input(flu_sys_cy5):
     assert transition_set.transitions["testfluo_1"][0].rate == 1e9
 
 
+@pytest.mark.parametrize(
+    "difference", ["rate", "missing_transition", "transition_type"]
+)
+def test_transition_set_rejects_same_name_kinetic_differences(
+    flu_sys_2xcy5, difference
+):
+    transitions = [
+        tr.Transition(tr.TransitionType.EXCITATION, 1, [0]),
+        tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, [0, 1]),
+    ]
+    if difference != "missing_transition":
+        transition_type = tr.TransitionType.EXCITATION
+        if difference == "transition_type":
+            transition_type = tr.TransitionType(
+                "ALTERED", tr.SingleState.S0, tr.SingleState.S1, False
+            )
+        transitions.append(
+            tr.Transition(transition_type, 9 if difference == "rate" else 1, [1])
+        )
+
+    with pytest.raises(ValueError, match="same name must share single-state"):
+        tr.TransitionSet({"testfluo_1": transitions}, flu_sys_2xcy5)
+
+
+def test_transition_set_rejects_split_same_name_definitions(flu_sys_2xcy5):
+    transitions = {
+        "testfluo_1": [
+            tr.Transition(tr.TransitionType.EXCITATION, 1, [0]),
+            tr.Transition(tr.TransitionType.EXCITATION, 1, [1]),
+        ]
+    }
+
+    with pytest.raises(ValueError, match="same name must share single-state"):
+        tr.TransitionSet(transitions, flu_sys_2xcy5)
+
+
+@pytest.mark.parametrize("keep_zero_rates", [False, True])
+def test_transition_set_checks_zero_rate_same_name_definitions(
+    flu_sys_2xcy5, keep_zero_rates
+):
+    transitions = {
+        "testfluo_1": [
+            tr.Transition(tr.TransitionType.EXCITATION, 1, [0, 1]),
+            tr.Transition(tr.TransitionType.INTERNAL_CONVERSION_S, 0, [0]),
+        ]
+    }
+
+    with pytest.raises(ValueError, match="same name must share single-state"):
+        tr.TransitionSet(transitions, flu_sys_2xcy5, keep_zero_rates=keep_zero_rates)
+
+
+@pytest.fixture()
+def same_type_pair_transitions(flu_sys_2xcy5_1xatto643):
+    return {
+        f"D: testfluo_1, A: testfluo_2, dist: {flu_sys_2xcy5_1xatto643.distances[(donor, 2)]}": [
+            tr.Transition(tr.TransitionType.FRET, rate, [(donor, 2)])
+        ]
+        for donor, rate in [(0, 1), (1, 9)]
+    }
+
+
+@pytest.mark.parametrize(
+    "difference", ["transition_type", "missing_type", "missing_pair"]
+)
+def test_transition_set_requires_shared_paired_types(
+    flu_sys_2xcy5_1xatto643, same_type_pair_transitions, difference
+):
+    first, second = same_type_pair_transitions
+    other_type = tr.TransitionType(
+        "FRET", tr.PairedState.S1_S0, tr.PairedState.S0_S1, False, "PET"
+    )
+    if difference == "transition_type":
+        same_type_pair_transitions[second] = [tr.Transition(other_type, 9, [(1, 2)])]
+    elif difference == "missing_type":
+        same_type_pair_transitions[first].append(tr.Transition(other_type, 1, [(0, 2)]))
+    else:
+        del same_type_pair_transitions[second]
+
+    with pytest.raises(
+        ValueError, match="same names must share paired transition types"
+    ):
+        tr.TransitionSet(same_type_pair_transitions, flu_sys_2xcy5_1xatto643)
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("keep_zero_rates", [False, True])
+@pytest.mark.parametrize("second_rate", [0, 9])
+def test_transition_set_pair_specific_rates_follow_zero_rate_policy(
+    flu_sys_2xcy5_1xatto643,
+    same_type_pair_transitions,
+    matrix_format,
+    keep_zero_rates,
+    second_rate,
+):
+    second = list(same_type_pair_transitions)[1]
+    same_type_pair_transitions[second][0].rate = second_rate
+
+    if second_rate == 0 and not keep_zero_rates:
+        with pytest.raises(ValueError, match="after zero-rate filtering"):
+            tr.TransitionSet(
+                same_type_pair_transitions,
+                flu_sys_2xcy5_1xatto643,
+                matrix_format=matrix_format,
+            )
+        return
+
+    transition_set = tr.TransitionSet(
+        same_type_pair_transitions,
+        flu_sys_2xcy5_1xatto643,
+        keep_zero_rates=keep_zero_rates,
+        matrix_format=matrix_format,
+    )
+    converted = transition_set.with_matrix_format(
+        "sparse" if matrix_format == "dense" else "dense"
+    )
+
+    expected_rates = [1, second_rate]
+    assert transition_set.transition_df["rate"].tolist() == expected_rates
+    assert converted.transition_df["rate"].tolist() == expected_rates
+    assert converted.transition_matrix.shape == transition_set.transition_matrix.shape
+
+
+@pytest.mark.parametrize(
+    "method", ["adjust_rates", "filter_by_identity", "remove_zero_rates"]
+)
+def test_transition_set_rejects_filtering_only_one_matching_pair(
+    flu_sys_2xcy5_1xatto643, same_type_pair_transitions, method
+):
+    second = list(same_type_pair_transitions)[1]
+    same_type_pair_transitions[second][0].rate = 0
+    transition_set = tr.TransitionSet(
+        same_type_pair_transitions, flu_sys_2xcy5_1xatto643, keep_zero_rates=True
+    )
+
+    with pytest.raises(ValueError, match="keep_zero_rates=True"):
+        getattr(transition_set, method)()
+
+    assert transition_set.transition_df["rate"].tolist() == [1, 0]
+
+
+def test_adjust_rates_requires_keeping_zero_or_removing_all_matching_types(
+    flu_sys_2xcy5_1xatto643, same_type_pair_transitions
+):
+    transition_set = tr.TransitionSet(
+        same_type_pair_transitions, flu_sys_2xcy5_1xatto643
+    )
+
+    with pytest.raises(ValueError, match="after zero-rate filtering"):
+        transition_set.adjust_rates({1: 0})
+
+    retained = transition_set.adjust_rates({1: 0}, keep_zero_rates=True)
+    assert retained.transition_df["rate"].tolist() == [1, 0]
+    assert retained.adjust_rates({1: 9}).transition_df["rate"].tolist() == [1, 9]
+    assert retained.filter_by_identity([1]).transition_df.empty
+    removed = transition_set.adjust_rates({0: 0, 1: 0})
+    assert removed.transition_df.empty
+    assert removed.adjust_rates(keep_zero_rates=True).transition_df.empty
+    assert transition_set.transition_df["rate"].tolist() == [1, 9]
+
+
+@pytest.mark.parametrize(
+    "method, kwargs",
+    [
+        ("adjust_rates", {"keep_zero_rates": True}),
+        ("filter_by_identity", {"keep_zero_rates": True}),
+        ("remove_absorbing_states", {"keep_zero_rates": True}),
+        ("remove_paired_transitions", {"keep_zero_rates": True}),
+        ("with_matrix_format", {"matrix_format": "sparse"}),
+    ],
+)
+def test_transition_set_does_not_restore_filtered_single_transitions(
+    flu_sys_cy5, method, kwargs
+):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 1, [0]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 2, [0]),
+                tr.Transition(tr.TransitionType.INTERSYSTEM_CROSSING_ST, 0, [0]),
+            ]
+        },
+        flu_sys_cy5,
+    )
+
+    transformed = getattr(transition_set, method)(**kwargs)
+
+    pd.testing.assert_frame_equal(
+        transformed.transition_df, transition_set.transition_df
+    )
+    np.testing.assert_array_equal(
+        transformed.single_states["testfluo_1"],
+        [tr.SingleState.S0.value, tr.SingleState.S1.value],
+    )
+
+
+@pytest.mark.parametrize("keep_zero_rates", [False, True])
+def test_adjust_rates_keeps_only_current_zero_rate_transitions(
+    flu_sys_cy5, keep_zero_rates
+):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 1, [0]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 2, [0]),
+            ]
+        },
+        flu_sys_cy5,
+    )
+
+    adjusted = transition_set.adjust_rates({0: 0}, keep_zero_rates=keep_zero_rates)
+
+    if keep_zero_rates:
+        assert adjusted.transition_df["rate"].tolist() == [0, 2]
+        removed = adjusted.remove_zero_rates().adjust_rates(keep_zero_rates=True)
+        assert removed.transition_df["rate"].tolist() == [2]
+        reactivated = adjusted.adjust_rates({0: 3})
+        assert reactivated.transition_df["rate"].tolist() == [3, 2]
+    else:
+        assert adjusted.transition_df["rate"].tolist() == [2]
+        retained = adjusted.adjust_rates(keep_zero_rates=True)
+        assert retained.transition_df["rate"].tolist() == [2]
+
+
+def test_adjust_rates_changes_fluorescence_only_for_selected_name(
+    flu_sys_1xcy5_1xatto643,
+):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 1, [0]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 2, [0]),
+            ],
+            "testfluo_2": [
+                tr.Transition(tr.TransitionType.EXCITATION, 3, [1]),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 4, [1]),
+            ],
+        },
+        flu_sys_1xcy5_1xatto643,
+    )
+    fluorescence_id = transition_set.transition_df.loc["testfluo_1"].index[1]
+
+    adjusted = transition_set.adjust_rates({fluorescence_id: 9})
+
+    assert adjusted.transition_df.loc["testfluo_1", "rate"].tolist() == [1, 9]
+    assert adjusted.transition_df.loc["testfluo_2", "rate"].tolist() == [3, 4]
+    assert transition_set.transition_df.loc["testfluo_1", "rate"].tolist() == [1, 2]
+
+
+def test_filter_by_identity_removes_paired_type_from_all_matching_pairs(
+    flu_sys_2xcy5_1xatto643, same_type_pair_transitions
+):
+    other_type = tr.TransitionType(
+        "PET", tr.PairedState.S1_S0, tr.PairedState.S0_S1, False, "PET"
+    )
+    for transitions in same_type_pair_transitions.values():
+        transitions.append(tr.Transition(other_type, 2, transitions[0].fluorophore_ids))
+    transition_set = tr.TransitionSet(
+        same_type_pair_transitions, flu_sys_2xcy5_1xatto643
+    )
+
+    filtered = transition_set.filter_by_identity([0])
+
+    assert filtered.transition_df["transition_type"].tolist() == [
+        other_type,
+        other_type,
+    ]
+
+
+def test_remove_paired_transitions_removes_inactive_definitions(
+    flu_sys_2xcy5_1xatto643, same_type_pair_transitions
+):
+    second = list(same_type_pair_transitions)[1]
+    same_type_pair_transitions[second][0].rate = 0
+    transition_set = tr.TransitionSet(
+        same_type_pair_transitions, flu_sys_2xcy5_1xatto643, keep_zero_rates=True
+    )
+
+    without_pairs = transition_set.remove_paired_transitions(keep_zero_rates=True)
+
+    assert without_pairs.transition_df.empty
+
+
+def test_paired_transition_types_are_directional(flu_sys_1xcy5_1xatto643):
+    transition_set = tr.TransitionSet(
+        {
+            "D: testfluo_1, A: testfluo_2, dist: 2.0": [
+                tr.Transition(tr.TransitionType.FRET, 1, [(0, 1)])
+            ]
+        },
+        flu_sys_1xcy5_1xatto643,
+    )
+
+    assert len(transition_set.transition_df) == 1
+
+
 def test_transition_set_states_by_value(tr_set_1f):
     assert tr_set_1f.states_by_value[tr.SingleState.S0.value] is tr.SingleState.S0
     assert tr_set_1f.states_by_value[tr.SingleState.S1.value] is tr.SingleState.S1
@@ -1104,7 +1455,7 @@ def test_transition_set_allows_equal_states_for_distinct_identities(flu_sys_2xcy
     transition = tr.Transition(
         tr.TransitionType.S_S_ANNIHILATION,
         rate=1,
-        fluorophore_ids=[(0, 1)],
+        fluorophore_ids=[(0, 1), (1, 0)],
     )
     distance = flu_sys_2xcy5.distances[(0, 1)]
     transition_set = tr.TransitionSet(

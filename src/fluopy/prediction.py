@@ -39,17 +39,15 @@ class Prediction:
     paired_transitions
         Whether the prediction includes paired transitions.
     absorbing_chain
-        Whether the subchain reachable from initial_state_index contains a terminal
+        Whether the subchain reachable from start_at contains a terminal
         combined state and the prediction was carried out on an absorbing Markov chain.
         Absorbing states have a lifetime of inf and a frequency / occupation of 0.
         Absorbing transitions have a frequency of 0.
     transition_set
         Collection of all relevant transitions and related attributes.
-    initial_state_index
-        Row of transition_set.combined_state_transitions_df whose final state defines
-        the initial combined state. The row determines the reachable subchain used for
-        both absorbing and non-absorbing predictions. In an absorbing prediction, the
-        row itself is also counted as the initial visit.
+    start_at
+        Initial combined state as a tuple of SingleState values, ordered by
+        fluorophore identity. Defaults to S0 for every fluorophore.
     frequency_transitions
         Relative number of expected transition occurrences, normalized separately for
         each fluorophore. Paired-transition occurrences are assigned to the donor's
@@ -86,10 +84,10 @@ class Prediction:
     paired transitions.
 
     For non-absorbing systems, transition frequencies are calculated from the
-    stationary distribution of the subchain reachable from initial_state_index. The
+    stationary distribution of the subchain reachable from start_at. The
     reachable transition matrix must have a unique stationary distribution. The
-    initial index therefore selects the relevant component of a disconnected system,
-    but indices with the same reachable subchain produce the same stationary
+    initial state therefore selects the relevant component of a disconnected system,
+    but states with the same reachable subchain produce the same stationary
     distribution.
 
     A reachable subchain is treated as an absorbing Markov chain if it contains a
@@ -98,50 +96,49 @@ class Prediction:
     rejected.
 
     The Markov-chain nodes are rows of
-    transition_set.combined_state_transitions_df rather than combined states. For an
-    absorbing prediction, selecting different rows may therefore produce different
-    transition frequencies even when those rows have the same final state, because
-    the selected row is counted as the initial visit.
+    transition_set.combined_state_transitions_df rather than combined states. An
+    incoming row is used to represent start_at internally. It does not count as an
+    event at time zero. The initial state's residence time is included in occupations.
     """
 
     def __init__(
         self,
         transition_set: TransitionSet,
-        initial_state_index: int = 0,
+        start_at: tuple[int, ...] | None = None,
     ) -> None:
         """
         Parameters
         ----------
         transition_set
             Collection of all relevant transitions and related attributes.
-        initial_state_index
-            Row of transition_set.combined_state_transitions_df whose final state
-            defines the initial combined state. The row determines which part of the
-            transition matrix is reachable. For an absorbing prediction, it is also
-            counted as the initial visit, so different rows may produce different
-            results even when they have the same final state.
+        start_at
+            If None, tuple of as many zeros as number of fluorophores.
+            Can be any combination (size of number of fluorophores) of possible
+            SingleState values. See transition_set.single_states. The selected state
+            determines the reachable subchain, as in Simulation.run. Only events
+            occurring after the start are counted in transition frequencies.
         """
         self.paired_transitions: bool = False
         self.absorbing_chain: bool = False
         if transition_set.fluorophore_system.count > 2:
             raise ValueError("prediction not available for more than 2 fluorophores.")
         self.transition_set = transition_set
-        if not isinstance(initial_state_index, (int, np.integer)):
-            raise ValueError("initial_state_index must be an integer.")
-        if not 0 <= initial_state_index < transition_set.transition_matrix.shape[0]:
-            raise ValueError(
-                "initial_state_index must identify a row of the transition matrix."
-            )
-        self.initial_state_index: int = int(initial_state_index)
+        start_index = self._get_start_index(start_at)
+        self.start_at = cast(
+            tuple[int, ...],
+            transition_set.combined_state_transitions_df["final_state"].iloc[
+                start_index
+            ],
+        )
         self._terminal_state_combinations = self._get_terminal_state_combinations()
         transition_matrix = transition_set.transition_matrix
         if sparse.issparse(transition_matrix):
             self._reachable_transition_indices = _get_reachable_indices_sparse(
-                transition_matrix, self.initial_state_index
+                transition_matrix, start_index
             )
         else:
             self._reachable_transition_indices = _get_reachable_indices(
-                transition_matrix, self.initial_state_index
+                transition_matrix, start_index
             )
         terminal_indices = np.flatnonzero(transition_set.row_sums == 0)
         self._reachable_terminal_indices = np.intersect1d(
@@ -185,7 +182,7 @@ class Prediction:
             if len(self._terminal_state_combinations) > 1:
                 logger.warning(
                     "multiple terminal state combinations are available; predicted "
-                    "transition frequencies depend on initial_state_index.",
+                    "transition frequencies depend on start_at.",
                     stacklevel=2,
                 )
 
@@ -202,13 +199,13 @@ class Prediction:
             if sparse.issparse(transition_matrix):
                 self.frequency_transitions = (
                     self.predict_transition_occurrences_absorbing_sparse(
-                        initial_state_index=self.initial_state_index
+                        start_at=self.start_at
                     )
                 )
             else:
                 self.frequency_transitions = (
                     self.predict_transition_occurrences_absorbing(
-                        initial_state_index=self.initial_state_index
+                        start_at=self.start_at
                     )
                 )
         else:
@@ -240,6 +237,21 @@ class Prediction:
                 self.state_occupations,
             ) = (None, None, None, None, None)
 
+    def _get_start_index(self, start_at: tuple[int, ...] | None) -> int:
+        """Resolve the initial state using the same row convention as Simulation.run."""
+        if start_at is None:
+            start_at = (0,) * self.transition_set.fluorophore_system.count
+        elif len(start_at) != self.transition_set.fluorophore_system.count:
+            raise ValueError(
+                "The number of starting states doesn't match the number of "
+                "fluorophores."
+            )
+        df = self.transition_set.combined_state_transitions_df
+        start_indices = df.index[df["final_state"] == start_at]
+        if start_indices.empty:
+            raise ValueError(f"start_at {start_at} is not a valid combined state.")
+        return int(start_indices[0])
+
     def _get_terminal_state_combinations(self) -> list[tuple[int, ...]]:
         """
         Return terminal state combinations in deterministic order.
@@ -256,7 +268,7 @@ class Prediction:
         Predict transition frequencies in the reachable non-absorbing subchain.
 
         The calculation is restricted to transition rows reachable from
-        initial_state_index. Each different type of fluorophore's transition
+        start_at. Each different type of fluorophore's transition
         frequencies sum to 1.
 
         Each paired transition event is counted as one transition occurrence, including
@@ -274,8 +286,8 @@ class Prediction:
         -----
         The stationary distribution is calculated by solving pi P = pi together with
         the constraint that the entries of pi sum to 1. The reachable transition
-        matrix must have a unique stationary distribution. initial_state_index selects
-        the relevant component of a disconnected transition matrix. Starting rows with
+        matrix must have a unique stationary distribution. start_at selects
+        the relevant component of a disconnected transition matrix. Starting states with
         the same reachable subchain produce the same stationary distribution. An
         all-zero transition matrix returns zero frequencies.
         """
@@ -333,7 +345,7 @@ class Prediction:
         a sparse transition matrix.
 
         The calculation is restricted to transition rows reachable from
-        initial_state_index. Each different type of fluorophore's transition
+        start_at. Each different type of fluorophore's transition
         frequencies sum to 1.
 
         Each paired transition event is counted as one transition occurrence, including
@@ -351,8 +363,8 @@ class Prediction:
         -----
         The stationary distribution is calculated by solving pi P = pi together with
         the constraint that the entries of pi sum to 1. The reachable transition
-        matrix must have a unique stationary distribution. initial_state_index selects
-        the relevant component of a disconnected transition matrix. Starting rows with
+        matrix must have a unique stationary distribution. start_at selects
+        the relevant component of a disconnected transition matrix. Starting states with
         the same reachable subchain produce the same stationary distribution. An
         all-zero transition matrix returns zero frequencies.
         """
@@ -415,13 +427,13 @@ class Prediction:
         )
 
     def predict_transition_occurrences_absorbing(
-        self, initial_state_index: int = 0
+        self, start_at: tuple[int, ...] | None = None
     ) -> npt.NDArray[np.float64]:
         """
-        Predict transition frequencies before absorption from a selected row.
+        Predict transition frequencies before absorption from a selected state.
 
         The calculation includes only transition rows reachable from
-        initial_state_index. A reachable row without positive-rate outgoing
+        start_at. A reachable row without positive-rate outgoing
         transitions is terminal. Every reachable row must be able to reach a terminal
         row, so that absorption is certain. Absorbing transitions have the value 0.
 
@@ -432,11 +444,11 @@ class Prediction:
 
         Parameters
         ----------
-        initial_state_index
-            Row of combined_state_transitions_df used as the initial visit. Its final
-            state represents the initial combined state. Different rows may produce
-            different results even when they have the same final state, because the
-            selected transition row itself is included in the expected visit counts.
+        start_at
+            Initial combined state as a tuple of SingleState values, ordered by
+            fluorophore identity. If None, all fluorophores start in S0. The incoming
+            row representing this state is excluded from transition occurrences at
+            time zero, while its residence time is included in state occupations.
 
         Returns
         -------
@@ -444,14 +456,13 @@ class Prediction:
             Expected relative frequencies of each transition. Frequencies remain 0 for
             a fluorophore with no expected transitions.
         """
+        start_index = self._get_start_index(start_at)
         transition_abs = self.transition_set.transition_df["absorbing"]
         abs_indices = transition_abs[transition_abs].index.get_level_values(1)
         df = self.transition_set.combined_state_transitions_df
         abs_indices_combined = df[df["transition_id"].isin(abs_indices)].index
         transition_matrix = self.transition_set.transition_matrix
-        reachable_indices = _get_reachable_indices(
-            transition_matrix, initial_state_index
-        )
+        reachable_indices = _get_reachable_indices(transition_matrix, start_index)
         terminal_indices = np.flatnonzero(self.transition_set.row_sums == 0)
         drop_transitions = np.intersect1d(
             reachable_indices, terminal_indices, assume_unique=True
@@ -459,10 +470,10 @@ class Prediction:
         frequency_transitions = np.zeros(transition_abs.size)
         self._transition_occurrences = frequency_transitions
         self._transient_visits = np.zeros(transition_matrix.shape[0])
-        if initial_state_index in drop_transitions:
+        if start_index in drop_transitions:
             return frequency_transitions
         if not drop_transitions.size:
-            raise ValueError("no terminal state is reachable from initial_state_index.")
+            raise ValueError("no terminal state is reachable from start_at.")
         can_reach_terminal = _get_reachable_indices(
             transition_matrix.T, drop_transitions
         )
@@ -479,7 +490,7 @@ class Prediction:
         ]
         Q = transition_matrix[np.ix_(transient_indices, transient_indices)]
         initial_transient_index = int(
-            np.flatnonzero(transient_indices == initial_state_index)[0]
+            np.flatnonzero(transient_indices == start_index)[0]
         )
         initial_visit = np.zeros(transient_indices.size)
         initial_visit[initial_transient_index] = 1
@@ -493,6 +504,7 @@ class Prediction:
             raise ValueError("the transient subchain is singular.")
         self._transient_visits[transient_indices] = expected_transient_visits
         expected_visits = self._transient_visits.copy()
+        expected_visits[start_index] -= 1
         expected_visits[drop_diff] = 0
         for _, i in self.transition_set.transition_df.index:
             indices = df.index[df["transition_id"] == i].tolist()
@@ -503,14 +515,14 @@ class Prediction:
         )
 
     def predict_transition_occurrences_absorbing_sparse(
-        self, initial_state_index: int = 0
+        self, start_at: tuple[int, ...] | None = None
     ) -> npt.NDArray[np.float64]:
         """
-        Predict transition frequencies before absorption from a selected row using
+        Predict transition frequencies before absorption from a selected state using
         a sparse transition matrix.
 
         The calculation includes only transition rows reachable from
-        initial_state_index. A reachable row without positive-rate outgoing
+        start_at. A reachable row without positive-rate outgoing
         transitions is terminal. Every reachable row must be able to reach a terminal
         row, so that absorption is certain. Absorbing transitions have the value 0.
 
@@ -521,11 +533,11 @@ class Prediction:
 
         Parameters
         ----------
-        initial_state_index
-            Row of combined_state_transitions_df used as the initial visit. Its final
-            state represents the initial combined state. Different rows may produce
-            different results even when they have the same final state, because the
-            selected transition row itself is included in the expected visit counts.
+        start_at
+            Initial combined state as a tuple of SingleState values, ordered by
+            fluorophore identity. If None, all fluorophores start in S0. The incoming
+            row representing this state is excluded from transition occurrences at
+            time zero, while its residence time is included in state occupations.
 
         Returns
         -------
@@ -533,6 +545,7 @@ class Prediction:
             Expected relative frequencies of each transition. Frequencies remain 0 for
             a fluorophore with no expected transitions.
         """
+        start_index = self._get_start_index(start_at)
         transition_abs = self.transition_set.transition_df["absorbing"]
         abs_indices = transition_abs[transition_abs].index.get_level_values(1)
         df = self.transition_set.combined_state_transitions_df
@@ -541,7 +554,7 @@ class Prediction:
             self.transition_set.transition_matrix, dtype=np.float64
         )
         reachable_indices = _get_reachable_indices_sparse(
-            transition_matrix, initial_state_index
+            transition_matrix, start_index
         )
         terminal_indices = np.flatnonzero(self.transition_set.row_sums == 0)
         drop_transitions = np.intersect1d(
@@ -550,10 +563,10 @@ class Prediction:
         frequency_transitions = np.zeros(transition_abs.size)
         self._transition_occurrences = frequency_transitions
         self._transient_visits = np.zeros(transition_matrix.shape[0])
-        if initial_state_index in drop_transitions:
+        if start_index in drop_transitions:
             return frequency_transitions
         if not drop_transitions.size:
-            raise ValueError("no terminal state is reachable from initial_state_index.")
+            raise ValueError("no terminal state is reachable from start_at.")
         can_reach_terminal = _get_reachable_indices_sparse(
             transition_matrix.T, drop_transitions
         )
@@ -570,7 +583,7 @@ class Prediction:
         ]
         Q = transition_matrix[transient_indices][:, transient_indices]
         initial_transient_index = int(
-            np.flatnonzero(transient_indices == initial_state_index)[0]
+            np.flatnonzero(transient_indices == start_index)[0]
         )
         initial_visit = np.zeros(transient_indices.size)
         initial_visit[initial_transient_index] = 1
@@ -587,6 +600,7 @@ class Prediction:
             raise ValueError("the transient subchain is singular.")
         self._transient_visits[transient_indices] = expected_transient_visits
         expected_visits = self._transient_visits.copy()
+        expected_visits[start_index] -= 1
         expected_visits[drop_diff] = 0
         for _, i in self.transition_set.transition_df.index:
             indices = df.index[df["transition_id"] == i].tolist()
