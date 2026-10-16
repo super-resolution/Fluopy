@@ -1336,6 +1336,48 @@ def test_approximation_stops_before_absorbing_successor(pred_tr_set_1f_bl, monke
     assert time_series.size == transition_series.size + 1
 
 
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("seed", range(6))
+def test_approximation_completes_branches_before_terminal_transition(
+    flu_sys_cy5, matrix_format, seed
+):
+    states = tr.SingleState
+    definitions = [
+        ("EXC", states.S0, states.S1, 1),
+        ("RETURN", states.S1, states.S0, 1),
+        ("TERMINAL_BRANCH", states.S1, states.T1, 0.01),
+        ("BLEACH", states.T1, states.B, 1),
+        ("CIS", states.S1, states.cis, 1),
+        ("CIS_RETURN", states.cis, states.S0, 1),
+    ]
+    transitions = [
+        tr.Transition(tr.TransitionType(name, initial, final, False), rate, [0])
+        for name, initial, final, rate in definitions
+    ]
+    transition_set = tr.TransitionSet(
+        {"testfluo_1": transitions}, flu_sys_cy5, matrix_format=matrix_format
+    )
+    prediction = pr.Prediction(transition_set)
+    simulation = si.Simulation(transition_set)
+
+    simulation.approximate(prediction, size=1000, seed=seed)
+
+    events = simulation.transition_series
+    assert events[-1] == 2
+    assert np.count_nonzero(events == 2) == 1
+    assert 3 not in events
+    assert np.count_nonzero(events == 4) > 0
+    assert np.count_nonzero(events == 4) == np.count_nonzero(events == 5)
+    selected = transition_set.transition_df.iloc[events]
+    initial_states = selected["initial_state"].map(lambda state: state.value).to_numpy()
+    final_states = selected["final_state"].map(lambda state: state.value).to_numpy()
+    np.testing.assert_array_equal(simulation.state_series[0, :-1], initial_states)
+    np.testing.assert_array_equal(simulation.state_series[0, 1:], final_states)
+    assert simulation.time_series.size == events.size + 1
+    assert np.all(np.isfinite(simulation.time_series))
+    assert np.all(np.diff(simulation.time_series) > 0)
+
+
 def test_approximation_rejects_unrealizable_internal_order(pred_tr_set_1f, monkeypatch):
     graph = si.net.construct_transition_graph(
         pred_tr_set_1f.transition_set.transition_df

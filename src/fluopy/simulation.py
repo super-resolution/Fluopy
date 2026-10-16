@@ -1506,7 +1506,7 @@ def approximation(
                 ]
             if follow_up_transitions.size == 0:
                 transition_series = transition_series[: transition_indices[0] + 1]
-                break
+                continue
             follow_up_index = [
                 (fluorophore, int(transition)) for transition in follow_up_transitions
             ]
