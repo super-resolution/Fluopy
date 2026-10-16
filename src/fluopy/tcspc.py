@@ -247,15 +247,22 @@ def simulate_TCSPC(
     """
     number_pulses = int(number_pulses)
     size = int(size)
-    transition_matrix_non_exc = transition_set.transition_matrix
-    row_sums_non_exc = transition_set.row_sums
+    start_at, current_transition_index, transition_matrix_non_exc, row_sums_non_exc = (
+        transition_set._get_start_configuration(None)
+    )
+    final_states = transition_set.combined_state_transitions_df["final_state"].tolist()
     cumulative_detection_probabilities, resolved_channel_names = (
         _prepare_detection_configuration(
-            transition_count=transition_matrix_non_exc.shape[1],
+            transition_count=len(final_states),
             detection_probabilities=detection_probabilities,
             channel_names=channel_names,
         )
     )
+    if current_transition_index == len(final_states):
+        final_states.append(start_at)
+        cumulative_detection_probabilities = np.pad(
+            cumulative_detection_probabilities, ((0, 1), (0, 0))
+        )
 
     sparse_transition_rows = None
     if sparse.issparse(transition_matrix_non_exc):
@@ -308,10 +315,6 @@ def simulate_TCSPC(
     photon_collector = np.zeros(
         (time_stamps.size, len(resolved_channel_names)), dtype=np.int64
     )
-    df = transition_set.combined_state_transitions_df
-    current_transition_index = df.loc[
-        df["final_state"] == tuple(np.zeros(number_fluorophores))
-    ].index[0]
     pulse_delays_unpaired: list[list[float]] = [[] for _ in resolved_channel_names]
     pulse_delays_paired: list[list[float]] = [[] for _ in resolved_channel_names]
     pulse_delays_all: list[list[float]] = [[] for _ in resolved_channel_names]
@@ -348,7 +351,7 @@ def simulate_TCSPC(
         time = (pulse_number - 1) * time_between_pulses
         last_pulse_time = time
         next_pulse_time = time + time_between_pulses
-        current_states = np.array(df["final_state"][current_transition_index])
+        current_states = np.array(final_states[current_transition_index])
         if not excitation_applied:
             ground_state_positions = np.where(current_states[excitable_indices] == S0)[
                 0
@@ -391,9 +394,9 @@ def simulate_TCSPC(
                             first_excitation_positions
                         ]
                         current_states[excited_fluorophore_ids] = S1
-                        current_transition_index = df[
-                            df["final_state"] == tuple(current_states)
-                        ].index[0]
+                        current_transition_index = final_states.index(
+                            tuple(current_states)
+                        )
                         pulse_number = future_excitation_pulse_index
                         excitation_applied = True
                         continue
@@ -430,9 +433,7 @@ def simulate_TCSPC(
                 break
             last_pulse_time = (pulse_number - 1) * time_between_pulses
             next_pulse_time = pulse_number * time_between_pulses
-        current_transition_index = df[df["final_state"] == tuple(current_states)].index[
-            0
-        ]
+        current_transition_index = final_states.index(tuple(current_states))
         while time < next_pulse_time:
             if not reuse_pending_transition:
                 transition_draw_number += 1
@@ -592,15 +593,22 @@ def simulate_TCSPC_detailed(
     """
     number_pulses = int(number_pulses)
     size = int(size)
-    transition_matrix_non_exc = transition_set.transition_matrix
-    row_sums_non_exc = transition_set.row_sums
+    start_at, current_transition_index, transition_matrix_non_exc, row_sums_non_exc = (
+        transition_set._get_start_configuration(None)
+    )
+    final_states = transition_set.combined_state_transitions_df["final_state"].tolist()
     cumulative_detection_probabilities, resolved_channel_names = (
         _prepare_detection_configuration(
-            transition_count=transition_matrix_non_exc.shape[1],
+            transition_count=len(final_states),
             detection_probabilities=detection_probabilities,
             channel_names=channel_names,
         )
     )
+    if current_transition_index == len(final_states):
+        final_states.append(start_at)
+        cumulative_detection_probabilities = np.pad(
+            cumulative_detection_probabilities, ((0, 1), (0, 0))
+        )
 
     sparse_transition_rows = None
     if sparse.issparse(transition_matrix_non_exc):
@@ -653,10 +661,6 @@ def simulate_TCSPC_detailed(
     photon_collector = np.zeros(
         (time_stamps.size, len(resolved_channel_names)), dtype=np.int64
     )
-    df = transition_set.combined_state_transitions_df
-    current_transition_index = df.loc[
-        df["final_state"] == tuple(np.zeros(number_fluorophores))
-    ].index[0]
     time_series: list[float] = [0.0]
     transition_series: list[int] = []
     excitation_series: list[int] = []
@@ -696,7 +700,7 @@ def simulate_TCSPC_detailed(
         time = (pulse_number - 1) * time_between_pulses
         last_pulse_time = time
         next_pulse_time = time + time_between_pulses
-        current_states = np.array(df["final_state"][current_transition_index])
+        current_states = np.array(final_states[current_transition_index])
         if not excitation_applied:
             ground_state_positions = np.where(current_states[excitable_indices] == S0)[
                 0
@@ -745,9 +749,9 @@ def simulate_TCSPC_detailed(
                         time_series.extend(
                             [future_excitation_time] * first_excitation_positions.size
                         )
-                        current_transition_index = df[
-                            df["final_state"] == tuple(current_states)
-                        ].index[0]
+                        current_transition_index = final_states.index(
+                            tuple(current_states)
+                        )
                         pulse_number = future_excitation_pulse_index
                         excitation_applied = True
                         continue
@@ -791,9 +795,7 @@ def simulate_TCSPC_detailed(
                 break
             last_pulse_time = (pulse_number - 1) * time_between_pulses
             next_pulse_time = pulse_number * time_between_pulses
-        current_transition_index = df[df["final_state"] == tuple(current_states)].index[
-            0
-        ]
+        current_transition_index = final_states.index(tuple(current_states))
         while time < next_pulse_time:
             if not reuse_pending_transition:
                 transition_draw_number += 1

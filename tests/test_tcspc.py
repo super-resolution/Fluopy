@@ -65,6 +65,61 @@ class FixedTCSPCGenerator:
 
 @pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
 @pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("excitation_draw, excitation_time", [(0.0, 0.0), (0.75, 1.0)])
+def test_tcspc_starts_in_irreversible_chain(
+    call,
+    matrix_format,
+    excitation_draw,
+    excitation_time,
+    tr_set_irreversible,
+    monkeypatch,
+):
+    transition_set = _without_continuous_excitation(
+        tr_set_irreversible.with_matrix_format(matrix_format)
+    )
+    generator = FixedTCSPCGenerator(
+        excitation_random=np.full((10, 1), excitation_draw),
+        transition_random=np.array([[np.exp(-0.5), 0.5, 0.5]]),
+        geometric=[1],
+    )
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
+
+    result = call(
+        transition_set=transition_set,
+        detection_probabilities=_single_channel_probabilities(transition_set, {1: 1}),
+        channel_names=("all",),
+        number_pulses=3,
+        pulse_duration=0.1,
+        time_between_pulses=1,
+        excitation_rates={"testfluo_1": np.log(2) / 0.1},
+        frame_time="1s",
+        size=10,
+        store_time_points=True,
+        seed=42,
+    )
+
+    expected_counts = np.zeros(3, dtype=np.int64)
+    expected_counts[int(excitation_time)] = 1
+    np.testing.assert_array_equal(result[0]["all"], expected_counts)
+    np.testing.assert_allclose(result[1]["all"], [excitation_time + 0.125])
+    np.testing.assert_allclose(result[3]["all"], [0.125])
+    np.testing.assert_allclose(result[4]["all"], [0.125])
+    assert transition_set.transition_matrix.shape == (3, 3)
+    assert len(transition_set.combined_state_transitions_df) == 3
+    if call is si.simulate_TCSPC_detailed:
+        simulation = result[-1]
+        np.testing.assert_array_equal(simulation.transition_series, [0, 1, 2])
+        np.testing.assert_array_equal(simulation.state_series, [[0, 1, 3, 5]])
+        np.testing.assert_allclose(
+            simulation.time_series,
+            [0, excitation_time, excitation_time + 0.125, excitation_time + 0.1875],
+            atol=1e-15,
+        )
+        assert np.all(np.diff(simulation.time_series) > 0)
+
+
+@pytest.mark.parametrize("call", [si.simulate_TCSPC, si.simulate_TCSPC_detailed])
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
 def test_tcspc_handles_cumulative_rounding(
     call, matrix_format, flu_sys_cy5, monkeypatch
 ):
