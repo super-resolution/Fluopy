@@ -38,12 +38,23 @@ class Fluorophore:
     Attributes
     ----------
     name
-        Name of the fluorophore.
+        Name identifying a group with shared photophysical data and kinetics.
+        Prediction and Analysis aggregate statistics by this name. Physical
+        fluorophore identities are indices in FluorophoreSystem.fluorophores.
     position
         The position of the fluorophore in space in nm.
     constants
         If None an instance of FluorophoreData with the same name is inserted
         if available in fluopy.fluo_data.
+
+    Notes
+    -----
+    Within a FluorophoreSystem, fluorophores with the same name must share the same
+    FluorophoreData object. A TransitionSet also requires them to share single-state
+    transition definitions and rates. Use distinct names for different kinetic groups,
+    even when they represent the same dye. Their statistics will then be grouped
+    separately. Supply constants explicitly if the new name has no default data in
+    fluopy.fluo_data.
     """
 
     name: str = field()
