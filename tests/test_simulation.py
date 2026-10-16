@@ -1042,6 +1042,35 @@ def test_simulation_run(
     assert not isinstance(simulation.state_series, np.memmap)
 
 
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize(
+    "start_at, first_transition",
+    [(None, 0), ((0,), 0), ((1,), 1), ((3,), 2), ((5,), 3)],
+)
+@pytest.mark.parametrize("run_kwargs", [{}, {"kap_sq_var": True}, {"end_time": 10}])
+def test_simulation_starts_in_irreversible_chain(
+    tr_set_irreversible, matrix_format, start_at, first_transition, run_kwargs
+):
+    transition_set = tr_set_irreversible.with_matrix_format(matrix_format)
+    simulation = si.Simulation(transition_set)
+
+    simulation.run(start_at=start_at, size=10, seed=42, **run_kwargs)
+
+    np.testing.assert_array_equal(
+        simulation.transition_series, np.arange(first_transition, 3)
+    )
+    np.testing.assert_array_equal(
+        simulation.state_series, np.array([[0, 1, 3, 5]])[:, first_transition:]
+    )
+    assert np.all(np.diff(simulation.time_series) > 0)
+    expected_size = 4 - first_transition
+    if "end_time" in run_kwargs:
+        expected_size += 1
+        assert simulation.time_series[-1] == 10
+    assert simulation.time_series.size == expected_size
+    assert transition_set.transition_matrix.shape == (3, 3)
+
+
 def test_simulation_run_with_memmap(tr_set_1f, tmp_path):
     size = 10
     simulation = si.Simulation(transition_set=tr_set_1f)
@@ -1305,6 +1334,48 @@ def test_approximation_stops_before_absorbing_successor(pred_tr_set_1f_bl, monke
     assert time_series[0] == 0
     assert np.all(np.diff(time_series) > 0)
     assert time_series.size == transition_series.size + 1
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("seed", range(6))
+def test_approximation_completes_branches_before_terminal_transition(
+    flu_sys_cy5, matrix_format, seed
+):
+    states = tr.SingleState
+    definitions = [
+        ("EXC", states.S0, states.S1, 1),
+        ("RETURN", states.S1, states.S0, 1),
+        ("TERMINAL_BRANCH", states.S1, states.T1, 0.01),
+        ("BLEACH", states.T1, states.B, 1),
+        ("CIS", states.S1, states.cis, 1),
+        ("CIS_RETURN", states.cis, states.S0, 1),
+    ]
+    transitions = [
+        tr.Transition(tr.TransitionType(name, initial, final, False), rate, [0])
+        for name, initial, final, rate in definitions
+    ]
+    transition_set = tr.TransitionSet(
+        {"testfluo_1": transitions}, flu_sys_cy5, matrix_format=matrix_format
+    )
+    prediction = pr.Prediction(transition_set)
+    simulation = si.Simulation(transition_set)
+
+    simulation.approximate(prediction, size=1000, seed=seed)
+
+    events = simulation.transition_series
+    assert events[-1] == 2
+    assert np.count_nonzero(events == 2) == 1
+    assert 3 not in events
+    assert np.count_nonzero(events == 4) > 0
+    assert np.count_nonzero(events == 4) == np.count_nonzero(events == 5)
+    selected = transition_set.transition_df.iloc[events]
+    initial_states = selected["initial_state"].map(lambda state: state.value).to_numpy()
+    final_states = selected["final_state"].map(lambda state: state.value).to_numpy()
+    np.testing.assert_array_equal(simulation.state_series[0, :-1], initial_states)
+    np.testing.assert_array_equal(simulation.state_series[0, 1:], final_states)
+    assert simulation.time_series.size == events.size + 1
+    assert np.all(np.isfinite(simulation.time_series))
+    assert np.all(np.diff(simulation.time_series) > 0)
 
 
 def test_approximation_rejects_unrealizable_internal_order(pred_tr_set_1f, monkeypatch):

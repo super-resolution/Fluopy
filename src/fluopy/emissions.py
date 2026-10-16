@@ -408,15 +408,9 @@ class Emissions:
             photons are detected.
 
         """
-        if start_at is None:
-            start_at = tuple(
-                np.zeros(shape=transition_set.fluorophore_system.count, dtype=int)
-            )
-        elif len(start_at) != transition_set.fluorophore_system.count:
-            raise ValueError(
-                "The number of starting states doesn't match the number of "
-                "fluorophores."
-            )
+        start_at, start_index, transition_matrix, row_sums = (
+            transition_set._get_start_configuration(start_at)
+        )
         size = int(size)
         if size <= 0:
             raise ValueError("size must be positive.")
@@ -426,19 +420,16 @@ class Emissions:
             transition_set=transition_set,
             channels=self.channels,
         )
-        df = transition_set.combined_state_transitions_df
-        start_indices = df.index[df["final_state"] == start_at]
-        if start_indices.empty:
-            raise ValueError(f"start_at {start_at} is not a valid combined state.")
-        start_index = start_indices[0]
+        if start_index == detection_probabilities.shape[0]:
+            detection_probabilities = np.pad(detection_probabilities, ((0, 1), (0, 0)))
         experiment_simulator = (
             simulate_experiment_sparse
             if transition_set.matrix_format == "sparse"
             else simulate_experiment
         )
         self.event_time_points, self.event_time_series = experiment_simulator(
-            transition_matrix=transition_set.transition_matrix,
-            row_sums=transition_set.row_sums,
+            transition_matrix=transition_matrix,
+            row_sums=row_sums,
             detection_probabilities=detection_probabilities,
             channel_names=tuple(self.channels),
             start_index=start_index,

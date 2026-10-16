@@ -789,6 +789,25 @@ class TransitionSet:
         Whether zero-rate transitions are retained in transitions and transition_df.
         Retained zero-rate transitions contribute to the state space and structural
         absorbing-state detection, but cannot occur in the autonomous simulation.
+
+    Notes
+    -----
+    Fluorophore names define shared kinetic groups used by Prediction and Analysis.
+    Each single-state transition must target all fluorophores with its name at the
+    same rate. All ordered pairs with matching donor and acceptor names must define
+    the same paired transition types, regardless of distance. Their rates may differ.
+    Missing types are rejected to help detect accidentally omitted transitions.
+
+    To disable a paired process for selected pairs, define its type for every matching
+    ordered pair and set the inactive rates to 0 with keep_zero_rates=True. This
+    explicitly declares the process inactive for those pairs. Alternatively, use
+    distinct fluorophore names for groups with different transition definitions;
+    their statistics will then be grouped separately.
+
+    Retained zero-rate transitions affect the state space and structural
+    absorbing_states, while terminal_state_combinations is determined by active
+    rates. To preserve inactive records through adjust_rates or filtering operations,
+    also pass keep_zero_rates=True to those methods; they default to removing zeros.
     """
 
     _combined_state_transitions_df: pd.DataFrame | None
@@ -1123,19 +1142,75 @@ class TransitionSet:
             )
         return result
 
+    def _get_start_configuration(self, start_at: StateCombination | None) -> tuple[
+        StateCombination,
+        int,
+        npt.NDArray[np.float64] | sparse.csr_array,
+        npt.NDArray[np.float64],
+    ]:
+        """Prepare a starting row, including states without incoming transitions."""
+        if start_at is None:
+            start_at = (0,) * self.fluorophore_system.count
+        elif len(start_at) != self.fluorophore_system.count:
+            raise ValueError(
+                "The number of starting states doesn't match the number of "
+                "fluorophores."
+            )
+        if any(
+            state not in self.single_states.get(fluorophore.name, ())
+            for state, fluorophore in zip(
+                start_at, self.fluorophore_system.fluorophores, strict=True
+            )
+        ):
+            raise ValueError(f"start_at {start_at} is not a valid combined state.")
+        df = self.combined_state_transitions_df
+        start_indices = df.index[df["final_state"] == start_at]
+        matrix = self.transition_matrix
+        if not start_indices.empty:
+            return start_at, int(start_indices[0]), matrix, self.row_sums
+
+        outgoing_rates = np.where(
+            df["initial_state"] == start_at, df["rate"], 0
+        ).astype(np.float64)
+        total_rate = outgoing_rates.sum()
+        probabilities = (
+            outgoing_rates / total_rate if total_rate > 0 else outgoing_rates
+        )
+        if sparse.issparse(matrix):
+            matrix = sparse.block_array(
+                [
+                    [matrix, None],
+                    [
+                        sparse.csr_array(probabilities[None, :]),
+                        sparse.csr_array((1, 1)),
+                    ],
+                ],
+                format="csr",
+            )
+        else:
+            matrix = np.pad(matrix, ((0, 1), (0, 1)))
+            matrix[-1, :-1] = probabilities
+        return start_at, len(df), matrix, np.append(self.row_sums, total_rate)
+
     def filter_by_identity(
         self, remove_list: Collection[int] | None = None, keep_zero_rates: bool = False
     ) -> TransitionSet:
         """
-        Returns another TransitionSet with transitions removed by their identity.
+        Returns another TransitionSet with transitions selected for removal by identity.
+
+        For a selected paired transition, removal also includes its type on every
+        ordered pair with matching donor and acceptor names, regardless of distance.
+        This preserves the shared transition definitions for those name pairs.
 
         Parameters
         ----------
         remove_list
-            Contains identities from the current transition_df. Selecting a paired
-            transition removes its type from all ordered pairs with matching donor
-            and acceptor names. Set its rate to zero with keep_zero_rates=True to
-            deactivate only that record.
+            Contains identities from the current transition_df. A selected
+            single-state record applies to all fluorophores with its name. Paired
+            records are removed together with the matching types described above.
+            To deactivate only one paired record, use
+            adjust_rates({identity: 0}, keep_zero_rates=True). That disables every
+            physical pair listed in the record's fluorophore_ids.
         keep_zero_rates
             Whether to retain remaining zero-rate transitions from this set in the
             structural topology. If False, they are removed. Previously removed
@@ -1202,7 +1277,11 @@ class TransitionSet:
             Contains identities from the current transition_df as keys and rates as
             values. Only the selected records are changed. A single-state record
             applies to all fluorophores with its name; records for other names keep
-            their rates. Identities absent from this set are ignored.
+            their rates. A paired record applies to every ordered pair listed in its
+            fluorophore_ids; other records with the same type keep their rates.
+            Setting a paired record to 0 with keep_zero_rates=True disables it while
+            preserving the shared transition definitions. Identities absent from this
+            set are ignored.
         keep_zero_rates
             Whether to retain existing transitions whose rate is zero after the
             adjustment. If False, they are removed. If True, they remain part of the

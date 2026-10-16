@@ -124,14 +124,11 @@ class Prediction:
             raise ValueError("prediction not available for more than 2 fluorophores.")
         self.transition_set = transition_set
         start_index = self._get_start_index(start_at)
-        self.start_at = cast(
-            tuple[int, ...],
-            transition_set.combined_state_transitions_df["final_state"].iloc[
-                start_index
-            ],
+        self.start_at = tuple(
+            int(state) for state in self._combined_states[start_index]
         )
         self._terminal_state_combinations = self._get_terminal_state_combinations()
-        transition_matrix = transition_set.transition_matrix
+        transition_matrix = self._transition_matrix
         if sparse.issparse(transition_matrix):
             self._reachable_transition_indices = _get_reachable_indices_sparse(
                 transition_matrix, start_index
@@ -140,7 +137,7 @@ class Prediction:
             self._reachable_transition_indices = _get_reachable_indices(
                 transition_matrix, start_index
             )
-        terminal_indices = np.flatnonzero(transition_set.row_sums == 0)
+        terminal_indices = np.flatnonzero(self._row_sums == 0)
         self._reachable_terminal_indices = np.intersect1d(
             self._reachable_transition_indices,
             terminal_indices,
@@ -239,18 +236,15 @@ class Prediction:
 
     def _get_start_index(self, start_at: tuple[int, ...] | None) -> int:
         """Resolve the initial state using the same row convention as Simulation.run."""
-        if start_at is None:
-            start_at = (0,) * self.transition_set.fluorophore_system.count
-        elif len(start_at) != self.transition_set.fluorophore_system.count:
-            raise ValueError(
-                "The number of starting states doesn't match the number of "
-                "fluorophores."
-            )
+        start_at, start_index, self._transition_matrix, self._row_sums = (
+            self.transition_set._get_start_configuration(start_at)
+        )
         df = self.transition_set.combined_state_transitions_df
-        start_indices = df.index[df["final_state"] == start_at]
-        if start_indices.empty:
-            raise ValueError(f"start_at {start_at} is not a valid combined state.")
-        return int(start_indices[0])
+        final_states = df["final_state"].tolist()
+        if start_index == len(df):
+            final_states.append(start_at)
+        self._combined_states = np.asarray(final_states, dtype=np.int64)
+        return start_index
 
     def _get_terminal_state_combinations(self) -> list[tuple[int, ...]]:
         """
@@ -291,7 +285,7 @@ class Prediction:
         the same reachable subchain produce the same stationary distribution. An
         all-zero transition matrix returns zero frequencies.
         """
-        full_transition_matrix = self.transition_set.transition_matrix
+        full_transition_matrix = self._transition_matrix
         frequency_transitions = np.zeros(self.transition_set.transition_df.shape[0])
         self._transition_occurrences = frequency_transitions
         self._stationary_distribution = np.zeros(full_transition_matrix.shape[0])
@@ -369,7 +363,7 @@ class Prediction:
         all-zero transition matrix returns zero frequencies.
         """
         full_transition_matrix = sparse.csr_array(
-            self.transition_set.transition_matrix, dtype=np.float64
+            self._transition_matrix, dtype=np.float64
         )
         frequency_transitions = np.zeros(self.transition_set.transition_df.shape[0])
         self._transition_occurrences = frequency_transitions
@@ -461,9 +455,9 @@ class Prediction:
         abs_indices = transition_abs[transition_abs].index.get_level_values(1)
         df = self.transition_set.combined_state_transitions_df
         abs_indices_combined = df[df["transition_id"].isin(abs_indices)].index
-        transition_matrix = self.transition_set.transition_matrix
+        transition_matrix = self._transition_matrix
         reachable_indices = _get_reachable_indices(transition_matrix, start_index)
-        terminal_indices = np.flatnonzero(self.transition_set.row_sums == 0)
+        terminal_indices = np.flatnonzero(self._row_sums == 0)
         drop_transitions = np.intersect1d(
             reachable_indices, terminal_indices, assume_unique=True
         )
@@ -550,13 +544,11 @@ class Prediction:
         abs_indices = transition_abs[transition_abs].index.get_level_values(1)
         df = self.transition_set.combined_state_transitions_df
         abs_indices_combined = df[df["transition_id"].isin(abs_indices)].index
-        transition_matrix = sparse.csr_array(
-            self.transition_set.transition_matrix, dtype=np.float64
-        )
+        transition_matrix = sparse.csr_array(self._transition_matrix, dtype=np.float64)
         reachable_indices = _get_reachable_indices_sparse(
             transition_matrix, start_index
         )
-        terminal_indices = np.flatnonzero(self.transition_set.row_sums == 0)
+        terminal_indices = np.flatnonzero(self._row_sums == 0)
         drop_transitions = np.intersect1d(
             reachable_indices, terminal_indices, assume_unique=True
         )
@@ -691,11 +683,7 @@ class Prediction:
                             fluorophore
                         )
                     )
-                    combined_states = np.asarray(
-                        self.transition_set.combined_state_transitions_df[
-                            "final_state"
-                        ].tolist()
-                    )[:, fluorophore_ids]
+                    combined_states = self._combined_states[:, fluorophore_ids]
                     state_counts = np.count_nonzero(
                         combined_states[:, :, None] == single_states[fluorophore],
                         axis=1,
@@ -791,16 +779,14 @@ class Prediction:
         visits = self._stationary_distribution
         if visits is None:
             visits = cast(npt.NDArray[np.float64], self._transient_visits)
-        row_sums = self.transition_set.row_sums
+        row_sums = self._row_sums
         time_weights = np.divide(
             visits,
             row_sums,
             out=np.zeros_like(row_sums),
             where=row_sums > 0,
         )
-        combined_states = np.asarray(
-            self.transition_set.combined_state_transitions_df["final_state"].tolist()
-        )
+        combined_states = self._combined_states
         state_occupations = {}
         for fluorophore, states in self.transition_set.single_states.items():
             identities = self.transition_set.fluorophore_system.get_identities(

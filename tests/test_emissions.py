@@ -13,6 +13,26 @@ from fluopy import simulation as si
 from fluopy import transitions as tr
 
 
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize(
+    "start_at, expected_photons",
+    [(None, 1), ((0,), 1), ((1,), 1), ((3,), 0), ((5,), 0)],
+)
+def test_emissions_starts_in_irreversible_chain(
+    tr_set_irreversible, matrix_format, start_at, expected_photons
+):
+    transition_set = tr_set_irreversible.with_matrix_format(matrix_format)
+    emissions = em.Emissions(frame_time="1s", seed=42)
+
+    emissions.simulate(
+        transition_set, start_at=start_at, size=10, frames=10, store_time_points=True
+    )
+
+    assert emissions.event_time_points["all"].size == expected_photons
+    assert emissions.event_time_series["all"].sum() == expected_photons
+    assert transition_set.transition_matrix.shape == (3, 3)
+
+
 def test_emissions():
     frame_time = "5ms"
     channels = {"red": em.DetectionChannel(bandpass=(650, 700))}
