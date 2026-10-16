@@ -63,17 +63,19 @@ class Simulation:
         Collection of all relevant transitions and related attributes.
     time_series
         The one-dimensional array of simulated time points. At index i, they correspond
-        to state_series[i] and transition_series[i - 1]. If end_time was not None,
+        to state_series[:, i] and transition_series[i - 1]. If end_time was not None,
         includes end_time at index -1 that does not correspond to any of state_series
         or transition_series.
         Can be memmap if use_memmap was set.
     transition_series
-        The one-dimensional array of simulated transitions. At index i, they correspond
-        to time_series[i + 1].
+        The one-dimensional array of simulated combined-transition identities. Entries
+        identify rows in transition_set.combined_state_transitions_df. The transition
+        at index i occurs at time_series[i + 1].
         Can be memmap if use_memmap was set.
     state_series
-        Contains 1-D array_like for each fluorophore representing its state at index i
-        corresponding to time_series[i].
+        Two-dimensional array of SingleState values. Rows follow the fluorophore order
+        in transition_set.fluorophore_system.fluorophores. Column i contains the states
+        at time_series[i].
         Can be memmap if use_memmap was set.
     memmap_path
         The path where memmaps are stored.
@@ -244,6 +246,10 @@ class Simulation:
         sequence. Self-transitions are inserted only where their source state is
         occupied. Each simple cycle should contain the most occurring state-changing
         transition.
+
+        prediction.start_at selects the reachable subchain used for approximation.
+        The trajectory starts in the initial state of its first generated transition,
+        which may differ from prediction.start_at.
 
         Parameters
         ----------
@@ -1415,6 +1421,10 @@ def approximation(
     ends at its first occurrence. Each simple cycle should contain the most occurring
     state-changing transition. Graph suitability depends only on positive-rate
     branches reachable from the prediction's initial state.
+
+    prediction.start_at selects the reachable subchain used for approximation.
+    The trajectory starts in the initial state of its first generated transition,
+    which may differ from prediction.start_at.
 
     Parameters
     ----------

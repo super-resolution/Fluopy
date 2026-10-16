@@ -78,6 +78,10 @@ class Prediction:
 
     Notes
     -----
+    Transition statistics are indexed by transition identities from the second index
+    level of transition_set.transition_df. State statistics are grouped by fluorophore
+    name, with entries following the order of transition_set.single_states[name].
+
     Predictions are available for systems containing at most two fluorophores.
 
     Predicted lifetimes and state occupations are not available for systems containing
@@ -235,7 +239,26 @@ class Prediction:
             ) = (None, None, None, None, None)
 
     def _get_start_index(self, start_at: tuple[int, ...] | None) -> int:
-        """Resolve the initial state using the same row convention as Simulation.run."""
+        """
+        Resolve the initial state using the same row convention as Simulation.run.
+
+        Parameters
+        ----------
+        start_at
+            Initial combined state as a tuple of SingleState values, ordered by
+            fluorophore identity. If None, all fluorophores start in S0.
+
+        Returns
+        -------
+        int
+            Row representing the initial state, including an appended starting row
+            when the state has no incoming transition.
+
+        Notes
+        -----
+        Stores the resolved transition matrix, row sums, and final-state combinations
+        in _transition_matrix, _row_sums, and _combined_states.
+        """
         start_at, start_index, self._transition_matrix, self._row_sums = (
             self.transition_set._get_start_configuration(start_at)
         )
@@ -755,7 +778,12 @@ class Prediction:
         self,
     ) -> tuple[dict[str, npt.NDArray[np.float64]], dict[str, npt.NDArray[np.float64]]]:
         """
-        Infers statistics of states based on lifetime distributions and frequencies.
+        Calculate mean lifetimes and relative state occupations.
+
+        Mean lifetimes are calculated from lifetime_distributions. State occupations
+        use stationary or expected transient visits to transition rows, weighted by
+        their mean holding times. In absorbing chains, only residence time before
+        reaching a terminal combined state is included.
 
         Returns
         -------
@@ -763,8 +791,8 @@ class Prediction:
             Name of fluorophores as keys and their state's expected lifetime means
             (array) as values.
         state_occupations : dict[str, npt.NDArray[np.float64]]
-            Name of fluorophores as keys and their state's expected probability of
-            being occupied at any given point in time (array) as values.
+            Fluorophore names as keys and arrays of expected relative residence times
+            as values, normalized separately for each fluorophore name.
         """
         lifetime_distributions = self.lifetime_distributions
         if lifetime_distributions is None:

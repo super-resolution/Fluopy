@@ -509,8 +509,8 @@ def calculate_fret_efficiency(
 
 def calculate_photon_collection_rate(NA: float = 1.45, n1: float = 1.51) -> float:
     """
-    Calculates the photon collection rate based on the numerical aperture of the
-    objective.
+    Calculate the fraction of isotropically emitted photons collected by the
+    objective, based on its numerical aperture.
 
     Parameters
     ----------
@@ -522,7 +522,7 @@ def calculate_photon_collection_rate(NA: float = 1.45, n1: float = 1.51) -> floa
     Returns
     -------
     float
-        The photon collection rate.
+        The dimensionless photon collection fraction.
     """
     if not np.isfinite(n1) or n1 <= 0:
         raise ValueError("n1 must be positive and finite.")

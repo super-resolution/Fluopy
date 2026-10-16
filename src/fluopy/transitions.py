@@ -769,6 +769,9 @@ class TransitionSet:
     single_states
         Contains the values of all relevant SingleStates as values. Name of
         fluorophores as keys.
+    states_by_value
+        SingleState objects indexed by their numerical value. Includes all built-in
+        states and custom states found in the retained transitions.
     absorbing_states
         Individually absorbing state values indexed by fluorophore identity. These are
         derived from the retained transition topology, including transitions retained
@@ -1148,7 +1151,33 @@ class TransitionSet:
         npt.NDArray[np.float64] | sparse.csr_array,
         npt.NDArray[np.float64],
     ]:
-        """Prepare a starting row, including states without incoming transitions."""
+        """
+        Prepare a starting row, including states without incoming transitions.
+
+        Parameters
+        ----------
+        start_at
+            Initial combined state as a tuple of SingleState values, ordered by
+            fluorophore identity. If None, all fluorophores start in S0.
+
+        Returns
+        -------
+        start_at : StateCombination
+            Resolved initial combined state.
+        start_index : int
+            Index of a transition row whose final state is start_at, or
+            len(combined_state_transitions_df) for an appended starting row.
+        transition_matrix : npt.NDArray[np.float64] | scipy.sparse.csr_array
+            Transition-probability matrix in the selected matrix_format.
+        row_sums : npt.NDArray[np.float64]
+            Total outgoing transition rate for the final state of each row.
+
+        Notes
+        -----
+        When start_at has no incoming transition, the returned matrix includes an
+        extra starting row and column, and row_sums includes its outgoing rate.
+        The stored transition matrix and row sums are unchanged.
+        """
         if start_at is None:
             start_at = (0,) * self.fluorophore_system.count
         elif len(start_at) != self.fluorophore_system.count:
