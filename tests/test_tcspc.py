@@ -613,11 +613,12 @@ def _simulate_single_channel_tcspc(
     return _unwrap_single_channel(result)
 
 
-def _get_emission_and_fret_donor_ids(transition_set):
+def _get_emission_and_fret_donor_ids(transition_set, detection_efficiencies=None):
     transition_df = transition_set.combined_state_transitions_df
     emissions = transition_df[transition_df["photon"]]
     paired_transitions = transition_df[
-        transition_df["abbreviation"] == tr.TransitionType.FRET.abbreviation
+        (transition_df["abbreviation"] == tr.TransitionType.FRET.abbreviation)
+        & (transition_df["rate"] > 0)
     ]
     paired_sources = {
         (row["initial_state"], row["fluorophore_ids"][0])
@@ -628,7 +629,15 @@ def _get_emission_and_fret_donor_ids(transition_set):
         for identity, row in emissions.iterrows()
         if (row["initial_state"], row["fluorophore_ids"][0]) in paired_sources
     ]
-    return {identity: 1 for identity in emissions.index}, paired_emission_ids
+    emitting_transition_ids = {
+        identity: (
+            1
+            if detection_efficiencies is None
+            else detection_efficiencies[row["fluorophore_ids"][0]]
+        )
+        for identity, row in emissions.iterrows()
+    }
+    return emitting_transition_ids, paired_emission_ids
 
 
 @pytest.mark.slow
@@ -866,6 +875,9 @@ def test_simulate_TCSPC_fret_shortens_donor_pulse_delay(tr_set_bl_et_2f_diff, ca
     transition_set.finalize()
     number_pulses = 4e4
     time_between_pulses = 1e-1
+    emitting_transition_ids, paired_emission_ids = _get_emission_and_fret_donor_ids(
+        transition_set, detection_efficiencies={0: 1, 1: 0}
+    )
 
     with caplog.at_level(logging.WARNING):
         (
@@ -876,8 +888,8 @@ def test_simulate_TCSPC_fret_shortens_donor_pulse_delay(tr_set_bl_et_2f_diff, ca
             _,
         ) = _simulate_single_channel_tcspc(
             transition_set=transition_set,
-            emitting_transition_ids={4: 1, 5: 1, 6: 1, 7: 1},
-            paired_emission_ids=[4],
+            emitting_transition_ids=emitting_transition_ids,
+            paired_emission_ids=paired_emission_ids,
             number_pulses=number_pulses,
             time_between_pulses=time_between_pulses,
             excitation_rates={"testfluo_1": 1e11, "testfluo_2": 1e1},
@@ -963,12 +975,15 @@ def test_simulate_TCSPC_counts_independent_fluorophore_emissions(
     )
     transition_set = transition_set.adjust_rates({0: 0, 2: 0}, keep_zero_rates=True)
     transition_set.finalize()
+    emitting_transition_ids, paired_emission_ids = _get_emission_and_fret_donor_ids(
+        transition_set, detection_efficiencies={0: 1, 1: 0.5}
+    )
 
     with caplog.at_level(logging.WARNING):
         event_time_series, _, _, _, _ = _simulate_single_channel_tcspc(
             transition_set=transition_set,
-            emitting_transition_ids={2: 1, 3: 1, 6: 0.5, 7: 0.5},
-            paired_emission_ids=[4],
+            emitting_transition_ids=emitting_transition_ids,
+            paired_emission_ids=paired_emission_ids,
             number_pulses=4e4,
             time_between_pulses=1e-1,
             excitation_rates={"testfluo_1": 1e12, "testfluo_2": 1.4e10},
@@ -989,8 +1004,9 @@ def test_simulate_TCSPC_detailed(tr_set_bl_et_2f_diff, caplog):
     )
     transition_set = transition_set.adjust_rates({0: 0, 2: 0}, keep_zero_rates=True)
     transition_set.finalize()
-    emitting_transition_ids = {2: 1, 3: 1, 6: 0.5, 7: 0.5}
-    paired_emission_ids = [4]
+    emitting_transition_ids, paired_emission_ids = _get_emission_and_fret_donor_ids(
+        transition_set, detection_efficiencies={0: 1, 1: 0.5}
+    )
     number_pulses = 4e4
     pulse_duration = 5e-11
     time_between_pulses = 1e-1
