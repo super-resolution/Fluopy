@@ -949,21 +949,27 @@ def insert_excitations(
     indices_transitions = np.where(excitation_series == -1)[0]  # gets the indices of
     # transitions that are not excitations
     number_fluorophores = transition_set.fluorophore_system.count
+    trailing_start = int(indices_transitions[-1]) + 1 if indices_transitions.size else 0
+    current_state = (
+        np.array(df["final_state"].iloc[transition_series[-1]], dtype=int)
+        if transition_series.size
+        else np.zeros(number_fluorophores, dtype=int)
+    )
+    trailing_excitation_ids = np.empty(
+        excitation_series.size - trailing_start, dtype=transition_series_ad.dtype
+    )
+    for i, fluorophore_id in enumerate(excitation_series[trailing_start:]):
+        initial_state = tuple(current_state)
+        current_state[fluorophore_id] = 1
+        final_state = tuple(current_state)
+        matching_excitations = excitations[
+            (excitations["initial_state"] == initial_state)
+            & (excitations["final_state"] == final_state)
+        ]
+        trailing_excitation_ids[i] = matching_excitations.index[0]
+
     if indices_transitions.size == 0:
-        current_state = np.zeros(number_fluorophores, dtype=int)
-        excitation_ids = np.empty(
-            excitation_series.size, dtype=transition_series_ad.dtype
-        )
-        for i, fluorophore_id in enumerate(excitation_series):
-            initial_state = tuple(current_state)
-            current_state[fluorophore_id] = 1
-            final_state = tuple(current_state)
-            matching_excitations = excitations[
-                (excitations["initial_state"] == initial_state)
-                & (excitations["final_state"] == final_state)
-            ]
-            excitation_ids[i] = matching_excitations.index[0]
-        return excitation_ids
+        return trailing_excitation_ids
 
     diffs = np.diff(indices_transitions)
     diffs = np.insert(arr=diffs, obj=0, values=indices_transitions[0] + 1)
@@ -1028,7 +1034,7 @@ def insert_excitations(
             arr=transition_series_ad, obj=processing[original_indices], values=indices
         )
 
-    return transition_series_ad
+    return np.concatenate((transition_series_ad, trailing_excitation_ids))
 
 
 def get_state_series(

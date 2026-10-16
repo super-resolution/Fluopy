@@ -1061,9 +1061,12 @@ def test_space_multiple_excitations_requires_float_dtype(dtype):
         si.space_multiple_excitations(time_series)
 
 
-def test_insert_excitations(tr_set_bl_et_3f):
+@pytest.mark.parametrize("trailing_excitations", [[], [0], [1], [0, 1], [1, 0]])
+def test_insert_excitations(tr_set_bl_et_3f, trailing_excitations):
     excitation_series = np.array(
         [1, 2, 0, -1, -1, -1, 2, -1, 1, -1, -1, 2, 1, -1, -1, -1]
+        + trailing_excitations,
+        dtype=np.int16,
     )
     transition_df = tr_set_bl_et_3f.combined_state_transitions_df
     transition_descriptions = [
@@ -1092,6 +1095,7 @@ def test_insert_excitations(tr_set_bl_et_3f):
     )
     excitation_mask = excitation_series != -1
 
+    assert transition_series_adj.size == excitation_series.size
     np.testing.assert_array_equal(
         transition_series_adj[~excitation_mask], transition_series
     )
@@ -1101,6 +1105,70 @@ def test_insert_excitations(tr_set_bl_et_3f):
         [fluorophore_ids[0] for fluorophore_ids in inserted["fluorophore_ids"]],
         excitation_series[excitation_mask],
     )
+    np.testing.assert_array_equal(
+        transition_df["final_state"].iloc[transition_series_adj[:-1]].tolist(),
+        transition_df["initial_state"].iloc[transition_series_adj[1:]].tolist(),
+    )
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize("two_fluorophores", [False, True])
+def test_tcspc_detailed_preserves_trailing_excitations(
+    matrix_format, two_fluorophores, flu_sys_cy5, flu_sys_2xcy5, monkeypatch
+):
+    system = flu_sys_2xcy5 if two_fluorophores else flu_sys_cy5
+    identities = list(range(system.count))
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 0, identities),
+                tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 1, identities),
+            ]
+        },
+        system,
+        keep_zero_rates=True,
+        matrix_format=matrix_format,
+    )
+    transition_random = np.full((10, 3), 0.5)
+    transition_random[:, 0] = np.exp(-0.5)
+    transition_random[system.count + 1 :, 0] = np.exp(-10)
+    generator = FixedTCSPCGenerator(
+        np.zeros((10, system.count)), transition_random, [1]
+    )
+    monkeypatch.setattr(si.np.random, "default_rng", lambda seed: generator)
+    transitions = transition_set.combined_state_transitions_df
+    emission_ids = transitions.index[transitions["photon"]]
+
+    result = si.simulate_TCSPC_detailed(
+        transition_set=transition_set,
+        detection_probabilities=_single_channel_probabilities(
+            transition_set, {identity: 1 for identity in emission_ids}
+        ),
+        channel_names=("all",),
+        number_pulses=2,
+        pulse_duration=0.1,
+        time_between_pulses=1,
+        excitation_rates={"testfluo_1": 1000},
+        frame_time="1s",
+        size=10,
+        store_time_points=True,
+        seed=42,
+    )
+
+    simulation = result[-1]
+    assert result[0]["all"].sum() == system.count
+    assert simulation.transition_series.size == 3 * system.count
+    assert simulation.time_series.size == simulation.transition_series.size + 1
+    assert simulation.state_series.shape == (system.count, simulation.time_series.size)
+    np.testing.assert_array_equal(simulation.state_series[:, -1], np.ones(system.count))
+    assert (
+        transitions["abbreviation"]
+        .iloc[simulation.transition_series[-system.count :]]
+        .eq("EXC")
+        .all()
+    )
+    assert np.all(np.diff(simulation.time_series) > 0)
+    assert simulation.time_series[-1] < 2
 
 
 def test_insert_excitations_without_non_excitation(tr_set_bl_et_2f_diff):
