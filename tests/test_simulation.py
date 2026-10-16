@@ -573,7 +573,7 @@ def test_approximation_checks_only_active_reachable_branches(
         keep_zero_rates=True,
         matrix_format=matrix_format,
     )
-    prediction = pr.Prediction(transition_set, initial_state_index=0)
+    prediction = pr.Prediction(transition_set, start_at=(0,))
 
     if branch == "active":
         with pytest.raises(ValueError, match="graph not suited for approximation"):
@@ -646,7 +646,7 @@ def test_approximation_skips_unused_infinite_transition_distribution(
 @pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
 @pytest.mark.parametrize("size", [1000, 10_000, 20_000])
 @pytest.mark.parametrize("disabled_self_transition", [False, True])
-def test_approximation_omits_zero_rate_initial_visits(
+def test_approximation_omits_zero_rate_transitions(
     flu_sys_cy5, matrix_format, size, disabled_self_transition
 ):
     disabled_type = (
@@ -678,8 +678,8 @@ def test_approximation_omits_zero_rate_initial_visits(
         keep_zero_rates=True,
         matrix_format=matrix_format,
     )
-    prediction = pr.Prediction(transition_set)
-    assert prediction.frequency_transitions[0] > 0
+    prediction = pr.Prediction(transition_set, start_at=(tr.SingleState.S1.value,))
+    assert prediction.frequency_transitions[0] == 0
     simulation = si.Simulation(transition_set)
 
     simulation.approximate(prediction, size=size, seed=42)
@@ -697,7 +697,9 @@ def test_approximation_omits_zero_rate_initial_visits(
 
 
 @pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
-def test_approximation_rejects_only_zero_rate_occurrences(flu_sys_cy5, matrix_format):
+def test_approximation_rejects_start_without_active_transitions(
+    flu_sys_cy5, matrix_format
+):
     transition_set = tr.TransitionSet(
         {
             "testfluo_1": [
@@ -710,7 +712,7 @@ def test_approximation_rejects_only_zero_rate_occurrences(flu_sys_cy5, matrix_fo
         matrix_format=matrix_format,
     )
     prediction = pr.Prediction(transition_set)
-    np.testing.assert_array_equal(prediction.frequency_transitions, [1, 0])
+    np.testing.assert_array_equal(prediction.frequency_transitions, [0, 0])
 
     with pytest.raises(ValueError, match="size is too small to produce any transition"):
         si.approximation(prediction, size=100, seed=42)
