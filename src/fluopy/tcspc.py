@@ -372,7 +372,10 @@ def simulate_TCSPC(
                     reuse_pending_transition = True
                     next_transition = pending_transition[0]
                     time = pending_transition[1]
-                else:
+                elif (
+                    pending_transition[1] != np.inf
+                    or row_sums_non_exc[current_transition_index] == 0
+                ):
                     pulses_until_excitation = rng.geometric(
                         p=excitation_probabilities[ground_state_ids]
                     )
@@ -723,7 +726,10 @@ def simulate_TCSPC_detailed(
                     reuse_pending_transition = True
                     next_transition = pending_transition[0]
                     time = pending_transition[1]
-                else:
+                elif (
+                    pending_transition[1] != np.inf
+                    or row_sums_non_exc[current_transition_index] == 0
+                ):
                     pulses_until_excitation = rng.geometric(
                         p=excitation_probabilities[ground_state_ids]
                     )

@@ -1192,8 +1192,10 @@ class TransitionSet:
             matrix[-1, :-1] = probabilities
         return start_at, len(df), matrix, np.append(self.row_sums, total_rate)
 
-    def filter_by_identity(
-        self, remove_list: Collection[int] | None = None, keep_zero_rates: bool = False
+    def remove_transitions(
+        self,
+        transition_ids: Collection[int] | None = None,
+        keep_zero_rates: bool = False,
     ) -> TransitionSet:
         """
         Returns another TransitionSet with transitions selected for removal by identity.
@@ -1204,7 +1206,7 @@ class TransitionSet:
 
         Parameters
         ----------
-        remove_list
+        transition_ids
             Contains identities from the current transition_df. A selected
             single-state record applies to all fluorophores with its name. Paired
             records are removed together with the matching types described above.
@@ -1225,8 +1227,8 @@ class TransitionSet:
         """
         transitions = copy.deepcopy(self.transitions)
 
-        if remove_list is None:
-            remove_list = []
+        if transition_ids is None:
+            transition_ids = []
 
         filtered_transitions: dict[str, list[Transition]] = {}
         removed_pair_types: dict[tuple[str, str], set[TransitionType]] = {}
@@ -1236,7 +1238,7 @@ class TransitionSet:
                 removed_pair_types.setdefault(paired_label[:2], set()).update(
                     transition.transition_type
                     for transition in f_transitions
-                    if transition.identity in remove_list
+                    if transition.identity in transition_ids
                 )
 
         for fluorophore, f_transitions in transitions.items():
@@ -1248,7 +1250,7 @@ class TransitionSet:
             )
             for transition in f_transitions:
                 if (
-                    transition.identity in remove_list
+                    transition.identity in transition_ids
                     or transition.transition_type in removed_types
                 ):
                     continue
