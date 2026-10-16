@@ -77,6 +77,9 @@ class FCS:
         avoids first converting the sparse arrival times into a uniformly sampled time
         series.
 
+        Only photons within [start_time, end_time] are used, including when normalize
+        is False. These limits also define the measurement duration for normalization.
+
         Parameters
         ----------
         exp_min
@@ -90,13 +93,12 @@ class FCS:
         normalize
             Whether to normalize the autocorrelation.
         start_time
-            The time the measurement started. This is used to normalize to the correct
-            measurement duration.
+            Start of the measurement interval in seconds.
         end_time
-            The time the measurement ended. This is used to normalize to the correct
-            measurement duration. If None, the last photon arrival time in the selected
-            channel is used. Supply end_time explicitly to normalize to the full
-            acquisition duration or to compare channels over the same duration.
+            End of the measurement interval in seconds. If None, the last photon
+            arrival time in the selected channel is used. Supply end_time explicitly
+            to normalize to the full acquisition duration or to compare channels over
+            the same duration.
 
         Returns
         -------
