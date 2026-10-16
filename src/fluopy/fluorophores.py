@@ -463,13 +463,13 @@ def get_distances(
     Parameters
     ----------
     positions
-        Contains coordinate pairs (2D).
+        Coordinates in nm, with shape (n_positions, n_dimensions).
 
     Returns
     -------
     dict[tuple[int, int], np.float64]
-        Contains tuples of ids (order as positions) as keys and their distance as
-        values.
+        Ordered pairs of position indices as keys and their Euclidean distances in
+        nm, rounded to 3 decimals, as values. Pairs of identical indices are omitted.
     """
     distances: dict[tuple[int, int], np.float64] = {}
     positions = np.asarray(positions)

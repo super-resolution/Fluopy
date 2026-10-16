@@ -239,7 +239,26 @@ class Prediction:
             ) = (None, None, None, None, None)
 
     def _get_start_index(self, start_at: tuple[int, ...] | None) -> int:
-        """Resolve the initial state using the same row convention as Simulation.run."""
+        """
+        Resolve the initial state using the same row convention as Simulation.run.
+
+        Parameters
+        ----------
+        start_at
+            Initial combined state as a tuple of SingleState values, ordered by
+            fluorophore identity. If None, all fluorophores start in S0.
+
+        Returns
+        -------
+        int
+            Row representing the initial state, including an appended starting row
+            when the state has no incoming transition.
+
+        Notes
+        -----
+        Stores the resolved transition matrix, row sums, and final-state combinations
+        in _transition_matrix, _row_sums, and _combined_states.
+        """
         start_at, start_index, self._transition_matrix, self._row_sums = (
             self.transition_set._get_start_configuration(start_at)
         )

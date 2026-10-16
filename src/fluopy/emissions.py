@@ -182,6 +182,9 @@ class Emissions:
     ----------
     parameters
         Contains the parameters with which the instance was initialized.
+    channels
+        Dictionary mapping channel names to DetectionChannel configurations. Channel
+        order determines the column order in event_time_series.
     event_time_points
         Detected photon time points grouped by detection channel. Bandpass filtering and
         detection efficiency are represented consistently in event_time_points and
