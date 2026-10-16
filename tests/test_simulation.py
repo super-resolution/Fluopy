@@ -1042,6 +1042,35 @@ def test_simulation_run(
     assert not isinstance(simulation.state_series, np.memmap)
 
 
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize(
+    "start_at, first_transition",
+    [(None, 0), ((0,), 0), ((1,), 1), ((3,), 2), ((5,), 3)],
+)
+@pytest.mark.parametrize("run_kwargs", [{}, {"kap_sq_var": True}, {"end_time": 10}])
+def test_simulation_starts_in_irreversible_chain(
+    tr_set_irreversible, matrix_format, start_at, first_transition, run_kwargs
+):
+    transition_set = tr_set_irreversible.with_matrix_format(matrix_format)
+    simulation = si.Simulation(transition_set)
+
+    simulation.run(start_at=start_at, size=10, seed=42, **run_kwargs)
+
+    np.testing.assert_array_equal(
+        simulation.transition_series, np.arange(first_transition, 3)
+    )
+    np.testing.assert_array_equal(
+        simulation.state_series, np.array([[0, 1, 3, 5]])[:, first_transition:]
+    )
+    assert np.all(np.diff(simulation.time_series) > 0)
+    expected_size = 4 - first_transition
+    if "end_time" in run_kwargs:
+        expected_size += 1
+        assert simulation.time_series[-1] == 10
+    assert simulation.time_series.size == expected_size
+    assert transition_set.transition_matrix.shape == (3, 3)
+
+
 def test_simulation_run_with_memmap(tr_set_1f, tmp_path):
     size = 10
     simulation = si.Simulation(transition_set=tr_set_1f)

@@ -63,6 +63,74 @@ def test_prediction_defaults_to_same_ground_state_as_simulation(tr_set_1f_bl):
     np.testing.assert_array_equal(simulation.state_series[:, 0], prediction.start_at)
 
 
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+@pytest.mark.parametrize(
+    "start_at, expected_frequencies, expected_occupations",
+    [
+        (None, [0.5, 0.5, 0], [4 / 7, 2 / 7, 1 / 7, 0]),
+        ((0,), [0.5, 0.5, 0], [4 / 7, 2 / 7, 1 / 7, 0]),
+        ((1,), [0, 1, 0], [0, 2 / 3, 1 / 3, 0]),
+        ((3,), [0, 0, 0], [0, 0, 1, 0]),
+        ((5,), [0, 0, 0], [0, 0, 0, 0]),
+    ],
+)
+def test_prediction_starts_in_irreversible_chain(
+    tr_set_irreversible,
+    matrix_format,
+    start_at,
+    expected_frequencies,
+    expected_occupations,
+):
+    transition_set = tr_set_irreversible.with_matrix_format(matrix_format)
+    prediction = pr.Prediction(transition_set, start_at=start_at)
+
+    assert prediction.absorbing_chain
+    assert prediction.start_at == ((0,) if start_at is None else start_at)
+    np.testing.assert_allclose(prediction.frequency_transitions, expected_frequencies)
+    np.testing.assert_allclose(
+        prediction.state_occupations["testfluo_1"], expected_occupations
+    )
+    assert transition_set.transition_matrix.shape == (3, 3)
+    assert len(transition_set.combined_state_transitions_df) == 3
+
+
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+def test_prediction_starts_before_non_absorbing_cycle(flu_sys_cy5, matrix_format):
+    transition_set = tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 2, [0]),
+                tr.Transition(
+                    tr.TransitionType(
+                        "FORWARD", tr.SingleState.S1, tr.SingleState.T1, False
+                    ),
+                    4,
+                    [0],
+                ),
+                tr.Transition(
+                    tr.TransitionType(
+                        "RETURN", tr.SingleState.T1, tr.SingleState.S1, False
+                    ),
+                    8,
+                    [0],
+                ),
+            ]
+        },
+        flu_sys_cy5,
+        matrix_format=matrix_format,
+    )
+    prediction = pr.Prediction(transition_set)
+
+    assert not prediction.absorbing_chain
+    np.testing.assert_allclose(prediction.frequency_transitions, [0, 0.5, 0.5])
+    np.testing.assert_allclose(
+        prediction.state_occupations["testfluo_1"], [0, 2 / 3, 1 / 3]
+    )
+    simulation = si.Simulation(transition_set)
+    simulation.approximate(prediction, size=10, seed=42)
+    np.testing.assert_array_equal(simulation.transition_series, [1, 2] * 5)
+
+
 @pytest.mark.parametrize(
     "transition_set_fixture",
     ["tr_set_1f", "tr_set_1f_bl", "tr_set_et_2f_diff"],
@@ -621,6 +689,7 @@ def test_predicted_frequencies_remain_zero_without_expected_visits(
     )
     prediction = pr.Prediction.__new__(pr.Prediction)
     prediction.transition_set = transition_set
+    prediction._transition_matrix = transition_matrix
 
     method = prediction.predict_transition_occurrences
     if matrix_format == "sparse":

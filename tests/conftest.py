@@ -92,6 +92,32 @@ def tr_set_bl_et_3f(flu_sys_2xcy5_1xatto643):
 
 
 @pytest.fixture()
+def tr_set_irreversible(flu_sys_cy5):
+    return tr.TransitionSet(
+        {
+            "testfluo_1": [
+                tr.Transition(tr.TransitionType.EXCITATION, 2, [0]),
+                tr.Transition(
+                    tr.TransitionType(
+                        "DECAY", tr.SingleState.S1, tr.SingleState.T1, True
+                    ),
+                    4,
+                    [0],
+                ),
+                tr.Transition(
+                    tr.TransitionType(
+                        "BLEACH", tr.SingleState.T1, tr.SingleState.B, False
+                    ),
+                    8,
+                    [0],
+                ),
+            ]
+        },
+        flu_sys_cy5,
+    )
+
+
+@pytest.fixture()
 def tr_set_self_cycle(flu_sys_cy5):
     self_transition = tr.TransitionType(
         "SELF", tr.SingleState.S0, tr.SingleState.S0, False

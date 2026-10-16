@@ -136,37 +136,27 @@ class Simulation:
             direct_method_steps_kappa_squared argument: minimum_rate.
 
         """
-        if start_at is None:
-            start_at = tuple(
-                np.zeros(shape=self.transition_set.fluorophore_system.count, dtype=int)
-            )
-        elif len(start_at) != self.transition_set.fluorophore_system.count:
-            raise ValueError(
-                "The number of starting states doesn't match the number of "
-                "fluorophores."
-            )
+        start_at, start_index, transition_matrix, row_sums = (
+            self.transition_set._get_start_configuration(start_at)
+        )
         size = int(size)
         if size <= 0:
             raise ValueError("size must be positive.")
         if end_time is not None and end_time <= 0:
             raise ValueError("end_time must be positive.")
         df = self.transition_set.combined_state_transitions_df
-        start_indices = df[df["final_state"] == start_at].index
-        if start_indices.empty:
-            raise ValueError(f"start_at {start_at} is not a valid combined state.")
-        start_index = start_indices[0]
         eval_floating_point_precision_error(
             transition_set=self.transition_set, largest_number=end_time
         )
         if end_time is None and not kap_sq_var:
             direct_steps = (
                 direct_method_steps_sparse
-                if sparse.issparse(self.transition_set.transition_matrix)
+                if sparse.issparse(transition_matrix)
                 else direct_method_steps
             )
             self.time_series, self.transition_series = direct_steps(
-                transition_matrix=self.transition_set.transition_matrix,
-                row_sums=self.transition_set.row_sums,
+                transition_matrix=transition_matrix,
+                row_sums=row_sums,
                 start_index=start_index,
                 size=size,
                 seed=seed,
@@ -175,12 +165,12 @@ class Simulation:
         elif end_time is None and kap_sq_var:
             direct_steps_kappa_squared = (
                 direct_method_steps_kappa_squared_sparse
-                if sparse.issparse(self.transition_set.transition_matrix)
+                if sparse.issparse(transition_matrix)
                 else direct_method_steps_kappa_squared
             )
             self.time_series, self.transition_series = direct_steps_kappa_squared(
-                transition_matrix=self.transition_set.transition_matrix,
-                row_sums=self.transition_set.row_sums,
+                transition_matrix=transition_matrix,
+                row_sums=row_sums,
                 combined_state_transitions_df=df,
                 start_index=start_index,
                 size=size,
@@ -191,12 +181,12 @@ class Simulation:
         elif end_time is not None and not kap_sq_var:
             direct_time = (
                 direct_method_time_sparse
-                if sparse.issparse(self.transition_set.transition_matrix)
+                if sparse.issparse(transition_matrix)
                 else direct_method_time
             )
             self.time_series, self.transition_series = direct_time(
-                transition_matrix=self.transition_set.transition_matrix,
-                row_sums=self.transition_set.row_sums,
+                transition_matrix=transition_matrix,
+                row_sums=row_sums,
                 start_index=start_index,
                 size=size,
                 end_time=end_time,
@@ -1471,11 +1461,11 @@ def approximation(
     rng = np.random.default_rng(seed)
     if np.any(state_changing_occurrences > 0):
         starting_transition = int(np.argmax(state_changing_occurrences))
-        reachable_transition_ids = (
-            prediction.transition_set.combined_state_transitions_df.iloc[
-                prediction._reachable_transition_indices
-            ]["transition_id"].to_numpy()
-        )
+        combined_transitions = prediction.transition_set.combined_state_transitions_df
+        reachable_indices = prediction._reachable_transition_indices
+        reachable_transition_ids = combined_transitions.iloc[
+            reachable_indices[reachable_indices < len(combined_transitions)]
+        ]["transition_id"].to_numpy()
         state_changing_df = transition_df.loc[
             ~self_transition_mask
             & active_transition_mask

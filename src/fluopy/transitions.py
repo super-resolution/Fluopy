@@ -1123,6 +1123,56 @@ class TransitionSet:
             )
         return result
 
+    def _get_start_configuration(self, start_at: StateCombination | None) -> tuple[
+        StateCombination,
+        int,
+        npt.NDArray[np.float64] | sparse.csr_array,
+        npt.NDArray[np.float64],
+    ]:
+        """Prepare a starting row, including states without incoming transitions."""
+        if start_at is None:
+            start_at = (0,) * self.fluorophore_system.count
+        elif len(start_at) != self.fluorophore_system.count:
+            raise ValueError(
+                "The number of starting states doesn't match the number of "
+                "fluorophores."
+            )
+        if any(
+            state not in self.single_states.get(fluorophore.name, ())
+            for state, fluorophore in zip(
+                start_at, self.fluorophore_system.fluorophores, strict=True
+            )
+        ):
+            raise ValueError(f"start_at {start_at} is not a valid combined state.")
+        df = self.combined_state_transitions_df
+        start_indices = df.index[df["final_state"] == start_at]
+        matrix = self.transition_matrix
+        if not start_indices.empty:
+            return start_at, int(start_indices[0]), matrix, self.row_sums
+
+        outgoing_rates = np.where(
+            df["initial_state"] == start_at, df["rate"], 0
+        ).astype(np.float64)
+        total_rate = outgoing_rates.sum()
+        probabilities = (
+            outgoing_rates / total_rate if total_rate > 0 else outgoing_rates
+        )
+        if sparse.issparse(matrix):
+            matrix = sparse.block_array(
+                [
+                    [matrix, None],
+                    [
+                        sparse.csr_array(probabilities[None, :]),
+                        sparse.csr_array((1, 1)),
+                    ],
+                ],
+                format="csr",
+            )
+        else:
+            matrix = np.pad(matrix, ((0, 1), (0, 1)))
+            matrix[-1, :-1] = probabilities
+        return start_at, len(df), matrix, np.append(self.row_sums, total_rate)
+
     def filter_by_identity(
         self, remove_list: Collection[int] | None = None, keep_zero_rates: bool = False
     ) -> TransitionSet:
