@@ -245,9 +245,9 @@ class Analysis:
         -------
         transition_time_distributions : list[npt.NDArray[np.float64]]
             Contains 1-D array_like for each transition (time until the transition).
-        lifetime_distributions : dict[str, npt.NDArray[np.float64]]
-            Name of fluorophores as keys and collections of their state's simulated
-            lifetimes (1-D array_like) as values.
+        lifetime_distributions : dict[str, list[npt.NDArray[np.float64]]]
+            Fluorophore names as keys and lists of one-dimensional lifetime sample
+            arrays as values, with one array per state.
         """
         single_states = self.simulation.transition_set.single_states
         combined_transition_df = (
