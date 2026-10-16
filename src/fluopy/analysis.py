@@ -59,6 +59,18 @@ class Analysis:
         as values.
     state_occupations
         Relative time spent in each state, normalized separately for each fluorophore.
+
+    Notes
+    -----
+    Transition statistics are indexed by transition identities from the second index
+    level of simulation.transition_set.transition_df. Simulation.transition_series
+    contains combined-transition row identities; the transition_id column of
+    simulation.transition_set.combined_state_transitions_df maps them to transition
+    identities.
+
+    State statistics are grouped by fluorophore name. For a name, entries follow the
+    order of simulation.transition_set.single_states[name], including the list entries
+    in lifetime_distributions[name].
     """
 
     def __init__(self, simulation: Simulation) -> None:

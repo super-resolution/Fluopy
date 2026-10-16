@@ -78,6 +78,10 @@ class Prediction:
 
     Notes
     -----
+    Transition statistics are indexed by transition identities from the second index
+    level of transition_set.transition_df. State statistics are grouped by fluorophore
+    name, with entries following the order of transition_set.single_states[name].
+
     Predictions are available for systems containing at most two fluorophores.
 
     Predicted lifetimes and state occupations are not available for systems containing
