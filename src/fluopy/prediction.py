@@ -759,7 +759,12 @@ class Prediction:
         self,
     ) -> tuple[dict[str, npt.NDArray[np.float64]], dict[str, npt.NDArray[np.float64]]]:
         """
-        Infers statistics of states based on lifetime distributions and frequencies.
+        Calculate mean lifetimes and relative state occupations.
+
+        Mean lifetimes are calculated from lifetime_distributions. State occupations
+        use stationary or expected transient visits to transition rows, weighted by
+        their mean holding times. In absorbing chains, only residence time before
+        reaching a terminal combined state is included.
 
         Returns
         -------
@@ -767,8 +772,8 @@ class Prediction:
             Name of fluorophores as keys and their state's expected lifetime means
             (array) as values.
         state_occupations : dict[str, npt.NDArray[np.float64]]
-            Name of fluorophores as keys and their state's expected probability of
-            being occupied at any given point in time (array) as values.
+            Fluorophore names as keys and arrays of expected relative residence times
+            as values, normalized separately for each fluorophore name.
         """
         lifetime_distributions = self.lifetime_distributions
         if lifetime_distributions is None:

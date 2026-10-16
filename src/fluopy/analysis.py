@@ -346,8 +346,12 @@ class Analysis:
         self,
     ) -> tuple[dict[str, npt.NDArray[np.float64]], dict[str, npt.NDArray[np.float64]]]:
         """
-        Infer mean lifetimes and relative state occupations from lifetime distributions
-        and state frequencies.
+        Calculate mean lifetimes and relative state occupations.
+
+        Mean lifetimes are calculated from completed residence samples in
+        lifetime_distributions. State occupations are calculated directly from the
+        trajectory's residence times, including the observed part of a final
+        right-censored residence.
 
         Returns
         -------
@@ -356,7 +360,7 @@ class Analysis:
             (array) as values.
         state_occupations : dict[str, npt.NDArray[np.float64]]
             Relative time spent in each state, normalized separately for each
-            fluorophore.
+            fluorophore name.
         """
         mean_lifetimes: dict[str, npt.NDArray[np.float64]] = {}
         for fluorophore, distributions in self.lifetime_distributions.items():
