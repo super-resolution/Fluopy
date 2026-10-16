@@ -488,7 +488,8 @@ class Emissions:
         store_time_points
             Whether to store the time points at which photons are detected.
         details
-            Whether to additionally return a simulation object.
+            Whether to include a simulation object as the fourth return value.
+            If False, the fourth return value is None.
 
         Returns
         -------
@@ -502,9 +503,9 @@ class Emissions:
         pulse_delays_all : dict[str, npt.NDArray[np.float64]]
             Delays in seconds from all detected photons to the latest laser pulse,
             grouped by detection channel.
-        simulation_object : fluopy.simulation.Simulation
-            Container for simulation-associated attributes and methods. Only returned if
-            details is True.
+        simulation_object : fluopy.simulation.Simulation | None
+            Container for simulation-associated attributes and methods if details is
+            True, otherwise None. The returned tuple always contains four values.
         """
         number_pulses = int(number_pulses)
         size = int(size)
