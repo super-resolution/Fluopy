@@ -952,7 +952,7 @@ def plot_data(
             marker_label = (
                 marker_artist.get_label() if marker_artist is not None else None
             )
-            if marker_label and not marker_label.startswith("_"):
+            if marker_label and not str(marker_label).startswith("_"):
                 legendhandles = [*legendhandles, marker_artist]
             ax.legend(labelcolor=legendcolor, handles=legendhandles, **legendargs)
         else:

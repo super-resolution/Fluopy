@@ -1167,7 +1167,7 @@ def test_prediction_distribution_plots(pred_tr_set_1f):
         lifetime_ax.lines[0].get_ydata(), lifetime_distribution.pdf(lifetime_x)
     )
     assert lifetime_ax.get_xlabel() == "lifetime [s]"
-    assert lifetime_ax.get_ylabel() == "PD"
+    assert lifetime_ax.get_ylabel() == "Prob. density"
 
     transition_x = np.array([0.0, 1e-9, 2e-9])
     transition_ax = pred_tr_set_1f.plot_transition_time_distributions(
@@ -1179,7 +1179,7 @@ def test_prediction_distribution_plots(pred_tr_set_1f):
         transition_ax.lines[0].get_ydata(), transition_distribution.pdf(transition_x)
     )
     assert transition_ax.get_xlabel() == "time to transition [s]"
-    assert transition_ax.get_ylabel() == "PD"
+    assert transition_ax.get_ylabel() == "Prob. density"
 
     default_transition_ax = pred_tr_set_1f.plot_transition_time_distributions(
         fluorophore=fluorophore, transition_id=0

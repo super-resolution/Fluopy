@@ -285,6 +285,32 @@ def test_plot_data_uses_custom_legend_handles(draw_marker, expected_labels):
     assert [text.get_text() for text in ax.get_legend().get_texts()] == expected_labels
 
 
+@pytest.mark.parametrize(
+    "marker_options, expected_labels",
+    [
+        ({"marker": "+", "color": "green"}, ["custom", "Prediction"]),
+        ({"marker": "s", "label": "Reference"}, ["custom", "Reference"]),
+        ({"label": "_nolegend_"}, ["custom"]),
+    ],
+)
+def test_plot_data_custom_marker_labels(marker_options, expected_labels):
+    original_options = marker_options.copy()
+    handle = Patch(color="red", label="custom")
+    handles = [handle]
+
+    ax = plot_data(
+        data=([0, 1], [1, 2]),
+        legend=True,
+        legendhandles=handles,
+        draw_marker=([0.5], [1.5]),
+        draw_marker_param=marker_options,
+    )
+
+    assert [text.get_text() for text in ax.get_legend().get_texts()] == expected_labels
+    assert marker_options == original_options
+    assert handles == [handle]
+
+
 def test_plot_data_rejects_unknown_plot_type():
     with pytest.raises(ValueError, match="Invalid type_ argument"):
         plot_data(type_="unknown")
