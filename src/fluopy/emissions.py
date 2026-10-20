@@ -905,7 +905,7 @@ class Emissions:
         ax = plotting.plot_data(data=data, **kwargs)
 
         mean_color = kwargs.get("ylabelcolor", "black")
-        fontsize = kwargs.get("fontsize", 16)
+        fontsize = ax.xaxis.label.get_fontsize()
         if display_mean:
             mean = np.mean(data)
             ax.text(

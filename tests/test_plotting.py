@@ -26,7 +26,7 @@ def test_plot_data():
     assert ax.figure is not None
     assert ax.figure.dpi == plt.rcParamsDefault["figure.dpi"]
     assert ax.figure.get_facecolor() == (1.0, 1.0, 1.0, 1.0)
-    assert all(spine.get_linewidth() == 2 for spine in ax.spines.values())
+    assert all(spine.get_linewidth() == 0.8 for spine in ax.spines.values())
 
 
 def test_plot_data_modifies_supplied_axis():
