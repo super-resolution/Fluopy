@@ -1,4 +1,5 @@
 import logging
+import warnings
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -652,6 +653,46 @@ def test_emissions_tcspc_details_infers_excitation_rates(tr_set_1f_bl, caplog):
     np.testing.assert_array_equal(result[0]["all"], pulse_delays_paired["all"])
     actual_rate = mock_tcspc.call_args.kwargs["excitation_rates"]["testfluo_1"]
     assert actual_rate == pytest.approx(excitation_rate * 1000)
+
+
+def test_emissions_tcspc_precision_warning_does_not_change_results(tr_set_1f):
+    parameters = dict(
+        transition_set=tr_set_1f,
+        number_pulses=20,
+        pulse_duration=1e-10,
+        time_between_pulses=1e-8,
+        excitation_rates={"testfluo_1": 1e10},
+        size=10,
+        store_time_points=True,
+        details=True,
+    )
+    default_emissions = em.Emissions(frame_time="10ns", seed=42)
+    quiet_emissions = em.Emissions(frame_time="10ns", seed=42)
+
+    with pytest.warns(si.FloatingPointPrecisionWarning):
+        default_result = default_emissions.tcspc(**parameters)
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always", si.FloatingPointPrecisionWarning)
+        quiet_result = quiet_emissions.tcspc(**parameters, warn_precision=False)
+
+    assert not any(
+        issubclass(warning.category, si.FloatingPointPrecisionWarning)
+        for warning in recorded
+    )
+    assert default_result[2]["all"].size > 0
+    for default_delays, quiet_delays in zip(default_result[:3], quiet_result[:3]):
+        np.testing.assert_array_equal(default_delays["all"], quiet_delays["all"])
+    for attribute in ["state_series", "time_series", "transition_series"]:
+        np.testing.assert_array_equal(
+            getattr(default_result[3], attribute), getattr(quiet_result[3], attribute)
+        )
+    pd.testing.assert_frame_equal(
+        default_emissions.event_time_series, quiet_emissions.event_time_series
+    )
+    np.testing.assert_array_equal(
+        default_emissions.event_time_points["all"],
+        quiet_emissions.event_time_points["all"],
+    )
 
 
 def test_emissions_apply_threshold():

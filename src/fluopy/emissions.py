@@ -453,6 +453,7 @@ class Emissions:
         size: int = 100_000,
         store_time_points: bool = False,
         details: bool = False,
+        warn_precision: bool = True,
     ) -> tuple[
         dict[str, npt.NDArray[np.float64]],
         dict[str, npt.NDArray[np.float64]],
@@ -493,6 +494,10 @@ class Emissions:
         details
             Whether to include a simulation object as the fourth return value.
             If False, the fourth return value is None.
+        warn_precision
+            Whether to evaluate and report the floating-point precision diagnostic
+            when details is True. Disabling it does not change the simulated dynamics
+            or numerical precision.
 
         Returns
         -------
@@ -558,10 +563,11 @@ class Emissions:
         df = transition_set.combined_state_transitions_df
         paired_emission_ids = _get_paired_emission_ids(df, emit_ids_list)
         if details:
-            eval_floating_point_precision_error(
-                transition_set=transition_set,
-                largest_number=number_pulses * time_between_pulses,
-            )
+            if warn_precision:
+                eval_floating_point_precision_error(
+                    transition_set=transition_set,
+                    largest_number=number_pulses * time_between_pulses,
+                )
             detailed_result = simulate_TCSPC_detailed(
                 transition_set=transition_set,
                 detection_probabilities=detection_probabilities,
