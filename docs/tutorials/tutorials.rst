@@ -4,27 +4,37 @@
 Tutorials
 ===========================
 
-Tutorials give selected application examples to get familiar with typical use cases.
-
-Tutorials are provided as Jupyter notebooks.
+Start with a single simulation, then choose a tutorial for the question you want
+to explore. Each Jupyter notebook runs independently and uses explicit random
+seeds. The examples demonstrate Fluopy; their illustrative parameters should be
+adapted to the experimental system before quantitative interpretation.
 
 
 .. toctree::
    :maxdepth: 1
-   :caption: Tutorials about fluopy
+   :caption: Guided tutorials
    :name: toc_tutorials_data
 
-   General introduction <./notebooks/01_Introduction.ipynb>
-   Three state simulation <./notebooks/02_Three_state_simulation.ipynb>
-   Cy5 simulation <./notebooks/03_Cy5_simulation.ipynb>
-   dSTORM simulation <./notebooks/04_dSTORM_simulation.ipynb>
-   FRET pair simluation <./notebooks/05_FRET_pair_simulation.ipynb>
-   Cy5 homoFRET simulation <./notebooks/06_Cy5_homoFRET_simulation.ipynb>
-   Two-fluorophore dSTORM simulation <./notebooks/07_Two_fluorophore_dSTORM_simulation.ipynb>
+   Introduction to Fluopy <./notebooks/01_Introduction.ipynb>
+   Interacting fluorophores <./notebooks/02_Interacting_fluorophores.ipynb>
+   From emitted photons to measured signals <./notebooks/03_Detected_photons.ipynb>
+   Pulsed excitation and TCSPC <./notebooks/04_TCSPC.ipynb>
 
-   Extending fluopy data <./notebooks/Tutorial_extending_fluopy.ipynb>
-   Fluopy IO <./notebooks/Tutorial_fluopy_io.ipynb>
-   Distributed simulation <./notebooks/Tutorial_distributed_simulation.ipynb>
+The first tutorial covers model setup, simulation, prediction, and a photon trace.
+The interacting example adds competing pathways and optional sparse storage and
+orientation sampling. The signal and TCSPC tutorials focus on what detectors
+observe under continuous and pulsed excitation, respectively.
+
+For custom models and precise interpretation rules:
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Advanced modeling
+
+   Extending Fluopy <./notebooks/Tutorial_extending_fluopy.ipynb>
+
+See :doc:`../source/model_conventions` for event counting, state lifetimes,
+paired-transition roles, and the limits of prediction and approximation.
 
 
 .. toctree::

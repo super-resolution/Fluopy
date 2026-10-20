@@ -107,6 +107,7 @@ class Simulation:
         kap_sq_var: bool = False,
         seed: RandomGeneratorSeed = None,
         use_memmap: str | Path | None = None,
+        warn_precision: bool = True,
         **kwargs: Any,
     ) -> None:
         """
@@ -134,6 +135,9 @@ class Simulation:
         use_memmap
             Determines the path where memmaps shall be stored. If empty str, saved in
             current working directory.
+        warn_precision
+            Whether to evaluate and report the floating-point precision diagnostic.
+            Disabling it does not change the simulated dynamics or numerical precision.
         kwargs
             direct_method_steps_kappa_squared argument: minimum_rate.
 
@@ -147,9 +151,10 @@ class Simulation:
         if end_time is not None and end_time <= 0:
             raise ValueError("end_time must be positive.")
         df = self.transition_set.combined_state_transitions_df
-        eval_floating_point_precision_error(
-            transition_set=self.transition_set, largest_number=end_time
-        )
+        if warn_precision:
+            eval_floating_point_precision_error(
+                transition_set=self.transition_set, largest_number=end_time
+            )
         if end_time is None and not kap_sq_var:
             direct_steps = (
                 direct_method_steps_sparse
@@ -2039,7 +2044,6 @@ def eval_floating_point_precision_error(
         probability_smallest_increment = 1 - np.exp(-max_rate * smallest_increment)
 
         warnings.warn(
-            "Floating point precision error warning:\n "
             f"The smallest safe increment is {smallest_increment:.2e}."
             "\n Everything drawn below this number might be rounded to zero\n when "
             "approaching the time limit of this simulation."
@@ -2060,7 +2064,6 @@ def eval_floating_point_precision_error(
                 continue
             else:
                 warnings.warn(
-                    "Floating point precision error warning:\n "
                     f"The higher limit of smallest increment with a probability of "
                     f"{probability_to_check:.2e} is {smallest_increment:.2e}."
                     "\n This was estimated using the highest possible rate "

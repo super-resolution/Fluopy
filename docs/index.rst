@@ -23,6 +23,7 @@ Welcome to fluopy's documentation!
    :name: mastertoc_use
 
    ./source/design
+   ./source/model_conventions
    ./source/logging
 
 

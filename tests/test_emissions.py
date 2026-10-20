@@ -178,7 +178,7 @@ def test_emissions_extract(dirname, request, frame_time, channel, expected):
     emis = em.Emissions(frame_time=frame_time, channels={"detector": channel}, seed=rng)
     with pytest.warns(
         si.FloatingPointPrecisionWarning,
-        match="Floating point precision error warning",
+        match="highest possible rate",
     ):
         simulation = request.getfixturevalue(dirname)
 

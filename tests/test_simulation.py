@@ -1025,7 +1025,7 @@ def test_simulation_run(
     simulation = si.Simulation(transition_set=tr_set_1f)
     with pytest.warns(
         si.FloatingPointPrecisionWarning,
-        match="Floating point precision error warning",
+        match="highest possible rate",
     ):
         simulation.run(
             start_at=(0,),
@@ -1076,7 +1076,7 @@ def test_simulation_run_with_memmap(tr_set_1f, tmp_path):
     simulation = si.Simulation(transition_set=tr_set_1f)
     with pytest.warns(
         si.FloatingPointPrecisionWarning,
-        match="Floating point precision error warning",
+        match="highest possible rate",
     ):
         simulation.run(size=size, seed=42, use_memmap=tmp_path)
 
@@ -1163,6 +1163,34 @@ def test_floating_point_precision_warning_is_emitted_once_per_call_site(tr_set_1
     assert len(precision_warnings) == 1
 
 
+@pytest.mark.parametrize("matrix_format", ["dense", "sparse"])
+def test_disabling_precision_warning_preserves_trajectory(tr_set_1f, matrix_format):
+    transition_set = tr_set_1f.with_matrix_format(matrix_format)
+    default_simulation = si.Simulation(transition_set)
+    quiet_simulation = si.Simulation(transition_set)
+
+    with pytest.warns(si.FloatingPointPrecisionWarning):
+        default_simulation.run(size=10, seed=42)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        quiet_simulation.run(size=10, seed=42, warn_precision=False)
+
+    assert not any(
+        issubclass(warning.category, si.FloatingPointPrecisionWarning)
+        for warning in caught
+    )
+    np.testing.assert_array_equal(
+        quiet_simulation.time_series, default_simulation.time_series
+    )
+    np.testing.assert_array_equal(
+        quiet_simulation.transition_series, default_simulation.transition_series
+    )
+    np.testing.assert_array_equal(
+        quiet_simulation.state_series, default_simulation.state_series
+    )
+
+
 def test_simulation_run_requires_transition_output(tr_set_1f, monkeypatch):
     monkeypatch.setattr(
         si,
@@ -1236,7 +1264,7 @@ def test_simulation_approximate(dirname, request, expected):
         else:
             with pytest.warns(
                 si.FloatingPointPrecisionWarning,
-                match="Floating point precision error warning",
+                match="highest possible rate",
             ):
                 simulation.approximate(prediction=pred, size=size, seed=rng)
 
