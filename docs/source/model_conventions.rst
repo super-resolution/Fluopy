@@ -74,58 +74,10 @@ occurrence without ending the current state residence interval.
      - S0, S0
      - None
 
-This small artificial model makes all four paired outcomes explicit. Its rates
-and mechanism name are illustrative. The final table summarizes events actually
-observed in a seeded trajectory; its counts fluctuate between realizations.
-
-.. code-block:: python
-
-   import numpy as np
-   import pandas as pd
-
-   from fluopy import fluo_data as fd
-   from fluopy import fluorophores as fl
-   from fluopy import simulation as si
-   from fluopy import transitions as tr
-
-   data = fd.FluorophoreData()
-   system = fl.FluorophoreSystem([
-       fl.Fluorophore("first", [0, 0], constants=data),
-       fl.Fluorophore("second", [5, 0], constants=data),
-   ])
-   self_event = tr.TransitionType("SELF", tr.SingleState.S0, tr.SingleState.S0, False)
-   both = tr.TransitionType("BOTH", tr.PairedState.S0_S0, tr.PairedState.S1_S1, False, "EVENT")
-   first = tr.TransitionType("FIRST", tr.PairedState.S0_S0, tr.PairedState.S1_S0, False, "EVENT")
-   second = tr.TransitionType("SECOND", tr.PairedState.S0_S0, tr.PairedState.S0_S1, False, "EVENT")
-   neither = tr.TransitionType("NONE", tr.PairedState.S0_S0, tr.PairedState.S0_S0, False, "EVENT")
-   model = tr.TransitionSet({
-       "first": [
-           tr.Transition(tr.TransitionType.EXCITATION, 3, [0]),
-           tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 4, [0]),
-           tr.Transition(self_event, 2, [0]),
-       ],
-       "second": [
-           tr.Transition(tr.TransitionType.EXCITATION, 3, [1]),
-           tr.Transition(tr.TransitionType.FLUORESCENT_EMISSION, 4, [1]),
-       ],
-       "D: first, A: second, dist: 5.0": [
-           tr.Transition(both, 1, [(0, 1)]),
-           tr.Transition(first, 1, [(0, 1)]),
-           tr.Transition(second, 1, [(0, 1)]),
-           tr.Transition(neither, 1, [(0, 1)]),
-       ],
-   }, system)
-   simulation = si.Simulation(model)
-   simulation.run(size=500, seed=51)
-   combined = model.combined_state_transitions_df
-   events = pd.DataFrame({
-       "event": combined.loc[simulation.transition_series, "abbreviation"].to_numpy(),
-       "changed_components": np.count_nonzero(np.diff(simulation.state_series, axis=1), axis=0),
-   })
-   events.groupby("event").agg(
-       occurrences=("changed_components", "size"),
-       changed_components=("changed_components", "max"),
-   )
+The optional event example in the
+:doc:`Extending Fluopy notebook <../tutorials/notebooks/Tutorial_extending_fluopy>`
+constructs these transitions and compares their events with the number of
+changed components in a seeded trajectory.
 
 Donor and acceptor are ordered roles
 -----------------------------------

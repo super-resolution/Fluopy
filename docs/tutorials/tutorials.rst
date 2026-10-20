@@ -39,7 +39,7 @@ paired-transition roles, and the limits of prediction and approximation.
 
 .. toctree::
    :maxdepth: 1
-   :caption: More
+   :caption: Build information
    :name: notebook_execution_table
 
-   Notebook execution table <notebook_execution_table>
+   Notebook execution status <notebook_execution_table>

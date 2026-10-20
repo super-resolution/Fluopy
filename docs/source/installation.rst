@@ -4,46 +4,50 @@
 Installation
 ===========================
 
-Dependencies
+Requirements
 ------------
 
-* python 3
-* standard scipy and other open source libraries
+Fluopy requires Python 3.12 or newer. Installation with pip also installs the
+required scientific Python libraries. The complete dependency list is maintained
+in pyproject.toml in the repository.
 
-A list with all hard and optional dependencies is given in `pyproject.toml`.
-
-Install from pypi
+Install from PyPI
 ------------------------------
 
 Install Fluopy directly from the Python Package Index::
 
-    pip install fluopy
+    python -m pip install fluopy
 
-Install from distribution or sources
--------------------------------------
+Install the development version
+------------------------------
 
-In order to get the latest changes install from the GitHub repository
-main branch::
+To install the latest changes from the GitHub main branch::
 
-    pip install git+https://github.com/super-resolution/Fluopy.git@main
+    python -m pip install git+https://github.com/super-resolution/Fluopy.git@main
 
-or download distribution or wheel archive and install with pip::
+Jupyter notebooks
+-----------------
 
-    pip install <distribution_file>
+To run the :doc:`tutorial notebooks <../tutorials/tutorials>` interactively,
+install JupyterLab in the same environment as Fluopy::
 
-Run tests
------------------------
+    python -m pip install jupyterlab
+    jupyter lab
 
-Use pytest to run tests from the source or tests directory::
+Working from a source checkout
+------------------------------
 
-    pip install --group test
-    pytest
+For development, clone the repository and use uv to install Fluopy together with
+the test and notebook dependency groups::
 
+    git clone https://github.com/super-resolution/Fluopy.git
+    cd Fluopy
+    uv sync --group test --group jupyter
 
-Jupyter
------------------------
+Run tests or open the notebooks from the repository root::
 
-To work with jupyter notebooks install dependencies from the dependency-group
-jupyter::
+    uv run --no-sync python -m pytest
+    uv run --no-sync jupyter lab
 
-    pip install --group jupyter
+The dependency groups are defined in the repository's pyproject.toml; they are
+not extras supplied by an installed Fluopy package.
