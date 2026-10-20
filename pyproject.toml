@@ -33,8 +33,10 @@ maintainers = [
   {name = "Sören Doose"}
 ]
 keywords = [
-    "fluorescence", "super-resolution", "single-molecule localization microscopy",
-    "cyanine", "Cy5", "photophysics", "Continuous-time Markov chain simulation"
+    "fluorescence", "photophysics", "single-molecule fluorescence",
+    "stochastic simulation", "continuous-time Markov chain simulation", "Gillespie",
+    "FRET", "TCSPC", "fluorescence lifetime", "photon detection", "blinking",
+    "super-resolution", "single-molecule localization microscopy", "cyanine", "Cy5"
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
