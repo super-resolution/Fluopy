@@ -14,7 +14,7 @@
 [![Documentation Status](https://readthedocs.org/projects/Fluopy/badge/?version=latest)](https://fluopy.readthedocs.io/en/latest/?badge=latest)
 
 
-Fluopy is a framework for constructing and simulating photophysical state transitions of fluorophores, including excitation, radiative and nonradiative decay, and photobleaching. It supports systems of multiple interacting fluorophores with coupled transitions, such as energy transfers.
+Fluopy is a Python framework for constructing and simulating fluorophore photophysics using continuous-time Markov models. It supports custom states and transitions, interacting fluorophores and Förster resonance energy transfer (FRET), photon detection, and pulsed-excitation experiments such as time-correlated single-photon counting (TCSPC).
 
 For details on usage and development please read the [documentation](https://fluopy.readthedocs.io/)
 

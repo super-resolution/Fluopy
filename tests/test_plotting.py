@@ -26,7 +26,7 @@ def test_plot_data():
     assert ax.figure is not None
     assert ax.figure.dpi == plt.rcParamsDefault["figure.dpi"]
     assert ax.figure.get_facecolor() == (1.0, 1.0, 1.0, 1.0)
-    assert all(spine.get_linewidth() == 2 for spine in ax.spines.values())
+    assert all(spine.get_linewidth() == 0.8 for spine in ax.spines.values())
 
 
 def test_plot_data_modifies_supplied_axis():
@@ -267,7 +267,11 @@ def test_plot_data_scientific_tick_labels():
     assert "10" in ax.get_ylabel()
 
 
-def test_plot_data_uses_custom_legend_handles():
+@pytest.mark.parametrize(
+    "draw_marker, expected_labels",
+    [(None, ["custom"]), (([0.5], [1.5]), ["custom", "Prediction"])],
+)
+def test_plot_data_uses_custom_legend_handles(draw_marker, expected_labels):
     handle = Patch(color="red", label="custom")
 
     ax = plot_data(
@@ -275,9 +279,36 @@ def test_plot_data_uses_custom_legend_handles():
         legend=True,
         legendhandles=[handle],
         legendargs={"loc": "upper left"},
+        draw_marker=draw_marker,
     )
 
-    assert ax.get_legend().get_texts()[0].get_text() == "custom"
+    assert [text.get_text() for text in ax.get_legend().get_texts()] == expected_labels
+
+
+@pytest.mark.parametrize(
+    "marker_options, expected_labels",
+    [
+        ({"marker": "+", "color": "green"}, ["custom", "Prediction"]),
+        ({"marker": "s", "label": "Reference"}, ["custom", "Reference"]),
+        ({"label": "_nolegend_"}, ["custom"]),
+    ],
+)
+def test_plot_data_custom_marker_labels(marker_options, expected_labels):
+    original_options = marker_options.copy()
+    handle = Patch(color="red", label="custom")
+    handles = [handle]
+
+    ax = plot_data(
+        data=([0, 1], [1, 2]),
+        legend=True,
+        legendhandles=handles,
+        draw_marker=([0.5], [1.5]),
+        draw_marker_param=marker_options,
+    )
+
+    assert [text.get_text() for text in ax.get_legend().get_texts()] == expected_labels
+    assert marker_options == original_options
+    assert handles == [handle]
 
 
 def test_plot_data_rejects_unknown_plot_type():

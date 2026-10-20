@@ -921,7 +921,7 @@ class Analysis:
             The modified axis.
         """
         kwargs.setdefault("type_", "hist")
-        kwargs.setdefault("ylabel", "PD")
+        kwargs.setdefault("ylabel", "Prob. density")
         kwargs.setdefault(
             "title",
             rf"""$\tau$ of {fluorophore}
@@ -960,8 +960,8 @@ class Analysis:
                     "predicted transition-time distributions are unavailable."
                 )
             plot_distribution = predicted_distributions[transition_id]
-            plot_distribution_label = "pred"
-            kwargs.setdefault("label", "sim")
+            plot_distribution_label = "Prediction"
+            kwargs.setdefault("label", "Simulation")
             kwargs.setdefault("legend", True)
         ax = plotting.plot_data(
             data=data,

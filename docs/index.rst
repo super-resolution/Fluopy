@@ -22,7 +22,7 @@ Welcome to fluopy's documentation!
    :caption: User Guide
    :name: mastertoc_use
 
-   ./source/design
+   ./source/model_conventions
    ./source/logging
 
 
@@ -49,4 +49,3 @@ Indices and tables
 
 * :ref:`genindex`
 * :ref:`modindex`
-* :ref:`glossary`

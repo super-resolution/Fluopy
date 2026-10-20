@@ -58,7 +58,7 @@ def test_analysis_1(tr_set_1f_bl, tr_set_1f_bl_2, caplog):
 
     with pytest.warns(
         si.FloatingPointPrecisionWarning,
-        match="Floating point precision error warning",
+        match="highest possible rate",
     ):
         sim_tr_set_1f_bl = si.Simulation(transition_set=tr_set_1f_bl)
         sim_tr_set_1f_bl.run(size=1000, seed=np.random.default_rng(1))
@@ -606,7 +606,7 @@ def test_analysis_transition_plots_use_transition_set_schema(
 def test_analysis_2(tr_set_et_2f_diff):
     with pytest.warns(
         si.FloatingPointPrecisionWarning,
-        match="Floating point precision error",
+        match="highest possible rate",
     ):
         sim_tr_set_et_2f_diff = si.Simulation(transition_set=tr_set_et_2f_diff)
         sim_tr_set_et_2f_diff.run(
@@ -692,7 +692,7 @@ def test_analysis_2(tr_set_et_2f_diff):
 def test_analysis_3(tr_set_2f_diff):
     with pytest.warns(
         si.FloatingPointPrecisionWarning,
-        match="Floating point precision error",
+        match="highest possible rate",
     ):
         sim_tr_set_2f_diff = si.Simulation(transition_set=tr_set_2f_diff)
         sim_tr_set_2f_diff.run(size=1000, seed=np.random.default_rng(1))
@@ -771,7 +771,7 @@ def test_analysis_3(tr_set_2f_diff):
 def test_get_fluorescence_lifetimes(tr_set_1f_bl, tr_set_2f_diff):
     with pytest.warns(
         si.FloatingPointPrecisionWarning,
-        match="Floating point precision error",
+        match="highest possible rate",
     ):
         sim_tr_set_1f_bl = si.Simulation(transition_set=tr_set_1f_bl)
         sim_tr_set_1f_bl.run(size=1000, seed=np.random.default_rng(1))

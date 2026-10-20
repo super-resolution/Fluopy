@@ -112,6 +112,7 @@ napoleon_attr_annotations = True
 # myST-NB settings
 nb_execution_mode = "force"  # 'off' 'cache' 'force'
 nb_execution_timeout = 180
+nb_execution_raise_on_error = True
 
 # copybutton settings
 copybutton_prompt_text = ">>> "

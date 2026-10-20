@@ -142,4 +142,5 @@ dmypy.json
 src/fluopy/_version.py
 
 # notebooks
-notebooks_dev/
+notebooks_dev/*
+!notebooks_dev/plot_gallery.ipynb

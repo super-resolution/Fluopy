@@ -91,7 +91,7 @@ def create_row_subtitles(
     grid = GridSpec(nrows=nrows, ncols=ncols)
     for i in range(nrows):
         row = fig.add_subplot(grid[i, ::])
-        row.set_title(titles[i], fontsize=22, pad=20, fontweight="bold")
+        row.set_title(titles[i], fontsize=12, pad=12)
         row.set_frame_on(False)
         row.axis("off")
 
@@ -466,7 +466,7 @@ def plot_data(
     fig_width: float = 6,
     fig_height: float = 3,
     scale: float = 1,
-    rc_linewidth: float = 2,
+    rc_linewidth: float = 0.8,
     type_: str = "line",
     data: npt.ArrayLike | Sequence[Any] = (0, 0),
     label: str | Sequence[str] | None = None,
@@ -494,7 +494,7 @@ def plot_data(
     tick_style_y: Literal["", "sci", "scientific", "plain"] | None = None,
     second_axis_x: bool = False,
     second_axis_y: bool = False,
-    fontsize: float = 21,
+    fontsize: float = 12,
     legend: bool = False,
     legendhandles: Sequence[Any] | None = None,
     legendcolor: str = "black",
@@ -605,7 +605,7 @@ def plot_data(
         The data positions, consists of x and y.
     draw_marker_param
         Parameters to pass to .scatter. Default is {"marker": "x", "c": "k",
-        "label": "prediction", "s": 100}.
+        "label": "prediction", "s": 36}.
     plot_distribution
         Additional distribution to be plotted. For multiple_hist, a list of
         distributions.
@@ -626,6 +626,7 @@ def plot_data(
             figsize=(fig_width, fig_height),
             dpi=rcParamsDefault["figure.dpi"] * scale,
             facecolor="white",
+            layout="constrained",
         )
         for spine in ax.spines.values():
             spine.set_linewidth(rc_linewidth)
@@ -871,10 +872,10 @@ def plot_data(
         ax.yaxis.set_major_locator(ticker.MultipleLocator(tick_spacing_y))
 
     # general tick formatting
-    ax.tick_params(labelsize=fontsize, width=2, length=6)
+    ax.tick_params(labelsize=fontsize, width=0.8, length=4)
+    ax.tick_params(which="minor", width=0.6, length=2.5, labelleft=False, left=True)
     if tick_params is not None:
         ax.tick_params(**tick_params)
-    ax.tick_params(which="minor", width=2, length=4, labelleft=False, left=True)
     if tick_style_x is not None:
         ax.ticklabel_format(style=tick_style_x, axis="x", scilimits=(0, 0))
         ax.xaxis.get_offset_text().set_visible(False)
@@ -902,9 +903,16 @@ def plot_data(
         ticks = ax.get_xticks()
         sec_ax = ax.secondary_xaxis("top")
         sec_ax.xaxis.set_major_locator(ticker.FixedLocator(ticks.tolist()))
-        sec_ax.tick_params(axis="x", width=2, direction="in", labeltop=False, length=6)
         sec_ax.tick_params(
-            which="minor", axis="x", direction="in", width=2, length=4, labeltop=False
+            axis="x", width=0.8, direction="in", labeltop=False, length=4
+        )
+        sec_ax.tick_params(
+            which="minor",
+            axis="x",
+            direction="in",
+            width=0.6,
+            length=2.5,
+            labeltop=False,
         )
 
     # second y-axis
@@ -913,26 +921,39 @@ def plot_data(
         sec_ax = ax.secondary_yaxis("right")
         sec_ax.yaxis.set_major_locator(ticker.FixedLocator(ticks.tolist()))
         sec_ax.tick_params(
-            axis="y", width=2, direction="in", labelright=False, length=6
+            axis="y", width=0.8, direction="in", labelright=False, length=4
         )
         sec_ax.tick_params(
-            which="minor", axis="y", direction="in", width=2, length=4, labelright=False
+            which="minor",
+            axis="y",
+            direction="in",
+            width=0.6,
+            length=2.5,
+            labelright=False,
         )
 
+    marker_artist = None
     if draw_marker is not None:
         if draw_marker_param is None:
             draw_marker_param = {
                 "marker": "x",
                 "c": "k",
                 "label": "Prediction",
-                "s": 100,
+                "s": 36,
             }
-        ax.scatter(*draw_marker, **draw_marker_param)
+        else:
+            draw_marker_param = {"label": "Prediction", **draw_marker_param}
+        marker_artist = ax.scatter(*draw_marker, **draw_marker_param)
 
     if legend:
         if legendargs is None:
             legendargs = {}
         if legendhandles is not None:
+            marker_label = (
+                marker_artist.get_label() if marker_artist is not None else None
+            )
+            if marker_label and not str(marker_label).startswith("_"):
+                legendhandles = [*legendhandles, marker_artist]
             ax.legend(labelcolor=legendcolor, handles=legendhandles, **legendargs)
         else:
             ax.legend(labelcolor=legendcolor, **legendargs)

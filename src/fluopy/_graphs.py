@@ -244,7 +244,7 @@ def plot_graph(
             colormap.append(colors[0])
             labels[node] = node
     nx.draw_networkx_nodes(G=G, pos=pos, ax=ax, node_color=colormap)
-    nx.draw_networkx_labels(G=G, pos=pos, ax=ax, labels=labels)
+    nx.draw_networkx_labels(G=G, pos=pos, ax=ax, labels=labels, clip_on=False)
 
     edge_weights = nx.get_edge_attributes(G, name="w")
     straight_edges: list[Any] = []
@@ -301,6 +301,7 @@ def plot_graph(
     draw_networkx_curved_edge_labels(
         G=G, pos=pos, ax=ax, edge_labels=straight_edge_labels, rad=0
     )
+    ax.margins(0.2)
 
     return ax
 

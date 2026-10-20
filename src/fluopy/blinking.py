@@ -350,7 +350,6 @@ def plot_off_statistics(
         The modified axis.
     """
     kwargs.setdefault("type_", "line")
-    kwargs.setdefault("fontsize", 16)
     kwargs.setdefault("xlabel", "Time (s)")
     kwargs.setdefault("yticklabels", {"labels": ["OFF", "ON"]})
     kwargs.setdefault("yticks", [0, 1])
@@ -419,7 +418,7 @@ def plot_histogram(
     ax = plotting.plot_data(data=data_array, **kwargs)
 
     mean_color = kwargs.get("ylabelcolor", "black")
-    fontsize = kwargs.get("fontsize", 16)
+    fontsize = ax.xaxis.label.get_fontsize()
     if display_mean:
         mean = np.mean(data_array)
         ax.text(
@@ -464,7 +463,8 @@ def plot_boxplot(
     """
     data_array = np.asarray(data, dtype=np.float64)
     kwargs.setdefault("type_", "boxplot")
-    kwargs.setdefault("fontsize", 16)
+    kwargs.setdefault("xlabel", "")
+    kwargs.setdefault("label", mode)
     if as_time is not None:
         if sec_per_frame is None:
             raise ValueError("sec_per_frame is required when as_time is specified.")
