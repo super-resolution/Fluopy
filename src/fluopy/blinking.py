@@ -463,6 +463,8 @@ def plot_boxplot(
     """
     data_array = np.asarray(data, dtype=np.float64)
     kwargs.setdefault("type_", "boxplot")
+    kwargs.setdefault("xlabel", "")
+    kwargs.setdefault("label", mode)
     if as_time is not None:
         if sec_per_frame is None:
             raise ValueError("sec_per_frame is required when as_time is specified.")

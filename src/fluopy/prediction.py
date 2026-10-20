@@ -1002,7 +1002,7 @@ class Prediction:
             raise ValueError("lifetime distributions are unavailable.")
 
         kwargs.setdefault("type_", "line")
-        kwargs.setdefault("ylabel", "PD")
+        kwargs.setdefault("ylabel", "Prob. density")
         kwargs.setdefault(
             "title",
             rf"$\tau$ of {fluorophore} {self.transition_set.states_by_value[state_identity].name}",
@@ -1059,7 +1059,7 @@ class Prediction:
         if transition_distributions is None or mean_transition_times is None:
             raise ValueError("transition-time distributions are unavailable.")
         kwargs.setdefault("type_", "line")
-        kwargs.setdefault("ylabel", "PD")
+        kwargs.setdefault("ylabel", "Prob. density")
         kwargs.setdefault(
             "title",
             rf"""$\tau$ of {fluorophore}

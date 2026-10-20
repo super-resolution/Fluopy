@@ -267,7 +267,11 @@ def test_plot_data_scientific_tick_labels():
     assert "10" in ax.get_ylabel()
 
 
-def test_plot_data_uses_custom_legend_handles():
+@pytest.mark.parametrize(
+    "draw_marker, expected_labels",
+    [(None, ["custom"]), (([0.5], [1.5]), ["custom", "Prediction"])],
+)
+def test_plot_data_uses_custom_legend_handles(draw_marker, expected_labels):
     handle = Patch(color="red", label="custom")
 
     ax = plot_data(
@@ -275,9 +279,10 @@ def test_plot_data_uses_custom_legend_handles():
         legend=True,
         legendhandles=[handle],
         legendargs={"loc": "upper left"},
+        draw_marker=draw_marker,
     )
 
-    assert ax.get_legend().get_texts()[0].get_text() == "custom"
+    assert [text.get_text() for text in ax.get_legend().get_texts()] == expected_labels
 
 
 def test_plot_data_rejects_unknown_plot_type():

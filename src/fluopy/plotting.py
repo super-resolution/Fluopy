@@ -932,6 +932,7 @@ def plot_data(
             labelright=False,
         )
 
+    marker_artist = None
     if draw_marker is not None:
         if draw_marker_param is None:
             draw_marker_param = {
@@ -940,12 +941,19 @@ def plot_data(
                 "label": "Prediction",
                 "s": 36,
             }
-        ax.scatter(*draw_marker, **draw_marker_param)
+        else:
+            draw_marker_param = {"label": "Prediction", **draw_marker_param}
+        marker_artist = ax.scatter(*draw_marker, **draw_marker_param)
 
     if legend:
         if legendargs is None:
             legendargs = {}
         if legendhandles is not None:
+            marker_label = (
+                marker_artist.get_label() if marker_artist is not None else None
+            )
+            if marker_label and not marker_label.startswith("_"):
+                legendhandles = [*legendhandles, marker_artist]
             ax.legend(labelcolor=legendcolor, handles=legendhandles, **legendargs)
         else:
             ax.legend(labelcolor=legendcolor, **legendargs)
